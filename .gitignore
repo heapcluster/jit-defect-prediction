@@ -1,0 +1,45 @@
+# ===== 密钥与本地配置（严禁入库）=====
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ===== 数据集、模型等大文件（严禁入库）=====
+data/
+datasets/
+models/
+artifacts/
+*.onnx
+*.pkl
+*.joblib
+*.h5
+*.pt
+*.pth
+*.ckpt
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# ===== 前端 =====
+node_modules/
+dist/
+.vite/
+
+# ===== IDE 与系统 =====
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# ===== 日志与临时目录 =====
+*.log
+logs/
+_tmp/
