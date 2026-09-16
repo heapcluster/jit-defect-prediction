@@ -33,13 +33,15 @@ pip install -r data_model/requirements.txt
 
 完整规则见 `docs/data-pipeline.md` —— **版本固定方式与复现命令都在那里，动手前先读**。
 
-| 步 | 做什么 | 输出 |
-|---|---|---|
-| ① | 克隆 + checkout 到固定版本 | `data/activemq/` |
-| ② | 读提交记录（GitPython），过滤合并提交 | 提交清单 |
-| ③ | SZZ 打标 | 标签表（含 `label_method`） |
-| ④ | 算 Kamei 14 项特征 | 特征表 |
-| ⑤ | 汇总成可训练样本集 + 打印统计 | `reports/` 下的统计表 |
+| 步 | 做什么 | 脚本 | 输出 |
+|---|---|---|---|
+| ① | 克隆 + checkout 到固定版本 | 手工执行（命令见 `docs/data-pipeline.md` 第 2 节） | `data/activemq/` |
+| ② | 读提交记录（GitPython），过滤合并提交 | `01_extract_commits.py` | `data/commits.csv` |
+| ③ | SZZ 打标 | `02_szz_labeling.py` | `data/commit_labels_{szz,szz_lite}.csv` |
+| ④ | 算 Kamei 14 项特征 | `03_extract_features.py` | `data/commit_features.csv` + `reports/feature_stats.md` |
+| ⑤ | 汇总成可训练样本集 + 打印统计 | `04_build_dataset.py` | `data/dataset_{szz,szz_lite}.csv` + `reports/dataset_stats.md` |
+
+复现命令（含「先跑窗口子集验证链路」的短路径）见 `docs/data-pipeline.md` 第 5 节。
 
 ②③④ 的字段口径以契约为准，不要自己发明列名：`docs/contracts/data-fields.md`、`docs/contracts/feature-columns.md`。
 
