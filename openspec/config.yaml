@@ -16,7 +16,7 @@ context: |
   - 后端：Python 3.12 + FastAPI + SQLAlchemy + MySQL 8
   - 前端：Vue 3 + Element Plus + ECharts
   - 模型：scikit-learn、XGBoost（2–3 个经典模型，本期不做深度学习）
-  - 数据：GitPython 读提交记录；PySZZ 打标，另写自研简化版做对照校验
+  - 数据：GitPython 读提交记录；SZZ 打标（标准行级 + 文件级简化版，两套自研实现做对照校验）
   - 架构：三层（前端 → 后端/API → 数据与模型层）
 
   # 目录归属（只改自己那条线）
