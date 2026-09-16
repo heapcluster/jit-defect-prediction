@@ -3,30 +3,81 @@ schema: spec-driven
 # Project context (optional)
 # This is shown to AI when creating artifacts.
 # Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  # 项目：JIT（即时）缺陷预测系统
+  在**一次代码提交（commit）**的粒度上预测该提交是否引入缺陷，输出风险概率并排序，
+  供代码评审员优先审阅高风险提交。数据源为 Apache ActiveMQ 单仓库（固定在某一版本）。
+  系统只做**建议性预警**，不做 CI 强制拦截。
+
+  链路：ActiveMQ 仓库 → 抽取提交 → SZZ 打标 → Kamei 14 项特征
+        → 按提交时间序切分训练 → 模型文件 → 预测接口 → 前端三个页面
+
+  # 技术栈
+  - 后端：Python 3.12 + FastAPI + SQLAlchemy + MySQL 8
+  - 前端：Vue 3 + Element Plus + ECharts
+  - 模型：scikit-learn、XGBoost（2–3 个经典模型，本期不做深度学习）
+  - 数据：GitPython 读提交记录；PySZZ 打标，另写自研简化版做对照校验
+  - 架构：三层（前端 → 后端/API → 数据与模型层）
+
+  # 目录归属（只改自己那条线）
+  - data_model/  数据与模型（蒋励）    backend/  后端与接口（吕建江）
+  - frontend/    前端与可视化（刘帅华） infra/    工程化与协作（苏哲勋）
+  - docs/        文档与契约（全员公共，蒋励统稿）
+  - openspec/    规格与变更提案（全员公共）
+
+  # 必须遵守的约定
+  - **任务分配以飞书《工作周报》为准，需求与设计正文在飞书**（《产品需求文档》《产品设计文档》）；
+    本仓库只回答「代码怎么写、怎么跑、字段叫什么」。仓库内不存在任务清单，
+    不要从仓库文档推断任务范围或自行排期 —— 需要任务信息时直接向组长索取飞书内容。
+  - 训练集与检验集**必须按提交时间先后切分**（前 70% 训练、后 30% 检验），禁止随机切分。
+    EXP、NUC 等特征与时间相关，随机切分等于让模型提前看到未来。
+  - 改代码必须同步改规格；规格与代码不一致视为缺陷。
+  - 字段名、特征列名、接口路径一律以 docs/contracts/ 为准，不得自行发明或改名。
+  - 数据库与特征列名用 snake_case；布尔字段以 is_ 开头；时间字段以 _at 结尾且统一 UTC。
+  - 接口响应包络统一 `{ "code": 0, "message": "ok", "data": {...} }`，前缀一律 /api。
+  - 错误码只用契约里那 5 个（0 / 40001 / 40100 / 40400 / 50000），不得自造；
+    50000 的 message 不得回显堆栈、SQL 语句、文件路径。
+  - 提交信息格式 `<类型>(<范围>): <中文简述>`，类型取 feat/fix/docs/refactor/test/chore，
+    范围取 model/backend/frontend/infra/docs/spec。简述用中文。
+  - 分支命名 `<类型>/<线>/<简述>`，禁止直接推送 main。
+  - 不得提交数据集、模型文件、.env 或任何密钥。
+  - 规范文档与代码用**中文**书写（英文术语在括号内保留原文）。
+
+  # 验收标准写法
+  需求用 SHALL / MUST 描述；每个需求至少一个 Scenario，用 WHEN / THEN 写，
+  并且必须包含至少一个**异常或边界场景**（课程明确要求）。
+
+  # 规格里引用的文档
+  - docs/contracts/             三条契约（数据表字段 / 特征列名 / 接口格式）
+  - docs/sprint0-scope.md       本次范围与系统边界、做与不做
+  - docs/dev-handbook.md        代码项目开工手册：按代码活动组织（仓库基线 / OpenSpec / 契约冻结 /
+                                数据链路 / 库表与接口 / 前端联调 / 非功能证据）
+  - docs/pages.md               三个页面 ↔ 接口 ↔ 字段映射、三态与错误码、风险阈值定义
+  - docs/collaboration.md       协作规范与项目开发规范
+  - docs/data-pipeline.md       数据源、版本固定规则与复现命令
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+rules:
+  proposal:
+    - 写清「为什么做」与「不做什么」，不做什么要显式列出
+    - 涉及范围变更时，必须同时说明是否触及 docs/sprint0-scope.md 的边界
+  tasks:
+    - 每个任务必须是可验收的交付单元（能跑通、有证据）
+    - 涉及跨线的任务要标明交付给哪条线、以什么形式交付
+  design:
+    - 只记录技术决策与取舍（为什么这么选），不重复 proposal 的内容
+    - 涉及 AI 生成的图，标注 LLM 工具名称与提示词
 
 # Per-operation guidance (optional)
 # Add advisory guidance for how apply and archive work should be conducted.
 # This is separate from artifact rules above.
-# Example:
-#   operations:
-#     apply:
-#       guidance:
-#         - Keep test summaries concise
-#     archive:
-#       guidance:
-#         - Summarize the archive outcome before finishing
+operations:
+  apply:
+    guidance:
+      - 实现前先确认对应的契约（docs/contracts/）已同步，字段名不得即兴改名
+      - 交付时附验证证据：跑了什么命令、看到什么输出
+  archive:
+    guidance:
+      - 归档前确认规格与代码一致，测试或验收证据已齐
+      - 归档即更新「活规范」，并回看板更新任务状态
