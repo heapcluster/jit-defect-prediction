@@ -484,7 +484,7 @@ def write_report(
         if ABNORMAL_LOW <= r["ratio"] <= ABNORMAL_HIGH:
             L.append(f"- ❌ **`{r['method']}` 正样本比例 {r['ratio']:.2%} 落在 {ABNORMAL_LOW:.0%}–{ABNORMAL_HIGH:.0%} 异常区间**，先复核打标逻辑，不要进入下游")
         else:
-            L.append(f"- ✅ `{r['method']}` 正样本比例 {r['ratio']:.2%} 不在异常区间（经验值：个位数到十几百分点）")
+            L.append(f"- ✅ `{r['method']}` 正样本比例 {r['ratio']:.2%} 不在异常区间（判据见 docs/data-pipeline.md 第 6 节：落在 {ABNORMAL_LOW:.0%}–{ABNORMAL_HIGH:.0%} 才需自查）")
 
     if len(results) == 2:
         a, b = results

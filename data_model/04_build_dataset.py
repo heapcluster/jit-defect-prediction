@@ -292,7 +292,7 @@ def write_report(path: Path, ctx: dict, results: list[dict], labels: list[Path])
         if ABNORMAL_LOW <= r["ratio"] <= ABNORMAL_HIGH:
             L.append(f"- ❌ `{r['method']}`：**{r['ratio']:.2%} 落在异常区间**，不要进下游，先复核判据")
         else:
-            L.append(f"- ✅ `{r['method']}`：{r['ratio']:.2%} 不在异常区间（JIT 经验区间为个位数到十几百分点）")
+            L.append(f"- ✅ `{r['method']}`：{r['ratio']:.2%} 不在异常区间（判据见 docs/data-pipeline.md 第 6 节：落在 40%–60% 才需自查）")
 
     L.append("\n## 对齐与断言\n")
     L.append("| 检查项 | 结果 |\n|---|---|")
