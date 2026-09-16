@@ -147,7 +147,7 @@ def write_review_sample(path: Path, commits: dict[str, dict], n: int, is_fix_com
 
     L: list[str] = []
     L.append("# 修缺陷提交识别抽样复核（tasks.md 3.7）\n")
-    L.append("> 判据 D4 = 含缺陷编号 `AMQ-<数字>` **且** 含修复语义 `fix`/`bug`/`patch`，见 `docs/data-pipeline.md` 第 7 节\n")
+    L.append("> 判据 D4 = 含缺陷编号 `AMQ-<数字>` **且** 含修复语义 `fix`/`bug`/`patch`（词首边界 `\\b`，故 `dispatch`/`debug`/`prefix` 不算），见 `docs/data-pipeline.md` 第 7 节\n")
     L.append(f"> 抽样方式：按 `committed_at` 排序后**固定步长**各取 {n} 条。用步长而非随机数，是为了同一份输入每次产出同一份名单，便于他人复算。\n")
     L.append("| 输入 | 值 |\n|---|---|")
     L.append(f"| 提交清单 | {len(commits)} 条 |")

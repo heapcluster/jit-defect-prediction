@@ -9,9 +9,18 @@
 ── 判据（D4）────────────────────────────────────────────────────────────
 一条提交被判为「修缺陷提交」需要同时命中两类：
   ① 含缺陷编号 `AMQ-<数字>`
-  ② 含修复语义词 fix / bug / patch（子串匹配）
+  ② 含修复语义词 fix / bug / patch，且该词出现在**词首边界**（`\b`）
 只用编号会把 54.7% 的提交拉进候选池（含新功能与文档），故必须加 ②。
-命中外沿数字登记在 docs/data-pipeline.md 第 7 节「打标判据（预跑探测）」。
+
+② 为什么卡词首边界、而不是子串：ActiveMQ 的词汇里 `dispatch` / `debug` / `prefix`
+天然含 `patch` / `bug` / `fix` 子串，而「消息分发」正是本仓库的核心功能词。实测在固定
+版本上，子串匹配会多收 122 条这样的提交（dispatch 词族 83 条、debug 17 条、prefix 9 条，
+其余为同类），**没有一条是真修复**；反过来收窄成「严格词表」又会漏掉 `fixe` /
+`fixinng` / `patchh` 这类拼写错误的**真**修复。故取两者中间的词首边界：保留词形变化
+（fixes / fixed / patching / bugfix），排除同词内嵌（dispatch / debug / prefix）。
+这条界定的理由在规格上必须落到文字，故与 docs/data-pipeline.md 第 7 节同步维护。
+
+命中外沿数字登记在 docs/data-pipeline.md 第 7 节「打标判据（2026-09-16 实测）」。
 
 ── 两套方法（D3）────────────────────────────────────────────────────────
 同一固定版本各打一次标，靠 label_method 区分，互不覆盖：
@@ -65,13 +74,17 @@ LABEL_FIELDS = ["commit_hash", "is_bug_inducing", "label_method", "bug_fix_hash"
 
 # ── 判据（D4）──────────────────────────────────────────────────────────────
 BUG_ID_RE = re.compile(r"AMQ-\d+", re.IGNORECASE)
-FIX_TOKENS = ("fix", "bug", "patch")
+# 修复语义词：**卡词首边界**。子串匹配会误收 dispatch/debug/prefix（实测 122 条，全为假阳性），
+# 严格词表又会漏掉 fixe/fixinng/patchh 这类拼写错误的真修复 —— 词首边界是二者的中点。
+FIX_WORD_RE = re.compile(r"\b(fix|bug|patch)", re.IGNORECASE)
 
 # docs/data-pipeline.md 第 7 节登记的外沿数字，用于自检判据实现是否与文档一致。
 # 这三个数是在**完整固定版本**（11,050 条非合并提交）上算出来的，故只在全量运行时可比。
-EXPECTED_OUTER = {"has_id": 6041, "id_and_fix_word": 2538, "id_and_fix_form": 1865}
+# 2026-09-16 由旧登记值 6041 / 2538 / 1865 改为实测可复现值：旧值无法从提交清单复现
+# （1865 用任何自然正则都算不出），且 2538 那一项用的是子串口径、含 122 条假阳性。
+EXPECTED_OUTER = {"has_id": 6042, "id_and_fix_word": 2417, "id_and_fix_form": 1939}
 FULL_COMMIT_COUNT = 11050  # docs/data-pipeline.md 第 2 节登记的完整版本非合并提交数
-FIX_FORM_RE = re.compile(r"\bfix", re.IGNORECASE)
+FIX_FORM_RE = re.compile(r"\bfix", re.IGNORECASE)  # 与 FIX_WORD_RE 同一套词首语义
 
 # ── diff / blame 解析 ─────────────────────────────────────────────────────
 HUNK_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@")
@@ -150,11 +163,10 @@ def load_commits(path: Path) -> list[dict[str, str]]:
 
 
 def is_fix_commit(message: str) -> bool:
-    """D4 判据：缺陷编号 且 修复语义，两者同时命中。"""
+    """D4 判据：缺陷编号 且 修复语义（词首边界），两者同时命中。"""
     if not BUG_ID_RE.search(message):
         return False
-    low = message.lower()
-    return any(tok in low for tok in FIX_TOKENS)
+    return bool(FIX_WORD_RE.search(message))
 
 
 # ══ diff 解析 ═════════════════════════════════════════════════════════════
@@ -422,7 +434,10 @@ def write_report(
         L.append(f"| 运行标记 | `{tag}` |")
     if limit:
         L.append(f"| **本次仅处理前 N 条修复提交（烟雾测试）** | **{limit}** |")
-    L.append("\n判据 D4 = 含缺陷编号 `AMQ-<数字>` **且** 含修复语义 `fix`/`bug`/`patch`。\n")
+    L.append(
+        "\n判据 D4 = 含缺陷编号 `AMQ-<数字>` **且** 含修复语义 `fix`/`bug`/`patch`"
+        "（词首边界 `\\b`，故 `dispatch`/`debug`/`prefix` 不算命中）。\n"
+    )
     L.append("### 判据自检（与 docs/data-pipeline.md 第 7 节登记的外沿对照）\n")
     if not comparable:
         L.append(
@@ -433,8 +448,8 @@ def write_report(
     L.append("| 判据 | 本脚本复算 | 文档登记 | 一致 |\n|---|---|---|---|")
     for key, name in (
         ("has_id", "只要求含 `AMQ-<数字>` 编号"),
-        ("id_and_fix_word", "编号 **且** 含 `fix`/`bug`/`patch`"),
-        ("id_and_fix_form", "编号 **且** 含 `fix` 词形"),
+        ("id_and_fix_word", "编号 **且** 含 `fix`/`bug`/`patch`（词首边界）"),
+        ("id_and_fix_form", "编号 **且** 含 `fix` 词形（词首边界）"),
     ):
         if comparable:
             mark = "✅" if got[key] == EXPECTED_OUTER[key] else "❌"
