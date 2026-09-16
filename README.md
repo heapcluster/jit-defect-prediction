@@ -58,7 +58,7 @@ ActiveMQ 仓库 → 抽提交信息 → SZZ 打标 → Kamei 14 项特征
 | 前端 | Vue 3 + Element Plus + ECharts |
 | 数据库 | MySQL 8 + SQLAlchemy |
 | 模型 | scikit-learn、XGBoost |
-| 数据抽取 | GitPython 读提交记录；PySZZ 打标，另写简化版做对照校验 |
+| 数据抽取 | GitPython 读提交记录；自研标准行级 SZZ 打标，另写文件级简化版做对照校验 |
 | 架构 | 三层：前端 → 后端 / API → 数据与模型层 |
 | 运行方式 | 本地或单台服务器，不打包容器 |
 

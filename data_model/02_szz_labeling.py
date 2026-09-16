@@ -36,11 +36,11 @@
 
 两套的差异必须量化并出示（规格 szz-labeling 「两套方法结果不一致」），不静默取其一。
 
-> 关于方法名：契约表二把 `szz` 标注为「PySZZ」。经实测 **PySZZ 不在 PyPI**
-> （https://pypi.org/pypi/pyszz/json 返回 404），其官方仓库依赖 gitlog 数据格式，
-> 属研究专用工具，Sprint 0 内跑通不现实。故按 docs/data-pipeline.md 第 7 节的兜底策略
-> 切换自研实现：`szz` 由本脚本实现标准行级 SZZ 算法，`label_method` 取值仍只在契约
-> 定义的集合内。此偏离已在统计表中注明，需走契约变更流程把「（PySZZ）」这个括注改掉。
+> 关于方法名：经实测 **PySZZ 不在 PyPI**（https://pypi.org/pypi/pyszz/json 返回 404），
+> 其官方仓库依赖 gitlog 数据格式，属研究专用工具，Sprint 0 内跑通不现实。故按
+> docs/data-pipeline.md 第 7 节的兜底策略切自研实现：`szz` 由本脚本实现标准行级 SZZ
+> 算法。**契约一已于 1.2 版同步该口径**（`szz` = 标准行级 SZZ，自研实现），
+> `label_method` 取值集合 `{szz, szz_lite}` 与契约保持一致。
 
 ── 排除口径（D5）────────────────────────────────────────────────────────
 回溯未命中的修复提交 **既不入样本集也不记 0**，只在统计中单列数量。
@@ -509,7 +509,7 @@ def write_report(
 
     L.append("\n## 说明\n")
     L.append("- 本产物是**带标签样本集，不含特征列**；特征见下一步 `03_*.py` 产出的 `commit_feature`")
-    L.append("- `szz` 为自研标准行级 SZZ 实现：契约表二把该方法标注为「PySZZ」，但 PySZZ 不在 PyPI（404），按兜底策略自研替代，**需走契约变更更新该括注**")
+    L.append("- `szz` 为自研标准行级 SZZ 实现：PySZZ 不在 PyPI（404），按兜底策略自研替代；契约一已于 1.2 版同步该口径（表二括注改为「标准行级 SZZ，自研实现」）")
     L.append("- `szz_lite` 为文件级回溯简化版：粒度粗、快一个量级，差异见上方对照表")
     L.append("- 回溯未命中的修复提交按 D5 排除出样本集，不当负样本；三个数字（总数 / 打标成功数 / 未判定数）在此表同时出示")
     path.parent.mkdir(parents=True, exist_ok=True)
