@@ -60,13 +60,13 @@
 > 这四条都是「契约里没写清、实现必须先作主」的地方。不补进契约，下一轮换人实现就会跑出不同的数。
 > 前三条的实测证据见 `reports/feature_stats.md` 的专节。
 
-- [ ] 6.1 `docs/contracts/feature-columns.md` 第四节补写 `rexp` 的衰减公式
-      —— 现只写「按时间衰减加权」。实现取值：`Σ count(n)/(n+1)`，`n` = 距本次提交的整年数（Kamei 原文口径）
-- [ ] 6.2 `docs/contracts/feature-columns.md` 第三节把 `ns/nd/nf/la/ld/lt` 的类型由 INT 改为 DECIMAL/DOUBLE
-      —— 与第四节「全部取对数」自相矛盾：取完对数必为小数，不能同时成立
-- [ ] 6.3 `docs/contracts/feature-columns.md` 第四节说明 `ln(x)` 与「0 值记 0」在 0 附近不连续
-      —— 建议 v2 统一为 `ln(1+x)` 通算并升 `feature_version`；实测 `la` 有 7 条记 0、其余最小 −7.43
-- [ ] 6.4 `docs/contracts/feature-columns.md` 第四节写明 `nuc` 的聚合方式
-      —— 实现取「按文件分别计数再求和」（依据：第四节把 `nuc` 除以 `nf`；原文表述为 count of commits per specific file）。`ndev` 数的是人、取并集，两者故意不对称
+- [x] 6.1 `docs/contracts/feature-columns.md` 第四节补写 `rexp` 的衰减公式
+      —— 现只写「按时间衰减加权」。实现取值：`Σ count(n)/(n+1)`，`n` = 距本次提交的整年数（Kamei 原文口径）。**已于契约二 v1.0 完成**（见该契约变更日志）
+- [x] 6.2 `docs/contracts/feature-columns.md` 第三节把 `ns/nd/nf/la/ld/lt` 的类型由 INT 改为 DECIMAL/DOUBLE
+      —— 与第四节「全部取对数」自相矛盾：取完对数必为小数，不能同时成立。**已于契约二 v1.0 完成**（见该契约变更日志）
+- [x] 6.3 `docs/contracts/feature-columns.md` 第四节说明 `ln(x)` 与「0 值记 0」在 0 附近不连续
+      —— 建议 v2 统一为 `ln(1+x)` 通算并升 `feature_version`；实测 `la` 有 7 条记 0、其余最小 −7.43。**已于契约二 v1.0 登记**（见该契约变更日志），v1 不改以保持已有特征可比
+- [x] 6.4 `docs/contracts/feature-columns.md` 第四节写明 `nuc` 的聚合方式
+      —— 实现取「按文件分别计数再求和」（依据：第四节把 `nuc` 除以 `nf`；原文表述为 count of commits per specific file）。`ndev` 数的是人、取并集，两者故意不对称。**已于契约二 v1.0 完成**（见该契约变更日志）
 - [x] 6.5 `docs/contracts/data-fields.md` 表二去掉 `szz` 后的「（PySZZ）」括注
       —— **已于契约一 1.2 版完成**（见该契约变更日志）。取值仍在契约枚举 `{szz, szz_lite}` 内，只改说明文字、不改枚举，未触发版本升级
