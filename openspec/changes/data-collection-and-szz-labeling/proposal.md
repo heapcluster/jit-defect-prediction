@@ -12,7 +12,7 @@
 ## What Changes
 
 - **新增「提交采集」能力**：从 `https://github.com/apache/activemq.git` 抽取提交清单；仓库副本固定到登记在册的 tag（不使用浮动的 `main`）；过滤合并提交；字段与命名照 `docs/contracts/data-fields.md` 表一
-- **新增「SZZ 打标」能力**：识别修缺陷提交（fix commit），回溯出引入缺陷的那次提交，产出 `commit_label` 表；`label_method` 区分 `szz`（PySZZ）与 `szz_lite`（自研简化版），两套结果都保留以便对照
+- **新增「SZZ 打标」能力**：识别修缺陷提交（fix commit），回溯出引入缺陷的那次提交，产出 `commit_label` 表；`label_method` 区分 `szz`（标准行级回溯）与 `szz_lite`（文件级简化版），**两套均为自研实现**（现成库 PySZZ 实测不在 PyPI，见 tasks 3.1），两套结果都保留以便对照
 - **新增「带标签样本集」能力**：把提交清单与标签汇成一份可训练样本集，报出总提交数、时间跨度、正/负样本数与**正样本比例**；统计表落 `data_model/reports/`
 - **新增可复现命令**：`data_model/` 下按 `01_xxx.py` 编号的脚本，并把固定版本、脚本路径、复现命令与统计数字回填进 `docs/data-pipeline.md`
 - **落盘边界落到实现**：数据集与模型文件不入库 —— 沿用现有 `.gitignore`，**不新增排除规则、不使用 `git add -f`**
@@ -45,6 +45,6 @@
 |---|---|
 | 影响目录 | `data_model/`（新增脚本与产物）、`docs/data-pipeline.md`（回填固定版本、脚本路径与统计数字） |
 | 消费的契约 | `docs/contracts/data-fields.md` 表一 `commit`、表二 `commit_label` —— 只读不改 |
-| 新增依赖 | `data_model/requirements.txt` 已列 pandas / numpy / GitPython；PySZZ 是否引入视实测结果决定 |
+| 新增依赖 | `data_model/requirements.txt` 已列 pandas / numpy / GitPython；**无新增依赖** —— 现成打标库 PySZZ 实测不在 PyPI（404），SZZ 由自研实现，不需要额外引入 |
 | 下游依赖 | 后端线三张表的建表与灌数、前端三个页面的内容，均等本 change 产出 |
 | 数据边界 | 仓库副本、中间产物与样本集一律不入库；只把 `reports/` 下的小体积统计表入库当证据 |

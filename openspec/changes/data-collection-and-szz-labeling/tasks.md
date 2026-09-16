@@ -67,5 +67,5 @@
       —— 建议 v2 统一为 `ln(1+x)` 通算并升 `feature_version`；实测 `la` 有 7 条记 0、其余最小 −7.43
 - [ ] 6.4 `docs/contracts/feature-columns.md` 第四节写明 `nuc` 的聚合方式
       —— 实现取「按文件分别计数再求和」（依据：第四节把 `nuc` 除以 `nf`；原文表述为 count of commits per specific file）。`ndev` 数的是人、取并集，两者故意不对称
-- [ ] 6.5 `docs/contracts/data-fields.md` 表二去掉 `szz` 后的「（PySZZ）」括注
-      —— PySZZ 不可用，`szz` 已改为自研标准行级实现。取值仍在契约枚举 `{szz, szz_lite}` 内，只改说明文字、不改枚举，不触发版本升级
+- [x] 6.5 `docs/contracts/data-fields.md` 表二去掉 `szz` 后的「（PySZZ）」括注
+      —— **已于契约一 1.2 版完成**（见该契约变更日志）。取值仍在契约枚举 `{szz, szz_lite}` 内，只改说明文字、不改枚举，未触发版本升级
