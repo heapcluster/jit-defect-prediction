@@ -4,17 +4,46 @@
 
 ## 职责
 
-GitHub 仓库配置、分支规范与分支保护、PR / Issue 模板、CI 流水线、三条契约、缺陷管理。
+GitHub 仓库配置、分支规范与分支保护、PR / Issue 模板、CI 流水线、缺陷管理。
 
 ## 交付物
 
-契约文档、仓库规范、CI 配置、PR / Issue 模板。
+仓库规范、CI 配置、PR / Issue 模板。
+
+> **三条契约的归属待启动会统一口径。** 飞书《讨论0915-项目启动与分工》把「三条契约」列在本线（苏哲勋）名下；项目文档现记为落点 `docs/contracts/`、蒋励主笔。**裁定前不要两边各写一份。** 本目录只放工具与配置。
 
 ## 边界
 
 - `main` 分支受保护，禁止直接推送；合并前至少 1 位非作者审阅。
 - CI 等有可测代码之后再接（`openspec validate` 也一并进流水线）。
 - 只在本目录内写代码。
+
+## 仓库设置清单（网页端操作，文件落地不了）
+
+`main` 的分支保护、标签、协作者只能在 GitHub 网页端设置，**没有文件能替代**。第一次协作提交前逐项确认：
+
+| 项 | 设置成 | 为什么 |
+|---|---|---|
+| 默认分支 | `main` | — |
+| `main` 分支保护 | 禁止直接推送、禁止强制推送、合并前至少 1 位审阅 | 课程明确要求 |
+| Squash merge | 设为唯一允许的合并方式 | `docs/collaboration.md` 第 3.4 节：`main` 历史保持线性 |
+| Automatically delete head branches | 开启 | 分支不堆积 |
+| 标签 | 按 `docs/collaboration.md` 第 5 节建全：`type:feat` `type:bug` `type:docs` `type:test`、`line:model` `line:backend` `line:frontend` `line:infra` `line:docs`、`sprint:0` `sprint:1` … | **`.github/ISSUE_TEMPLATE/` 里的标签引用需要标签已存在才生效**，缺了不报错、只是静默不挂上 |
+| 协作者 | 三位组员加入，给写权限 | 否则无法推分支 |
+| 可见性 | 私有（结题前视课程要求决定是否转公开） | 与根 `README.md` 第二节一致 |
+
+模板文件已就位：`.github/pull_request_template.md`、`.github/ISSUE_TEMPLATE/task.md`、`.github/ISSUE_TEMPLATE/bug.md` —— 建 PR / Issue 时自动带出，无需额外操作。
+
+## 文档落点（别写重了）
+
+| 内容 | 落点 |
+|---|---|
+| 分支 / 提交 / PR / Issue 的**说明**（人读的） | `docs/collaboration.md` |
+| PR 模板、Issue 模板、分支保护配置（**机器读的**） | `.github/` 与本目录 |
+| 三条契约 | `docs/contracts/` |
+| 技术规格与变更提案 | `openspec/` |
+
+**说明放 docs，模板放 .github** —— 两边不重复写同一段规则，本目录只留指针。
 
 ## 团队工具版本约定
 
@@ -37,7 +66,7 @@ openspec --version                            # 应输出 1.11.0
 | Claude Code | `claude` | `.claude/` | `/opsx:propose` |
 | Qoder | `qoder` | `.qoder/` | `/opsx:propose` |
 
-路径按工具名分开，三套文件同时存在不会相互覆盖；三款工具的斜杠命令拼法完全一致。
+**三款完全等价，表中顺序无含义** —— 你机器上装的是哪款就用哪款，不要因为某一款排在前面就当它是默认选项。路径按工具名分开，三套文件同时存在不会相互覆盖；三款工具的斜杠命令拼法完全一致。
 
 ### 一次性初始化（由组长在仓库根目录执行）
 

@@ -1,0 +1,20 @@
+# data_model 线依赖清单
+#
+# 环境：Python 3.12.x；用哪种工具管理自选（conda / venv / uv 均可），见 docs/onboarding.md 第 2 节
+# 安装：pip install -r data_model/requirements.txt
+#
+# 版本：首次跑通后回填 ==x.y.z（例：pandas==2.2.3）。
+#       钉版本的目的不是洁癖，是让别人的指标数字与你的可比 —— 版本不同，跑出来的数不一样。
+
+pandas
+numpy
+scikit-learn
+xgboost
+GitPython
+
+# 测试与代码风格
+pytest
+ruff
+
+# SZZ 打标库：PySZZ 是否可用待实测（见 docs/data-pipeline.md 第 7 节）
+# 若 Sprint 0 结束前仍跑不通，直接切自研简化版（label_method = 'szz_lite'），不引入该库

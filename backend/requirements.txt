@@ -1,0 +1,17 @@
+# backend 线依赖清单
+#
+# 环境：Python 3.12.x；用哪种工具管理自选（conda / venv / uv 均可），见 docs/onboarding.md 第 2 节
+# 安装：pip install -r backend/requirements.txt
+#
+# 版本：首次跑通后回填 ==x.y.z（例：fastapi==0.115.0）
+
+fastapi
+uvicorn
+sqlalchemy
+pymysql
+python-dotenv
+
+# 测试（httpx 是 FastAPI TestClient 的依赖）
+pytest
+httpx
+ruff
