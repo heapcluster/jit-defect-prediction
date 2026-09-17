@@ -6,7 +6,7 @@
 
 ### Requirement: .pkl 导出 MUST 附特征顺序清单
 
-模型 MUST 序列化为 `.pkl` 落 `data_model/models/`（已被 `.gitignore` 排除，不入库），且 MUST 随包交付特征顺序清单：14 项特征按契约二第三节 v1.0 列序排列，后端按此顺序组装特征向量。
+模型 MUST 序列化为 `.pkl` 落 `data_model/models/`（已被 `.gitignore` 排除，不入库），且 MUST 随包交付特征顺序清单：14 项特征按契约二第三节列序（冻结版）排列，后端按此顺序组装特征向量。
 
 #### Scenario: 后端按清单组装特征
 - **WHEN** 后端加载 `.pkl` 并按特征顺序清单构造输入向量推理

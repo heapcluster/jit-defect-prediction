@@ -4,7 +4,7 @@
 
 ## ADDED Requirements
 
-### Requirement: 特征列名与取值口径 MUST 遵循契约二 v1.0
+### Requirement: 特征列名与取值口径 MUST 遵循契约二（冻结版，冻结日期 2026-09-18）
 
 特征表 MUST 含契约二第二节全部标识列（`commit_hash` / `committed_at` / `feature_version`）与第三节全部 14 项特征列，列名逐字一致；取值口径 MUST 遵循契约二第四节 v1.0（含 `rexp` 衰减公式 `Σ count(n)/(n+1)`、六项 DECIMAL、`nuc` 按文件计数求和）。产出特征 MUST 标 `feature_version = v1`。
 
