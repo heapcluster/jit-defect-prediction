@@ -25,12 +25,12 @@
 - [x] 3.2 写自研简化版打标（`label_method = szz_lite`）
       —— `02_szz_labeling.py` 同时实现 `szz`（自研标准行级回溯）与 `szz_lite`（文件级回溯）
 - [x] 3.3 把修缺陷提交的判据（缺陷编号 **且** 修复语义双命中）成文写进 `docs/data-pipeline.md`
-      —— 修复语义的匹配口径为**词首边界** `\b(fix|bug|patch)`：无边界子串会误收 122 条假阳性（`dispatch` 83 / `debug` 17 / `prefix` 9，无一条真修复），严格词表会漏掉 fixe / fixinng / patchh 这类拼错的真修复。三项外沿登记为 6,042 / 2,417 / 1,939（口径论证见 `design.md` D4）
+      —— 修复语义的匹配口径为**词首边界** `\b(fix|bug|patch)`：无边界子串会误收 122 条假阳性（`dispatch` 83 / `debug` 17 / `prefix` 9，其余同类 13；三族 109 + 13 = 共 122，无一条真修复），严格词表会漏掉 fixe / fixinng / patchh 这类拼错的真修复。三项外沿登记为 6,042 / 2,417 / 1,939（口径论证见 `design.md` D4）
 - [x] 3.4 回溯：对修复提交定位引入缺陷的提交，命中者记 `is_bug_inducing = 1` 并写 `bug_fix_hash`
 - [x] 3.5 回溯失败的修复提交单独留档，**不计入负样本**，数量计入统计
 - [x] 3.6 复现性验证：连续执行两次，两份标签按 `commit_hash` 排序后逐行一致
       —— 实测 `--labeled-at` 钉时间后连跑两次，两套方法均**逐字节一致**
-- [x] 3.7 抽样人工复核不少于 30 条修复提交识别结果，给出漏判/误判率
+- [ ] 3.7 抽样人工复核不少于 30 条修复提交识别结果，给出漏判/误判率
       —— 抽样名单已由 `04_build_dataset.py --review-sample 30` 产出（`reports/labeling_review_sample.md`，A 组查误判 / B 组查漏判）；
          **误判率与漏判率两栏待复核人填写后方可勾选本项**
 - [x] 3.8 两套方法的分歧清单可出具（差异条数 + 抽样对照）
@@ -68,5 +68,7 @@
       —— 建议 v2 统一为 `ln(1+x)` 通算并升 `feature_version`；实测 `la` 有 7 条记 0、其余最小 −7.43。**已于契约二 v1.0 登记**（见该契约变更日志），v1 不改以保持已有特征可比
 - [x] 6.4 `docs/contracts/feature-columns.md` 第四节写明 `nuc` 的聚合方式
       —— 实现取「按文件分别计数再求和」（依据：第四节把 `nuc` 除以 `nf`；原文表述为 count of commits per specific file）。`ndev` 数的是人、取并集，两者故意不对称。**已于契约二 v1.0 完成**（见该契约变更日志）
-- [x] 6.5 `docs/contracts/data-fields.md` 表二去掉 `szz` 后的「（PySZZ）」括注
-      —— **已于契约一 1.2 版完成**（见该契约变更日志）。取值仍在契约枚举 `{szz, szz_lite}` 内，只改说明文字、不改枚举，未触发版本升级
+- [ ] 6.5 `docs/contracts/data-fields.md` 表二去掉 `szz` 后的「（PySZZ）」括注
+      —— **由 PR #6（`docs/docs/freeze-contracts-v1`，契约一 1.2）交付，不在本 PR 范围**，待其合入 `main` 后勾选。取值仍在契约枚举 `{szz, szz_lite}` 内，只改说明文字、不改枚举，未触发版本升级
+- [x] 6.6 `docs/contracts/data-fields.md` 的 ER 图把 `ns`/`nd`/`nf` 由 INT 改为 DECIMAL
+      —— 与 6.2 同一处矛盾的另一半：契约二改 DECIMAL 后，契约一 ER 图若仍是 INT，后端照图建表会出现「数据线落小数、后端建 INT 列」。**由本 PR 一并修改**（为修同一处自相矛盾而必须动的同一文件，不属夹带）
