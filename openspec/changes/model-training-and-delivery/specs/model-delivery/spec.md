@@ -1,5 +1,3 @@
-# model-delivery（模型交付）
-
 ## Purpose
 
 把训练产物交付给后端线（A+C 方案）：A = `.pkl` 文件 + 特征顺序清单 + SHAP 依赖；C = 全量预测结果文件（由后端灌入 `prediction` 表）。数据线只产出文件，不碰数据库。
@@ -26,6 +24,10 @@
 - **WHEN** 任一模型交付
 - **THEN** `model_name` 匹配 `<算法>_v<数字>` 格式，且在同批交付中唯一
 
+#### Scenario: 名字与旧版本冲突（边界场景）
+- **WHEN** 新模型沿用了已有 `model_name`（如重训后仍叫 `xgb_v1`）
+- **THEN** MUST 换新序号（`xgb_v2`）；MUST NOT 覆盖旧名字 —— 覆盖会让 `prediction` 表里新旧结果混作一批，趋势看板无法解释
+
 ### Requirement: 全量预测结果文件 MUST 对应契约一表三字段
 
 C 方案交付物 `prediction_result.csv` MUST 且仅含契约一表三字段：`commit_hash` / `model_name` / `risk_score`（0.00000–1.00000）/ `predicted_at`（UTC）/ `feature_version`。**数据线 MUST NOT 直连数据库写 `prediction` 表**，灌库责任在后端线。
@@ -40,7 +42,9 @@ C 方案交付物 `prediction_result.csv` MUST 且仅含契约一表三字段：
 
 ### Requirement: SHAP 依赖 MUST 随交付清单钉版本
 
-A 方案交付 MUST 含 SHAP 依赖及其版本 pin（写入 `requirements.txt`）；SHAP 定稿后 MUST 回填契约三「待确认」项（`explanation` 的具体算法）。SHAP 实时计算 MUST 满足后端非功能要求（95% 请求 < 500ms），无法满足时 MUST 记录实测数据并提契约变更讨论。
+A 方案交付 MUST 含 SHAP 依赖及其版本 pin（写入 `requirements.txt`）。SHAP 实时计算 MUST 满足后端非功能要求（95% 请求 < 500ms），无法满足时 MUST 记录实测数据并提契约变更讨论。
+
+> 契约三「待确认」项（`explanation` 的具体算法）**已由 PR #6 结清为 SHAP**，故本 Requirement 不再含「SHAP 定稿后回填契约」这一动作 —— 那条回填已无对象。
 
 #### Scenario: 交付清单完整
 - **WHEN** 后端线接收 A 方案交付
