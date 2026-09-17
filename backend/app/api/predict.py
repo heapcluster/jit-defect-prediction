@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import select
 
-from app import config, model_registry
+from app import config, model_registry, schemas
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import INTERNAL_ERROR_MESSAGE, AppError
@@ -24,7 +24,7 @@ class PredictRequest(BaseModel):
     model_name: str | None = None
 
 
-@router.post("/api/predict")
+@router.post("/api/predict", response_model=schemas.PredictResponse)
 def predict(body: PredictRequest) -> dict:
     if not body.commit_hash or len(body.commit_hash) != 40 or any(
         c not in HASH_HEX for c in body.commit_hash.lower()

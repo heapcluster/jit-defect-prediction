@@ -24,3 +24,50 @@ def test_trends_params_match_contract(client):
 
 def test_predict_is_post(client):
     assert "post" in _schema(client)["paths"]["/api/predict"]
+
+
+def _data_props(client, path, method="get"):
+    doc = _schema(client)
+    schema = doc["paths"][path][method]["responses"]["200"]["content"]["application/json"]["schema"]
+    resp = doc["components"]["schemas"][schema["$ref"].split("/")[-1]]
+    data = resp["properties"]["data"]
+    if "$ref" in data:
+        data = doc["components"]["schemas"][data["$ref"].split("/")[-1]]
+    return doc, data
+
+
+def _keys(doc, node):
+    if "$ref" in node:
+        node = doc["components"]["schemas"][node["$ref"].split("/")[-1]]
+    return set(node["properties"])
+
+
+def test_commits_response_fields_match_contract(client):
+    doc, data = _data_props(client, "/api/commits")
+    assert _keys(doc, data) == {"total", "page", "size", "items"}
+    assert _keys(doc, data["properties"]["items"]["items"]) == {
+        "commit_hash", "author_name", "committed_at", "message", "risk_score", "model_name",
+    }
+
+
+def test_detail_response_fields_match_contract(client):
+    doc, data = _data_props(client, "/api/commits/{commit_hash}")
+    assert _keys(doc, data) == {
+        "commit_hash", "author_name", "committed_at", "message",
+        "risk_score", "model_name", "features", "explanation",
+    }
+
+
+def test_trends_response_fields_match_contract(client):
+    doc, data = _data_props(client, "/api/trends")
+    assert _keys(doc, data) == {"granularity", "model_name", "series"}
+    assert _keys(doc, data["properties"]["series"]["items"]) == {
+        "period", "commit_count", "avg_risk", "high_risk_count",
+    }
+
+
+def test_predict_response_fields_match_contract(client):
+    doc, data = _data_props(client, "/api/predict", "post")
+    assert _keys(doc, data) == {
+        "commit_hash", "model_name", "risk_score", "predicted_at", "features", "explanation",
+    }

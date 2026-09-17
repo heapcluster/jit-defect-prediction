@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 
-from app import config
+from app import config, schemas
 from app.api.commits import _parse_time, latest_model_in_table
 from app.auth import require_api_key
 from app.db import SessionLocal
@@ -22,7 +22,7 @@ def _period(committed_at, granularity: str) -> str:
     return f"{committed_at.year:04d}-{committed_at.month:02d}"
 
 
-@router.get("/api/trends")
+@router.get("/api/trends", response_model=schemas.TrendsResponse)
 def trends(
     granularity: str = Query(default="week"),
     start_time: str | None = Query(default=None),

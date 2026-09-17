@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import config, model_registry
+from app import config, model_registry, schemas
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import AppError
@@ -62,7 +62,7 @@ def _explanation_for(session: Session, model_name: str | None, feature: CommitFe
     return model_registry.explain(model_registry.get_model(model_name).model, vector)
 
 
-@router.get("/api/commits")
+@router.get("/api/commits", response_model=schemas.CommitsResponse)
 def list_commits(
     page: int = Query(default=1),
     size: int = Query(default=20),
@@ -108,7 +108,7 @@ def list_commits(
     return {"code": 0, "message": "ok", "data": {"total": total, "page": page, "size": size, "items": items}}
 
 
-@router.get("/api/commits/{commit_hash}")
+@router.get("/api/commits/{commit_hash}", response_model=schemas.DetailResponse)
 def commit_detail(commit_hash: str) -> dict:
     _check_hash(commit_hash)
     with SessionLocal() as session:
