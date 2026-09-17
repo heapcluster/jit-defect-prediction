@@ -44,13 +44,13 @@
 - 加载失败（文件缺失、反序列化异常）**不阻断启动**：查询接口仍可用（读库），`predict` 返回 `50000`；异常详情只写服务端日志，message 不回显路径（契约三第 4 节错误情形）。
 - 特征向量顺序固定按契约二 §3 的 14 列顺序组装，不按 dict 插入顺序猜（`backend/README.md` 红线）。
 
-## D7 predict 落库：按 (commit_hash, model_name) upsert
+## D7 predict 不写库（裁定口径）
 
-契约三要求「同一 `(commit_hash, model_name)` 重复调用，库里只保留最新一行」。选 update-or-insert，并给 `prediction` 加 `(commit_hash, model_name)` 唯一索引把口径落进 schema：
+2026-09-17 聊天裁定：predict 的幂等 = 「同一 `commit_hash` 重复调用结果一致，**不写库、不改状态**」。实现照此：纯推理，只读 `commit` 与 `commit_feature`。
 
-- 契约一「不写进契约的」明确允许后端自属的冗余索引设计，加索引不构成契约偏离；
-- 方案 C 的离线灌入与方案 A 的实时推理写同一张表、同一名键，天然互不累积重复行；
-- 「模型迭代换新名、不覆盖旧结果」不受影响 —— 换名即新行。
+- 契约三 v1.2 的幂等句（「库里只保留最新一行」）与该裁定不一致 —— 修订提议在 PR #6 评审提出（tasks 1.3）；修订合入前代码以裁定为准；
+- `prediction` 的 `(commit_hash, model_name)` 唯一索引保留，但理由改为**方案 C 灌入的幂等键**（D4），与 predict 无关；
+- 风险列表的重复行担忧由灌入幂等键消解，predict 不产生任何行。
 
 ## D8 SHAP 解释的 Explainer 选择
 

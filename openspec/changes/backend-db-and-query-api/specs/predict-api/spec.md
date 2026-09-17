@@ -69,19 +69,19 @@
 - **WHEN** 注册表为空时调用 predict
 - **THEN** 返回 50000 且 message 不回显任何文件路径
 
-### Requirement: 预测结果幂等落库
+### Requirement: predict 为无状态推理
 
-predict 成功后 SHALL 将结果写入 `prediction` 表；同一 `(commit_hash, model_name)` 重复调用 SHALL 只保留最新一行（update-or-insert，design D7），MUST NOT 累积重复行。
+`POST /api/predict` SHALL 为纯实时推理：MUST NOT 写库、MUST NOT 修改任何持久化状态；同一 `(commit_hash, model_name)` 重复调用 SHALL 返回一致的 `risk_score` 与 `explanation`。
 
-#### Scenario: 重复调用不累积
+#### Scenario: 不写库
 
 - **WHEN** 对同一 `(commit_hash, model_name)` 连续调用两次 predict
-- **THEN** `prediction` 表中该键仅一行，`predicted_at` 与 `risk_score` 为第二次调用的值
+- **THEN** 调用前后 `prediction` 表（及其余各表）行数不变
 
-#### Scenario: 换模型名新增行
+#### Scenario: 重复调用结果一致
 
-- **WHEN** 以不同 `model_name` 对同一提交各调用一次
-- **THEN** `prediction` 表中该提交有两行，互不覆盖
+- **WHEN** 对同一 `(commit_hash, model_name)` 连续调用两次 predict
+- **THEN** 两次响应的 `risk_score` 与 `explanation` 一致（`predicted_at` 时间字段除外）
 
 ### Requirement: SHAP 解释
 

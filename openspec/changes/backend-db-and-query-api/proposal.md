@@ -15,7 +15,7 @@
 
 - **新增 `db-schema` 能力**：按契约一 v1.2 建**四张表** `commit` / `commit_label` / `commit_feature` / `prediction`（建表归属见契约一「建表归属」节），字段名、类型、索引（`commit_hash` 唯一索引、`committed_at` 普通索引）逐字照契约；`commit_feature` 列名照契约二；满足「别人 clone 后一条命令建好库」；四份 CSV 的灌入脚本；`.env.example` 入库、`.env` 不入库。
 - **新增 `query-api` 能力**：按契约三落地三个查询接口 `GET /api/commits`、`GET /api/commits/{commit_hash}`、`GET /api/trends`；统一响应包络、只用 5 个错误码、`X-API-Key` 鉴权（40100）、输入校验（40001）、`50000` 不回显内部信息。
-- **新增 `predict-api` 能力**：`POST /api/predict` 在线预测 —— 启动时加载 `data_model/models/` 下的 `.pkl`（方案 A），实时推理 + SHAP 解释；结果按 `(commit_hash, model_name)` 幂等落 `prediction` 表；模型缺失/加载失败返回 `50000` 且只写服务端日志。
+- **新增 `predict-api` 能力**：`POST /api/predict` 在线预测 —— 启动时加载 `data_model/models/` 下的 `.pkl`（方案 A），实时推理 + SHAP 解释；**无状态：不写库、不改状态**（裁定口径；契约三幂等句的不一致条款在 PR #6 修订中）；模型缺失/加载失败返回 `50000` 且只写服务端日志。
 - **Swagger 实现镜像**：以 FastAPI 自动生成的 OpenAPI 与契约三 v1.2 逐字段比对，偏离改代码不改契约。
 
 **不做什么（显式列出）**
@@ -34,7 +34,7 @@
 
 - `db-schema`: 四张表建表与索引、一条命令建库、四份 CSV 灌入（提交/标签/特征/预测）
 - `query-api`: 三个查询接口、统一包络与错误码、`X-API-Key` 鉴权与输入校验
-- `predict-api`: 模型加载、`POST /api/predict` 实时推理、SHAP 解释、预测结果幂等落库
+- `predict-api`: 模型加载、`POST /api/predict` 实时推理、SHAP 解释、无状态（不写库）
 
 ### Modified Capabilities
 
