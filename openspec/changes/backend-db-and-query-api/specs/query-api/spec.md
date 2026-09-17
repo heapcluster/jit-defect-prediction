@@ -1,12 +1,12 @@
 ## Purpose
 
-把契约三的三个查询接口落地为 FastAPI 实现：统一包络、错误码、鉴权与输入校验，并以自动生成的 OpenAPI/Swagger 作实现镜像，保证规格与代码一致。
+把契约三 v1.2 的三个查询接口落地为 FastAPI 实现：统一包络、错误码、`X-API-Key` 鉴权与输入校验，并以自动生成的 OpenAPI/Swagger 作实现镜像，保证规格与代码一致。
 
 ## ADDED Requirements
 
 ### Requirement: 统一包络与错误码
 
-所有接口 SHALL 返回 `{ "code": 0, "message": "ok", "data": {...} }` 包络；错误码 SHALL 只取 `docs/contracts/api-format.md` 的 0 / 40001 / 40100 / 40400 / 50000，MUST NOT 自造。
+所有接口 SHALL 返回 `{ "code": 0, "message": "ok", "data": {...} }` 包络；错误码 SHALL 只取 `docs/contracts/api-format.md` v1.2 的 0 / 40001 / 40100 / 40400 / 50000，MUST NOT 自造。
 
 #### Scenario: 成功响应
 
@@ -25,16 +25,16 @@
 
 ### Requirement: 接口鉴权
 
-所有 `/api` 接口 SHALL 校验请求令牌；缺失或非法令牌 SHALL 返回 40100（HTTP 401）。
+四个接口（含 `POST /api/predict`）SHALL 校验请求头 `X-API-Key`；缺失或不匹配 SHALL 返回 40100（HTTP 401），message 固定为 `missing or invalid token`。
 
 #### Scenario: 缺失令牌
 
-- **WHEN** 不带令牌调用任一 `/api` 接口
-- **THEN** 返回 40100 且 HTTP 状态为 401
+- **WHEN** 不带 `X-API-Key` 头调用任一 `/api` 接口
+- **THEN** 返回 40100 且 HTTP 状态为 401，message 为 `missing or invalid token`
 
 #### Scenario: 非法令牌
 
-- **WHEN** 携带与配置不符的令牌调用
+- **WHEN** 携带与 `.env` 配置不符的令牌调用
 - **THEN** 同样返回 40100，message MUST NOT 提示正确令牌的形式或长度
 
 ### Requirement: 风险列表查询
@@ -53,7 +53,7 @@
 
 ### Requirement: 提交详情查询
 
-`GET /api/commits/{commit_hash}` SHALL 返回提交元信息、14 项特征值与 `explanation`；`features` 的键名 SHALL 与 `docs/contracts/feature-columns.md` 逐字一致。
+`GET /api/commits/{commit_hash}` SHALL 返回提交元信息、14 项特征值与 `explanation`；`features` SHALL 读自 `commit_feature` 表，键名与 `docs/contracts/feature-columns.md` 逐字一致；本响应 MUST NOT 返回真实标签。
 
 #### Scenario: 哈希不存在
 
@@ -67,7 +67,7 @@
 
 ### Requirement: 趋势聚合查询
 
-`GET /api/trends` SHALL 按 `granularity`（week 默认 / month）聚合风险趋势；`high_risk_count` SHALL 由后端按阈值 `risk_score >= 0.5` 计算，MUST NOT 交由前端重算。
+`GET /api/trends` SHALL 按 `granularity`（week 默认 / month）聚合风险趋势；`high_risk_count` SHALL 由后端按阈值 `risk_score >= 0.5` 计算，MUST NOT 交由前端重算；`series` SHALL 只返回单个 `model_name` 的一组数据。
 
 #### Scenario: 周粒度聚合
 
@@ -86,7 +86,7 @@
 
 ### Requirement: 内部信息不回显
 
-`50000` 的 message SHALL 为固定文案，MUST NOT 包含异常堆栈、SQL 语句或文件路径；内部细节 SHALL 只写服务端日志。
+`50000` 的 message SHALL 为固定文案，MUST NOT 包含异常堆栈、SQL 语句、文件路径（含模型文件路径）；内部细节 SHALL 只写服务端日志。
 
 #### Scenario: 内部错误掩盖
 
@@ -95,11 +95,11 @@
 
 ### Requirement: Swagger 实现镜像
 
-系统 SHALL 暴露 FastAPI 自动生成的 OpenAPI/Swagger；生成 schema 中的路径、字段名与类型 SHALL 与 `docs/contracts/api-format.md` 逐字一致，偏离 SHALL 修改代码消除，MUST NOT 反向修改契约。
+系统 SHALL 暴露 FastAPI 自动生成的 OpenAPI/Swagger；生成 schema 中的路径、字段名与类型 SHALL 与 `docs/contracts/api-format.md` v1.2 逐字一致，偏离 SHALL 修改代码消除，MUST NOT 反向修改契约。
 
 #### Scenario: 镜像比对零偏离
 
-- **WHEN** 导出 `openapi.json` 与契约三逐字段比对
+- **WHEN** 导出 `openapi.json` 与契约三四个接口逐字段比对
 - **THEN** 路径、字段名、类型与枚举无偏离
 
 #### Scenario: 发现偏离
