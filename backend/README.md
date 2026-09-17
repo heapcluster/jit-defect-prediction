@@ -82,4 +82,7 @@ uvicorn app.main:app --reload --port 8000
 
 - **不改特征定义**（要改走契约变更）、**不写页面**。
 - **不改打标与特征计算逻辑** —— 那是数据与模型线的目录。
+- 模型从哪来：**已裁定 A+C**（依据飞书《讨论0915-项目启动与分工》，规格见 `openspec/changes/model-training-and-delivery/`）。
+  - 方案 A：数据线交付 `.pkl` 与特征顺序清单，本线启动时加载；
+  - 方案 C：数据线产出 `prediction_result.csv`（字段对应契约一表三），**由本线灌入 `prediction` 表** —— 数据线只产出结果文件、不碰数据库。
 - 只在本目录内写代码。

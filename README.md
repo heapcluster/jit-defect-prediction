@@ -58,7 +58,7 @@ ActiveMQ 仓库 → 抽提交信息 → SZZ 打标 → Kamei 14 项特征
 | 前端 | Vue 3 + Element Plus + ECharts |
 | 数据库 | MySQL 8 + SQLAlchemy |
 | 模型 | scikit-learn、XGBoost |
-| 数据抽取 | GitPython 读提交记录；PySZZ 打标，另写简化版做对照校验 |
+| 数据抽取 | GitPython 读提交记录；自研标准行级 SZZ 打标，另写文件级简化版做对照校验 |
 | 架构 | 三层：前端 → 后端 / API → 数据与模型层 |
 | 运行方式 | 本地或单台服务器，不打包容器 |
 
@@ -109,7 +109,7 @@ python -V                                               # 必须是 3.12.x
 | `.gitignore`（数据集 / 模型 / 密钥 / 虚拟环境） | ✅ 已入库 |
 | PR 模板、Issue 模板（任务 / 缺陷） | ✅ 已入库，**仓库网页端设置见 `infra/README.md`** |
 | 三条契约（数据字段 / 特征列名 / 接口格式） | ⚠️ 草案，**冻结时间见各文件头部** |
-| OpenSpec 目录与三套 AI 工具集成文件 | ✅ 已入库，`openspec/config.yaml` 的 `context:` 待填 |
+| OpenSpec 目录与三套 AI 工具集成文件 | ✅ 已入库，`openspec/config.yaml` 的 `context:` 与 `rules:` 已填 |
 | AI 规则入口（`AGENTS.md` + `CLAUDE.md`） | ✅ 已入库 |
 | CI（代码风格检查 + 测试） | 未做 —— 有可测代码之后再接 |
 
