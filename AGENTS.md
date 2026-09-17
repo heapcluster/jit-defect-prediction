@@ -68,6 +68,9 @@ JIT（即时）缺陷预测系统：在**一次代码提交（commit）**的粒�
    范围取 `model`/`backend`/`frontend`/`infra`/`docs`/`spec`。
    例：`fix(backend): 修正空输入返回 500 的问题`
 5. **分支命名**：`<类型>/<线>/<简述>`，例 `feat/backend/predict-api`。**禁止直接推送 `main`。**
+   分支生命周期：**PR 合入后立即删除**（远端 Delete branch + 本地 `git branch -d`），
+   不要留在仓库里堆积；远端已删的分支用 `git fetch --prune` 清掉本地跟踪引用。
+   细则见 `docs/collaboration.md` 第 1.6 节。
 6. **接口字段名、数据库字段名、特征列名一律以 `docs/contracts/` 为准**，
    不得自行发明或改名。觉得契约不合理时先提变更，不要先改代码。
 7. **AI 生成的图必须标注来源。** 课程《产品设计文档》模板原文要求
