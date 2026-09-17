@@ -16,7 +16,7 @@
 #### Scenario: 修复语义的匹配口径
 
 - **WHEN** 判定一条提交的 message 是否含修复语义
-- **THEN** 用**词首边界**匹配（`\b(fix|bug|patch)`，大小写不敏感）；**不用**无边界子串匹配 —— 后者会把 `dispatch`（内含 `patch`）、`debug`（内含 `bug`）、`prefix`（内含 `fix`）误判为修复语义，实测这三族共 122 条全部为假阳性，而「消息分发」正是 ActiveMQ 的核心功能词；也**不收窄成严格词表** —— 会漏掉 `fixe` / `fixinng` / `patchh` 这类拼写错误的真修复
+- **THEN** 用**词首边界**匹配（`\b(fix|bug|patch)`，大小写不敏感）；**不用**无边界子串匹配 —— 后者会把 `dispatch`（内含 `patch`）、`debug`（内含 `bug`）、`prefix`（内含 `fix`）误判为修复语义，实测三族 109 条、连同其余同类 13 条共 122 条全部为假阳性，而「消息分发」正是 ActiveMQ 的核心功能词；也**不收窄成严格词表** —— 会漏掉 `fixe` / `fixinng` / `patchh` 这类拼写错误的真修复
 
 #### Scenario: 判据可复算
 
