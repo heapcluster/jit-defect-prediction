@@ -50,7 +50,7 @@ ActiveMQ 的提交规范使几乎每条提交都带 `AMQ-<数字>` 编号（含�
 
 | 口径 | 命中 | 问题 |
 |---|---|---|
-| 无边界子串（`'fix' in msg` 等） | 2,539 | **误收 122 条假阳性**：`dispatch` 词族 83 条（dispatch / dispatched / redispatch / optimizedispatch）、`debug` 17 条、`prefix` 9 条 —— **没有一条是真修复**。而「消息分发（dispatch）」正是 ActiveMQ 的核心功能词，这不是偶发噪声而是系统性污染：122 条会全部进入 SZZ 回溯，把被删代码的行 blame 出来当缺陷引入方，直接往标签集灌假阳性 |
+| 无边界子串（`'fix' in msg` 等） | 2,539 | **误收 122 条假阳性**：`dispatch` 词族 83 条（dispatch / dispatched / redispatch / optimizedispatch）、`debug` 17 条、`prefix` 9 条，**其余同类 13 条**（三族 109 + 其余 13 = 共 122，分解口径见 `docs/data-pipeline.md` §7）—— **122 条没有一条是真修复**。而「消息分发（dispatch）」正是 ActiveMQ 的核心功能词，这不是偶发噪声而是系统性污染：122 条会全部进入 SZZ 回溯，把被删代码的行 blame 出来当缺陷引入方，直接往标签集灌假阳性 |
 | 严格词表（整词 `fix`/`bug`/`patch`） | 2,108 | **漏真修复**：差集里是 `fixe` / `fixinng` / `patchh`（拼写错误）、`fixups`、`buggy` |
 | **词首边界 `\b(fix\|bug\|patch)`（选定）** | **2,417** | 保留词形变化（fixes / fixed / patching / bugfix），排除同词内嵌（dispatch / debug / prefix） |
 
