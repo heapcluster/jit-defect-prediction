@@ -2,8 +2,10 @@
 
 - [ ] 1.1 逐字段核对 `docs/pages.md` 第 2–4 节字段清单与 `api-format.md` v1.2 响应，产出「页面要用但接口没有」的缺口清单，以 Issue 形式交付刘帅华
       —— 跨线交付：前端线，形式为 GitHub Issue（含逐字段对照表）
-- [ ] 1.2 核对 PR #6（`docs/docs/freeze-contracts-v1`）合入后的契约一 v1.2 / 契约三 v1.2 与本 change 规格逐条一致（四张表、X-API-Key、predict、SHAP）；不一致处以 change 更新修正本侧规格
+- [ ] 1.2 PR #6 合入后，按合入版文件头（契约一 1.4 / 契约二 1.2 / 契约三 1.2）核对本 change 规格逐条一致（四张表、X-API-Key、predict、SHAP），并把本 change 内全部契约版本引用同步为该组版本号；不一致处以 change 更新修正本侧规格
+      —— 跨线交付：核对结论交付契约线（蒋励统稿），形式为 PR #6 评审意见或契约变更 Issue；本侧规格与引用修正以本 change 的更新提交交付（后端线，随本 PR）
 - [ ] 1.3 「提交存在但无预测记录」的响应形态（design D3）在 PR #6 评审意见提出补记进契约三；若已冻结则走契约变更流程
+      —— 跨线交付：契约线（定稿人吕建江、冻结人蒋励），形式为 PR #6 评审意见；冻结后则走契约变更 PR
       —— 截止 9/23 冻结宣布前
 
 ## 2. 依赖与环境
@@ -26,10 +28,10 @@
 - [ ] 4.2 鉴权依赖：请求头 `X-API-Key`，缺失或不匹配返回 40100（HTTP 401）、message 固定 `missing or invalid token`；四个接口一律适用
 - [ ] 4.3 `GET /api/commits`：`risk_score` 降序、分页默认 20 上限 100、`min_risk`/`model_name`/时间范围筛选
 - [ ] 4.4 `GET /api/commits/{commit_hash}`：元信息 + 14 项特征值（读 `commit_feature`，键名逐字同契约二）+ `explanation`；无预测记录形态按 design D3
-- [ ] 4.5 `GET /api/trends`：week/month 聚合、`high_risk_count` 后端按阈值 0.5 计算、`series` 单模型一组
+- [ ] 4.5 `GET /api/trends`：week/month 聚合、`high_risk_count` 后端按**固定常量 0.5** 计算（不开放参数，design D10）、`series` 单模型一组；`start_time`/`end_time`/`model_name` 参数与缺省口径照契约三 §3 与本 change 规格
 - [ ] 4.6 输入校验：`size`/`page`/`min_risk`/`granularity`/时间格式的类型、越界与枚举校验，违例 40001 且 message 指出参数名
 - [ ] 4.7 模型加载器（design D6）：启动时加载 `MODEL_DIR` 下 `.pkl`，注册表与「默认最新」口径；加载失败不阻断启动、predict 时返回 50000 且不回显路径
-- [ ] 4.8 `POST /api/predict`：`commit_hash` 必填且 40 位十六进制（违例 40001）；不在 `commit` 表 40400 `commit not found`；无特征行 40400 `features not found for this commit`；实时推理（MUST NOT 查 `prediction` 表代替）；结果按 `(commit_hash, model_name)` 幂等落库、只留最新一行（design D7）
+- [ ] 4.8 `POST /api/predict`：`commit_hash` 必填且 40 位十六进制（违例 40001）；不在 `commit` 表 40400 `commit not found`；无特征行 40400 `features not found for this commit`；实时推理（MUST NOT 查 `prediction` 表代替）；结果按 `(commit_hash, model_name)` 幂等落库、只留最新一行，`feature_version` 读自 `commit_feature` 同值写入（design D7）
 - [ ] 4.9 SHAP 解释（design D8）：`explanation` 逐特征含 `contribution` 与 `direction`，键名与 `features` 同一套
 
 ## 5. 镜像比对与测试

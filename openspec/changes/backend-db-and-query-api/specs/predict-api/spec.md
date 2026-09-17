@@ -71,7 +71,7 @@
 
 ### Requirement: 预测结果幂等落库
 
-predict 成功后 SHALL 将结果写入 `prediction` 表（聊天第三条：A 与 C 写同一张表、靠 `model_name` 区分）；同一 `(commit_hash, model_name)` 重复调用 SHALL 只保留最新一行（update-or-insert，design D7），MUST NOT 累积重复行。
+predict 成功后 SHALL 将结果写入 `prediction` 表（聊天第三条：A 与 C 写同一张表、靠 `model_name` 区分）；同一 `(commit_hash, model_name)` 重复调用 SHALL 只保留最新一行（update-or-insert，design D7），MUST NOT 累积重复行；写入时 `feature_version` SHALL 读自该提交 `commit_feature.feature_version` 同值落库（契约一表三必填列的取值来源，方案 A 与方案 C 同此口径）。
 
 #### Scenario: 重复调用不累积
 

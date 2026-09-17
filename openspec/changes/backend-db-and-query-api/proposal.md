@@ -46,9 +46,13 @@
 |---|---|
 | 影响目录 | `backend/`（应用代码、测试、灌入与种子脚本）；`backend/requirements.txt`（新增 scikit-learn / xgboost / shap / numpy，依据裁定 A+C 与契约三冻结结论的 SHAP） |
 | 消费的契约 | `data-fields.md` v1.2 四张表与 ER 图、`api-format.md` v1.2 四接口、`feature-columns.md` v1.0（`commit_feature` 列名与特征顺序）—— 只读不改 |
-| 上游依赖 | 数据线 01–04 产出的四份 CSV；上游 change `model-training-and-delivery` 交付的 `.pkl`、`model_name` 与 shap 依赖信息（分支 `docs/spec/model-training-delivery`，未合入）；接口与推理自测先用种子数据与 fixture 模型，不等真实交付 |
+| 上游依赖 | 数据线 01–03 产出的提交/标签/特征 CSV（标签含 `szz` 与 `szz_lite` 两份）与方案 C 离线预测产出的 `prediction_result.csv`（**不来自 01–04**）；上游 change `model-training-and-delivery` 交付的 `.pkl`、`model_name` 与 shap 依赖信息（分支 `docs/spec/model-training-delivery`，未合入）；接口与推理自测先用种子数据与 fixture 模型，不等真实交付 |
 | 下游依赖 | 前端三页面联调（刘帅华）；周报任务 10 的性能与安全证据脚本（压测靶子 `POST /api/predict`） |
 | 数据边界 | `.env`、数据集、模型文件一律不入库；种子数据与 fixture 模型只进本地，不入库 |
+
+## 依赖与合并顺序
+
+**合并顺序：PR #6（`docs/docs/freeze-contracts-v1`，契约冻结）→ 本 PR。** #6 未合入前，main 上三份契约仍是草案（0.91 / 1.0 / 0.9），且 `backend/README.md`、`docs/dev-handbook.md` §7、Issue #13 在 main 上仍写「三张表」—— 本 PR 的「四张表」与它们**短期自相矛盾**，#6 合入后自动消解；本 PR 内的契约版本引用在 #6 合入后同步为 1.4 / 1.2 / 1.2（tasks 1.2）。
 
 ## 裁定记录（原「待决问题」，2026-09-17 结清）
 
