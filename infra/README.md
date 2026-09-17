@@ -90,3 +90,5 @@ openspec init --tools codebuddy,claude,qoder
 **`openspec/` 全项目只有一份，这是 SDD 的真相源。** 官方明确警告：`init` 在哪个目录跑就在哪生成 `openspec/`，**包括 monorepo 的子包目录**——所以禁止在 `backend/`、`frontend/`、`data_model/` 里跑 `init`，否则会凭空多出第二份规范，评审和追溯立刻失效。
 
 后续成员：`npm i -g @fission-ai/openspec@1.11.0` → `git clone` → `openspec update`（**不要跑 `init` 再提交生成文件**）。若某人用的工具不在上表内，他才需要单独跑一次 `openspec init --tools "<他的工具id>"`；官方确认此操作对已存在的 `openspec/` 是安全的，不会动已有 specs 和 changes。
+
+> 工程基线已于 2026-09-16 配置完成：分支保护（禁直推 / 禁强推 / 1 人审阅）、Squash 唯一、自动删分支、标签、协作者。
