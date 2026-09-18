@@ -55,8 +55,10 @@
 - [x] 5.1 `docs/data-pipeline.md` 回填：第 4 节脚本路径、第 5 节复现命令、第 7 节待定项结清
       —— 第 6 节统计数字待全量运行结束后回填
 - [x] 5.2 `data_model/README.md` 的五步链路表补上实际脚本名
-- [ ] 5.3 提交 PR 并在描述里写明关联 change id `data-collection-and-szz-labeling`；由非作者审阅后合入
+- [x] 5.3 提交 PR 并在描述里写明关联 change id `data-collection-and-szz-labeling`；由非作者审阅后合入
+      —— change 随 PR #1 进 `main`；复核收口 PR #34（逐条抽样结论）由非作者**蒋励** APPROVED 后 Squash 合入（`beae363`），本条闭环
 - [ ] 5.4 回飞书看板更新任务状态
+      —— 由蒋励在飞书侧执行（本仓库工具无法写入），勾选条件：看板对应行状态更新后
 
 ## 6. 契约回改（本轮实测发现的缺口，须走契约变更流程）
 
@@ -71,7 +73,7 @@
       —— 建议 v2 统一为 `ln(1+x)` 通算并升 `feature_version`；实测 `la` 有 7 条记 0、其余最小 −7.43。**已于契约二 v1.0 登记**（见该契约变更日志），v1 不改以保持已有特征可比
 - [x] 6.4 `docs/contracts/feature-columns.md` 第四节写明 `nuc` 的聚合方式
       —— 实现取「按文件分别计数再求和」（依据：第四节把 `nuc` 除以 `nf`；原文表述为 count of commits per specific file）。`ndev` 数的是人、取并集，两者故意不对称。**已于契约二 v1.0 完成**（见该契约变更日志）
-- [ ] 6.5 `docs/contracts/data-fields.md` 表二去掉 `szz` 后的「（PySZZ）」括注
-      —— **由 PR #6（`docs/docs/freeze-contracts-v1`，契约一 1.2）交付，不在本 PR 范围**，待其合入 `main` 后勾选。取值仍在契约枚举 `{szz, szz_lite}` 内，只改说明文字、不改枚举，未触发版本升级
+- [x] 6.5 `docs/contracts/data-fields.md` 表二去掉 `szz` 后的「（PySZZ）」括注
+      —— PR #6 已于 2026-09-18 合入 `main`：表二该行现为「szz（标准行级 SZZ，自研实现）」，「（PySZZ）」仅存变更日志与脚注两处解释性引用。取值仍在契约枚举 `{szz, szz_lite}` 内，只改说明文字、不改枚举，未触发版本升级
 - [x] 6.6 `docs/contracts/data-fields.md` 的 ER 图把 `ns`/`nd`/`nf` 由 INT 改为 DECIMAL
       —— 与 6.2 同一处矛盾的另一半：契约二改 DECIMAL 后，契约一 ER 图若仍是 INT，后端照图建表会出现「数据线落小数、后端建 INT 列」。**由本 PR 一并修改**（为修同一处自相矛盾而必须动的同一文件，不属夹带）
