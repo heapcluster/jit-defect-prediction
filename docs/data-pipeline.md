@@ -179,7 +179,9 @@ python 04_build_dataset.py --commits data/commits_window2023.csv \
 - `label_method = 'szz_lite'` —— 自研文件级回溯简化版（只看被改文件在父提交时的最后一次改动），快一个量级、粒度更粗
 - 两套结果都保留，差异量化后出示（见 `reports/szz_labeling_stats.md`），不静默取其一
 
-> ✅ **契约一已同步（2026-09-16，v1.2）**：`docs/contracts/data-fields.md` 表二 `szz` 的括注已由「（PySZZ）」改为「标准行级 SZZ，自研实现」。取值仍在契约定义的集合 `{szz, szz_lite}` 内，**只改说明文字、未改枚举，不触发 `feature_version` 升级**。
+> ✅ **契约一已同步（2026-09-16，该文件现为 v1.4）**：`docs/contracts/data-fields.md` 表二 `szz` 的括注已由「（PySZZ）」改为「标准行级 SZZ，自研实现」。取值仍在契约定义的集合 `{szz, szz_lite}` 内，**只改说明文字、未改枚举，不触发 `feature_version` 升级**。
+>
+> 版本号说明：契约一在 9/18 冻结时把变更日志重排为 `1.0 → 1.4`，故此处原写的 `v1.2` 已不是当前版本；**版本号以 `docs/contracts/data-fields.md` 文件头为准**。
 
 **第 5 项的裁定结论（2026-09-16 实测）**：**不裁剪时间窗口**，用完整历史（11,050 条非合并提交）。原预案把裁剪定为下策（会改变样本量级、削弱与文献的可比性），只有在「全量跑不完 Sprint 0」且「已试过分片与缓存优化」之后才启用 —— 本次全链路实测 24.5 分钟，两个前提都不成立，故不启用。
 
