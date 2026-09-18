@@ -1,6 +1,6 @@
 # 数据链路与版本固定
 
-> 状态：**已完成，全链路全量跑通** ｜ 版本 0.94 ｜ 负责人 蒋励 ｜ 冻结时间 Sprint 0 末（9/25）
+> 状态：**①–⑦ 全链路全量跑通** ｜ 版本 0.97 ｜ 负责人 蒋励 ｜ 冻结时间 Sprint 0 末（9/25）
 
 ## 0. 这份文档解决什么问题
 
@@ -77,13 +77,19 @@ git rev-parse HEAD               # 把输出的完整哈希抄进下表
 | ③ | SZZ 打标：找出「修复提交」并回溯到引入缺陷的那次提交 | `data_model/02_szz_labeling.py` | `data_model/data/commit_labels_{szz,szz_lite}.csv` + `reports/szz_labeling_stats.md` |
 | ④ | 按 `contracts/feature-columns.md` 算 14 项特征 | `data_model/03_extract_features.py` | `data_model/data/commit_features.csv` + `reports/feature_stats.md` |
 | ⑤ | 汇总成一份可训练样本集 | `data_model/04_build_dataset.py` | `data_model/data/dataset_{szz,szz_lite}.csv` + `reports/dataset_stats.md` |
+| ⑥ | 按 `committed_at` 时间序切分 → 训练 2–3 个经典模型 → 出两类指标 | `data_model/05_split_dataset.py`、`data_model/06_train_model.py` | `data/split_{tag}_{train,test}.csv`、`models/*.pkl`、`models/feature_order.txt`、`reports/split_stats_*.md`、`reports/model_metrics*.md` |
+| ⑦ | 全量推理，产出交付后端线的结果文件 | `data_model/07_predict_all.py` | `data/prediction_result.csv` + `reports/prediction_stats.md` |
+
+**⑥ 的两条口径**（写在 `data_model/README.md` 铁规矩与 `06_train_model.py` 文件头，这里只引用）：**只能按时间序切分，禁止随机切分**；两类指标（Effort-unaware + Effort-aware）**都要报**，只报一类不足以说明问题。
+
+**⑦ 的三条边界**：字段与契约一表三逐字一致且**不许夹带契约外字段**；**本步不直连数据库**（数据线只出文件、由后端线导入）；**全量推理**（含检验集），因为趋势看板要的是历史全量结果。
 
 **② 与 ③ 的字段口径以契约为准**，不要自己发明列名：
 
 - 提交与标签字段 → `docs/contracts/data-fields.md`
 - 特征列名与取值口径 → `docs/contracts/feature-columns.md`（第四节「取值口径」已于 2026-09-16 冻结为 `feature_version = v1`，**可以开始跑特征**；口径若再改，升 `v2` 并全量重算，不覆盖 v1）
 
-**④ 与 ⑤ 的脚本编号顺序即执行顺序**，不要跳步：⑤ 的三条断言依赖 ③ 与 ④ 的产物在同一窗口上产出。
+**④ 与 ⑤ 的脚本编号顺序即执行顺序**，不要跳步：⑤ 的三条断言依赖 ③ 与 ④ 的产物在同一窗口上产出。⑥ 依赖 ⑤ 的样本集；**⑦ 依赖 ⑥ 产出的模型，不能拿「还在调参的那个」出交付文件** —— 交付文件一旦被后端导入，`prediction` 表里就留了一批来路不明的分数。
 
 **03 也有 `--since`**：它的作用与 01 的不同 —— 01 的 `--since` 决定「哪些提交进样本」，03 的 `--since` 只决定「给哪些提交算特征」，**历史类特征始终用完整历史**（`ndev`/`age`/`nuc`/`exp`/`rexp`/`sexp` 看得见窗口之前的全部提交）。两个 `--since` 必须传同一个值，否则 ⑤ 的断言 B 会失败退出。
 
@@ -116,6 +122,26 @@ python 03_extract_features.py
 python 04_build_dataset.py \
   --labels data/commit_labels_szz.csv \
   --labels data/commit_labels_szz_lite.csv
+
+# ⑥ 按 committed_at 时间序切分（前 70% / 后 30%），再训练与评估
+python 05_split_dataset.py --tag szz
+python 06_train_model.py --train data/split_szz_train.csv \
+                         --test  data/split_szz_test.csv
+
+# ⑦ 全量推理，产出交付后端线的结果文件（字段 = 契约一表三）
+python 07_predict_all.py --model models/xgb_v1.pkl
+```
+
+**⑥ 的两条核对命令**（不是可选项，是这一步的证据）：
+
+```bash
+# 边界场景：把输入打乱后再切，断言必须拦住（exit 0 = 拦住了）
+python 05_split_dataset.py --selfcheck
+
+# 可复现：同参数连跑两次，两份模型指标报告应**逐行一致**
+# —— 只有 SHAP 计时那一节会变，那是实测耗时、随负载波动，比对时排除
+python 06_train_model.py && cp reports/model_metrics.md /tmp/run1.md
+python 06_train_model.py && diff /tmp/run1.md reports/model_metrics.md   # 仅 SHAP 计时行不同
 ```
 
 **只想先验证链路通不通**（约 1 分钟，不必等全量打标）：给 ② 加窗口、③ 加运行标记、④ 传同一个窗口，⑤ 用带标记的标签文件。
@@ -227,3 +253,4 @@ python 04_build_dataset.py --commits data/commits_window2023.csv \
 | 2026-09-16 | 0.94 | 蒋励 | **全链路跑通，回填实测结果并结清待定项**：① §6 七项统计回填实测值（`szz` 正 4,246 / 负 6,647 / **38.98%**；`szz_lite` 正 3,018 / 负 7,862 / 27.74%）；② **修正 §6 的正样本比例判据** —— 原文写「经验上很低（个位数到十几个百分点）、接近 50% 才需自查」，与实现（`02` 的 `ABNORMAL_LOW/HIGH = 0.40/0.60`）、报告（引用「40%–60%」）**三方不一致**，统一为 **40%–60%**，并把实测值贴近下沿的原因写明（一条修复提交可指控多个引入方，本次平均 1.76 个；标准行级 SZZ 不做二次过滤 —— 故不可用「正样本数不该超过修复提交数」校验）；③ §7 第 5 项「是否裁剪时间窗口」结清为 **不裁剪**（全链路实测 24.5 分钟，预案的两个启用前提都不成立）；④ **新增第 6 项「契约二 4 处口径不清」**（`rexp` 无公式 / 六个特征类型与取对数矛盾 / `ln` 在 0 点不连续 / `nuc` 聚合方式歧义），9/18 冻结前需回写契约二；⑤ `02`/`04` 报告里的判定文案同步改为引用本节判据 |
 | 2026-09-16 | 0.95 | 蒋励 | 头部状态行与版本号同步至全量跑通后的实际状态 |
 | 2026-09-18 | 0.96 | 蒋励 | **把「122 条假阳性」的分解写全**：§7 原文是「（dispatch 词族 83、debug 17、prefix 9，其余同类）」，但 `design.md`、`spec.md`、`tasks.md` 三处转写时丢了「其余同类」，读者按 83+17+9=109≠122 会以为数字有错。现四处统一为「三族 109 + 其余同类 13 = 共 122」，来源仍只有本节一处 |
+| 2026-09-18 | 0.97 | 蒋励 | **链路扩到七步，补 ⑥ 训练与评估、⑦ 全量预测**（change `model-training-and-delivery` 的 5.2 条任务）：① §4 由「链路五步」改为「**链路七步**」，表里补 ⑥⑦ 的脚本入口与产出，并写明 **①–⑤ 属 `data-collection-and-szz-labeling`、⑥⑦ 属 `model-training-and-delivery`**，两段的边界是**样本集**（前半段只产数据，后半段不改特征口径）；② §5 复现命令补 ⑥⑦ 两条，并补 ⑥ 的**两条核对命令**（`--selfcheck` 打乱输入验断言、连跑两次比对指标报告）；③ 写明 ⑥ 的切分铁规矩（**只能时间序、禁止随机**）与 ⑦ 的三条边界（字段与契约一表三逐字一致、**不直连数据库**、**全量推理含检验集**）。<br>**顺带修一处头/日志不一致**：本文件头停在 `0.94`，而变更日志已有 `0.95`、`0.96` 两条 —— 0.95 那条写的正是「头部状态行与版本号同步至全量跑通后的实际状态」，同步动作没做到底。现头部改为 **0.97**。 |
