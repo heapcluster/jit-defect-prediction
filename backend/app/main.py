@@ -8,6 +8,7 @@ from fastapi import FastAPI
 
 from app import model_registry
 from app.api import commits, predict, trends
+from app.db import get_engine
 from app.errors import register_error_handlers
 
 logging.basicConfig(level=logging.INFO)
@@ -21,7 +22,8 @@ def create_app() -> FastAPI:
     app.include_router(predict.router)
 
     @app.on_event("startup")
-    def _load_models() -> None:
+    def _startup() -> None:
+        get_engine()
         model_registry.load_models()
 
     return app

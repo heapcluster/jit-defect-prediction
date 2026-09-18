@@ -109,6 +109,9 @@ def main(argv: list[str]) -> int:
     if len(argv) != 3 or argv[1] not in _KINDS:
         print(f"用法：python -m app.ingest <{'|'.join(_KINDS)}> <csv 路径>", file=sys.stderr)
         return 2
+    from app.db import get_engine
+
+    get_engine()
     return ingest(argv[1], argv[2])
 
 
