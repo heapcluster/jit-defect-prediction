@@ -3,16 +3,22 @@
 # 环境：Python 3.12.x；用哪种工具管理自选（conda / venv / uv 均可），见 docs/onboarding.md 第 2 节
 # 安装：pip install -r data_model/requirements.txt
 #
-# 版本：首次跑通后回填 ==x.y.z（例：pandas==2.2.3）。
-#       钉版本的目的不是洁癖，是让别人的指标数字与你的可比 —— 版本不同，跑出来的数不一样。
+# 版本：**必须与 data_model/models/feature_order.txt 的 [dependencies] 段同源** —— 那份清单由
+#       06_train_model.py 随模型一起产出，是 A 方案交付物；两处不一致，后端线就装不出能加载
+#       .pkl 的环境。钉版本的目的是让别人的指标数字与你的可比 —— 版本不同，跑出来的数不一样。
 
-pandas
-numpy
-scikit-learn
-xgboost
+pandas==3.0.5
+numpy==2.5.3
+scikit-learn==1.9.1
+xgboost==3.4.1
+
+# SHAP：接口返回的 explanation 由它产出（契约三第三节）。**不能省** —— 少了它，
+# 后端线按本清单装环境会缺依赖，预测接口的 explanation 字段直接起不来。
+shap==0.52.0
+
 GitPython
 
-# 测试与代码风格
+# 测试与代码风格：不参与指标计算，不钉版本
 pytest
 ruff
 

@@ -1,0 +1,32 @@
+# 行尾统一 —— 仓库内与工作区一律 LF
+#
+# 为什么需要这个文件：
+# 本仓库的 LF 现在靠每个人本机的 core.autocrlf 兜着，仓库里没有任何规则。
+# 本机是 autocrlf=true（Windows Git 的常见默认），检出时会把工作区写成 CRLF ——
+# 评审时看到的是「整个文件全删全增」，看不出真实改动，还得逐行确认是不是真改了。
+# 只要组员换台机器、换个编辑器、或改一个 git 设置，CRLF 就会真的提交进仓库。
+# 把行尾规则写进仓库，就不再依赖任何人的本机配置。
+#
+# 副作用：Windows 下工作区也会是 LF，VSCode / PyCharm / 新版记事本都能正常打开。
+# 将来若加入必须在 Windows 上保持 CRLF 的脚本，在本文件末尾单独给它们写 eol=crlf。
+* text=auto eol=lf
+
+# 本仓库现有的文本类型，显式声明为 text。
+# 不用 text=auto 兜底的原因：git 会把「这个文件是二进制」的判定缓存在索引里，
+# 一旦缓存成 -text，text=auto 不会重新判定 —— data_model/reports/labeling_review_sample.md
+# 就是这个状态（内容是合法 UTF-8、无 NUL 字节，却被缓存为二进制）。
+*.md   text eol=lf
+*.py   text eol=lf
+*.yaml text eol=lf
+*.txt  text eol=lf
+
+# 二进制：禁止任何行尾转换，否则文件会被改坏
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.xlsx  binary
+*.zip   binary
+*.pkl   binary
