@@ -183,6 +183,9 @@ def main() -> int:
             first_feature=fields[3] if len(fields) > 3 else "",
         ),
         encoding="utf-8",
+        # 显式写 \n：Windows 上 write_text 默认会把 \n 转成 os.linesep（CRLF），
+        # 而仓库既有 Markdown 全是 LF —— 报告一生成就会整份行尾不一致
+        newline="\n",
     )
 
     print("[05] 样本集 %d 条 -> 训练 %d / 检验 %d（比例 %.0f/%.0f，按时间序）"

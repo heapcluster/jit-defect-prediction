@@ -10,7 +10,7 @@
 | 模型 | `xgb_v1`（`D:\workspace\code\course\jit-defect-prediction\data_model\models\xgb_v1.pkl`） |
 | 推理条数 | 10893（全量，含检验集） |
 | `feature_version` | `v1` |
-| `predicted_at` | 2026-09-18 04:17:54（UTC） |
+| `predicted_at` | 2026-09-18 06:38:03（UTC） |
 | 输出文件 | `D:\workspace\code\course\jit-defect-prediction\data_model\data\prediction_result.csv` |
 
 ## 风险分数分布

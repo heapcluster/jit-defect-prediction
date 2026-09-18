@@ -349,7 +349,7 @@ def main() -> int:
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(
             render_report(args, train, test, results, warranted=wanted),
-            encoding="utf-8")
+            encoding="utf-8", newline="\n")
         print("[06] --no-export：未导出模型文件；指标报告：%s" % args.report)
         return 0
 
@@ -374,12 +374,14 @@ def main() -> int:
         + "\n[decision]\n"
         + "风险阈值 %.2f（服务端常量，见 docs/contracts/api-format.md 第三节）\n"
         % DECISION_THRESHOLD,
-        encoding="utf-8")
+        encoding="utf-8", newline="\n")
 
     args.report.parent.mkdir(parents=True, exist_ok=True)
+    # newline="\n"：Windows 上 write_text 默认把 \n 转成 os.linesep（CRLF），
+    # 与仓库既有 Markdown（LF）会整份不一致 —— 同 05_split_dataset.py 的说明
     args.report.write_text(
         render_report(args, train, test, results, warranted=wanted),
-        encoding="utf-8")
+        encoding="utf-8", newline="\n")
 
     print("[06] 模型已导出：%s" % args.model_dir)
     print("[06] 交付清单：%s" % order_file)

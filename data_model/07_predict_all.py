@@ -155,7 +155,9 @@ def main() -> int:
             above_rate=above / len(dataset) * 100,
             threshold=DECISION_THRESHOLD,
         ),
-        encoding="utf-8")
+        # 显式写 \n：Windows 上 write_text 默认把 \n 转成 os.linesep（CRLF），
+        # 与仓库既有 Markdown（LF）会整份不一致 —— 同 05_split_dataset.py 的说明
+        encoding="utf-8", newline="\n")
 
     print("[07] 全量推理 %d 条 -> %s" % (len(dataset), args.out))
     print("[07] model_name=%s ｜ feature_version=%s ｜ predicted_at=%s"
