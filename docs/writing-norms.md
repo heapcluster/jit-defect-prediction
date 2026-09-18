@@ -122,7 +122,7 @@ CREATE TABLE commit_label (...)
 >
 > **迁移办法**：新文档一律照此；历史文档**在下次因别的原因改动时顺手补齐**，不单独为补版本头开 PR。
 >
-> **截至 2026-09-17 的实际覆盖范围（写清边界，不写「全部」）**：本 PR 补齐 **6 份**已有文档 —— 根 `README.md`、`docs/README.md`、`data_model/` `backend/` `frontend/` `infra/` 四个目录 README；另有 **3 份新增文档**（`team-charter.md` / `writing-norms.md` / `defect-management.md`）天生带版本头，不属「补齐」。
+> **截至 2026-09-17 的实际覆盖范围（写清边界，不写「全部」）**：本 PR 补齐 6 份**已有交付文档** —— 根 `README.md`、`docs/README.md`、`data_model/` `backend/` `frontend/` `infra/` 四个目录 README；另有 **3 份新增文档**（`team-charter.md` / `writing-norms.md` / `defect-management.md`）天生带版本头，不属「补齐」。
 >
 > **有意未套用本规范的三类**：
 >
@@ -131,6 +131,9 @@ CREATE TABLE commit_label (...)
 > | `AGENTS.md`、`CLAUDE.md` | AI 工具规则入口，不是交付文档；其版本由工具集成方式决定 |
 > | `.github/ISSUE_TEMPLATE/` 下的模板 | Issue 模板无版本概念，改了就是改了 |
 > | `openspec/changes/**/spec.md`、`design.md` | **规格文件的版本由 OpenSpec change 机制管理**（change id + 归档状态），再叠一层文档版本号会两套版本打架 |
+> | `openspec/changes/**/{proposal,design,tasks,README}.md` | 同上 —— change 内所有文件都由 change 机制管理版本，一张 change 一个 id |
+> | `.github/pull_request_template.md`、`ISSUE_TEMPLATE/*` | 模板类文件，改了就是改了，无版本概念 |
+> | `data_model/reports/*.md` | **数据产物报告**，版本由产出它的脚本与`feature_version` 决定，不由文档版本号表达 |
 >
 > 上一版这里写「仓库内全部 Markdown 已补齐」—— **不实**：实际只补了 6 份，且上面三类本就不该套用。**写「全部」等于给复核人留一个一查就破的坑。**
 >
@@ -156,6 +159,12 @@ CREATE TABLE commit_label (...)
 3. **合并后核对实际占用的版本号** —— 若前面的 PR 没按预期占号、或合并顺序变了，本条目要改号并同步文件头
 
 > **这条是从一次实际问题里补出来的**：`docs/collaboration.md` 曾从 1.1 直接跳到 1.5，只在 PR 描述里说明「1.3 归 PR #3、1.4 归 PR #22」。**描述里的说明过期就没人看** —— 后来读文件的人只看到跳号，无从判断是预留还是随手写的。**预留理由必须写进变更日志本身。**
+
+4. **重编号一个文件的版本后，必须全仓扫一遍引用点。** 至少要扫这五处：契约索引表（`docs/contracts/README.md` 的状态表）、各线 README、`docs/` 下的规范与链路文档、`openspec/changes/**` 的规格与 tasks、以及**已发出的 PR 描述**。
+
+> **这条是从一次真实事故补出来的**：`docs/contracts/data-fields.md` 重排变更日志后文件头由 1.0 变为 1.4，但 `docs/contracts/README.md` 状态表还写 1.2 —— 结果**后端线照那张表把「契约一 v1.2」抄进了他的 change 提案**。版本号写错不是笔误，是**会顺着引用链传播**的，而且传播到别人手里就变成别人的错。
+>
+> 扫描命令示例（PowerShell）：在仓库根跑 `Select-String -Path (Get-ChildItem -Recurse -Filter *.md).FullName -Pattern "契约[一二三].*v\d+\.\d+"`，逐条判定「当前版本」还是「历史陈述」——**历史陈述（变更日志里的旧版本号）不要改**，改了反而失真。
 
 **改口径必须同时在变更日志里写明「改了什么、为什么改」。** 只改正文不写变更日志，视为未完成 —— 课程要求「审阅意见及修改记录保留在 Git 平台」，变更日志就是这条要求的最小落地。
 
@@ -188,7 +197,7 @@ CREATE TABLE commit_label (...)
 
 **判据（可执行版）**：比对基线是 **`docs/templates/weekly-report-template.md`（模板骨架快照 v1）** —— 模板只存在于飞书，仓库里没有副本就没法复核，所以先把骨架固化入库，判据才有得比。
 
-**合并前逐项打勾，五项全过才算「没改模板」：**
+**合并前逐项打勾，六项全过才算「没改模板」：**
 
 | # | 检查项 | 怎么查 | 不合格即打回 |
 |---|---|---|---|
