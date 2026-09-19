@@ -42,7 +42,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 影响目录 | `data_model/`（扩展 `06_train_model.py`、新增 `08_calibration_threshold.py` 与两份报告）、`docs/data-pipeline.md`（链路表与复现命令回填） |
+| 影响目录 | `data_model/`（扩展 `06_train_model.py`、新增 `08_model_matrix.py`、`09_calibration_threshold.py` 与两份报告）、`docs/data-pipeline.md`（链路表与复现命令回填） |
 | 新增依赖 | **无** —— 8 个模型全部由既有依赖承载（`scikit-learn` 的 `linear_model` / `ensemble` / `naive_bayes` / `tree` / `neighbors` / `neural_network`）。按 `AGENTS.md` 第五节，新增依赖必须先问，本 change 不触发该流程 |
 | 交付物是否变化 | **否** —— 后端加载的交付模型仍是 `xgb_v1`，`models/feature_order.txt` 的 `[models]` 段不变，`prediction_result.csv` 仍由 `07` 产出。新模型只进**评估矩阵**，不进后端加载路径 |
 | 契约 | 只读不改。阈值语义与排序口径仍以契约三为准，证据交给提案（Issue #37 / #38）决策 |
