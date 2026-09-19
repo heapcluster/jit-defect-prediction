@@ -54,6 +54,21 @@ uvicorn app.main:app --reload --port 8000
 
 **迁移方式自行决定**（Alembic 或建表 SQL 脚本都行），但要满足 —— 别人 clone 后一条命令能把库建好。这属于完成定义第 1 条「能在别人机器上跑起来」。
 
+## 建库与灌入（一条命令）
+
+```bash
+# 建四张表（先按 .env.example 配好 .env 的 DATABASE_URL）
+python -m app.db init
+
+# 灌入数据线产物（前提：先跑 data_model 01–04；prediction_result.csv 来自方案 C 离线预测，不来自 01–04）
+python -m app.ingest commits     <提交清单.csv>
+python -m app.ingest labels      <标签表.csv>
+python -m app.ingest features    <特征表.csv>
+python -m app.ingest predictions <prediction_result.csv>
+```
+
+灌入幂等：同一文件重跑不增行；按表幂等键 upsert（commit=commit_hash、label=(commit_hash, label_method)、feature=commit_hash、prediction=(commit_hash, model_name)，见 change `backend-db-and-query-api` design D4）。缺主键字段的行整批回滚并报行号。
+
 ## 模型从哪来（2026-09-16 已定：方案 A + C）
 
 **A（后端加载模型文件）**：后端启动时从 `data_model/models/` 加载 `.pkl` 文件，供 `POST /api/predict` 实时推理。

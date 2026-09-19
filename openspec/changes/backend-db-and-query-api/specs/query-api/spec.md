@@ -39,7 +39,7 @@
 
 ### Requirement: 风险列表查询
 
-`GET /api/commits` SHALL 按 `risk_score` 降序返回提交列表，支持 `page`/`size` 分页（默认 1/20）与 `min_risk`/`model_name`/`start_time`/`end_time` 筛选；`items` SHALL 只取单个 `model_name` 的预测行，`model_name` 缺省 SHALL 取 `prediction` 表内最新（`predicted_at` 最大）的模型，MUST NOT 跨模型混排（否则同一提交会翻出多条重复项）。
+`GET /api/commits` SHALL 按 `risk_score` 降序返回提交列表，支持 `page`/`size` 分页（默认 1/20）与 `min_risk`/`model_name`/`start_time`/`end_time` 筛选；`items` SHALL 只取单个 `model_name` 的预测行，`model_name` 缺省 SHALL 取 `prediction` 表内模型中**版本序**（`version_key`，design D6）最大者，MUST NOT 跨模型混排（否则同一提交会翻出多条重复项）。
 
 #### Scenario: 默认排序与分页
 
@@ -67,7 +67,7 @@
 
 ### Requirement: 趋势聚合查询
 
-`GET /api/trends` SHALL 按 `granularity`（枚举 `week` 默认 / `month`）聚合风险趋势；SHALL 支持可选参数 `start_time`/`end_time`（ISO 8601 带时区，按 `committed_at` 过滤，缺省不限）与 `model_name`（缺省取 `prediction` 表内最新模型）；`high_risk_count` SHALL 由后端按**固定常量阈值 `risk_score >= 0.5`** 计算（本 change 不开放为请求参数 —— 契约三 §3 请求参数表未列该参数，见 design D10），MUST NOT 交由前端重算；`series` SHALL 只返回单个 `model_name` 的一组数据。
+`GET /api/trends` SHALL 按 `granularity`（枚举 `week` 默认 / `month`）聚合风险趋势；SHALL 支持可选参数 `start_time`/`end_time`（ISO 8601 带时区，按 `committed_at` 过滤，缺省不限）与 `model_name`（缺省取表内版本序最大模型）；`high_risk_count` SHALL 由后端按**固定常量阈值 `risk_score >= 0.5`** 计算（本 change 不开放为请求参数 —— 契约三 §3 请求参数表未列该参数，见 design D10），MUST NOT 交由前端重算；`series` SHALL 只返回单个 `model_name` 的一组数据。
 
 #### Scenario: 周粒度聚合
 

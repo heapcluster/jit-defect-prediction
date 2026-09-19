@@ -40,7 +40,7 @@
 ## D6 模型加载与注册表
 
 - 启动时扫描 `MODEL_DIR`（`.env`，默认 `<repo>/data_model/models/`）下的 `*.pkl`，`model_name` = 文件名主干；注册表存 `{model_name: (path, mtime, model对象)}`。
-- 「默认最新」分两个域（评审意见 #27-5）：`predict` 取注册表（`MODEL_DIR` 下 `.pkl`）mtime 最大者；**三个查询接口取 `prediction` 表内 `predicted_at` 最大的 `model_name`**，与注册表无关。两者不一致时的行为：查询只看库 —— 新交付的 `.pkl` 在方案 C 灌入前不会让风险列表变空，列表缺省仍是库里有数据的最新模型。
+- **「默认最新」单一定义 = 模型版本序**（`version_key`：模型名尾数字段，xgb_v2 > xgb_v1；PR #30 审 2）：查询接口取表内有行模型中的版本序最大者；`predict` 取注册表中版本序最大者；详情接口读与列表同一默认模型的预测行，消除「列表 A、详情 B」。predicted_at / mtime 不再参与「最新」判定（它们只反映「谁最后被跑过 / 文件最后被改过」）。窗口差异：新 `.pkl` 已交付未灌入时 predict 缺省可比查询缺省新一版；查询侧候选集为「表内有行的模型」，不会因未灌入模型而空列表。
 - 加载失败（文件缺失、反序列化异常）**不阻断启动**：查询接口仍可用（读库），`predict` 返回 `50000`；异常详情只写服务端日志，message 不回显路径（契约三第 4 节错误情形）。
 - 特征向量顺序固定按契约二 §3 的 14 列顺序组装，不按 dict 插入顺序猜（`backend/README.md` 红线）。
 
@@ -61,6 +61,7 @@
 - 其他不可支持的类型 → `explanation` 返回空数组并写服务端日志（前端按 pages.md「该模型未提供特征解释」渲染），风险值照常返回。
 
 `contribution` = |shap 值|，`direction` = shap 值符号（正 `increase`、负 `decrease`）；排序与截断由前端负责（pages.md §3），接口返回全量。
+- explainer 惰性构造并缓存于 `ModelEntry`（PR #30 审 3）：TreeExplainer 构造是链路上最贵的一段，MUST NOT 每请求重建。
 
 ## D9 测试双：SQLite 内存库 + fixture 模型
 

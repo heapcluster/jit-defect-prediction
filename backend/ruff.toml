@@ -1,0 +1,7 @@
+# 后端线 ruff 配置（仅作用于 backend/）
+[lint]
+ignore = [
+    # 项目约定：库内一律 naive UTC（契约一 DATETIME UTC），序列化时统一补 Z；
+    # 存 tz-aware 反而与 MySQL DATETIME 语义冲突，故不按 DTZ001 改
+    "DTZ001",
+]
