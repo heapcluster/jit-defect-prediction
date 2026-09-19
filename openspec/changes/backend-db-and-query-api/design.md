@@ -12,11 +12,11 @@
 
 ## D2 鉴权：固定令牌，请求头 `X-API-Key`
 
-契约三 1.3「鉴权细则」已冻结：固定 API Key、不做 JWT、令牌读 `.env` 的 `API_TOKEN`、失败 message 固定 `missing or invalid token`。实现照做，不再另行选型；本条仅记录与提案初稿（曾建议 Bearer）的差异以冻结文本为准。
+契约三 1.4「鉴权细则」已冻结：固定 API Key、不做 JWT、令牌读 `.env` 的 `API_TOKEN`、失败 message 固定 `missing or invalid token`。实现照做，不再另行选型；本条仅记录与提案初稿（曾建议 Bearer）的差异以冻结文本为准。
 
 ## D3 「提交存在但无预测记录」的详情响应形态
 
-契约三 1.3 未写。选 `code=0`、`risk_score` 与 `model_name` 为 null、`explanation` 空数组：
+契约三 1.3 §2 已补记（d3a1327）；「feature 无行」情形由 1.4 §2 补记。选 `code=0`、`risk_score` 与 `model_name` 为 null、`explanation` 空数组：
 
 - 40400 的语义是「目标不存在」，而提交本身存在，用 40400 会让前端「该提交不存在」的文案说谎；
 - 与 `docs/pages.md` §5「空数据不是错误」同口径，前端按 null 渲染「尚未预测」态；
@@ -46,7 +46,7 @@
 
 ## D7 predict 幂等落库：按 (commit_hash, model_name) 只保留最新一行
 
-聊天裁定内部有两句口径：§1 幂等 bullet「不写库、不改状态」与 §3「**A 与 C 写同一张 prediction 表，靠 model_name 区分来源**」。契约三 1.3（裁定指定的落点、已冻结）取后者：「库里只保留最新一行（覆盖或先删后插），不得累积重复行」。2026-09-17 用户复核确认：predict 需要写 `prediction` 表。实现为 update-or-insert：
+聊天裁定内部有两句口径：§1 幂等 bullet「不写库、不改状态」与 §3「**A 与 C 写同一张 prediction 表，靠 model_name 区分来源**」。契约三 1.4（裁定指定的落点、已冻结）取后者：「库里只保留最新一行（覆盖或先删后插），不得累积重复行」。2026-09-17 用户复核确认：predict 需要写 `prediction` 表。实现为 update-or-insert：
 
 - §1 bullet 按「重复调用不累积重复行、不改变模型状态」理解，与 upsert 不冲突；
 - 给 `prediction` 加 `(commit_hash, model_name)` 唯一索引把口径落进 schema（契约一「不写进契约的」允许后端自属冗余索引）；
