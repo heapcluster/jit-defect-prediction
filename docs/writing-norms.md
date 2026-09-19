@@ -1,6 +1,6 @@
 # 文档写作规范
 
-> 版本 1.0 ｜ 创建 2026-09-17 ｜ 主笔 蒋励 ｜ 审核 待审阅
+> 版本 1.1 ｜ 创建 2026-09-17 ｜ 更新 2026-09-19 ｜ 主笔 蒋励 ｜ 审核 待审阅
 
 **适用范围**：仓库内全部 Markdown 文档 + 飞书上的《产品需求文档》《产品设计文档》《工作周报》。
 
@@ -129,11 +129,11 @@ CREATE TABLE commit_label (...)
 > | 文件 | 为什么不用 |
 > |---|---|
 > | `AGENTS.md`、`CLAUDE.md` | AI 工具规则入口，不是交付文档；其版本由工具集成方式决定 |
-> | `.github/ISSUE_TEMPLATE/` 下的模板 | Issue 模板无版本概念，改了就是改了 |
 > | `openspec/changes/**/spec.md`、`design.md` | **规格文件的版本由 OpenSpec change 机制管理**（change id + 归档状态），再叠一层文档版本号会两套版本打架 |
 > | `openspec/changes/**/{proposal,design,tasks,README}.md` | 同上 —— change 内所有文件都由 change 机制管理版本，一张 change 一个 id |
 > | `.github/pull_request_template.md`、`ISSUE_TEMPLATE/*` | 模板类文件，改了就是改了，无版本概念 |
 > | `data_model/reports/*.md` | **数据产物报告**，版本由产出它的脚本与`feature_version` 决定，不由文档版本号表达 |
+> | `.claude/`、`.codebuddy/`、`.qoder/` 下的文件 | 第三方 AI 工具配置，不是项目文档；内容由工具自己维护，本规范覆盖不到 |
 >
 > 上一版这里写「仓库内全部 Markdown 已补齐」—— **不实**：实际只补了 6 份，且上面三类本就不该套用。**写「全部」等于给复核人留一个一查就破的坑。**
 >
@@ -239,3 +239,4 @@ CREATE TABLE commit_label (...)
 | 日期 | 版本 | 变更人 | 主要变更 |
 |---|---|---|---|
 | 2026-09-17 | 1.0 | 蒋励 | 初版。依据：课程《课程要求及日程安排》（周报命名、提交时间、格式、缺勤规则）、《项目要求》（文档与变更同步要求）、飞书周报模板自带的填写说明。① 命名规则（仓库 / 飞书分开定，含禁止项）；② 注释格式（Python / JS-Vue / SQL 三套，含「不要写什么」）；③ Markdown 排版与版本号规则；④ 周报模板使用规范 —— 明确**模板结构不得改动**并给出可核对判据，三张表的填写口径直接引自模板自带说明 |
+| 2026-09-19 | 1.1 | 蒋励 | **按审阅意见修订**（两轮意见的收口）：① §3.1 覆盖范围由「全部 Markdown」改为**逐条列明**（本 PR 实际补齐 6 份 + 新建 3 份），并补全**有意未套用清单** —— AI 入口、Issue/PR 模板、`openspec/changes/**` 全部文件、`data_model/reports/*.md`、工具配置目录（`.claude/`、`.codebuddy/`、`.qoder/`）；同时清掉豁免表里 `ISSUE_TEMPLATE` 的重复行；② §4.2 判据落地为**可核对版本**：新增模板骨架快照 `docs/templates/weekly-report-template.md` 作比对基线，检查项统一为**六项**，并要求比对结论留痕；③ 快照文件版本格式由 `v1` 改为 `1.0`，与 §3.1「版本 X.Y」一致；④ `frontend/README.md` 文件头版本与变更日志对齐为 `1.0` |
