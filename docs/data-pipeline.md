@@ -1,6 +1,6 @@
 # 数据链路与版本固定
 
-> 状态：**①–⑦ 全链路全量跑通** ｜ 版本 0.99 ｜ 负责人 蒋励 ｜ 冻结时间 Sprint 0 末（10-02）
+> 状态：**①–⑦ 全链路全量跑通；⑧–⑨ 模型覆盖与阈值证据已产出** ｜ 版本 1.0 ｜ 负责人 蒋励 ｜ 冻结时间 Sprint 0 末（10-02）
 
 ## 0. 这份文档解决什么问题
 
@@ -64,16 +64,21 @@ git rev-parse HEAD               # 把输出的完整哈希抄进下表
 
 **不要为了提交数据而改 `.gitignore`，也不要用 `git add -f`。** 数据集与模型文件不入库是课程的硬要求，也是 `.gitignore` 第一节就写死的东西。
 
-## 4. 链路七步
+## 4. 链路九步
 
 ```
 ① 克隆并固定版本 → ② 抽取提交 → ③ SZZ 打标 → ④ 算 Kamei 14 项特征 → ⑤ 输出样本集
                                                                      ↓
                                               ⑦ 全量预测出交付文件 ← ⑥ 时间序切分、训练与评估
+                                                                     ↓
+                                              ⑨ 校准与阈值策略证据 ← ⑧ 覆盖矩阵（8 种 / 2 类）
 ```
 
-**①–⑤ 属 change `data-collection-and-szz-labeling`，⑥–⑦ 属 change `model-training-and-delivery`。**
+**①–⑤ 属 change `data-collection-and-szz-labeling`，⑥–⑦ 属 change `model-training-and-delivery`，
+⑧–⑨ 属 change `model-expansion`。**
 两段的边界是**样本集**：前半段只产数据，后半段只在「已切分、已冻结」的样本集上训练，不改特征口径。
+⑧–⑨ 是**评估侧的扩展**：不重新切分、不改特征（与 ⑥ 同一份切分、同一套特征、同一个种子），
+只把课程要求的「2 类不少于 8 种」补齐并给出校准/阈值证据。
 
 | 步 | 做什么 | 脚本入口 | 输出 |
 |---|---|---|---|
@@ -84,6 +89,8 @@ git rev-parse HEAD               # 把输出的完整哈希抄进下表
 | ⑤ | 汇总成一份可训练样本集 | `data_model/04_build_dataset.py` | `data_model/data/dataset_{szz,szz_lite}.csv` + `reports/dataset_stats.md` |
 | ⑥ | 按 `committed_at` 时间序切分 → 训练 2–3 个经典模型 → 出两类指标 | `data_model/05_split_dataset.py`、`data_model/06_train_model.py` | `data/split_{tag}_{train,test}.csv`、`models/*.pkl`、`models/feature_order.txt`、`reports/split_stats_*.md`、`reports/model_metrics*.md` |
 | ⑦ | 全量推理，产出交付后端线的结果文件 | `data_model/07_predict_all.py` | `data/prediction_result.csv` + `reports/prediction_stats.md` |
+| ⑧ | 覆盖矩阵：8 种模型（经典 6 + 神经网络 2）× 类别 × 两类指标，并自证与 ⑥ 的报告逐项一致 | `data_model/08_model_matrix.py` | `reports/model_matrix.md` |
+| ⑨ | 概率校准（**时间序折**）与「固定阈值 vs 工作量配额」的等工作量对照 —— **只出证据，不改契约** | `data_model/09_calibration_threshold.py` | `reports/calibration_threshold.md` |
 
 **⑥ 的两条口径**（写在 `data_model/README.md` 铁规矩与 `06_train_model.py` 文件头，这里只引用）：**只能按时间序切分，禁止随机切分**；两类指标（Effort-unaware + Effort-aware）**都要报**，只报一类不足以说明问题。
 
@@ -135,7 +142,19 @@ python 06_train_model.py --train data/split_szz_train.csv \
 
 # ⑦ 全量推理，产出交付后端线的结果文件（字段 = 契约一表三）
 python 07_predict_all.py --model models/xgb_v1.pkl
+
+# ⑧ 覆盖矩阵（8 种模型 × 2 类 × 两类指标；change `model-expansion`）
+#    默认 --models lr,rf,xgb,nb,dt,knn,mlp,mlp_deep；既有 3 个模型会与 ⑥ 的报告逐项比对
+python 08_model_matrix.py
+
+# ⑨ 校准与阈值证据（时间序 CV；产出仅作契约三提案 Issue #37/#38 的依据）
+python 09_calibration_threshold.py
 ```
+
+**⑧–⑨ 的口径**：⑧ **不重新切分、不改特征**，只读 ⑥ 的切分文件；它会在报告里写出
+「与 `reports/model_metrics.md` 逐项比对的差异项数」——**差异必须为 0**，否则说明口径被动过。
+⑨ 的校准折**必须时间序**（`TimeSeriesSplit`），禁止随机 `KFold`；两种策略对照必须落在
+**同一工作量口径**上（LOC 与改动文件数各一版），否则「更优」可能只是审了更多代码。
 
 **⑥ 的两条核对命令**（不是可选项，是这一步的证据）：
 
@@ -269,3 +288,4 @@ python 04_build_dataset.py --commits data/commits_window2023.csv \
 | 2026-09-18 | 0.97 | 蒋励 | **链路扩到七步，补 ⑥ 训练与评估、⑦ 全量预测**（change `model-training-and-delivery` 的 5.2 条任务）：① §4 由「链路五步」改为「**链路七步**」，表里补 ⑥⑦ 的脚本入口与产出，并写明 **①–⑤ 属 `data-collection-and-szz-labeling`、⑥⑦ 属 `model-training-and-delivery`**，两段的边界是**样本集**（前半段只产数据，后半段不改特征口径）；② §5 复现命令补 ⑥⑦ 两条，并补 ⑥ 的**两条核对命令**（`--selfcheck` 打乱输入验断言、连跑两次比对指标报告）；③ 写明 ⑥ 的切分铁规矩（**只能时间序、禁止随机**）与 ⑦ 的三条边界（字段与契约一表三逐字一致、**不直连数据库**、**全量推理含检验集**）。<br>**顺带修一处头/日志不一致**：本文件头停在 `0.94`，而变更日志已有 `0.95`、`0.96` 两条 —— 0.95 那条写的正是「头部状态行与版本号同步至全量跑通后的实际状态」，同步动作没做到底。现头部改为 **0.97**。 |
 | 2026-09-18 | 0.98 | 蒋励 | **改正「子集运行」一节的两处错误，并补两条实测踩到的坑**（重跑窗口对照链路时确认）：① 原文写「报告里会标『不可比』」**与实现不符** —— 01–04 的统计表路径写死、`--tag` 只改数据文件名不改报告名，**子集运行会直接覆盖全量的四份统计报告**（本次实测把 `commit_extract_stats.md`、`szz_labeling_stats.md`、`feature_stats.md`、`dataset_stats.md` 全盖成了子集数字，已从 git 恢复）；② 新增「**改了 D4 判据后必须重跑窗口对照**」—— 窗口特征表的 `fix` 列曾与全量差 1 条（`972d31f9`，信息含 `pauseDispatch`），成因是窗口产物沿用 9/16 修正前的**子串**判据；按本节命令重跑 01→04 后两边逐值一致（差异 0 条） |
 | 2026-09-19 | 0.99 | 蒋励 | **修正头部 Sprint 周期口径**（飞书周报 0918 第 21 项）：课程周次口径为「第 1 周 = 2026-09-11 ~ 2026-09-18」，Sprint 0 = 2026-09-11 ~ **2026-10-02**；原文写「Sprint 0 末（9/25）」，差一周。同期修 `docs/sprint0-scope.md` 第 4 行 |
+| 2026-09-19 | 1.0 | 蒋励 | **链路扩到九步，补 ⑧ 覆盖矩阵与 ⑨ 校准/阈值证据**（change `model-expansion` 的 4.2 条任务）：① §4 由「链路七步」改为「**链路九步**」，表里补 ⑧ `08_model_matrix.py`（8 种模型 = 经典 6 + 神经网络 2，产出 `reports/model_matrix.md`）与 ⑨ `09_calibration_threshold.py`（时间序折校准 + 固定阈值/工作量配额的等工作量对照，产出 `reports/calibration_threshold.md`），并写明 **①–⑤ 属 `data-collection-and-szz-labeling`、⑥⑦ 属 `model-training-and-delivery`、⑧⑨ 属 `model-expansion`**；② §5 复现命令补 ⑧⑨ 两条；③ 新增「⑧–⑨ 的口径」：⑧ **不重新切分、不改特征**且必须在报告里出示「与 `model_metrics.md` 逐项比对的差异项数（必须为 0）」，⑨ 的校准折**必须时间序**、两种策略对照**必须同工作量口径**。<br>**本步不新增依赖、不改交付模型**（后端仍加载 `xgb_v1`），⑨ 只出证据、契约三语义改动仍走提案 |
