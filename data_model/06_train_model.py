@@ -46,6 +46,22 @@
 模型导出 `models/<model_name>.pkl`（不入库）；同时产出 `models/feature_order.txt`，
 写明 `.pkl` 路径、14 项特征顺序、依赖版本 pin。按裁定（PR #20）**这份清单是契约二
 第三节的副本、不是独立来源**，两者不一致时以契约为准。
+
+── 模型覆盖（change `model-expansion`）────────────────────────────────────
+课程要求「至少 2 类（经典机器学习、深度学习）不少于 8 种」，本脚本承载其中 8 种：
+
+  经典机器学习族（6）：`lr` 逻辑回归 / `rf` 随机森林 / `xgb` XGBoost /
+                        `nb` 高斯朴素贝叶斯 / `dt` 决策树 / `knn` k 近邻
+  神经网络（深度学习）族（2）：`mlp` 1 隐藏层 / `mlp_deep` 3 隐藏层
+
+**默认值仍是 `lr,rf,xgb`** —— 首 change 的复现命令与 `reports/model_metrics.md`
+因此逐行不变（`--models` 显式传参才跑到扩展模型）。新增模型**只进评估矩阵**，
+不进 `models/feature_order.txt` 的 `[models]` 段，也不是后端加载对象。
+
+> `mlp_deep` 打开早停（`early_stopping=True`）。早停的内部验证子集从**训练集内部**
+> 随机抽取（种子固定），检验集始终时间在后 —— 不构成红线第 1 条所说的「提前看到未来」。
+> 代价是它不属于「同一命令连跑两次逐字节一致」的那一类，故报告里指标照常登记，
+> 复现核对比对以固定迭代的模型为准。
 """
 
 from __future__ import annotations
@@ -64,8 +80,12 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (accuracy_score, f1_score, precision_score,
                              recall_score, roc_auc_score)
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neural_network import MLPClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+from sklearn.tree import DecisionTreeClassifier
 
 BASE = Path(__file__).resolve().parent
 DATA_DIR = BASE / "data"
@@ -82,7 +102,22 @@ FEATURE_FIELDS = [
 ]
 
 LABEL_COL = "is_bug_inducing"
-MODEL_NAMES = {"lr": "逻辑回归", "rf": "随机森林", "xgb": "XGBoost"}
+MODEL_NAMES = {
+    # 经典机器学习族
+    "lr": "逻辑回归", "rf": "随机森林", "xgb": "XGBoost",
+    "nb": "高斯朴素贝叶斯", "dt": "决策树", "knn": "k 近邻",
+    # 神经网络（深度学习）族
+    "mlp": "多层感知机（1 隐藏层）",
+    "mlp_deep": "多层感知机（3 隐藏层 + 早停）",
+}
+# 类别标注（change `model-expansion` 的「至少 2 类」口径）
+MODEL_CLASS = {
+    "lr": "经典机器学习", "rf": "经典机器学习", "xgb": "经典机器学习",
+    "nb": "经典机器学习", "dt": "经典机器学习", "knn": "经典机器学习",
+    "mlp": "神经网络（深度学习）", "mlp_deep": "神经网络（深度学习）",
+}
+# k 近邻的 k：取奇数（二分类平票时不会各占一半）
+KNN_NEIGHBORS = 25
 DEFAULT_SEED = 42
 DECISION_THRESHOLD = 0.5
 # 随机基线的抽样次数与种子（固定，保证可复现）
@@ -94,7 +129,8 @@ LATENCY_BUDGET_MS = 500.0
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="训练 LR / RF / XGBoost 并产出 Effort-unaware + Effort-aware 两类指标",
+        description="训练经典机器学习 / 神经网络模型并产出 Effort-unaware + Effort-aware "
+                    "两类指标（默认 lr,rf,xgb）",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument("--train", type=Path, default=DATA_DIR / "split_szz_train.csv")
@@ -102,7 +138,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--features-raw", type=Path,
                    default=DATA_DIR / "commit_features_raw.csv",
                    help="03 产出的原始特征表，用于取工作量（LOC / 文件数）")
-    p.add_argument("--models", default="lr,rf,xgb", help="要训练的模型，逗号分隔")
+    p.add_argument("--models", default="lr,rf,xgb",
+                   help="要训练的模型，逗号分隔；可选 %s" % ",".join(MODEL_NAMES))
     p.add_argument("--seed", type=int, default=DEFAULT_SEED, help="随机种子（必须固定）")
     p.add_argument("--model-dir", type=Path, default=MODELS_DIR)
     p.add_argument("--report", type=Path,
@@ -227,6 +264,36 @@ def build_model(name: str, seed: int):
             subsample=0.9, colsample_bytree=0.9,
             random_state=seed, n_jobs=-1,
             eval_metric="logloss")
+    # ── change `model-expansion` 新增：经典机器学习族另外三种 ──
+    if name == "nb":
+        # 高斯朴素贝叶斯：假设各维条件独立且服从高斯。对量纲单调变换不敏感，故不标准化
+        return GaussianNB()
+    if name == "dt":
+        # 单棵树：限制深度与叶节点样本数，避免长到把训练集背下来
+        return DecisionTreeClassifier(
+            max_depth=12, min_samples_leaf=20, random_state=seed)
+    if name == "knn":
+        # k 近邻按距离度量，必须先标准化（否则 la / lt 这类量级大的特征主导距离）
+        return Pipeline([
+            ("scaler", StandardScaler()),
+            ("knn", KNeighborsClassifier(n_neighbors=KNN_NEIGHBORS, n_jobs=-1)),
+        ])
+    # ── change `model-expansion` 新增：神经网络（深度学习）族两种深度 ──
+    if name == "mlp":
+        return Pipeline([
+            ("scaler", StandardScaler()),
+            ("mlp", MLPClassifier(hidden_layer_sizes=(32,), max_iter=500,
+                                  random_state=seed)),
+        ])
+    if name == "mlp_deep":
+        # 3 隐藏层 + L2（alpha）+ 早停：早停的验证子集只从训练集内部抽，检验集仍时间在后
+        return Pipeline([
+            ("scaler", StandardScaler()),
+            ("mlp", MLPClassifier(hidden_layer_sizes=(64, 32, 16), max_iter=500,
+                                  alpha=1e-4, early_stopping=True,
+                                  n_iter_no_change=15, validation_fraction=0.1,
+                                  random_state=seed)),
+        ])
     raise ValueError("未知模型：%s" % name)
 
 
@@ -248,8 +315,18 @@ def load_effort(path: Path, hashes: pd.Series) -> pd.DataFrame:
 
 # ─────────────────────────── SHAP 单条耗时 ───────────────────────────
 
+# 有精确 SHAP 解释器的模型；其余模型登记「未实测 + 原因」，不估算、不假装测过
+SHAP_TREE_MODELS = {"rf", "xgb", "dt"}
+SHAP_LINEAR_MODELS = {"lr"}
+
+
 def shap_latency(name: str, model, X_test: np.ndarray, n_rows: int) -> dict:
     """实测单条 SHAP 解释耗时（tasks.md 4.4）。不达标不静默降级，只如实记录。"""
+    if name not in SHAP_TREE_MODELS | SHAP_LINEAR_MODELS:
+        return {"skipped": (
+            "非交付解释器：%s 没有精确 SHAP 解释器（`TreeExplainer` 只适用树模型，"
+            "`DeepExplainer` 需要 PyTorch/TensorFlow 而本项目未引入）"
+            % MODEL_NAMES.get(name, name))}
     import shap
 
     rows = X_test[:n_rows]
@@ -519,6 +596,9 @@ def render_report(args, train, test, results, warranted) -> str:
         s = results[name].get("shap")
         if not s:
             lines.append("| `%s` | — | — | — | — | — | 未实测 |\n" % name)
+        elif "skipped" in s:
+            lines.append("| `%s` | — | — | — | — | — | 未实测（%s） |\n"
+                         % (name, s["skipped"].replace("|", "/")))
         elif "error" in s:
             lines.append("| `%s` | 实测失败：`%s` | | | | | ⚠️ 未取得数据 |\n"
                          % (name, s["error"].replace("|", "/")))

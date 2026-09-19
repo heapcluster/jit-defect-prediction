@@ -4,7 +4,7 @@
 
 ## 职责
 
-拉取并固定 ActiveMQ 仓库版本 → SZZ 打标（标准行级 + 文件级简化版，两套自研实现对照）→ 抽取 Kamei 14 项特征 → 训练 2–3 个经典模型 → 评估。
+拉取并固定 ActiveMQ 仓库版本 → SZZ 打标（标准行级 + 文件级简化版，两套自研实现对照）→ 抽取 Kamei 14 项特征 → 训练 8 种模型（2 类：经典机器学习 6 + 神经网络 2）→ 两类指标评估 + 概率校准与阈值证据。
 
 ## 交付物
 
@@ -29,7 +29,7 @@
 pip install -r data_model/requirements.txt
 ```
 
-## 链路（五步，顺序固定）
+## 链路（九步，顺序固定）
 
 完整规则见 `docs/data-pipeline.md` —— **版本固定方式与复现命令都在那里，动手前先读**。
 
@@ -40,10 +40,29 @@ pip install -r data_model/requirements.txt
 | ③ | SZZ 打标 | `02_szz_labeling.py` | `data/commit_labels_{szz,szz_lite}.csv` |
 | ④ | 算 Kamei 14 项特征 | `03_extract_features.py` | `data/commit_features.csv` + `reports/feature_stats.md` |
 | ⑤ | 汇总成可训练样本集 + 打印统计 | `04_build_dataset.py` | `data/dataset_{szz,szz_lite}.csv` + `reports/dataset_stats.md` |
+| ⑥ | 时间序切分 + 训练 + 两类指标 | `05_split_dataset.py`、`06_train_model.py` | `data/split_szz_{train,test}.csv`、`models/*.pkl`、`reports/model_metrics.md` |
+| ⑦ | 全量推理（交付后端线的结果文件） | `07_predict_all.py` | `data/prediction_result.csv` + `reports/prediction_stats.md` |
+| ⑧ | 覆盖矩阵（8 种 / 2 类，并自证与前 3 个模型口径一致） | `08_model_matrix.py` | `reports/model_matrix.md` |
+| ⑨ | 概率校准（时间序折）与阈值/配额等工作量对照 —— **只出证据，不改契约** | `09_calibration_threshold.py` | `reports/calibration_threshold.md` |
 
 复现命令（含「先跑窗口子集验证链路」的短路径）见 `docs/data-pipeline.md` 第 5 节。
 
 ②③④ 的字段口径以契约为准，不要自己发明列名：`docs/contracts/data-fields.md`、`docs/contracts/feature-columns.md`。
+
+## 模型覆盖（8 种 / 2 类 —— 课程要求的落点）
+
+课程《项目要求》要求「至少 **2 类**（经典机器学习、深度学习）不少于 **8 种**预测模型」。本线的 8 种与其类别归属如下，**唯一来源是 `06_train_model.py` 的 `MODEL_NAMES` / `MODEL_CLASS`**：
+
+| 类别 | 数量 | 模型（`model_name`） |
+|---|---|---|
+| 经典机器学习 | 6 | `lr_v1` 逻辑回归、`rf_v1` 随机森林、`xgb_v1` XGBoost、`nb_v1` 高斯朴素贝叶斯、`dt_v1` 决策树、`knn_v1` k 近邻 |
+| 神经网络（深度学习） | 2 | `mlp_v1` 多层感知机（1 隐藏层）、`mlp_deep_v1` 多层感知机（3 隐藏层 + 早停） |
+
+- **交付模型不变**：后端加载的仍是 `xgb_v1`；`models/feature_order.txt` 的 `[models]` 段与 `07_predict_all.py` 的产物口径都不因补齐而改变。新模型只进**评估矩阵**（`reports/model_matrix.md`）。
+- **不引入新依赖**：8 种模型全部落在既有 `scikit-learn` / `xgboost` 内 —— 补覆盖不需要动 `requirements.txt`。
+- **不做序列模型**（LSTM / RNN）：现有样本集是提交级特征矩阵、没有序列结构；要做需先建序列化数据集并冻结输入口径，属另开 change 的事（理由与重开条件见 `openspec/changes/model-expansion/design.md` 决策二）。
+- **神经网络收敛情况如实登记**：未收敛不许静默当成已收敛（`reports/model_matrix.md` 有专门的收敛登记表）。
+- **概率校准与阈值证据**在 `reports/calibration_threshold.md`：只出证据，**契约三的阈值与排序语义仍以提案为准**。
 
 ## 四条铁规矩
 
