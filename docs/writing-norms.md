@@ -124,18 +124,17 @@ CREATE TABLE commit_label (...)
 >
 > **截至 2026-09-17 的实际覆盖范围（写清边界，不写「全部」）**：本 PR 补齐 6 份**已有交付文档** —— 根 `README.md`、`docs/README.md`、`data_model/` `backend/` `frontend/` `infra/` 四个目录 README；另有 **3 份新增文档**（`team-charter.md` / `writing-norms.md` / `defect-management.md`）天生带版本头，不属「补齐」。
 >
-> **有意未套用本规范的三类**：
+> **有意未套用本规范的五类**：
 >
 > | 文件 | 为什么不用 |
 > |---|---|
 > | `AGENTS.md`、`CLAUDE.md` | AI 工具规则入口，不是交付文档；其版本由工具集成方式决定 |
-> | `openspec/changes/**/spec.md`、`design.md` | **规格文件的版本由 OpenSpec change 机制管理**（change id + 归档状态），再叠一层文档版本号会两套版本打架 |
-> | `openspec/changes/**/{proposal,design,tasks,README}.md` | 同上 —— change 内所有文件都由 change 机制管理版本，一张 change 一个 id |
+> | `openspec/changes/**` 下的**全部文件**（`proposal` / `design` / `tasks` / `README` 与各能力 `spec.md`） | **规格与提案的版本由 OpenSpec change 机制管理**（change id + 归档状态），再叠一层文档版本号会两套版本打架；一张 change 一个 id，change 内所有文件同理 |
 > | `.github/pull_request_template.md`、`ISSUE_TEMPLATE/*` | 模板类文件，改了就是改了，无版本概念 |
 > | `data_model/reports/*.md` | **数据产物报告**，版本由产出它的脚本与`feature_version` 决定，不由文档版本号表达 |
 > | `.claude/`、`.codebuddy/`、`.qoder/` 下的文件 | 第三方 AI 工具配置，不是项目文档；内容由工具自己维护，本规范覆盖不到 |
 >
-> 上一版这里写「仓库内全部 Markdown 已补齐」—— **不实**：实际只补了 6 份，且上面三类本就不该套用。**写「全部」等于给复核人留一个一查就破的坑。**
+> 上一版这里写「仓库内全部 Markdown 已补齐」—— **不实**：实际只补了 6 份，且上面五类本就不该套用。**写「全部」等于给复核人留一个一查就破的坑。**（本表行数与「五类」逐一对齐，避免出现 §4.2 那种「正文说五项、表里六行」的同类错误。）
 >
 > **主笔与审核都要写真人名**，不写「全体」；且**审核人不得与主笔同一人**（课程要求「合并前应至少有一位非作者成员审阅」）。
 
@@ -239,4 +238,4 @@ CREATE TABLE commit_label (...)
 | 日期 | 版本 | 变更人 | 主要变更 |
 |---|---|---|---|
 | 2026-09-17 | 1.0 | 蒋励 | 初版。依据：课程《课程要求及日程安排》（周报命名、提交时间、格式、缺勤规则）、《项目要求》（文档与变更同步要求）、飞书周报模板自带的填写说明。① 命名规则（仓库 / 飞书分开定，含禁止项）；② 注释格式（Python / JS-Vue / SQL 三套，含「不要写什么」）；③ Markdown 排版与版本号规则；④ 周报模板使用规范 —— 明确**模板结构不得改动**并给出可核对判据，三张表的填写口径直接引自模板自带说明 |
-| 2026-09-19 | 1.1 | 蒋励 | **按审阅意见修订**（两轮意见的收口）：① §3.1 覆盖范围由「全部 Markdown」改为**逐条列明**（本 PR 实际补齐 6 份 + 新建 3 份），并补全**有意未套用清单** —— AI 入口、Issue/PR 模板、`openspec/changes/**` 全部文件、`data_model/reports/*.md`、工具配置目录（`.claude/`、`.codebuddy/`、`.qoder/`）；同时清掉豁免表里 `ISSUE_TEMPLATE` 的重复行；② §4.2 判据落地为**可核对版本**：新增模板骨架快照 `docs/templates/weekly-report-template.md` 作比对基线，检查项统一为**六项**，并要求比对结论留痕；③ 快照文件版本格式由 `v1` 改为 `1.0`，与 §3.1「版本 X.Y」一致；④ `frontend/README.md` 文件头版本与变更日志对齐为 `1.0` |
+| 2026-09-19 | 1.1 | 蒋励 | **按审阅意见修订**（两轮意见的收口）：① §3.1 覆盖范围由「全部 Markdown」改为**逐条列明**（本 PR 实际补齐 6 份 + 新建 3 份），并补全**有意未套用清单** —— AI 入口、Issue/PR 模板、`openspec/changes/**` 全部文件、`data_model/reports/*.md`、工具配置目录（`.claude/`、`.codebuddy/`、`.qoder/`）；同时清掉豁免表里 `ISSUE_TEMPLATE` 的重复行；② §4.2 判据落地为**可核对版本**：新增模板骨架快照 `docs/templates/weekly-report-template.md` 作比对基线，检查项统一为**六项**，并要求比对结论留痕；③ 快照文件版本格式由 `v1` 改为 `1.0`，与 §3.1「版本 X.Y」一致；④ `frontend/README.md` 文件头版本与变更日志对齐为 `1.0`；⑤ 按第二轮意见再修两处：`backend/README.md`、`infra/README.md` 删掉误记的 `1.1` 行、文件头回到 `1.0`（正文回填系 PR #21 所做，不计入本 PR）；§3.1 表与「几类」表述逐一对齐（原写「三类」而表有 6 行，且 `design.md` 重复出现两行） |
