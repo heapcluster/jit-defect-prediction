@@ -47,7 +47,9 @@
 - [x] 4.3 `openspec validate --all --strict` 通过 —— 验证：命令输出全绿
       —— 实测：6 项全通过（含本 change 的 `model-coverage`），`validate` 输出无 error / warning
 - [ ] 4.4 提交 PR 并在描述里写明关联 change id `model-expansion`，由非作者审阅后合入 —— 验证：PR 链接与审阅记录
-      —— **本项仍未完成**：等非作者审阅后合入。未合入前不勾选
+      —— 已提交 **PR #42**（`feat/model/expansion-batch2`）：描述写明关联 change id、四条复跑验证方式、
+         两条给 Issue #37/#38 的实测结论、以及「不新增依赖 / 不改交付模型 / 不做序列模型」的边界
+      —— **本项仍未完成**：等非作者审阅后合入。未合入前不勾选（与首 change tasks 5.3 的口径一致）
 
 ## 5. 交付边界确认（跨线）
 
