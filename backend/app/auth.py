@@ -1,4 +1,4 @@
-"""鉴权依赖：请求头 X-API-Key，固定令牌（契约三 v1.2 鉴权细则）。"""
+"""鉴权依赖：请求头 X-API-Key，固定令牌（契约三 1.4 鉴权细则）。"""
 
 from __future__ import annotations
 
