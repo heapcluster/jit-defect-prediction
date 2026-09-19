@@ -40,28 +40,17 @@ def init_db() -> None:
 
 
 def _assert_indexes(engine: Engine) -> None:
+    from app.models import INDEX_ASSERTIONS
+
     inspector = inspect(engine)
-    checks = (
-        ("commit", "commit_hash", True),
-        ("commit", "committed_at", False),
-    )
-    for table, column, must_unique in checks:
-        matched = [
-            idx
-            for idx in inspector.get_indexes(table) + _unique_constraints_as_indexes(inspector, table)
-            if column in idx["column_names"] and (idx.get("unique", False) is must_unique or not must_unique)
-        ]
-        if must_unique and not any(idx.get("unique") for idx in matched):
-            raise RuntimeError(f"索引自检失败：{table}.{column} 缺少唯一索引")
-        if not must_unique and not matched:
-            raise RuntimeError(f"索引自检失败：{table}.{column} 缺少普通索引")
-
-
-def _unique_constraints_as_indexes(inspector, table: str):
-    return [
-        {"column_names": list(uc["column_names"]), "unique": True, "name": uc["name"]}
-        for uc in inspector.get_unique_constraints(table)
-    ]
+    for table, columns, must_unique in INDEX_ASSERTIONS:
+        entries: list[tuple[tuple[str, ...], bool]] = []
+        for idx in inspector.get_indexes(table):
+            entries.append((tuple(idx["column_names"]), bool(idx.get("unique"))))
+        for uc in inspector.get_unique_constraints(table):
+            entries.append((tuple(uc["column_names"]), True))
+        if not any(cols == tuple(columns) and uniq is must_unique for cols, uniq in entries):
+            raise RuntimeError(f"索引自检失败：{table} {list(columns)} unique={must_unique} 未满足")
 
 
 def main(argv: list[str]) -> int:

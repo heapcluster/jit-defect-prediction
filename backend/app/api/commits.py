@@ -1,11 +1,11 @@
-"""查询接口 1–2：风险列表与提交详情（契约三 v1.2 第 1、2 节）。"""
+"""查询接口 1–2：风险列表与提交详情（契约三 1.3 第 1、2 节）。"""
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import config, model_registry, schemas
@@ -38,11 +38,10 @@ def _check_hash(commit_hash: str) -> None:
         raise AppError(40001, "参数非法：commit_hash 需为 40 位十六进制")
 
 
-def latest_model_in_table(session: Session) -> str | None:
-    row = session.execute(
-        select(Prediction.model_name).order_by(Prediction.predicted_at.desc()).limit(1)
-    ).first()
-    return row[0] if row else None
+def default_model_in_table(session: Session) -> str | None:
+    """「默认最新」单一定义（审 2）：表内模型按 version_key 版本序取最大者。"""
+    names = session.execute(select(Prediction.model_name).distinct()).scalars().all()
+    return max(names, key=model_registry.version_key) if names else None
 
 
 def _feature_dict(feature: CommitFeature | None) -> dict | None:
@@ -55,11 +54,11 @@ def _feature_dict(feature: CommitFeature | None) -> dict | None:
     return out
 
 
-def _explanation_for(session: Session, model_name: str | None, feature: CommitFeature | None) -> list[dict]:
+def _explanation_for(model_name: str | None, feature: CommitFeature | None) -> list[dict]:
     if not model_name or feature is None or not model_registry.has(model_name):
         return []
     vector = [float(getattr(feature, name)) for name in config.FEATURE_COLUMNS]
-    return model_registry.explain(model_registry.get_model(model_name).model, vector)
+    return model_registry.explain(model_registry.get_model(model_name), vector)
 
 
 @router.get("/api/commits", response_model=schemas.CommitsResponse)
@@ -81,7 +80,7 @@ def list_commits(
     end = _parse_time(end_time, "end_time") if end_time else None
 
     with SessionLocal() as session:
-        model = model_name or latest_model_in_table(session)
+        model = model_name or default_model_in_table(session)
         stmt = select(Prediction, Commit).join(Commit, Commit.commit_hash == Prediction.commit_hash)
         if model is not None:
             stmt = stmt.where(Prediction.model_name == model)
@@ -91,9 +90,10 @@ def list_commits(
             stmt = stmt.where(Commit.committed_at >= start)
         if end is not None:
             stmt = stmt.where(Commit.committed_at <= end)
-        rows = session.execute(stmt.order_by(Prediction.risk_score.desc())).all()
-        total = len(rows)
-        window = rows[(page - 1) * size : page * size]
+        total = session.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
+        window = session.execute(
+            stmt.order_by(Prediction.risk_score.desc()).offset((page - 1) * size).limit(size)
+        ).all()
         items = [
             {
                 "commit_hash": commit.commit_hash,
@@ -119,10 +119,10 @@ def commit_detail(commit_hash: str) -> dict:
             select(CommitFeature).where(CommitFeature.commit_hash == commit_hash)
         ).scalar_one_or_none()
         prediction = session.execute(
-            select(Prediction)
-            .where(Prediction.commit_hash == commit_hash)
-            .order_by(Prediction.predicted_at.desc())
-            .limit(1)
+            select(Prediction).where(
+                Prediction.commit_hash == commit_hash,
+                Prediction.model_name == default_model_in_table(session),
+            )
         ).scalar_one_or_none()
         # design D3：提交存在但无预测记录 → code=0 + null 字段（契约三待补记口径）
         data = {
@@ -133,8 +133,6 @@ def commit_detail(commit_hash: str) -> dict:
             "risk_score": float(prediction.risk_score) if prediction else None,
             "model_name": prediction.model_name if prediction else None,
             "features": _feature_dict(feature),
-            "explanation": _explanation_for(
-                session, prediction.model_name if prediction else None, feature
-            ),
+            "explanation": _explanation_for(prediction.model_name if prediction else None, feature),
         }
     return {"code": 0, "message": "ok", "data": data}

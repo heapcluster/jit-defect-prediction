@@ -9,6 +9,7 @@
 - [x] 1.3 「提交存在但无预测记录」的响应形态（design D3）在 PR #6 评审意见提出补记进契约三；若已冻结则走契约变更流程
       —— 完成：契约三 1.3（d3a1327）§2 已补 null 口径与「不得 40400 / 不得 0.0 冒充」，§3 阈值定死为服务端常量 0.5；变更日志署名「后端线吕建江提出」；9/23 冻结宣布按计划
       —— 跨线交付：契约线（定稿人吕建江、冻结人蒋励），形式为 PR #6 评审意见；冻结后则走契约变更 PR
+- [ ] 1.4 「commit_feature 无行 → features null、code=0」补记进契约三 §2（与 pages.md 同口径；PR #30 审 7），并入 9/23 冻结宣布 PR
 
 ## 2. 依赖与环境
 
@@ -37,6 +38,8 @@
 - [x] 4.7 模型加载器（design D6）：启动时加载 `MODEL_DIR` 下 `.pkl`，注册表与「默认最新」口径；加载失败不阻断启动、predict 时返回 50000 且不回显路径
 - [x] 4.8 `POST /api/predict`：`commit_hash` 必填且 40 位十六进制（违例 40001）；不在 `commit` 表 40400 `commit not found`；无特征行 40400 `features not found for this commit`；实时推理（MUST NOT 查 `prediction` 表代替）；结果按 `(commit_hash, model_name)` 幂等落库、只留最新一行，`feature_version` 读自 `commit_feature` 同值写入（design D7）
 - [x] 4.9 SHAP 解释（design D8）：`explanation` 逐特征含 `contribution` 与 `direction`，键名与 `features` 同一套
+- [x] 4.10 苏哲勋 #30 首审修复全项：INDEX_ASSERTIONS 驱动索引自检（含 prediction 两条）、默认模型统一版本序且详情与列表同源、explainer 惰性缓存、并发双插回落 update、分页下推 COUNT/LIMIT、lifespan 替换 on_event
+      —— 证据：本提交；pytest 34/34 绿（新增版本序默认模型用例）、ruff 全清、validate --strict 通过
 
 ## 5. 镜像比对与测试
 

@@ -20,7 +20,7 @@
 
 ### Requirement: 在线预测入口
 
-`POST /api/predict` SHALL 对请求的 `commit_hash` 实时运行模型推理（MUST NOT 以查 `prediction` 表代替），返回 `commit_hash`、`model_name`、`risk_score`（0.0~1.0）、`predicted_at`（ISO 8601 UTC）、`features` 与 `explanation`；`model_name` 缺省 SHALL 取注册表中最新模型。
+`POST /api/predict` SHALL 对请求的 `commit_hash` 实时运行模型推理（MUST NOT 以查 `prediction` 表代替），返回 `commit_hash`、`model_name`、`risk_score`（0.0~1.0）、`predicted_at`（ISO 8601 UTC）、`features` 与 `explanation`；`model_name` 缺省 SHALL 取注册表中版本序最大模型（`version_key`，design D6）。
 
 #### Scenario: 正常预测
 

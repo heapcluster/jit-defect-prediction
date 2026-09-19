@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app import config, model_registry, schemas
 from app.auth import require_api_key
@@ -50,10 +51,10 @@ def predict(body: PredictRequest) -> dict:
 
         vector = [float(getattr(feature, name)) for name in config.FEATURE_COLUMNS]
         risk = model_registry.predict_proba(entry.model, vector)
-        explanation = model_registry.explain(entry.model, vector)
+        explanation = model_registry.explain(entry, vector)
         predicted_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
-        # design D7：聊天第三条「A 与 C 写同一张 prediction 表」+ 契约三 v1.2「只保留最新一行」
+        # design D7：聊天第三条「A 与 C 写同一张 prediction 表」+ 契约三「只保留最新一行」
         row = session.execute(
             select(Prediction)
             .where(Prediction.commit_hash == body.commit_hash, Prediction.model_name == entry.name)
@@ -64,7 +65,19 @@ def predict(body: PredictRequest) -> dict:
         row.risk_score = risk
         row.predicted_at = predicted_at
         row.feature_version = feature.feature_version
-        session.commit()
+        try:
+            session.commit()
+        except IntegrityError:
+            # 审 4：并发双插被唯一索引挡住时回落为 update，保证幂等成功而非 500
+            session.rollback()
+            row = session.execute(
+                select(Prediction)
+                .where(Prediction.commit_hash == body.commit_hash, Prediction.model_name == entry.name)
+            ).scalar_one()
+            row.risk_score = risk
+            row.predicted_at = predicted_at
+            row.feature_version = feature.feature_version
+            session.commit()
 
         features = {
             name: (int(getattr(feature, name)) if name == "fix" else float(getattr(feature, name)))

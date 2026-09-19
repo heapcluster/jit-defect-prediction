@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 
 from app import config, schemas
-from app.api.commits import _parse_time, latest_model_in_table
+from app.api.commits import _parse_time, default_model_in_table
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import AppError
@@ -35,7 +35,7 @@ def trends(
     end = _parse_time(end_time, "end_time") if end_time else None
 
     with SessionLocal() as session:
-        model = model_name or latest_model_in_table(session)
+        model = model_name or default_model_in_table(session)
         stmt = select(Prediction, Commit).join(Commit, Commit.commit_hash == Prediction.commit_hash)
         if model is not None:
             stmt = stmt.where(Prediction.model_name == model)

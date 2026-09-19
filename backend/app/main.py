@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
@@ -14,18 +15,19 @@ from app.errors import register_error_handlers
 logging.basicConfig(level=logging.INFO)
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    get_engine()
+    model_registry.load_models()
+    yield
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="JIT 缺陷预测系统 API", version="0.1.0")
+    app = FastAPI(title="JIT 缺陷预测系统 API", version="0.1.0", lifespan=_lifespan)
     register_error_handlers(app)
     app.include_router(commits.router)
     app.include_router(trends.router)
     app.include_router(predict.router)
-
-    @app.on_event("startup")
-    def _startup() -> None:
-        get_engine()
-        model_registry.load_models()
-
     return app
 
 

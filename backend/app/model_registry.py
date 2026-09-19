@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import pickle
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -13,12 +14,23 @@ from app import config
 logger = logging.getLogger("backend.model_registry")
 
 
+def version_key(name: str) -> tuple[str, int]:
+    """「最新模型」的单一定义：模型名尾数字段的版本序（xgb_v2 > xgb_v1）。
+
+    同族前缀比尾数；不同族退化为按名字典序。predicted_at / mtime 只反映
+    「谁最后被跑过 / 文件最后被改过」，不代表版本新旧（PR #30 审 2）。
+    """
+    m = re.match(r"^(.*?)(\d+)$", name)
+    return (m.group(1), int(m.group(2))) if m else (name, -1)
+
+
 @dataclass
 class ModelEntry:
     name: str
     path: Path
     mtime: float
     model: Any = field(repr=False)
+    explainer: Any = field(default=None, repr=False)
 
 
 _REGISTRY: dict[str, ModelEntry] = {}
@@ -53,7 +65,7 @@ def has(name: str) -> bool:
 def default_model() -> ModelEntry | None:
     if not _REGISTRY:
         return None
-    return max(_REGISTRY.values(), key=lambda entry: entry.mtime)
+    return max(_REGISTRY.values(), key=lambda entry: version_key(entry.name))
 
 
 def predict_proba(model: Any, vector: list[float]) -> float:
@@ -63,15 +75,24 @@ def predict_proba(model: Any, vector: list[float]) -> float:
     return float(proba[idx])
 
 
-def explain(model: Any, vector: list[float]) -> list[dict]:
-    """SHAP 逐特征解释（契约三冻结结论）；不支持的解释器返回空数组并记日志。"""
-    try:
+def get_explainer(entry: ModelEntry):
+    """惰性构造并缓存 SHAP explainer（审 3）；构造失败抛给 explain 降级。"""
+    if entry.explainer is None:
         import shap
 
-        if _is_tree_family(model):
-            explainer = shap.TreeExplainer(model)
+        if _is_tree_family(entry.model):
+            entry.explainer = shap.TreeExplainer(entry.model)
         else:
-            explainer = shap.LinearExplainer(model, _background_for(model, vector))
+            entry.explainer = shap.LinearExplainer(
+                entry.model, _background_for(entry.model, config.FEATURE_COLUMNS)
+            )
+    return entry.explainer
+
+
+def explain(entry: ModelEntry, vector: list[float]) -> list[dict]:
+    """SHAP 逐特征解释（契约三冻结结论）；解释器不可用返回空数组并记日志。"""
+    try:
+        explainer = get_explainer(entry)
         values = explainer.shap_values([vector])
         if isinstance(values, list):
             values = values[-1]

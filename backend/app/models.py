@@ -87,7 +87,8 @@ class Prediction(Base):
 
 
 INDEX_ASSERTIONS = (
-    ("commit", "commit_hash", True),
-    ("commit", "committed_at", False),
-    ("prediction", "commit_hash", False),
+    ("commit", ("commit_hash",), True),
+    ("commit", ("committed_at",), False),
+    ("prediction", ("commit_hash", "model_name"), True),
+    ("prediction", ("commit_hash",), False),
 )

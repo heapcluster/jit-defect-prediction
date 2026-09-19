@@ -59,3 +59,23 @@ def test_detail_bad_hash_format(client):
     resp = client.get(f"/api/commits/{'a' * 39}", headers=HEADERS)
     assert resp.status_code == 400
     assert resp.json()["code"] == 40001
+
+
+def test_default_model_is_version_order_not_recency(client):
+    from datetime import datetime
+
+    from app.db import SessionLocal
+    from app.models import Prediction
+
+    with SessionLocal() as session:
+        session.add(
+            Prediction(commit_hash=C1, model_name="xgb_v9", risk_score=0.55,
+                       predicted_at=datetime(2020, 1, 1), feature_version="v1")
+        )
+        session.commit()
+    body = client.get("/api/commits", headers=HEADERS).json()
+    assert body["data"]["total"] == 1
+    assert body["data"]["items"][0]["model_name"] == "xgb_v9"
+    detail = client.get(f"/api/commits/{C1}", headers=HEADERS).json()
+    assert detail["data"]["model_name"] == "xgb_v9"
+    assert detail["data"]["risk_score"] == 0.55
