@@ -1,4 +1,4 @@
-"""预测接口 4：POST /api/predict 在线预测（契约三 v1.2 第 4 节）。"""
+"""预测接口 4：POST /api/predict 在线预测（契约三 1.4 第 4 节）。"""
 
 from __future__ import annotations
 
