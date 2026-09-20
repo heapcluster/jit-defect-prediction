@@ -16,6 +16,8 @@ scikit-learn==1.9.1
 xgboost==3.4.1
 shap==0.52.0
 numpy==2.5.3
+# 运行时加载路径：交付的 lr/rf .pkl 为 joblib 格式（Issue #46），不能只当 sklearn 传递依赖
+joblib==1.6.0
 
 # 测试（httpx 是 FastAPI TestClient 的依赖）
 pytest==9.1.1
