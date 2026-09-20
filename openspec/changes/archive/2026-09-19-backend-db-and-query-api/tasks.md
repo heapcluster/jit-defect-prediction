@@ -49,11 +49,14 @@
 - [x] 5.2 `backend/tests/` 覆盖：五个错误码各至少一例；边界 `size=100/101`、空数据、哈希不存在、哈希非 40 位、特征行缺失、模型文件缺失、predict 重复调用只留一行
 - [x] 5.3 MySQL 8 真库自检一轮（建库 + 灌入 + 四接口冒烟）；凭据不可用时以 SQLite 内存库证据先行并登记待补
       —— 2026-09-18 完成：专建账号 jit 真库自检全绿（索引证据、灌入幂等、401/50000 掩码冒烟），证据存档仓库外 evidence-5.3-mysql.md；顺带发现并修复 SessionLocal 无 bind 缺陷（799745e）
-- [ ] 5.4 验证证据：命令与关键输出贴进 PR 描述（DoD 第 2 条）
+- [x] 5.4 验证证据：命令与关键输出贴进 PR 描述（DoD 第 2 条）
+      —— 已由 PR #30 描述「怎么验证」一节交付：pytest 34/34、ruff 全清、openapi 字段级镜像断言 8 条、SQLite 与 MySQL 真库各一轮自检
 
 ## 6. 交付
 
-- [ ] 6.1 提案（本 change 的 proposal/specs/design/tasks）自 `docs/spec/backend-db-and-query-api` 提 PR 至 `main`，描述写清四件事并关联本 change id；审阅人苏哲勋
-      —— 先例：PR #1 与 `docs/spec/model-training-delivery` 均按「提案先合、实现后跟」走
-- [ ] 6.2 提案合入后自 `main` 切实现分支 `feat/backend/db-and-query-api`，按任务 2–5 实现并提第二个 PR；审阅人苏哲勋
-- [ ] 6.3 回飞书看板更新任务 7 状态与关联链接；两个 PR 合入后各自删除分支（`docs/collaboration.md` §1.6）
+- [x] 6.1 提案（本 change 的 proposal/specs/design/tasks）自 `docs/spec/backend-db-and-query-api` 提 PR 至 `main`，描述写清四件事并关联本 change id；审阅人苏哲勋
+      —— **PR #27 已合入**（2026-09-18 06:01，审阅人苏哲勋）；先例：PR #1 与 `docs/spec/model-training-delivery` 均按「提案先合、实现后跟」走
+- [x] 6.2 提案合入后自 `main` 切实现分支 `feat/backend/db-and-query-api`，按任务 2–5 实现并提第二个 PR；审阅人苏哲勋
+      —— **PR #30 已合入**（2026-09-19 10:13，审阅人苏哲勋）；实现阶段 2–5 组的勾选与证据已在 #30 内回填
+- [x] 6.3 回飞书看板更新任务 7 状态与关联链接；两个 PR 合入后各自删除分支（`docs/collaboration.md` §1.6）
+      —— 看板「7 数据库表结构与接口格式」行已于 2026-09-20 更新为 **已完成** 并补关联链接（PR #30）；两个源分支随合并按任务 2 的「自动删除源分支」设置清掉
