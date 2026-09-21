@@ -12,6 +12,13 @@ numpy==2.5.3
 scikit-learn==1.9.1
 xgboost==3.4.1
 
+# joblib：`.pkl` 的实际序列化格式（`joblib.dump`）—— **不是标准 pickle**：文件内含 numpy
+# 缓冲（numpy_array_alignment_bytes），`pickle.load` 会报 invalid load key。它虽是
+# scikit-learn 的传递依赖，但不受 pin 约束（跟着 sklearn 装什么版本就跑什么版本），
+# 而后端线要按本清单装环境加载 `.pkl`，所以显式钉死 —— 与
+# `data_model/models/feature_order.txt` 的 `[dependencies]` 段同源。
+joblib==1.6.0
+
 # SHAP：接口返回的 explanation 由它产出（契约三第三节）。**不能省** —— 少了它，
 # 后端线按本清单装环境会缺依赖，预测接口的 explanation 字段直接起不来。
 shap==0.52.0

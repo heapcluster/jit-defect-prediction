@@ -61,14 +61,34 @@
       —— 已产出 `reports/prediction_stats.md`：10893 条全量推理，模型 `xgb_v1`
       —— 三条断言全部通过：字段与契约一表三逐字一致（无契约外字段）/ 列顺序一致 /
          源码扫描 `sqlalchemy` / `pymysql` / `mysql.connector` / `sqlite3` / `psycopg2` 零命中（不直连数据库）
-- [ ] 4.3 向后端线出具 A 方案交付清单：`.pkl` 路径 + 特征顺序清单 + SHAP 依赖版本 pin（与 `requirements.txt` 同源），外加推理环境依赖版本表 —— 验证：后端线签收确认（Issue 或 PR 评论留痕）
+- [x] 4.3 向后端线出具 A 方案交付清单：`.pkl` 路径 + 特征顺序清单 + SHAP 依赖版本 pin（与 `requirements.txt` 同源），外加推理环境依赖版本表 —— 验证：后端线签收确认（Issue 或 PR 评论留痕）
       —— 交付物本身已备好：`models/feature_order.txt`（含依赖 pin 与阈值）与 `requirements.txt` 已同源
-      —— **本项仍未完成**：等后端线签收确认（Issue 或 PR 评论留痕）。签收前不勾选 —— 这是跨线交付，
-         不能由数据线自己宣布完成
+      —— **2026-09-21 后端线已签收**：吕建江在 Issue #39 回「**三项全签**」，并给出他自己的复核口径 ——
+         按 `06_train_model.py:257-259` 逐项核对交付 `rf_v1.pkl` 的
+         `min_samples_leaf=2 / random_state=42 / n_estimators=300`，与代码一致。签收评论留痕在 Issue #39
+      —— 签收前本项一直不勾（跨线交付不能由数据线自己宣布完成）；签收后按审阅意见补齐了清单的两处缺口，见 **4.5**
 - [x] 4.4 实测 SHAP 单条推理耗时并记录，评估是否满足 95% 请求 < 500ms —— 验证：实测数据进报告；若不达标，契约三变更提案已提（不静默降级）。**原条目里「SHAP 定稿后回填契约三『待确认』项」已删除** —— 契约三已由 PR #6 结清、`explanation` 定为 SHAP，该回填已无对象
       —— 已实测并落 `reports/model_metrics.md` 第三节：`lr` p95 **0.6 ms** / `rf` p95 **127.7 ms** /
          `xgb` p95 **5.0 ms**，三条均满足「95% 请求 < 500ms」，**无需提契约变更**
       —— 注：该节是实测耗时，随机器负载波动，连跑两次会变；核对可复现性时不要比对计时表
+- [x] 4.5 交付清单补两处缺口（审阅发现，2026-09-21）：`[dependencies]` 段补 `joblib`、`[contract]` 段补契约二版本号 —— 验证：重跑 `06_train_model.py` 后清单含两项，且三个 `.pkl` 的 md5 与重跑前**逐一致**
+      —— **① `joblib` 是运行时会踩的坑**：交付的 `.pkl` 是 `joblib.dump` 产物（内含 numpy 缓冲
+         `numpy_array_alignment_bytes`），**标准 `pickle.load` 会报 invalid load key**，只有
+         `joblib.load` 能读；而它此前只是 `scikit-learn` 的传递依赖、**不受 pin 约束**（装到哪个版本看 sklearn），
+         清单自己的规则却是「按 `[dependencies]` 段钉版本建环境」→ 已补 `joblib==1.6.0`，
+         `requirements.txt` 同步显式钉死（两处同源）
+      —— **② `[contract]` 段原先只写路径、没写版本号**（自称「契约二第三节的副本」却不可追溯）→
+         补为「**契约二 v1.2** 第三节」。判据：契约二文件头当前版本即 1.2（冻结 2026-09-18，冻结人蒋励）
+      —— **③ 另补 `[how_to_load]` 段**：写明用 `joblib.load` 读取、依赖见 `[dependencies]` 段；
+         并写明 `lr_v1.pkl` 是 `Pipeline`（`StandardScaler → LogisticRegression`）——
+         取系数或特征重要度**须经 `named_steps`**（如 `model.named_steps["lr"].coef_`），
+         直接 `model.coef_` 会 `AttributeError`（横向比 LR 时最容易踩）
+      —— 同源自证（更硬的那条）：重跑前后 `lr_v1.pkl` `789d57c1a1ad492fa3204a44695e89ce`、
+         `rf_v1.pkl` `71731a270b679dc74b4006ba68c7856f`、`xgb_v1.pkl` `c436197daa4bccda9a08a60748e0107b`
+         **完全一致** → 三个交付模型确由当前代码 + pin 环境逐字节可复现，无需重新签收
+      —— 规格无需同步：`specs/model-delivery` 的 Requirement 本就要求「SHAP 依赖及其版本 pin（写入
+         `requirements.txt`）」、Scenario 要求「按清单安装后加载与推理可跑通」—— 补 `joblib` 是**满足**它，
+         不是改口径
 
 ## 5. 文档回填与规格同步
 
@@ -78,7 +98,7 @@
 - [x] 5.2 `docs/data-pipeline.md` 链路表补 ⑥⑦ 步（训练 / 导出与全量预测），复现命令补随机种子参数 —— 验证：按文档命令从干净 clone 重放可得一致结果
       —— 已完成：链路表补 ⑥ 时间序切分与训练、⑦ 全量预测两步，各步脚本与产物一一对应；
          复现命令段含 `--train/--test` 与随机种子参数；另注明 ⑥ 的两条口径与 ⑦ 的三条边界
-- [ ] 5.3 提交 PR 并在描述里写明关联 change id `model-training-and-delivery`，由非作者审阅合入 —— 验证：PR 链接与审阅记录
+- [x] 5.3 提交 PR 并在描述里写明关联 change id `model-training-and-delivery`，由非作者审阅合入 —— 验证：PR 链接与审阅记录
       —— PR #28 已提交，描述中写明关联 change id 与合并顺序
-      —— **本项仍未完成**：等非作者审阅后合入（审阅人已提 CHANGES_REQUESTED，四处意见已修完待复核）。
-         未合入前不勾选
+      —— **2026-09-19 已合入**：PR #28 合入 main（`31cd4b6`）；审阅人苏哲勋先 `CHANGES_REQUESTED`、
+         复核后 **`APPROVED`** —— 非作者审阅留痕在 PR 上（含 four 处意见的修改记录）

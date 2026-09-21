@@ -445,7 +445,12 @@ def main() -> int:
         + "".join("%2d. %s\n" % (i + 1, c)
                   for i, c in enumerate(FEATURE_FIELDS))
         + "\n[contract]\n"
-        + "docs/contracts/feature-columns.md 第三节（14 项特征列，顺序即上表顺序）\n"
+        + "docs/contracts/feature-columns.md 第三节（**契约二 v1.2**；14 项特征列，顺序即上表顺序）\n"
+        + "\n[how_to_load]\n"
+        + "joblib.load(\"<模型>.pkl\") —— 本清单中的 .pkl 是 **joblib 格式**（内含 numpy 缓冲），\n"
+        + "  标准 pickle.load 会报 invalid load key；所需依赖见上面 [dependencies] 段。\n"
+        + "lr_v1.pkl 是 Pipeline（StandardScaler → LogisticRegression）：取系数/特征重要度须经\n"
+        + "  named_steps（如 model.named_steps[\"lr\"].coef_），直接 model.coef_ 会 AttributeError。\n"
         + "\n[dependencies]\n"
         + _dependency_pins()
         + "\n[decision]\n"
@@ -473,12 +478,14 @@ def _dependency_pins() -> str:
         import pandas as pd
         import numpy as np
         import shap
+        import joblib
         return "\n".join([
             "scikit-learn==%s" % sklearn.__version__,
             "xgboost==%s" % xgboost.__version__,
             "shap==%s" % shap.__version__,
             "pandas==%s" % pd.__version__,
             "numpy==%s" % np.__version__,
+            "joblib==%s" % joblib.__version__,
         ]) + "\n"
     except Exception as exc:
         return "# 依赖版本探测失败：%s\n" % exc
