@@ -96,27 +96,64 @@ def predict_proba(model: Any, vector: list[float]) -> float:
 
 
 def get_explainer(entry: ModelEntry):
-    """惰性构造并缓存 SHAP explainer（审 3）；构造失败抛给 explain 降级。"""
+    """惰性构造并缓存 SHAP explainer（审 3）；构造失败抛给 explain 降级。
+
+    线性 Pipeline（scaler → 线性模型，交付包 lr_v1 形态）解包为内层估计器构造，
+    shap 0.52 的 LinearExplainer 不接受 Pipeline 本体（Issue #50）。
+    """
     if entry.explainer is None:
         import shap
 
-        if _is_tree_family(entry.model):
-            entry.explainer = shap.TreeExplainer(entry.model)
+        inner, scaler = _linear_pipeline_parts(entry.model)
+        if _is_tree_family(inner):
+            entry.explainer = shap.TreeExplainer(inner)
         else:
-            entry.explainer = shap.LinearExplainer(
-                entry.model, _background_for(entry.model, config.FEATURE_COLUMNS)
-            )
+            background = _background_for(inner, config.FEATURE_COLUMNS)
+            if scaler is not None:
+                background = scaler.transform(background)
+            entry.explainer = shap.LinearExplainer(inner, background)
     return entry.explainer
+
+
+def _linear_pipeline_parts(model: Any) -> tuple[Any, Any]:
+    """Pipeline(scaler → 线性模型) → (内层模型, scaler)；其余形态原样返回 (model, None)。"""
+    steps = getattr(model, "steps", None)
+    if steps is not None and len(steps) == 2:
+        scaler, inner = (step for _, step in steps)
+        if (
+            hasattr(scaler, "transform")
+            and hasattr(scaler, "scale_")
+            and hasattr(inner, "coef_")
+        ):
+            return inner, scaler
+    return model, None
+
+
+def _first_row(values: Any) -> list[float]:
+    """shap_values 输出归一化为单行：list 取正类；3 维数组（shap 0.52 对森林按类返回）取 [:, :, 1]。"""
+    import numpy as np
+
+    if isinstance(values, list):
+        values = values[-1]
+    arr = np.asarray(values)
+    if arr.ndim == 3:
+        arr = arr[:, :, 1] if arr.shape[2] > 1 else arr[:, :, 0]
+    return [float(v) for v in arr[0]]
 
 
 def explain(entry: ModelEntry, vector: list[float]) -> list[dict]:
     """SHAP 逐特征解释（契约三冻结结论）；解释器不可用返回空数组并记日志。"""
     try:
-        explainer = get_explainer(entry)
-        values = explainer.shap_values([vector])
-        if isinstance(values, list):
-            values = values[-1]
-        row = [float(v) for v in values[0]]
+        import numpy as np
+
+        _, scaler = _linear_pipeline_parts(entry.model)
+        X = np.array([vector], dtype=float)
+        if scaler is not None:
+            X = scaler.transform(X)
+        row = _first_row(get_explainer(entry).shap_values(X))
+        if scaler is not None:
+            # 线性变换下 SHAP 贡献可严格折算回原始特征量纲：raw = scaled / scale_（符号不变）
+            row = [value / float(scale) for value, scale in zip(row, scaler.scale_)]
     except Exception:
         logger.exception("shap explanation unavailable")
         return []
