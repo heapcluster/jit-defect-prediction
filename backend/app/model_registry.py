@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
-import pickle
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+import joblib
 
 from app import config
 
@@ -44,14 +45,33 @@ def load_models() -> None:
         return
     for path in sorted(model_dir.glob("*.pkl")):
         try:
-            with open(path, "rb") as fh:
-                model = pickle.load(fh)
+            model = joblib.load(path)
         except Exception:
             # 契约三：加载失败只写服务端日志，不回显文件路径
             logger.exception("model load failed")
             continue
+        n_features = _feature_count(model)
+        if n_features is not None and n_features != len(config.FEATURE_COLUMNS):
+            # 交付说明：特征宽度不对不会报错、只会静默给出错误答案 —— 加载期就拒收（Issue #46）
+            logger.error(
+                "model skipped: expects %s features, contract has %s",
+                n_features,
+                len(config.FEATURE_COLUMNS),
+            )
+            continue
         _REGISTRY[path.stem] = ModelEntry(path.stem, path, path.stat().st_mtime, model)
     logger.info("loaded models: %s", sorted(_REGISTRY))
+
+
+def _feature_count(model: Any) -> int | None:
+    n = getattr(model, "n_features_in_", None)
+    if n is None and hasattr(model, "get_booster"):
+        try:
+            n = model.get_booster().num_features()
+        except Exception:
+            logger.exception("feature count unavailable")
+            return None
+    return int(n) if n is not None else None
 
 
 def get_model(name: str) -> ModelEntry:
