@@ -12,10 +12,11 @@ numpy==2.5.3
 scikit-learn==1.9.1
 xgboost==3.4.1
 
-# joblib：`.pkl` 的实际序列化格式（`joblib.dump`）—— **不是标准 pickle**：文件内含 numpy
-# 缓冲（numpy_array_alignment_bytes），`pickle.load` 会报 invalid load key。它虽是
-# scikit-learn 的传递依赖，但不受 pin 约束（跟着 sklearn 装什么版本就跑什么版本），
-# 而后端线要按本清单装环境加载 `.pkl`，所以显式钉死 —— 与
+# joblib：交付 `.pkl` 的读取依赖。`lr_v1` / `rf_v1` 落成 joblib 格式（文件内含 numpy 缓冲
+# `numpy_array_alignment_bytes`，标准 `pickle.load` 会报 invalid load key）；`xgb_v1` 落成
+# 标准 pickle（对象内无顶层 numpy 数组，joblib 正常回退，pickle 也能读）—— 但三者统一用
+# `joblib.load` 读。它虽是 scikit-learn 的传递依赖、不受 pin 约束（跟着 sklearn 装什么版本就跑
+# 什么版本），而后端线要按本清单装环境加载 `.pkl`，所以显式钉死 —— 与
 # `data_model/models/feature_order.txt` 的 `[dependencies]` 段同源。
 joblib==1.6.0
 
