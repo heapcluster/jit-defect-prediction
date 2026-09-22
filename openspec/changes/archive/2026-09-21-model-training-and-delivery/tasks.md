@@ -71,7 +71,7 @@
       —— 已实测并落 `reports/model_metrics.md` 第三节：`lr` p95 **0.6 ms** / `rf` p95 **127.7 ms** /
          `xgb` p95 **5.0 ms**，三条均满足「95% 请求 < 500ms」，**无需提契约变更**
       —— 注：该节是实测耗时，随机器负载波动，连跑两次会变；核对可复现性时不要比对计时表
-- [x] 4.5 交付清单补两处缺口（审阅发现，2026-09-21）：`[dependencies]` 段补 `joblib`、`[contract]` 段补契约二版本号 —— 验证：重跑 `06_train_model.py` 后清单含两项，且三个 `.pkl` 的 md5 与重跑前**逐一致**
+- [x] 4.5 交付清单补三处缺口（审阅发现，2026-09-21）：`[dependencies]` 段补 `joblib`、`[contract]` 段补契约二版本号、新增 `[how_to_load]` 段 —— 验证：重跑 `06_train_model.py` 后清单含三处，且三个 `.pkl` 的 md5 与重跑前**逐一致**
       —— **① `joblib` 是运行时会踩的坑**：交付的 `.pkl` 是 `joblib.dump` 产物（内含 numpy 缓冲
          `numpy_array_alignment_bytes`），**标准 `pickle.load` 会报 invalid load key**，只有
          `joblib.load` 能读；而它此前只是 `scikit-learn` 的传递依赖、**不受 pin 约束**（装到哪个版本看 sklearn），
