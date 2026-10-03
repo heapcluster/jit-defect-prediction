@@ -2,9 +2,18 @@
   <el-container class="layout">
     <el-header class="header">
       <span class="brand">JIT 缺陷预测系统</span>
-      <el-menu mode="horizontal" router :default-active="$route.path" class="menu">
-        <el-menu-item index="/">风险列表</el-menu-item>
-        <el-menu-item index="/trend">趋势看板</el-menu-item>
+      <el-menu
+        mode="horizontal"
+        router
+        :default-active="$route.path"
+        class="menu"
+      >
+        <el-menu-item index="/">
+          风险列表
+        </el-menu-item>
+        <el-menu-item index="/trend">
+          趋势看板
+        </el-menu-item>
       </el-menu>
     </el-header>
     <el-main class="main">

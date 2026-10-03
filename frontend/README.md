@@ -31,6 +31,8 @@ npm run dev          # 开发服务，默认 5173
 ```
 
 - 后端地址走**本地代理**（`/api` → `http://localhost:8000`），不要把它硬编码进页面。
+- **启动前必须配置鉴权密钥**（契约三第一节，请求头 `X-API-Key`）：先 `cp .env.example .env.local`（Windows 用 `copy`），再编辑 `.env.local` 填入真实密钥。**不填则每个请求都会被后端以 `40100` 拒绝**。
+- 代码风格用 ESLint 自检（`npm run lint`），配置见 `eslint.config.js`。
 - 依赖加进 `package.json`，`package-lock.json` 一并提交；`node_modules/` 已被 `.gitignore` 排除。
 
 ## 页面 ↔ 接口 ↔ 字段

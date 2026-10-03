@@ -20,10 +20,10 @@ const request = axios.create({
 
 // 响应拦截：统一处理 { code, message, data } 包络
 // 成功（code === 0）返回 data；失败 reject 一个带 code 的错误，页面按 code 区分三态：
-//   40001 参数非法 → 指出是哪个参数
+//   40001 参数非法 → 指出是哪个参数（参数名取 err.detail，message 是通用文案）
 //   40100 未通过鉴权 → 提示重新登录，不给「重试」
 //   40400 目标不存在 → 「该提交不存在」+ 返回列表
-//   50000 服务内部错误 → 「服务异常，请稍后重试」（不回显堆栈/SQL/路径）
+//   50000 服务内部错误 → 「服务异常，请稍后重试」+ 重试（不回显堆栈/SQL/路径）
 request.interceptors.response.use(
   (response) => {
     const res = response.data
