@@ -1,19 +1,22 @@
-# frontend-integration — 任务清单
+## 1. 页面实现
 
-## 1. 立项（F2）
-- [ ] 1.1 本 change 进 `openspec/changes/frontend-integration/`（propose → apply），看板「规格变更或任务」列可点回
-- [ ] 1.2 飞书 PRD 第五章增补前端三页面 User Story（C Epic），状态写实
+- [x] 1.1 风险列表页 `RiskList.vue`：筛选（model_name / min_risk / 时间范围）+ 表格 + 分页 + 点击行跳详情
+- [x] 1.2 提交详情页 `CommitDetail.vue`：风险值 + 风险等级标签 + 14 项特征（五维分组）+ explanation 解释条
+- [x] 1.3 趋势看板页 `TrendBoard.vue`：粒度切换 + 折线图 + 汇总卡片 + 明细表
+- [x] 1.4 ECharts 折线图封装到 `components/`，不在页面里散写
 
-## 2. 脚手架与接口层（F3 前置）
-- [ ] 2.1 `npm create vue@latest` + 装 `element-plus`/`echarts`/`axios`；配 `/api` 代理
-- [ ] 2.2 `src/api/request.ts`：axios 实例 + `X-API-Key` 拦截器 + 统一解包 `code===0` + 错误码分发三态
+## 2. 三态与错误码
 
-## 3. 三页面（F3）
-- [ ] 3.1 风险列表 `views/CommitList.vue`（排序/筛选/分页/跳详情）
-- [ ] 3.2 提交详情 `views/CommitDetail.vue`（风险分 + SHAP 解释条 + 特征分组）
-- [ ] 3.3 趋势看板 `views/TrendBoard.vue`（ECharts 折线 + 汇总；点<2 不画）
+- [x] 2.1 三态齐全：加载中 / 空数据 / 请求失败（空数据不是错误）
+- [x] 2.2 错误码按 `docs/frontend/pages.md` 第 5 节区分处理（40001 / 40100 / 40400 / 50000）
 
-## 4. 联调（F4）
-- [ ] 4.1 起后端 `:8000`，按 demo-script 跑通 API-01~04
-- [ ] 4.2 联调记录入库 `docs/implementation/frontend-integration-log.md`
-- [ ] 4.3 PR 合入 main，看板行指向本 change
+## 3. 字段核对
+
+- [x] 3.1 每页字段名与 `docs/frontend/pages.md` 映射表逐字一致，不改名、不驼峰
+- [x] 3.2 风险值由前端 ×100 转百分比；概率字段取 0~1 小数不转字符串
+
+## 4. 联调与交付
+
+- [x] 4.1 三页面对接 API-01/02/03，留联调记录
+- [ ] 4.2 提交 PR 并写明关联 change id `frontend-integration`，由非作者审阅合入
+- [ ] 4.3 回飞书看板更新任务状态
