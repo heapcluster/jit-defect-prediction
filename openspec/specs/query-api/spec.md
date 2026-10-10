@@ -1,13 +1,13 @@
 # query-api Specification
 
 ## Purpose
-把契约三 1.4 的三个查询接口落地为 FastAPI 实现：统一包络、错误码、`X-API-Key` 鉴权与输入校验，并以自动生成的 OpenAPI/Swagger 作实现镜像，保证规格与代码一致。
+把契约三 2.0 的三个查询接口落地为 FastAPI 实现：统一包络、错误码、`X-API-Key` 鉴权与输入校验，并以自动生成的 OpenAPI/Swagger 作实现镜像，保证规格与代码一致。
 
 ## Requirements
 
 ### Requirement: 统一包络与错误码
 
-所有接口 SHALL 返回 `{ "code": 0, "message": "ok", "data": {...} }` 包络；错误码 SHALL 只取 `docs/contracts/api-format.md` 1.4 的 0 / 40001 / 40100 / 40400 / 50000，MUST NOT 自造。
+所有接口 SHALL 返回 `{ "code": 0, "message": "ok", "data": {...} }` 包络；错误码 SHALL 只取 `docs/contracts/api-format.md` 2.0 的 0 / 40001 / 40100 / 40400 / 50000，MUST NOT 自造。
 
 #### Scenario: 成功响应
 
@@ -96,7 +96,7 @@
 
 ### Requirement: Swagger 实现镜像
 
-系统 SHALL 暴露 FastAPI 自动生成的 OpenAPI/Swagger；生成 schema 中的路径、字段名与类型 SHALL 与 `docs/contracts/api-format.md` 1.4 逐字一致，偏离 SHALL 修改代码消除，MUST NOT 反向修改契约。
+系统 SHALL 暴露 FastAPI 自动生成的 OpenAPI/Swagger；生成 schema 中的路径、字段名与类型 SHALL 与 `docs/contracts/api-format.md` 2.0 逐字一致，偏离 SHALL 修改代码消除，MUST NOT 反向修改契约。
 
 #### Scenario: 镜像比对零偏离
 
