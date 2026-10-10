@@ -15,6 +15,8 @@ const props = defineProps({
   height: { type: String, default: '320px' }
 })
 
+const emit = defineEmits(['point-click'])
+
 const chartEl = ref(null)
 let chart = null
 
@@ -70,6 +72,11 @@ function onResize() {
 onMounted(() => {
   chart = echarts.init(chartEl.value)
   render()
+  // 点击数据点 → 跳转风险列表（docs/pages.md §4）
+  chart.on('click', (params) => {
+    const s = props.series[params.dataIndex]
+    if (s) emit('point-click', s)
+  })
   window.addEventListener('resize', onResize)
 })
 
