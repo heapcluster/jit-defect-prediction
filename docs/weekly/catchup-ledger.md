@@ -24,7 +24,7 @@
 |---|---|---|---|---|
 | J1 | 端到端链路演示准备：一条提交走完「风险列表 → 详情归因 → 趋势看板」，做演示脚本 + 录屏，作为 Sprint 1（10/23）课上验收主证据 | 含正向验收 + 至少一项异常输入验证；录屏与脚本入库 `docs/` 或 Issue 附链 | 进行中 | ✅ 2026-10-09 演示脚本文档已建 `docs/weekly/demo-script-sprint1.md`；录屏待系统实跑后补 |
 | J2 | 归档 change model-expansion：先补勾 tasks 4.4（PR 链接 + 非作者审阅记录；代码已由 PR #42 合入），再跑 `openspec archive` | `openspec validate --all --strict` 通过；`openspec/specs/` 收入对应需求 | 已完成 | ✅ 2026-10-10 ｜ 已补勾 tasks 4.4 并 `openspec archive`，`model-coverage` 规格入库（`docs/specs/`）；依据 commit `8c1e919` |
-| J3 | 仓库卫生：删除陈旧分支 `fix/model/delivery-list-wording`；本地 origin 从 `jolly326` 统一到 `heapcluster` | `git fetch` 走团队仓库正常；`git branch -a` 无陈旧分支 | 未开始 | — |
+| J3 | 仓库卫生：删除陈旧分支 `fix/model/delivery-list-wording`；本地 origin 从 `jolly326` 统一到 `heapcluster` | `git fetch` 走团队仓库正常；`git branch -a` 无陈旧分支 | 已完成 | ✅ 2026-10-10 ｜ 远程分支 `fix/model/delivery-list-wording` 经查已不存在（当前 fix/ 仅 `fix/backend/explain-real-models`）；`git remote -v` 显示 origin 已指向 `heapcluster`，仓库卫生达标 |
 | J4 | 周报常态化：1009 / 1016 / 1023 三份按周五晚提交，写实到每人并附佐证材料 | 三份周报链接；内容与看板、Git 记录对得上 | 未开始 | — |
 | J5 | 每周五 17:00 前收各人供稿并统稿，提交前对账：周报 = 看板 = Git 三处同口径 | 每周周报留痕 | 进行中 | 常态项 |
 | J6 | 补勾已归档 change `2026-09-19-data-collection-and-szz-labeling` 的 5.4「回飞书看板更新任务状态」 | 该 change 的 tasks 全勾；看板对应任务状态已是真实状态 | 已完成 | ✅ 2026-10-09 已归档 change 5.4 已勾选（tasks 全勾）；飞书看板对应行状态已更新 |
@@ -81,3 +81,4 @@
 | 2026-10-05 | 1.1 | 蒋励 | ① 按 openspec 实测纠正：J2 的 `model-expansion` 并非「tasks 已全勾」（实剩 4.4）、L2 改为实测的三项 4.1 / 4.3 / 4.4；② 补齐三份周报「已写但无实证」的项 —— J6（已归档 change 5.4 补勾）、J7（两项附加功能立项无条目）、S5（用户故事与 OpenSpec 未挂接）、S6（跨章一致性未过口径）、S7（分支保护可自助核验说明缺失）、L4（安全用例边界不足）；③ §1 口径说明加第 4 条，写明这些项来自三份周报总结的待改进栏、未勾即不算完成 |
 | 2026-10-09 | 1.2 | 蒋励 | 落盘三项纯文本追平任务：① J6 已归档 change 5.4 勾选（tasks 全勾）；② J7 新建 openspec change `feature-addons-sprint3/`（proposal+design+tasks 三件套）；③ J1 新建端到端演示脚本文档 `docs/weekly/demo-script-sprint1.md`（录屏待系统实跑）。周报 J4 按约定未代做 |
 | 2026-10-10 | 1.3 | 蒋励 | 按 #55 复审意见回填 10/06~10/10 实测进展：蒋励 J2 已完成；苏哲勋 S1/S3/S4/S5/S6/S7 已完成（S2 问卷待 10/16）、S6+1 登记 Issue #59；§0 软化「每项都对应看板行」表述；本表自 10/05 快照更新至 10/10 |
+| 2026-10-10 | 1.4 | 蒋励 | J3 仓库卫生回填：远程 `fix/model/delivery-list-wording` 已不存在、origin 已为 `heapcluster`，标记完成 |
