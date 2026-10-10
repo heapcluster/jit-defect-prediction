@@ -102,27 +102,32 @@
       </div>
     </div>
 
-    <!-- 折线图（数据点 >= 2 才画） -->
+    <!-- 折线图：容器始终渲染保持高度稳定（pages.md §5） -->
     <div
-      v-if="series.length >= 2"
       v-loading="loading"
       class="chart-box"
     >
-      <RiskTrendChart :series="series" />
+      <RiskTrendChart
+        v-if="series.length >= 2"
+        :series="series"
+        @point-click="onPointClick"
+      />
+      <div
+        v-else-if="!error"
+        class="chart-placeholder"
+      >
+        <p>
+          {{ series.length === 0 ? '所选时间范围内没有数据' : '数据点不足，无法绘制趋势' }}
+        </p>
+        <el-button
+          v-if="series.length === 0"
+          size="small"
+          @click="resetRange"
+        >
+          重置时间范围
+        </el-button>
+      </div>
     </div>
-    <el-alert
-      v-else-if="!loading && !error && series.length > 0"
-      title="数据点不足，无法绘制趋势"
-      type="info"
-      show-icon
-      class="mb"
-    />
-
-    <!-- 空数据 -->
-    <el-empty
-      v-if="!loading && !error && series.length === 0"
-      description="所选时间范围内没有数据"
-    />
 
     <!-- 明细表 -->
     <el-table
@@ -159,6 +164,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { getTrends } from '../api'
 import RiskTrendChart from '../components/RiskTrendChart.vue'
 
@@ -215,9 +221,53 @@ async function load() {
 
 function errText(e) {
   const code = e?.code
+  // 40001 要指出是哪个参数，参数名在 err.detail
+  if (code === 40001) return `参数有误：${e?.detail || e?.message || ''}`
   if (code === 40100) return '登录已失效，请重新登录'
   if (code === 50000) return '服务异常，请稍后重试'
   return e?.message || '请求失败'
+}
+
+const router = useRouter()
+
+// 点击数据点 → 跳风险列表，时间范围收窄到该周期（docs/pages.md §4）
+function onPointClick(s) {
+  const range = periodToRange(s.period, filters.granularity)
+  if (range.length) {
+    router.push({ path: '/', query: { start_time: range[0], end_time: range[1] } })
+  }
+}
+
+function periodToRange(period, granularity) {
+  if (granularity === 'week') {
+    // "2026-W30" → 该 ISO 周的周一~周日
+    const m = period.match(/^(\d{4})-W(\d{1,2})$/)
+    if (!m) return []
+    const year = Number(m[1])
+    const week = Number(m[2])
+    const jan1 = new Date(Date.UTC(year, 0, 1))
+    const dow = (jan1.getUTCDay() + 6) % 7
+    const monday = new Date(Date.UTC(year, 0, 1 + (week - 1) * 7 - dow))
+    return [toDateStr(monday), toDateStr(new Date(monday.getTime() + 6 * 86400000))]
+  }
+  // "2026-08" → 该月 1 日~月末
+  const m = period.match(/^(\d{4})-(\d{1,2})$/)
+  if (!m) return []
+  const year = Number(m[1])
+  const month = Number(m[2])
+  return [
+    toDateStr(new Date(Date.UTC(year, month - 1, 1))),
+    toDateStr(new Date(Date.UTC(year, month, 1)))
+  ]
+}
+
+function toDateStr(d) {
+  return d.toISOString().slice(0, 10)
+}
+
+function resetRange() {
+  timeRange.value = []
+  load()
 }
 
 onMounted(load)
@@ -256,6 +306,17 @@ onMounted(load)
   border-radius: 8px;
   padding: 12px;
   margin-bottom: 16px;
+}
+.chart-placeholder {
+  height: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #7c838c;
+}
+.chart-placeholder p {
+  margin: 0 0 12px;
 }
 .detail-table {
   margin-top: 4px;

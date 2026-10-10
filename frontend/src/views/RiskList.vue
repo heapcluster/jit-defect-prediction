@@ -141,7 +141,14 @@
     <el-empty
       v-if="!loading && !error && items.length === 0"
       description="当前筛选条件下没有提交"
-    />
+    >
+      <el-button
+        size="small"
+        @click="reset"
+      >
+        清空筛选
+      </el-button>
+    </el-empty>
 
     <!-- 分页 -->
     <el-pagination
@@ -158,10 +165,11 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { getCommits } from '../api'
 
 const router = useRouter()
+const route = useRoute()
 
 // 模型清单前端维护（契约三冻结结论）
 const models = ['xgb_v1', 'rf_v1', 'lr_v1']
@@ -220,6 +228,8 @@ async function load(page = filters.page) {
 // 错误码 → 提示（docs/pages.md 第 5 节）
 function errText(e) {
   const code = e?.code
+  // 40001 要指出是哪个参数，参数名在 err.detail
+  if (code === 40001) return `参数有误：${e?.detail || e?.message || ''}`
   if (code === 40100) return '登录已失效，请重新登录'
   if (code === 40400) return '目标不存在'
   if (code === 50000) return '服务异常，请稍后重试'
@@ -237,7 +247,13 @@ function goDetail(row) {
   router.push(`/commit/${row.commit_hash}`)
 }
 
-onMounted(() => load(1))
+onMounted(() => {
+  // 从趋势看板点数据点跳转过来时，带上收窄的时间范围
+  if (route.query.start_time && route.query.end_time) {
+    timeRange.value = [route.query.start_time, route.query.end_time]
+  }
+  load(1)
+})
 </script>
 
 <style scoped>

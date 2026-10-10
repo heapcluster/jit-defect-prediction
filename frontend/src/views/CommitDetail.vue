@@ -43,18 +43,29 @@
     />
 
     <template v-if="detail">
-      <!-- 风险值 -->
+      <!-- 风险值：risk_score 为 null 表示尚未预测（契约三 §3），MUST NOT 冒充 0.0 -->
       <div class="hero">
-        <span
-          class="big"
-          :style="{ color: riskColor(detail.risk_score) }"
+        <template v-if="isNotPredicted">
+          <span class="big unpredicted">尚未预测</span>
+          <el-tag type="info">
+            尚未预测
+          </el-tag>
+        </template>
+        <template v-else>
+          <span
+            class="big"
+            :style="{ color: riskColor(detail.risk_score) }"
+          >
+            {{ (detail.risk_score * 100).toFixed(1) }}%
+          </span>
+          <el-tag :type="riskTag(detail.risk_score)">
+            {{ riskLabel(detail.risk_score) }}
+          </el-tag>
+        </template>
+        <el-tag
+          v-if="detail.model_name"
+          type="info"
         >
-          {{ (detail.risk_score * 100).toFixed(1) }}%
-        </span>
-        <el-tag :type="riskTag(detail.risk_score)">
-          {{ riskLabel(detail.risk_score) }}
-        </el-tag>
-        <el-tag type="info">
           模型 {{ detail.model_name }}
         </el-tag>
       </div>
@@ -78,33 +89,35 @@
         </el-descriptions-item>
       </el-descriptions>
 
-      <!-- 风险解释 -->
-      <h3>风险解释（为什么被判高风险）</h3>
-      <div
-        v-if="explanation.length"
-        class="expl"
-      >
+      <!-- 风险解释：尚未预测时整区不显示（「未提供解释」空态只在 risk_score 非空时出） -->
+      <template v-if="!isNotPredicted">
+        <h3>风险解释（为什么被判高风险）</h3>
         <div
-          v-for="e in explanation"
-          :key="e.feature"
-          class="e"
+          v-if="explanation.length"
+          class="expl"
         >
-          <span class="f">{{ e.feature }}</span>
-          <div class="track">
-            <i
-              :class="e.direction"
-              :style="{ width: barWidth(e.contribution) }"
-            />
+          <div
+            v-for="e in explanation"
+            :key="e.feature"
+            class="e"
+          >
+            <span class="f">{{ e.feature }}</span>
+            <div class="track">
+              <i
+                :class="e.direction"
+                :style="{ width: barWidth(e.contribution) }"
+              />
+            </div>
+            <span class="val">
+              {{ signed(e.contribution) }}
+            </span>
           </div>
-          <span class="val">
-            {{ signed(e.contribution) }}
-          </span>
         </div>
-      </div>
-      <el-empty
-        v-else
-        description="该模型未提供特征解释"
-      />
+        <el-empty
+          v-else
+          description="该模型未提供特征解释"
+        />
+      </template>
 
       <!-- 14 项特征 -->
       <h3>14 项特征</h3>
@@ -152,6 +165,8 @@ const featureGroups = [
 ]
 
 const features = computed(() => detail.value?.features || {})
+// 契约三 §3：提交存在但无预测记录时 risk_score 为 null，前端按 null 渲染「尚未预测」
+const isNotPredicted = computed(() => detail.value?.risk_score == null)
 const explanation = computed(() => {
   const list = detail.value?.explanation || []
   // 按 |contribution| 降序，页面只显示前 8 项
@@ -178,6 +193,7 @@ function riskLabel(score) {
   return '常规'
 }
 
+// 0.3 是解释条最大贡献度的可视化刻度（归一用），与风险阈值 0.3 无关
 function barWidth(contribution) {
   const pct = Math.min(Math.abs(contribution) / 0.3, 1) * 100
   return pct.toFixed(0) + '%'
@@ -209,6 +225,8 @@ async function load() {
 
 function errText(e) {
   const code = e?.code
+  // 40001 要指出是哪个参数，参数名在 err.detail（message 是通用文案）
+  if (code === 40001) return `参数有误：${e?.detail || e?.message || ''}`
   if (code === 40100) return '登录已失效，请重新登录'
   if (code === 40400) return '该提交不存在'
   if (code === 50000) return '服务异常，请稍后重试'
@@ -240,6 +258,11 @@ onMounted(load)
   font-size: 40px;
   font-weight: 700;
   font-family: monospace;
+}
+.unpredicted {
+  color: #7c838c;
+  font-size: 24px;
+  font-weight: 500;
 }
 .expl {
   display: flex;
