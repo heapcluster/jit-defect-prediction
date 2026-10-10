@@ -59,7 +59,7 @@
 | `size` | int | 否 | 默认 20，上限 100 |
 | `min_risk` | float | 否 | 只看风险概率不低于此值的提交，如 `0.5` |
 | `model_name` | string | 否 | 指定模型版本，默认用最新 |
-| `start_time` / `end_time` | string | 否 | ISO 8601 时间范围 |
+| `start_time` / `end_time` | string | 否 | ISO 8601 时间范围，**闭区间**（均含边界当天；`end_time` 只到日期时前端送 `23:59:59` 收尾，`start_time` 保持 `00:00:00`） |
 
 **响应 `data`**
 

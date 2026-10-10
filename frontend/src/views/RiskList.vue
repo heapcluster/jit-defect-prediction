@@ -199,6 +199,12 @@ function formatTime(iso) {
   return new Date(iso).toLocaleString('zh-CN', { hour12: false })
 }
 
+// end_time 闭区间收尾：纯日期串补到当天 23:59:59，否则后端按 00:00:00 解析会丢最后一天
+function toEndTime(dateStr) {
+  if (!dateStr) return undefined
+  return dateStr.includes('T') ? dateStr : dateStr + 'T23:59:59'
+}
+
 async function load(page = filters.page) {
   filters.page = page
   loading.value = true
@@ -211,7 +217,7 @@ async function load(page = filters.page) {
       model_name: filters.model_name || undefined,
       min_risk: filters.min_risk ?? undefined,
       start_time: timeRange.value?.[0] || undefined,
-      end_time: timeRange.value?.[1] || undefined
+      end_time: toEndTime(timeRange.value?.[1])
     })
     items.value = data.items || []
     total.value = data.total || 0
