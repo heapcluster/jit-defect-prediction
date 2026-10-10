@@ -150,10 +150,10 @@ def explain(entry: ModelEntry, vector: list[float]) -> list[dict]:
         X = np.array([vector], dtype=float)
         if scaler is not None:
             X = scaler.transform(X)
+        # LinearExplainer 喂 transform 后的 input/background 时，输出已是原始特征量纲的贡献：
+        # phi_i = w'_i·(x_i−E[x_i])/s_i = (w'_i/s_i)·(x_i−E[x_i])，与原值空间系数逐项相等，
+        # 不得再除 scale_（#52 复审 2026-10-06：再除等于把 1/s 乘两遍，SHAP 可加性判据不过）
         row = _first_row(get_explainer(entry).shap_values(X))
-        if scaler is not None:
-            # 线性变换下 SHAP 贡献可严格折算回原始特征量纲：raw = scaled / scale_（符号不变）
-            row = [value / float(scale) for value, scale in zip(row, scaler.scale_)]
     except Exception:
         logger.exception("shap explanation unavailable")
         return []
