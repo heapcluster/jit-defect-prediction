@@ -111,7 +111,7 @@ JIT（即时）缺陷预测系统：在**一次代码提交（commit）**的粒�
 | 什么时候需要 | 读哪份 |
 |---|---|
 | **开工第一份：这件事在代码里具体怎么做、验收什么** | `docs/dev-handbook.md` |
-| 第一次上手：装环境、装依赖、自检是否就绪 | `docs/onboarding.md` |
+| 装环境、OpenSpec CLI 自检是否就绪 | `infra/README.md` §团队工具版本约定 ＋ `docs/dev-handbook.md` §1 |
 | 你负责的那条线的技术约定、目录结构、启动命令 | 对应的 `<线>/README.md` |
 | 提交、分支、PR、Issue 具体怎么做、代码怎么写 | `docs/collaboration.md` |
 | **谁做什么、什么时候交、怎么沟通、任务怎么认领** | `docs/team-charter.md` |

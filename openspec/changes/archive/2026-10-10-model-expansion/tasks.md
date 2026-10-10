@@ -46,10 +46,13 @@
          新增「⑧–⑨ 的口径」（⑧ 差异必须为 0、⑨ 折必须时间序且对照同工作量口径）；变更日志记 1.0
 - [x] 4.3 `openspec validate --all --strict` 通过 —— 验证：命令输出全绿
       —— 实测：6 项全通过（含本 change 的 `model-coverage`），`validate` 输出无 error / warning
-- [ ] 4.4 提交 PR 并在描述里写明关联 change id `model-expansion`，由非作者审阅后合入 —— 验证：PR 链接与审阅记录
+- [x] 4.4 提交 PR 并在描述里写明关联 change id `model-expansion`，由非作者审阅后合入 —— 验证：PR 链接与审阅记录
       —— 已提交 **PR #42**（`feat/model/expansion-batch2`）：描述写明关联 change id、四条复跑验证方式、
          两条给 Issue #37/#38 的实测结论、以及「不新增依赖 / 不改交付模型 / 不做序列模型」的边界
-      —— **本项仍未完成**：等非作者审阅后合入。未合入前不勾选（与首 change tasks 5.3 的口径一致）
+      —— **审阅与合入记录**：PR #42 已由非作者（苏哲勋 / PO，审阅职责见 `docs/team-charter.md` §1.1）
+         审阅后 Squash 合入 `main`，合入提交 `388415e`（author 为作者、committer 为 GitHub，
+         即经 GitHub 合并队列合入）。PR 链接：https://github.com/heapcluster/jit-defect-prediction/pull/42
+      —— 代码已进 `main` 且 `openspec validate --all --strict` 全绿，本项闭环
 
 ## 5. 交付边界确认（跨线）
 
