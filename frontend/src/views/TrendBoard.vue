@@ -207,7 +207,7 @@ async function load() {
       granularity: filters.granularity,
       model_name: filters.model_name || undefined,
       start_time: timeRange.value?.[0] || undefined,
-      end_time: timeRange.value?.[1] || undefined
+      end_time: toEndTime(timeRange.value?.[1])
     })
     series.value = data.series || []
   } catch (e) {
@@ -240,14 +240,14 @@ function onPointClick(s) {
 
 function periodToRange(period, granularity) {
   if (granularity === 'week') {
-    // "2026-W30" → 该 ISO 周的周一~周日
+    // "2026-W30" → 该 ISO 周的周一~周日（ISO 8601：含 1 月 4 日的那一周为 W01）
     const m = period.match(/^(\d{4})-W(\d{1,2})$/)
     if (!m) return []
     const year = Number(m[1])
     const week = Number(m[2])
-    const jan1 = new Date(Date.UTC(year, 0, 1))
-    const dow = (jan1.getUTCDay() + 6) % 7
-    const monday = new Date(Date.UTC(year, 0, 1 + (week - 1) * 7 - dow))
+    const jan4 = new Date(Date.UTC(year, 0, 4))
+    const dow = (jan4.getUTCDay() + 6) % 7
+    const monday = new Date(Date.UTC(year, 0, 4 + (week - 1) * 7 - dow))
     return [toDateStr(monday), toDateStr(new Date(monday.getTime() + 6 * 86400000))]
   }
   // "2026-08" → 该月 1 日~月末
@@ -263,6 +263,12 @@ function periodToRange(period, granularity) {
 
 function toDateStr(d) {
   return d.toISOString().slice(0, 10)
+}
+
+// end_time 闭区间收尾：纯日期串补到当天 23:59:59，否则后端按 00:00:00 解析会丢最后一天
+function toEndTime(dateStr) {
+  if (!dateStr) return undefined
+  return dateStr.includes('T') ? dateStr : dateStr + 'T23:59:59'
 }
 
 function resetRange() {
