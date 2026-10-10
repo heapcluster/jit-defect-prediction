@@ -1,4 +1,4 @@
-"""Swagger 实现镜像（tasks 5.1）：openapi 路径与参数名逐字对齐契约三 1.4。"""
+"""Swagger 实现镜像（tasks 5.1）：openapi 路径与参数名逐字对齐契约三 2.0。"""
 
 from tests.conftest import HEADERS
 

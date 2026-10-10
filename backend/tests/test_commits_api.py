@@ -1,4 +1,4 @@
-from tests.conftest import C1, C3, FEATURE_VALUES, HEADERS, UNKNOWN
+from tests.conftest import C1, C2, C3, FEATURE_VALUES, HEADERS, UNKNOWN
 
 
 def test_list_sorted_and_paged(client):
@@ -69,8 +69,13 @@ def test_default_model_is_version_order_not_recency(client):
 
     with SessionLocal() as session:
         session.add(
-            Prediction(commit_hash=C1, model_name="xgb_v9", risk_score=0.55,
-                       predicted_at=datetime(2020, 1, 1), feature_version="v1")
+            Prediction(
+                commit_hash=C1,
+                model_name="xgb_v9",
+                risk_score=0.55,
+                predicted_at=datetime(2020, 1, 1),
+                feature_version="v1",
+            )
         )
         session.commit()
     body = client.get("/api/commits", headers=HEADERS).json()
@@ -79,3 +84,36 @@ def test_default_model_is_version_order_not_recency(client):
     detail = client.get(f"/api/commits/{C1}", headers=HEADERS).json()
     assert detail["data"]["model_name"] == "xgb_v9"
     assert detail["data"]["risk_score"] == 0.55
+
+
+def test_end_pure_date_includes_whole_end_day(client):
+    """契约三 2.0：end 纯日期串含结束日全天（#61：此前丢当天数据）。"""
+    body = client.get(
+        "/api/commits",
+        params={"start_time": "2026-08-03", "end_time": "2026-08-03"},
+        headers=HEADERS,
+    ).json()
+    assert body["code"] == 0
+    assert body["data"]["total"] == 1
+    assert body["data"]["items"][0]["commit_hash"] == C2
+
+
+def test_end_with_time_component_unchanged(client):
+    """带时间分量按原样解析：08-03T08:59:59 不含 C2，09:00:00 含。"""
+    early = client.get(
+        "/api/commits", params={"end_time": "2026-08-03T08:59:59"}, headers=HEADERS
+    ).json()
+    late = client.get(
+        "/api/commits", params={"end_time": "2026-08-03T09:00:00"}, headers=HEADERS
+    ).json()
+    assert early["data"]["total"] == 1
+    assert late["data"]["total"] == 2
+
+
+def test_start_pure_date_still_midnight(client):
+    """start 纯日期串仍是当天 00:00:00，不随 end 规则变（#61 评审：不能一刀切）。"""
+    body = client.get(
+        "/api/commits", params={"start_time": "2026-08-03"}, headers=HEADERS
+    ).json()
+    assert body["data"]["total"] == 1
+    assert body["data"]["items"][0]["commit_hash"] == C2

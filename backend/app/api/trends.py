@@ -1,4 +1,4 @@
-"""查询接口 3：缺陷引入趋势（契约三 1.4 第 3 节）。"""
+"""查询接口 3：缺陷引入趋势（契约三 2.0 第 3 节）。"""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def trends(
     if granularity not in ("week", "month"):
         raise AppError(40001, "参数非法：granularity 取值需为 week 或 month")
     start = _parse_time(start_time, "start_time") if start_time else None
-    end = _parse_time(end_time, "end_time") if end_time else None
+    end = _parse_time(end_time, "end_time", "end") if end_time else None
 
     with SessionLocal() as session:
         model = model_name or default_model_in_table(session)

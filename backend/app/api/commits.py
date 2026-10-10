@@ -1,7 +1,8 @@
-"""查询接口 1–2：风险列表与提交详情（契约三 1.4 第 1、2 节）。"""
+"""查询接口 1–2：风险列表与提交详情（契约三 2.0 第 1、2 节）。"""
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
@@ -23,13 +24,17 @@ def _iso_z(value: datetime) -> str:
     return value.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def _parse_time(value: str, param: str) -> datetime:
+def _parse_time(value: str, param: str, role: str = "start") -> datetime:
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         raise AppError(40001, f"参数非法：{param} 需为 ISO 8601 时间") from None
     if parsed.tzinfo is not None:
         parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    # 契约三 2.0 区间语义（#61）：闭区间；end 侧纯日期串含结束日全天，
+    # start 侧纯日期串仍是当天 00:00:00（不能一刀切）；带时间分量按原样
+    if role == "end" and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        parsed = parsed.replace(hour=23, minute=59, second=59, microsecond=999999)
     return parsed
 
 
@@ -77,7 +82,7 @@ def list_commits(
     if min_risk is not None and not 0.0 <= min_risk <= 1.0:
         raise AppError(40001, "参数非法：min_risk 需在 0.0 ~ 1.0")
     start = _parse_time(start_time, "start_time") if start_time else None
-    end = _parse_time(end_time, "end_time") if end_time else None
+    end = _parse_time(end_time, "end_time", "end") if end_time else None
 
     with SessionLocal() as session:
         model = model_name or default_model_in_table(session)
