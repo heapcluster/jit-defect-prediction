@@ -18,17 +18,18 @@
 ### 步骤 1 — 风险列表（被预警）
 
 ```
-GET /api/commits?order_by=risk_score&order=desc
+GET /api/commits?order_by=risk_score&order=desc&min_risk=0.5
 Header: X-API-Key: <KEY>
 ```
 
-- 预期：`code=0`，`data.list` 按 `risk_score` 降序。
-- 页面动作：打开「风险列表」页，取**第 1 条**高风险提交，记下其 `commit_hash`（下称 `$HASH`）。
+- 预期：`code=0`，`data.items` 按 `risk_score` 降序；因 `min_risk=0.5`，返回首行 `risk_score` ≥ 0.5，确属高风险。
+- 页面动作：打开「风险列表」页，取**第 1 条**高风险提交（已 ≥ 0.5），记下其 `commit_hash`（下称 `$HASH`）。
 
 ### 步骤 2 — 详情归因（被解释）
 
 ```
 GET /api/commits/$HASH
+Header: X-API-Key: <KEY>
 ```
 
 - 预期：返回 `risk_score` 与 `explanation`（每项含 `feature` / `contribution` / `direction`）。
@@ -38,6 +39,7 @@ GET /api/commits/$HASH
 
 ```
 GET /api/trends
+Header: X-API-Key: <KEY>
 ```
 
 - 预期：返回按时间的风险序列。
