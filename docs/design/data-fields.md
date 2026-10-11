@@ -18,7 +18,7 @@
 | `commit_feature` | 后端 | 数据线 `03_extract_features.py` 产出的特征表 |
 | `prediction` | 后端 | 后端实时推理写入；历史批量结果由**数据线离线预测产出 `prediction_result.csv`、由后端线导入本表**（数据线不直连数据库） |
 
-**入库链路**：数据线按 `docs/data-pipeline.md` 跑完 01–04 生成 CSV → 后端用导入脚本按本契约的表结构写入库。**"别人 clone 后一条命令把库建好"的前提是先跑完数据线 01–04**，这条要写进后端的启动说明。
+**入库链路**：数据线按 `docs/model/data-pipeline.md` 跑完 01–04 生成 CSV → 后端用导入脚本按本契约的表结构写入库。**"别人 clone 后一条命令把库建好"的前提是先跑完数据线 01–04**，这条要写进后端的启动说明。
 
 **为什么之前写着「三张表」**：那是后端 README 的清单当时**漏列了 `commit_feature`**。字段本身从来没有争议 —— `feature-columns.md` 第 1 节早已定下表名 `commit_feature` 与全部列定义；模糊的只是「谁建、什么时候建」，现明确：**后端建，与另外三张同时、在 9/18 字段冻结后立即开工**（对齐飞书周报任务 7 排期）。
 
@@ -65,7 +65,7 @@
 
 > **为什么不是 PySZZ（2026-09-16 实测改口）**：本文原先把 `szz` 标注为「（PySZZ）」。实测 **PySZZ 不在 PyPI**（`https://pypi.org/pypi/pyszz/json` 返回 404；同批探测 `pydriller` 正常返回 200，排除网络因素），其官方仓库依赖预先生成的 `gitlog` 数据格式，属研究专用工具，Sprint 0 内跑通不现实。故 `szz` 改由数据线**自研实现标准行级 SZZ**（对修复提交改动掉的每一行在父提交上做 `git blame`）。
 >
-> **取值集合仍是 `{szz, szz_lite}` 不变，只改说明文字，不触发 `feature_version` 升级**；两套结果都保留、差异量化后出示，对照校验的做法不变。裁定过程见 `docs/data-pipeline.md` 第 7 节待定项 1。
+> **取值集合仍是 `{szz, szz_lite}` 不变，只改说明文字，不触发 `feature_version` 升级**；两套结果都保留、差异量化后出示，对照校验的做法不变。裁定过程见 `docs/model/data-pipeline.md` 第 7 节待定项 1。
 
 ## 表三：`prediction`（预测结果表）
 
@@ -88,7 +88,7 @@
 
 课程《产品设计文档》模板明确要求「提供数据库 ER 图（陈氏法 或 鸦爪法）」。本图用鸦爪法（crow's foot）表示基数关系。
 
-> 生成方式：WorkBuddy（AI 生成，Mermaid `erDiagram`）｜提示词：「读 docs/contracts/data-fields.md 与 feature-columns.md，用 Mermaid erDiagram 画出四张表的关系，标出主键、唯一键、外键与基数」
+> 生成方式：WorkBuddy（AI 生成，Mermaid `erDiagram`）｜提示词：「读 docs/design/data-fields.md 与 feature-columns.md，用 Mermaid erDiagram 画出四张表的关系，标出主键、唯一键、外键与基数」
 > —— 课程要求 AI 生成的图必须标注 LLM 工具名称与提示词，本条即为示例写法。
 
 ```mermaid
