@@ -6,7 +6,7 @@
 
 ### Requirement: 风险值与等级标签
 
-详情页 MUST 显示风险值（前端 ×100 转百分比）与风险等级标签。等级阈值 MUST 只按 `docs/pages.md` 第 5 节一处定义：`>= 0.5` 高风险、`>= 0.3` 中等、其余常规。
+详情页 MUST 显示风险值（前端 ×100 转百分比）与风险等级标签。等级阈值 MUST 只按 `docs/frontend/pages.md` 第 5 节一处定义：`>= 0.5` 高风险、`>= 0.3` 中等、其余常规。
 
 #### Scenario: 高风险提交
 
@@ -15,7 +15,7 @@
 
 ### Requirement: 特征值展示
 
-详情页 MUST 按 `docs/contracts/feature-columns.md` 的键名展示 14 项特征，按五个维度分组。特征值为 0 MUST 照常显示；字段缺失 MUST 显示「—」，MUST NOT 静默当成 0。
+详情页 MUST 按 `docs/model/feature-columns.md` 的键名展示 14 项特征，按五个维度分组。特征值为 0 MUST 照常显示；字段缺失 MUST 显示「—」，MUST NOT 静默当成 0。
 
 #### Scenario: 特征字段缺失
 

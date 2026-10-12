@@ -207,7 +207,7 @@ async function load() {
       granularity: filters.granularity,
       model_name: filters.model_name || undefined,
       start_time: timeRange.value?.[0] || undefined,
-      end_time: timeRange.value?.[1] || undefined
+      end_time: toEndTime(timeRange.value?.[1])
     })
     series.value = data.series || []
   } catch (e) {
@@ -263,6 +263,12 @@ function periodToRange(period, granularity) {
 
 function toDateStr(d) {
   return d.toISOString().slice(0, 10)
+}
+
+// end_time 闭区间收尾：纯日期串补到当天 23:59:59，否则后端按 00:00:00 解析会丢最后一天（#62 合入后可移除）
+function toEndTime(dateStr) {
+  if (!dateStr) return undefined
+  return dateStr.includes('T') ? dateStr : dateStr + 'T23:59:59'
 }
 
 function resetRange() {
