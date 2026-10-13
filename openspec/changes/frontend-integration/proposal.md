@@ -40,5 +40,5 @@
 |---|---|
 | 影响目录 | `frontend/src/`（views / api / components / router） |
 | 消费契约 | `docs/frontend/pages.md`（字段映射）、`docs/backend/api-spec.md`（接口格式）——只读不改 |
-| 新增依赖 | ECharts 已列 `frontend/package.json`，无新增 |
-| 下游依赖 | 后端 #52（API-01/02/03 落地）——否则联调无接口可调 |
+| 新增依赖 | `globals`（devDependency，eslint 浏览器环境用）；运行时无新增 |
+| 下游依赖 | 后端 #52（API-01/02/03 落地，已合）；#62（时间范围闭区间语义，前端送纯日期依赖其先合入） |

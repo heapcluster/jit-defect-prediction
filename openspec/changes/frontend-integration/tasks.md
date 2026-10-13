@@ -36,6 +36,16 @@
 | 50000 服务错误 | ✅ 重试 | ✅ 重试 | ✅ 重试 |
 | 未预测提交（risk_score=null） | — | ✅ 显示「尚未预测」 | — |
 
+边界 / 异常场景：
+
+| 场景 | 覆盖 |
+|---|---|
+| 同路由 query 改变（下钻跳转带回新日期） | ✅ 风险列表 watch(route.query) 重查 |
+| 同路由 query 移除 | ✅ 清日期 + 重置分页 + 重查 |
+| 日期末秒（end 纯日期含当天） | ✅ 前端送纯日期，依赖 #62 服务端含结束日全天 |
+| 粒度切换不查询就下钻 | ✅ 下钻用 loadedGranularity（已加载粒度） |
+| 并发乱序响应 | ✅ requestId 防过期，粒度与 series 一起提交 |
+
 ### 5.2 验证清单
 
 - [x] `npm run build` 通过
@@ -47,10 +57,11 @@
 
 | 项 | 证据 |
 |---|---|
-| 提交 | `94b43b3`（最新 head） |
+| 提交 | 业务实现 `94b43b3`；格式调整 `cbc9f6b`；并发修复 `77d5e83` |
 | 环境 | Windows 11，Node 24，Python 3.12，SQLite 种子数据（3 提交/3 特征/3 预测） |
 | 命令 | `npm run build` / `npm run lint` / `openspec validate --changes frontend-integration` |
 | 结果 | build ✓（<1s）；lint 0 error 0 warning；openspec validate 通过 |
+| 联调证据 | `GET /api/commits?page=1&size=3`（带 `X-API-Key: dev-token-*`）返回 3 条 seed 提交；不带 key 返回 401；详情 `GET /api/commits/{hash}`、趋势 `GET /api/trends` 同链路可达 |
 
 ### 5.4 阻断 / 不适用说明
 
