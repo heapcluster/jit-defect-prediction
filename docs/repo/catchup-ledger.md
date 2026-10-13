@@ -1,6 +1,6 @@
 # 进度追平台账
 
-> 版本 1.15 ｜ 创建 2026-10-05 ｜ 更新 2026-10-13 ｜ 主笔 蒋励 ｜ 审核 苏哲勋
+> 版本 1.16 ｜ 创建 2026-10-05 ｜ 更新 2026-10-13 ｜ 主笔 蒋励 ｜ 审核 苏哲勋
 > 周期口径：Sprint 0 = 9/11 – 10/2（已收官）；Sprint 1 = 10/2 – 10/23，10/23 课上验收。
 
 ## 0. 这份台账管什么
@@ -92,4 +92,5 @@
 | 2026-10-13 | 1.12 | 蒋励 | 按《项目要求》逐条核对后整改（对应 v2.3 文档地图）：① 补测试侧三件 —— `common/test-plan.md`（四层测试总纲）、`common/test-report-sprint1.md`（backend 87 passed + data_model 8 passed 实跑）、`repo/defect-records.md`（11 项缺陷索引）；② L4 安全边界用例 48 条已补（backend 全仓 87 passed）；F3 前端三页面已实现但未 lint/build、未联调、未进 main，记「进行中」；③ 修 60+ 处失效路径引用（六包重构遗留，含代码注释与 `feature_order.txt`）；④ 消除三处口径矛盾（CI、模型线单测、demo-script 契约外参数）；⑤ `repo/`/`common/`/`backend/` README 补依赖与阻塞关系；⑥ 新登记缺陷 D-09（大写哈希 40400 误导）、D-10（前端未过 lint/build） |
 | 2026-10-13 | 1.13 | 蒋励 | 复审整改（对应 v2.4）：① `test-plan.md` 状态写实，消除其与 Sprint1 测试报告的自相矛盾（单元测试两层已跑绿）；② `frontend/src/utils/format.js` 阈值改从 `constants.js` 引入（原为第二处硬编码，违反「只定义一处」）；③ `test_feature_contract.py` 无 `.pkl` 时 skip 而非失败，保证干净 clone 可复现；④ `weekly-reports.md` 补「课程三要素 ↔ 模板列」映射；⑤ `model/`、`frontend/`、`design/` README 补依赖章节，六包齐备；⑥ 补 D-04 复现条件、修 `model/README.md` 路径笔误 |
 | 2026-10-13 | 1.14 | 蒋励 | 组长身份口径订正：`jolly326` 即**蒋励本人的 GitHub 账号**（非第二位成员）。已在 `common/team-charter.md`（分工表 + 账号↔人对应说明）、`docs/README.md` §0、`repo/collaboration.md` §3.7、`repo/README.md`、`repo/git-pr.md`、`common/openspec-rules.md`、`design/engineering.md`、`infra/README.md` 共 8 处统一表述，消除「jolly326 与蒋励是谁」的歧义 |
+| 2026-10-13 | 1.16 | 蒋励 | 图注「模型名」写定 + PRD 图源缺口收口：① 图注「工具名+模型」由占位写定为 **CodeBuddy（DeepSeek-V4.1-Flash）**——本地 `design/diagrams.md` 19 处、`backend/implementation.md` 4 处，飞书《产品设计文档》14 处、《产品需求文档》3 处，四处同源；② 飞书两份文档补变更日志行并升版（设计文档 v0.9→**v0.10**、PRD v1.1→**v1.2**），版本头与变更日志同步；③ PRD 6.2 三张低保真原型图补图源标注，PRD 6.3.1「图2」补齐 Mermaid 画板图块（原文仅图注、无图）——落实 PRD v0.9 变更日志登记的第 ④ 项缺口。**工具经验（写入规范）**：`docs +update` 的 `block_replace` 会更换块 id，**后续以该块为锚点的插入必须重新取 id**，否则报 `1011 无文档变更` 且静默不落盘；`<tr>` 无法作为独立块插入（会被摊平成表格外段落），**表格追加行须整表 `block_replace` 回写**。 |
 | 2026-10-13 | 1.15 | 蒋励 | 图源登记与飞书双向同步：① `design/diagrams.md` 扩为**全项目 14 张图的唯一图源登记表**（原仅 4 张，且与飞书 14 图不一致；同时消除与 `backend/implementation.md` 的重复维护，后者改为指向总表）；② 图注格式补齐课程要素「工具名+模型」——本地 4+4 处、飞书 14+3 处；③ 飞书《产品设计文档》修正 19 处、PRD 修正 6 处失效路径（六包重构遗留），变更日志中的历史路径表述保留不改。**仍未闭环（需环境/人工，已登记进 1009 周报本周计划）**：CI 未落地（E1）、前端未 `npm ci`、覆盖率未测量、Python 3.12 未复跑、`openspec/specs` 与 archive 旧路径需先立 change、1009 周报「已完成」列与「进度」列同步性待核、PRD 6.2 三张低保真图图源待前端线声明、PRD「图2」图块缺失待补、图注「模型名」字段待定稿 |

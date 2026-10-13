@@ -29,7 +29,7 @@ flowchart TB
   SVC --> MR --> MODELS
 ```
 
-> 生成方式：CodeBuddy（AI 编程助手；Mermaid `flowchart` → 飞书画板渲染）｜提示词：「画 JIT 缺陷预测后端架构：前端经鉴权中间件调 FastAPI 路由，服务层读 MySQL 四表并调 model_registry 加载 pkl+SHAP 解释」
+> 生成方式：CodeBuddy（DeepSeek-V4.1-Flash；Mermaid `flowchart` → 飞书画板渲染）｜提示词：「画 JIT 缺陷预测后端架构：前端经鉴权中间件调 FastAPI 路由，服务层读 MySQL 四表并调 model_registry 加载 pkl+SHAP 解释」
 
 ## 2. 请求处理流（以 GET /api/commits 为例）
 
@@ -54,7 +54,7 @@ sequenceDiagram
   end
 ```
 
-> 生成方式：CodeBuddy（AI 编程助手；Mermaid `sequenceDiagram` → 飞书画板渲染）｜提示词：「画带鉴权的查询接口请求处理时序，含令牌失败分支与正常分支」
+> 生成方式：CodeBuddy（DeepSeek-V4.1-Flash；Mermaid `sequenceDiagram` → 飞书画板渲染）｜提示词：「画带鉴权的查询接口请求处理时序，含令牌失败分支与正常分支」
 
 ## 3. POST /api/predict 实时推理时序
 
@@ -76,7 +76,7 @@ sequenceDiagram
   R-->>C: 200 {risk_score,features,explanation}
 ```
 
-> 生成方式：CodeBuddy（AI 编程助手；Mermaid `sequenceDiagram` → 飞书画板渲染）｜提示词：「画在线预测实时推理时序：校验→加载模型→取特征→推理→SHAP解释→幂等upsert→返回」
+> 生成方式：CodeBuddy（DeepSeek-V4.1-Flash；Mermaid `sequenceDiagram` → 飞书画板渲染）｜提示词：「画在线预测实时推理时序：校验→加载模型→取特征→推理→SHAP解释→幂等upsert→返回」
 
 ## 4. 类图（核心模块）
 
@@ -109,7 +109,7 @@ classDiagram
   AuthMiddleware <|-- CommitRouter
 ```
 
-> 生成方式：CodeBuddy（AI 编程助手；Mermaid `classDiagram` → 飞书画板渲染）｜提示词：「画后端核心类图：鉴权中间件、三个路由、模型注册表、预测仓储，标依赖」
+> 生成方式：CodeBuddy（DeepSeek-V4.1-Flash；Mermaid `classDiagram` → 飞书画板渲染）｜提示词：「画后端核心类图：鉴权中间件、三个路由、模型注册表、预测仓储，标依赖」
 
 ## 5. 分步实现清单（吕建江 L3/L4）
 
