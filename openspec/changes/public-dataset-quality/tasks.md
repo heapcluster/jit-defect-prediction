@@ -34,6 +34,11 @@
 ## 5. 抽样纪律（蒋励）
 - [ ] 5.1 数据集体积过大时按 `committed_at` **分层等距抽样**，禁随机；抽样方法、样本量、层级边界写入报告
 
+## 5bis. 与文献数字对照（蒋励，可选目标）
+- [ ] 5b.1 若获取到标准 benchmark（DeepJIT / CC2Vec 用过的项目），在同一评测口径下训练并评估，产出「本组结果 vs 文献报告值」对照表，标注文献出处
+- [ ] 5b.2 对照表**必须标注口径差异**（工作量代理、划分方式、特征集、模型），口径不同不得直接并列数字
+- [ ] 5b.3 未获取到标准 benchmark 时，报告中写明「未获取标准 benchmark，故不与文献数字对照」及原因，**不为凑对照而选用非标准数据集**
+
 ## 6. 范围与文档同步（蒋励统稿）
 - [ ] 6.1 `docs/design/sprint0-scope.md` 边界表述改写：「公开数据集（可选）」→「已提升为承诺范围（Sprint 2）」
 - [ ] 6.2 `feature-addons-sprint3` 的 G1-3 条目移出，proposal/tasks/design 同步注明「已由 `public-dataset-quality` 顶替」，不留双入口
@@ -67,8 +72,8 @@
 ### 3. 验收测试（交付时，按 spec 的 SHALL/MUST 逐条走）
 | 项 | 内容 |
 |---|---|
-| 验收依据 | `specs/public-dataset/spec.md` 的 6 条 Requirement 与全部 Scenario |
-| 用例数与结果 | 计划 6 条（每条 Requirement 至少 1 条） |
+| 验收依据 | `specs/public-dataset/spec.md` 的 7 条 Requirement 与全部 Scenario |
+| 用例数与结果 | 计划 7 条（每条 Requirement 至少 1 条） |
 | 复现命令 / 步骤 | 跑 20 → 21，比对 `data_model/reports/public_dataset_quality.md` 四项指标与异常清单 |
 | 证据归档 | `data_model/reports/public_dataset_probe.md`、`public_dataset_quality.md` |
 

@@ -75,6 +75,25 @@
 - **WHEN** 使用公开数据集产出任何结论
 - **THEN** 结论 MUST 标注「基于公开数据集 X，与 ActiveMQ 基线并列对照」，MUST NOT 表述为替换了交付数据
 
+### Requirement: 与文献数字对照（可选，仅当获取到标准 benchmark）
+
+若加载的数据集是 JIT 领域的标准 benchmark（如 DeepJIT / CC2Vec 使用过的项目），系统 SHOULD 在其上训练模型并与已发表结果作量级对照；未获取到标准 benchmark 时 MUST NOT 为凑对照而选用非标准数据集。
+
+#### Scenario: 获取到标准 benchmark
+
+- **WHEN** 加载的数据集确认为文献常用 benchmark
+- **THEN** 在同一评测口径下训练并评估，产出「本组结果 vs 文献报告值」对照表，并标注文献出处与本组配置差异（特征、模型、切分方式）
+
+#### Scenario: 未获取到标准 benchmark
+
+- **WHEN** 仅获得非标准数据集
+- **THEN** MUST NOT 做文献对照；报告中写明「未获取标准 benchmark，故不与文献数字对照」，并说明原因
+
+#### Scenario: 口径不同导致不可比
+
+- **WHEN** 文献报告值与本组评测口径不一致（如工作量代理不同、划分方式不同）
+- **THEN** 对照表 MUST 标注差异，MUST NOT 直接并列数字暗示同等条件下比较
+
 ### Requirement: 抽样不得随机
 
 当数据集体积过大需抽样时，抽样 SHALL 按时间序分层，MUST NOT 随机抽样。

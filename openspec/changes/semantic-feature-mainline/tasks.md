@@ -9,7 +9,7 @@
 - [ ] 1.1 本 change 进 `openspec/changes/semantic-feature-mainline/`（propose → apply），看板「规格变更或任务」列可点回
 - [ ] 1.2 `docs/design/sprint0-scope.md` 边界表述改写：「代码语义特征提取（可选）」→「已提升为模型线主线，Kamei 14 降为基线对照组」（范围变更，须显式留痕）
 - [ ] 1.3 `feature-addons-sprint3` 的 G1-4 条目移出，proposal/tasks/design 同步注明「已由 `semantic-feature-mainline` 顶替」，不留双入口
-- [ ] 1.4 看板新增 Sprint 2 两行：语义特征全量（MiniLM）/ 抽样增强（CodeBERT），迭代=Sprint 2、关联本 change
+- [ ] 1.4 看板新增 Sprint 2 行：语义特征主路线（CodeBERT 全量/近全量），迭代=Sprint 2、关联本 change
 
 ## 2. 契约与数据边界（蒋励）
 - [ ] 2.1 `docs/model/feature-columns.md` 登记 `feature_version = v2`（语义列），**契约二既有 14 项列名与顺序一字不动**；口径变更走契约变更流程
@@ -23,15 +23,16 @@
 - [ ] 4.1 新增 `data_model/10_semantic_text.py`：按**文件**生成变更文本（路径 + 变更类型 + 增删行 + 提交信息首行），单文件超模型上限按行截断并统计截断文件数/行数
 - [ ] 4.2 输出 `semantic_text_<feature_version>.csv`（一行一个 `commit_hash` + 文件路径 + 文本），供 5/6 两步共用；**同一份文本供两条路线**，避免双份构造漂移
 
-## 5. 打底路线：MiniLM 全量（蒋励）
-- [ ] 5.1 新增 `data_model/11_semantic_minilm.py`：`all-MiniLM-L6-v2` 对全部 11,050 条提交提特征，按提交聚合（多文件取均值）
-- [ ] 5.2 产出 `data_model/data/semantic_minilm_v2.csv`（`commit_hash` + `sem_0 … sem_383`）；记录设备、耗时、是否全量、截断统计
-- [ ] 5.3 交付给：`12_compare_settings.py`（第 8 步），形式为上述 CSV
+## 5. 主路线：CodeBERT 语义特征（蒋励，全量或近全量）
+- [ ] 5.1 新增 `data_model/11_semantic_codebert.py`：CodeBERT / GraphCodeBERT 对全部 11,050 条提交提特征，按提交聚合（多文件取均值）
+- [ ] 5.2 **先跑 100 条基准测试**，实测单条耗时与吞吐，据此定时限与是否全量；记录设备、耗时、是否全量、截断统计
+- [ ] 5.3 若实测超预期无法全量：按时间序**分层抽样**（禁随机），产出 `data_model/data/semantic_codebert_v2_sample.csv` + 抽样说明（方法、样本量、设备、是否全量）
+- [ ] 5.4 交付给：`13_build_fused.py`（第 7 步），形式为上述 CSV
 
-## 6. 增强路线：CodeBERT 抽样（蒋励）
-- [ ] 6.1 新增 `data_model/12_semantic_codebert.py`：CodeBERT / GraphCodeBERT 在 1,000–2,000 条**按时间序分层抽样**的子集上提特征（禁随机抽，保证与切分口径一致）
-- [ ] 6.2 产出 `data_model/data/semantic_codebert_v2_sample.csv` + 抽样说明（抽样方法、样本量、设备、是否全量）
-- [ ] 6.3 若算力不足无法完成，**如实登记为缺口并写明原因**，不得用 MiniLM 结果冒充代码模型结果
+## 6. 弱基线（可选）：MiniLM（蒋励）
+- [ ] 6.1 新增 `data_model/11b_semantic_minilm.py`：`all-MiniLM-L6-v2`（**通用句向量，非代码专用**）提特征，仅作对照
+- [ ] 6.2 报告中**明确标注其为「非代码预训练模型的弱基线」**，MUST NOT 与主路线结果混为一谈
+- [ ] 6.3 进度紧张则**直接砍掉本条**，不影响主线成立（域不匹配，见 `design.md` D1）
 
 ## 7. 融合样本构建（蒋励）
 - [ ] 7.1 新增 `data_model/13_build_fused.py`：按 `commit_hash` 左连接专家特征（14 项）与语义向量，产出三类设置各自的样本集；缺失语义向量的提交**显式标注并单列数量**，不用 0 填充冒充
@@ -65,10 +66,10 @@
 - [ ] 12.4 `docs/model/training-eval.md` §4 增补标准 effort-aware 指标与显著性检验结果
 - [ ] 12.5 周报记录已完成 / 下一步 / 存在问题
 
-## 测试与验证（强制板块）
-- [ ] 11.1 `docs/design/addons.md` §4 G1-4 定位改写为「已提升为模型线主线，见 `openspec/changes/semantic-feature-mainline`」
-- [ ] 11.2 `docs/model/methodology-references.md` §3 补「语义特征路线」决策行与文献依据
-- [ ] 11.3 `docs/model/training-eval.md` §4 增补三类对比结果；周报记录已完成/下一步/存在问题
+## 13. 多切分点稳健性检查（蒋励，2026-10-13 补，优先级低于 §11）
+- [ ] 13.1 除主切分点 70/30 外，再用 60/40 与 80/20 两个**时间序**切分点各跑一遍三类设置
+- [ ] 13.2 产出「切分点 × 设置 × 指标」稳健性表；结论随切分点翻转时**如实报告翻转**并说明可能原因，不挑好切分点汇报
+- [ ] 13.3 §11（评测协议对齐）未完成前不做本条；可延至 Sprint 3
 
 ## 测试与验证（强制板块）
 
@@ -105,7 +106,7 @@
 ### 4. 非功能验证
 | 维度 | 是否触及 | 证据 |
 |---|---|---|
-| 性能 | 是 | MiniLM 全量耗时与吞吐记录（提交数/分钟）；CodeBERT 抽样耗时；作为「能否全量」的判据 |
+| 性能 | 是 | CodeBERT 全量耗时与吞吐记录（提交数/分钟，含 100 条基准测试结果）；作为「能否全量」的判据 |
 | 安全 | 否 | 语义特征为离线实验产物，不碰接口与密钥 |
 | 可靠 | 是 | 切分可复现（同种子、同下标）；缺失语义向量显式计数不冒充；环境隔离后 `jit-defect` 87+59 条仍全绿 |
 | 易用 | 否 | 本 change 不涉及界面 |
@@ -114,7 +115,7 @@
 | 缺口 | 原因 | 归属 | 计划时间 |
 |---|---|---|---|
 | `torch` 未安装、`jit-semantic` 未建 | Sprint 1 收口前不动环境（避免影响 10/23 验收） | 蒋励 | Sprint 2 第 1 天 |
-| CodeBERT 抽样可能因算力无法完成 | 无 GPU，CPU 抽样耗时待实测 | 蒋励 | Sprint 2 末，完不成则如实登记 |
+| CodeBERT 全量可能因算力无法完成 | 无 GPU，CPU 耗时待 100 条基准测试实测 | 蒋励 | Sprint 2 第 1 天测出时限；完不成则分层抽样并如实登记 |
 | 语义向量维度（MiniLM 384 维）与 14 项专家特征量纲差异大，融合前是否需标准化待定 | 需先看三类对比的未标准化结果再定 | 蒋励 | Sprint 2 |
 | 交付模型切换未做（硬约束，不静默切换） | 须另开「模型切换」提案 | 蒋励 | Sprint 3（若指标支持） |
 | 集成测试套件由后端线组织，本 change 只提供被测对象 | 跨线集成属吕建江职责 | 吕建江 | Sprint 2 |
