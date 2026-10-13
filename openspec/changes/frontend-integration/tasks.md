@@ -62,6 +62,7 @@
 | 命令 | `npm run build` / `npm run lint` / `openspec validate --changes frontend-integration` |
 | 结果 | build ✓（<1s）；lint 0 error 0 warning；openspec validate 通过 |
 | 联调证据 | `GET /api/commits?page=1&size=3`（`X-API-Key: dev-token-*`）→ `{"code":0,...,"items":[...3 条]}`；无 key → HTTP 401；详情 `GET /api/commits/{hash}`、趋势 `GET /api/trends` 同链路可达 |
+| 完整联调记录 | `docs/frontend/integration-log.md`（含请求、脱敏响应、预期/实际结果、启动命令） |
 
 ### 5.4 阻断 / 不适用说明
 
