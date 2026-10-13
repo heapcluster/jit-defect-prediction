@@ -15,6 +15,21 @@
 | 吕建江（backend） | 接口/库表设计、predict 时序、类图、性能/安全证据口径 | D/E |
 | 刘帅华（frontend） | 三页面低保真原型、前端组件图、图表方案 | F |
 | 苏哲勋（repo） | 工程基线、CI/CD、插件化、分支模型、看板字段 | 工程化（`engineering.md`） |
+| 蒋励 / 刘帅华 | 可选附加模块详设（G1-1~G1-4 边界、加载与对比口径） | G（`addons.md`） |
+
+## 0.5 谁依赖这个包
+
+`design/` 是**契约与边界的源头**，四个业务包都从这儿取口径：
+
+| 依赖方 | 依赖什么 | 卡住的后果 |
+|---|---|---|
+| `backend/`（吕建江） | `database.md` 四表 ER、`architecture.md` 组件与外部依赖 | 库表与架构对不上，实现无处下手 |
+| `frontend/`（刘帅华） | `prototype.md` 低保真范围、`diagrams.md` 四张图 | 页面结构与演示缺依据 |
+| `model/`（蒋励） | `sprint0-scope.md` 三个冻结点（库表字段 / 特征列名 / 接口格式） | 契约漂移 = 一票否决 |
+| `repo/`（苏哲勋） | `engineering.md` 工程基线设计（分支/评审/CI-CD/插件化） | CI 与插件化无处落地 |
+| 全员 | `addons.md` 附加功能边界（只立项不实现、不替换基线） | 范围控制失据 |
+
+> 反向：本包**依赖各线供稿**（§0 表），蒋励统稿后进飞书《产品设计文档》；设计变更必须先提 OpenSpec change，不许直接改飞书文档不记规格。
 
 ## 1. 📋 当前待办（来自台账）
 
@@ -25,6 +40,7 @@
 | J1 | 端到端演示脚本（设计侧四张图要支撑演示） | 🔄进行中 | 蒋励 |
 | E1 | 落 `.github/workflows/ci.yml`（lint→test→build） | ⬜未开始 | 苏哲勋 |
 | E2 | `backend/app/model_registry.py` 落地 Predictor 接口 + 8 实现（插件化） | ⬜未开始 | 吕建江 + 蒋励 |
+| E5 | 可选附加 G1-3/G1-4 详设落本地 design（`addons.md` + change `feature-addons-sprint3`） | ✅已完成 | 蒋励 |
 
 > 实时状态以**飞书看板**为准。
 
@@ -55,6 +71,7 @@
 | 低保真原型 | `prototype.md`（指针飞书） |
 | Sprint0 系统边界 | `sprint0-scope.md` |
 | **工程化（分支/评审/CI-CD/插件化）** | `engineering.md`（新增，苏哲勋供稿） |
+| **可选附加模块（G1-1~G1-4）** | `addons.md`（新增，蒋励 / 刘帅华供稿） |
 
 ## 5. 子文件导航
 
@@ -66,6 +83,7 @@
 - `sprint0-scope.md` — 系统边界与代码线边界（合并自 `docs/sprint0-scope.md`）
 - `data-fields.md` — 库表字段详表
 - `engineering.md` — **工程化：分支规范 / 代码评审 / CI-CD 流水线 / 插件化架构**
+- `addons.md` — **可选附加模块设计：G1-1 行级定位 / G1-2 修复建议 / G1-3 公开数据集 / G1-4 语义特征**
 
 ## 6. 先读 common 里的哪几份
 

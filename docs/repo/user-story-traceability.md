@@ -1,16 +1,16 @@
 # 用户故事追溯映射（S5）
 
-> 任务：苏哲勋 S5 ｜ 飞书 PRD 第五章 27 条 User Story（A/B/C 三 Epic）
+> 任务：苏哲勋 S5 ｜ 飞书 PRD 第五章「需求范围」：**核心 27 条（Epic A–F）+ 可选附加 4 条（Epic G）= 31 条**
 > 目标：每条 User Story 能点回 `openspec/specs/` 或 `openspec/changes/`（看板「规格变更或任务」列可点开）。
-> 现状：22/27 待挂接（卡在 #60 前置），5 条已挂。
+> 现状：核心 22/27 待挂接（卡在 #60 前置），5 条已挂；可选附加 G1-1~G1-4 已挂 change `feature-addons-sprint3`（2026-10-13 补）。
 
 ## 1. 为什么做
 
-课程要求「看板中任务应能对应到 Sprint 和 OpenSpec 的 change/task」。S5 = 把 27 条故事逐条挂回 openspec，让「规格变更或任务」列可点开、可追溯。本质是收口活，不是写新需求。
+课程要求「看板中任务应能对应到 Sprint 和 OpenSpec 的 change/task」。S5 = 把 31 条故事（核心 27 + 可选附加 G 4）逐条挂回 openspec，让「规格变更或任务」列可点开、可追溯。本质是收口活，不是写新需求。
 
-## 2. 映射表（27 条 → openspec）
+## 2. 映射表（31 条 → openspec）
 
-> 口径：A=需求/界面类 → 多挂 `specs/` 能力；B=数据/模型类 → 挂 `data-collection-*`/`model-*` change；C=工程/协作类 → 挂 `repo` 规范与 `openspec` 流程。
+> 口径：核心 27 条按「界面 / 数据模型 / 工程协作」三族归纳（对应 PRD Epic A–F），A=需求/界面类 → 多挂 `specs/` 能力；B=数据/模型类 → 挂 `data-collection-*`/`model-*` change；C=工程/协作类 → 挂 `repo` 规范与 `openspec` 流程。第 28–31 条为 PRD **可选附加功能 Epic G**（不进 MVP，Sprint 3 排期），统一挂 change `feature-addons-sprint3`。
 
 | # | Epic | User Story（摘要） | 挂接目标（openspec） |
 |---|---|---|---|
@@ -41,9 +41,14 @@
 | 25 | C | PR 审阅协作 | `repo/collaboration.md` §3 |
 | 26 | C | OpenSpec 变更流程 | `repo/openspec-workflow.md` |
 | 27 | C | 非功能验证（性能/安全） | change `nfr-evidence-scripts` |
+| 28 | G | 缺陷可视化定位（行级，可选） | change `feature-addons-sprint3` |
+| 29 | G | 高质量修复建议（可选） | change `feature-addons-sprint3` |
+| 30 | G | 公开缺陷数据集加载与质量治理（可选） | change `feature-addons-sprint3` + `specs/public-dataset` |
+| 31 | G | 预训练语义特征建模（可选） | change `feature-addons-sprint3` + `specs/semantic-feature` |
 
 ## 3. 操作
 
 - #60 合入后，把每条的「规格变更或任务」列填对应 change id / spec 路径。
 - 纯飞书产物（如需求文档章节）填 `—`，不硬凑。
+- Epic G 4 条已挂 `feature-addons-sprint3`（2026-10-13 立，**仅立项不实现**）；Sprint 3 开工时按 change 内 tasks 逐条回填。
 - 挂接完成 = S5 收口（看板该列可点开）。

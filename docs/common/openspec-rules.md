@@ -50,4 +50,4 @@ propose（写码前）→ 规范评审（提案人≠审阅人）→ apply（按
 
 ## 6. 强制合入例外
 
-组长 jolly326 的 `docs/` 类 PR，sober 必须无条件合入（见 `repo/collaboration.md` §3.7）。
+组长蒋励（GitHub 账号 `jolly326`）的 `docs/` 类 PR，sober 必须无条件合入（见 `repo/collaboration.md` §3.7）。

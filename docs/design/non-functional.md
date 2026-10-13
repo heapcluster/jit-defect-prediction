@@ -20,13 +20,21 @@
 - 预测幂等：同一 `(commit_hash, model_name)` 重复调用，库里只留最新一行（不累积重复）。
 - 数据可复现：固定 `activemq-5.18.7`，别人照命令跑出同一份统计（±0）。
 - 时间序切分防泄漏：随机切分 = 缺陷。
+- **证据落点**（2026-10-13 已从「由联调与演示佐证」改为**可点验的文件**）：
+  - 契约一致性（14 项特征列名与顺序、交付清单 3 模型、`feature_version=v1`）→ `data_model/tests/test_feature_contract.py`（8 passed）；
+  - 复现一致性（同一切分/特征/种子，指标报告逐行一致）→ `data_model/reports/model_matrix.md`「与 `model_metrics.md` 差异 0 项」；
+  - 幂等与空数据不冒充 → `backend/tests/test_predict_api.py`、`test_commits_api.py`。
 
 ## 4. 易用性
 
 - 三态齐全：加载中 / 空数据（**不是错误**）/ 请求失败，文案与后续操作不同。
 - 风险着色阈值只在 `docs/frontend/pages.md` 一处定义（`≥0.5`/`≥0.3`），三页统一；`high_risk_count` 用后端值不重算。
 - 字段名前后端同源，不驼峰转换。
+- **证据落点**（2026-10-13 已落实）：
+  - 阈值/百分比/哈希截断/时间格式/特征缺失可见 → `frontend/src/__tests__/contract.test.js`（T-FE-01~03，纯口径函数单测）；
+  - 常量唯一来源 → `frontend/src/constants.js`（`RISK_HIGH`/`RISK_MID`/`MODEL_OPTIONS`/`FEATURE_GROUPS` 只此一处，页面不各自硬编码）；
+  - 空数据/40400/50000 的页面表现口径 → `docs/frontend/pages.md` §5。
 
 ## 验收（课程 ≥2 项验证）
 
-性能 + 安全两项在 Sprint 3 出验证证据（在 `nfr-evidence-scripts` change 内）。可靠性/易用性由联调与演示佐证。
+性能 + 安全两项在 Sprint 3 出验证证据（在 `nfr-evidence-scripts` change 内）。可靠性/易用性**不再只靠「联调与演示佐证」**——已分别落到上表的测试文件与常量文件，Sprint 3 只需补压测分位数与两组安全截图即可闭环 4/4。

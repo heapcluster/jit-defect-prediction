@@ -38,4 +38,4 @@
 
 ## 5. 与其他文档
 
-缺陷处置记录 = 本规范产生的 Issue 列表（Sprint 3 结题按标签导出，不另做表）。规格错误→提 change（`openspec-workflow.md`）。测试要求见 `docs/repo/collaboration.md` §4.6/§4.8。
+缺陷处置记录 = 本规范产生的 Issue 列表（Sprint 3 结题按标签导出，不另做表）。规格错误→提 change（`openspec-workflow.md`）。测试要求见 `repo/collaboration.md` §4（测试底线：修缺陷带回归测试、新增接口至少 1 正常 + 1 异常路径）与 `common/test-plan.md`（四层测试总纲）。

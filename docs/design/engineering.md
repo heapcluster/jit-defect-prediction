@@ -32,7 +32,7 @@
 - `develop`：集成分支，各 `feature/*` 汇入。
 - `feature/*`：功能开发分支。
 - `change/*`：OpenSpec change 实现分支（规格 propose→apply→tasks→代码→archive）。
-- 文档线 PR 走 `docs/README.md` §0 强制合入规则（jolly326/蒋励 主笔，sober 无条件合入）。
+- 文档线 PR 走 `docs/README.md` §0 强制合入规则（蒋励主笔，GitHub 账号 `jolly326`，sober 无条件合入）。
 
 ## 3. CI/CD 流水线设计
 
@@ -41,7 +41,7 @@
 - **触发**：push / PR 到 `main`、`develop`，以及 `change/*`。
 - **阶段（门禁顺序）**：
   1. `lint`：`ruff`/`flake8`（Python）、`eslint`（前端）—— 风格与静态检查。
-  2. `unit-test`：`pytest` 各线单测——后端四接口、模型加载（`joblib.load` 口径）、14 特征口径、SHAP 解释。
+  2. `unit-test`：各线单测——后端四接口与鉴权（`backend/tests/`）、模型加载（`joblib.load` 口径）与 SHAP 解释（`backend/tests/test_model_registry.py`）、14 特征口径（`data_model/tests/test_feature_contract.py`）、前端口径函数（`frontend/` 执行 `npm run test:unit`，vitest）。
   3. `build`：`docker build` 后端镜像；前端 `vite build`。
   4. `(可选) deploy`：Sprint 1 起接容器化公网访问（课程标可选）。
 - **门禁**：CI 红 = 禁止合入；**PR 仍需 ≥1 位非作者人工审阅**（自动化不替代评审，呼应协作规则）。
@@ -56,7 +56,7 @@
 
 - 抽象接口 `Predictor`：`load() -> self` / `predict(features: dict) -> float` / `explain(features) -> list[SHAP]`。
 - 注册表：`MODEL_REGISTRY: dict[str, Type[Predictor]]`，键为 `model_name`。
-- 8 种实现：经典 6（`lr` `rf` `xgb` `svm` `nb` `dt`）+ 神经网络 2（如 `mlp` `lstm`），各实现同一接口。
+- 8 种实现：经典 6（`lr` `rf` `xgb` `nb` `dt` `knn`）+ 神经网络 2（`mlp_v1` `mlp_deep_v1`），各实现同一接口（实测清单见 `model/training-eval.md` §2/§4）。
 - 后端按 `model_name` 从注册表加载，对应 `prediction` 表复合主键 `(commit_hash, model_name)`——**新增模型只加注册项，不改 `api-spec` 与库表**。
 - 落点：`backend/app/model_registry.py`（接口 + 注册表 + 8 实现）。
 
@@ -64,11 +64,11 @@
 
 - `FeatureExtractor` 接口：`extract(commit) -> dict[14 项]`。
 - 必做：经典 Kamei 14（`feature-columns.md` 口径）。
-- 可选：代码语义特征（Epic 附加，语义嵌入插件）。
+- 可选：代码语义特征（G1-4，语义嵌入插件；详设见 `addons.md` §4）。
 
 ### 4.3 数据集插件
 
-- `RepoSource` 接口：克隆 / 解析提交 / 产出样本。当前 `ActiveMQ`（锁 `activemq-5.18.7`）；新增仓库只实现同一数据源接口，不动管线。
+- `RepoSource` 接口：克隆 / 解析提交 / 产出样本。当前 `ActiveMQ`（锁 `activemq-5.18.7`）；新增仓库 / 公开 JIT 数据集（G1-3）只实现同一数据源接口，不动管线（详设见 `addons.md` §3）。
 
 ### 4.4 收益
 
