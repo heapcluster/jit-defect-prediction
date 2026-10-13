@@ -205,20 +205,22 @@ let requestId = 0
 
 async function load() {
   const id = ++requestId
+  // 快照本次请求参数：等待期间用户改筛选器（不重查）不影响本次提交的粒度
+  const granularity = filters.granularity
   loading.value = true
   error.value = ''
   retryable.value = false
   try {
     const data = await getTrends({
-      granularity: filters.granularity,
+      granularity,
       model_name: filters.model_name || undefined,
       start_time: timeRange.value?.[0] || undefined,
       end_time: timeRange.value?.[1] || undefined
     })
     if (id !== requestId) return
     series.value = data.series || []
-    // 粒度与 series 一起提交，保证两者对应（乱序响应不会错配）
-    loadedGranularity.value = filters.granularity
+    // 粒度与 series 一起提交，用本次请求快照，保证两者对应
+    loadedGranularity.value = granularity
   } catch (e) {
     if (id !== requestId) return
     series.value = []
