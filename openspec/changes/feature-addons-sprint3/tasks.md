@@ -27,3 +27,48 @@
 ## 6. 立项文档（2026-10-13）
 - [x] 6.1 设计文档 5.3.3 / 5.3.4 展开 G1-3 / G1-4 详设（飞书设计文档 v0.9）
 - [x] 6.2 本 change 新增 `specs/public-dataset`、`specs/semantic-feature`
+---
+
+## 测试与验证（强制板块）
+
+> 分层口径见 `docs/common/test-strategy.md`；模板见 `docs/common/openspec-task-template.md`。
+> 本 change 截至 2026-10-13 **仅完成立项（§6），功能任务全部未开始**，故本节先立**验收标准与测试计划**，实现时逐条落证据。
+
+### 1. 单元测试（各功能作者自己写，动代码前先写）
+| 项 | 内容 |
+|---|---|
+| 覆盖对象 | G1-1 行级定位降级逻辑；G1-2 修复建议检索与空态；G1-3 数据集加载器 + 三类质量治理；G1-4 语义特征提取与融合 |
+| 测试文件 | G1-1/G1-2 → `frontend/src/__tests__/`；G1-3/G1-4 → `data_model/tests/` |
+| 用例数与结果 | 0 条（未开始） |
+| 复现命令 | `cd data_model && python -m pytest -q`；`cd frontend && npm run test:unit` |
+| 异常 / 边界用例（最低要求） | G1-1 行级数据缺失 → 降级到提交级并提示，**不报错**；G1-2 无依据 → 返回空态，**不编造建议**；G1-3 无缺陷类型的样本 → 标注「无缺陷类型」而**不伪造标签**；G1-4 语义模型不可用 → 回落到专家特征，**不阻断预测** |
+
+### 2. 集成测试
+| 项 | 内容 |
+|---|---|
+| 集成范围 | G1-3 加载的公开数据集 ↔ 既有 `commit` / `commit_label` / `commit_feature` 口径；G1-4 新特征 ↔ 训练/切分/评估链路；G1-1/G1-2 ↔ 详情页 |
+| 测试文件 | G1-3/G1-4 → `data_model/tests/`；G1-1/G1-2 → `frontend/src/__tests__/` |
+| 用例数与结果 | 0 条（未开始） |
+| 关键断言 | **不新增字段名、不改契约二 14 项列名与顺序**（新特征另起 `feature_version` v2）；**不静默切换交付模型**（spec `semantic-feature` R2 / `model-coverage` R6） |
+
+### 3. 验收测试（交付时，按各 spec 的 Scenario 逐条走）
+| 项 | 内容 |
+|---|---|
+| 验收依据 | `specs/defect-visualization/spec.md`、`specs/fix-suggestion/spec.md`、`specs/public-dataset/spec.md`、`specs/semantic-feature/spec.md` |
+| 用例数与结果 | 0 条（未开始） |
+| 证据归档 | G1-3 → `data_model/reports/`（数据质量报告）；G1-4 → `data_model/reports/`（三类设置对比结论，含设备/样本量标注） |
+
+### 4. 非功能验证
+| 维度 | 是否触及 | 证据 |
+|---|---|---|
+| 性能 | 否 | 附加功能不进入交付链路（MVP 契约不变） |
+| 安全 | 是 | 公开数据集下载与落盘的来源登记；不含密钥 |
+| 可靠 | 是 | G1-1 降级路径、G1-4 特征缺失回落 |
+| 易用 | 是 | 降级提示与空态文案 |
+
+### 5. 已知缺口与后续计划
+| 缺口 | 原因 | 归属 | 计划时间 |
+|---|---|---|---|
+| 全部功能任务未开始（2.1–5.4） | Sprint 3 窗口（11/13–12/18），当前处于 Sprint 1 | 蒋励 / 刘帅华 | Sprint 3 |
+| 测试计划已立但无任何证据 | 同上 | 同上 | Sprint 3 |
+| 课程 10/12 才新增 G1-3/G1-4，需先补文献与方案论证 | 见 `docs/model/methodology-references.md` | 蒋励 | Sprint 2 |

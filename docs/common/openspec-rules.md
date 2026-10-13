@@ -48,6 +48,19 @@ propose（写码前）→ 规范评审（提案人≠审阅人）→ apply（按
 - `openspec list` / `openspec validate <change>` / `openspec archive <change-id>`。
 - `config.yaml` 的 `context:` 填技术栈，变更要同步改。
 
-## 6. 强制合入例外
+## 6. `tasks.md` 统一格式与强制「测试与验证」板块（2026-10-13 起）
+
+**起因：课堂反馈 —— openspec 各人写法不一；每份 `tasks.md` 末尾必须有「测试和验证」板块，确保 propose 真正落地。**
+
+- 统一模板：**`docs/common/openspec-task-template.md`**（文件头四行、任务编号、证据写法、测试板块五节、归档自检五条）。
+- `openspec/config.yaml` 的 `rules.tasks` 已把该板块立为**强制**：**板块缺失 = 提案不完整，不得进入 apply**。
+- 三层测试责任（与 `docs/common/test-strategy.md` 同源）：
+  **单元测试** = 写该段代码的人，提 PR 前完成；
+  **集成测试** = 大版本合并后，由负责合入的一条线组织；
+  **验收测试** = 交付时，按 `specs/<cap>/spec.md` 的 Scenario 逐条走。
+- 铁律：**勾了 tasks ≠ 功能合格**；「已实现」与「已验收」是两个状态，不得混用。
+- 存量 7 份已于 2026-10-13 全部补齐（已归档 5 份按实际已发生的验证回溯补录，**不倒填**）。
+
+## 7. 强制合入例外
 
 组长蒋励（GitHub 账号 `jolly326`）的 `docs/` 类 PR，sober 必须无条件合入（见 `repo/collaboration.md` §3.7）。

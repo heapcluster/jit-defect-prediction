@@ -60,3 +60,53 @@
       —— **PR #30 已合入**（2026-09-19 10:13，审阅人苏哲勋）；实现阶段 2–5 组的勾选与证据已在 #30 内回填
 - [x] 6.3 回飞书看板更新任务 7 状态与关联链接；两个 PR 合入后各自删除分支（`docs/collaboration.md` §1.6）
       —— 看板「7 数据库表结构与接口格式」行已于 2026-09-20 更新为 **已完成** 并补关联链接（PR #30）；两个源分支随合并按任务 2 的「自动删除源分支」设置清掉
+
+---
+
+## 测试与验证（强制板块 · 2026-10-13 回溯补录）
+
+> 本节由 2026-10-13 课堂反馈后统一补录，**按实际已发生的验证写实**，未做的一律进 §5 缺口，不倒填。
+> 分层口径见 `docs/common/test-strategy.md`；模板见 `docs/common/openspec-task-template.md`。
+> 铁律：勾了 tasks ≠ 功能合格，必须有可复现运行证据。
+
+### 1. 单元测试（吕建江，写代码的人自己写）
+| 项 | 内容 |
+|---|---|
+| 覆盖对象 | 四个接口（commits / commit 详情 / trends / predict）路由与服务层、鉴权中间件、模型注册表、CSV 灌入与镜像比对、参数校验与错误码 |
+| 测试文件 | `backend/tests/test_auth_errors.py`（3）、`test_commits_api.py`（9）、`test_trends_api.py`（3）、`test_predict_api.py`（9）、`test_ingest.py`（2）、`test_mirror.py`（8）、`test_model_registry.py`（5）、`test_security_boundaries.py`（48，参数化） |
+| 用例数与结果 | **87 条全通过**（`pytest --collect-only` 收集数 = 87） |
+| 复现命令 | `cd backend && python -m pytest -q`（环境：conda `jit-defect`） |
+| 正向用例 | `test_predict_api.py::test_predict_returns_score_and_explanation` —— 40 位合法 hash + 已加载模型 → `code=0`，`risk_score` 落在 [0,1]，`explanation` 非空且每项带 `direction` |
+| 异常 / 边界用例 | `test_security_boundaries.py` 48 条参数化 —— 缺失/错误令牌 → 401+`40100`；`size=101` / `granularity=day` / 39 位 hash → 400+`40001` 且 message 指出参数名；模型未加载 → 500+`50000` 且 message 固定为 `internal error`（不含堆栈/SQL/路径） |
+
+### 2. 集成测试（大版本合并后）
+| 项 | 内容 |
+|---|---|
+| 集成范围 | 数据线产出的 CSV ↔ MySQL 四表 ↔ 查询/预测接口 ↔ `model_registry` 加载 `.pkl` |
+| 测试文件 | `backend/tests/test_mirror.py`（8）、`test_ingest.py`（2）、`test_model_registry.py`（5） |
+| 用例数与结果 | 15 条全通过（含在 87 内） |
+| 复现命令 | `cd backend && python -m pytest tests/test_mirror.py tests/test_ingest.py tests/test_model_registry.py -q` |
+| 关键断言 | 镜像比对：CSV 与 MySQL 逐行逐列一致；重复灌入不产生重复行（幂等键 upsert）；`model_registry`：`joblib.load` 加载、特征数不符时跳过该模型、`explain()` 对线性/树模型均残差归零 |
+
+### 3. 验收测试（交付时）
+| 项 | 内容 |
+|---|---|
+| 验收依据 | `specs/query-api/spec.md`、`specs/predict-api/spec.md`、`specs/db-schema/spec.md` 的 SHALL/MUST 与 Scenario |
+| 用例数与结果 | 主链路 API-01~04 + 2 条异常用例，见演示脚本 |
+| 复现命令 / 步骤 | `docs/repo/demo-script-sprint1.md`（起后端 `:8000` 后按脚本走） |
+| 证据归档 | `backend/scripts/evidence/`（性能与安全两阶段证据） |
+
+### 4. 非功能验证
+| 维度 | 是否触及 | 证据 |
+|---|---|---|
+| 性能 | 是 | `backend/scripts/evidence/perf-real-2026-09-20.md`（`POST /api/predict` 100 次全成功，p95 21.6ms < 500ms） |
+| 安全 | 是 | `backend/scripts/evidence/security-2026-09-20.md`（令牌缺失/错误、畸形参数、50000 不泄露内部信息，全用例 PASS） |
+| 可靠 | 是 | `test_mirror.py` 幂等灌入 + 契约三「提交存在但无预测记录 → code=0 + null 字段」用例 |
+| 易用 | 否 | 本 change 为后端与库表，页面三态由前端线负责 |
+
+### 5. 已知缺口与后续计划
+| 缺口 | 原因 | 归属 | 计划时间 |
+|---|---|---|---|
+| 无 CI 自动化门禁（`.github/workflows` 为空），87 条靠本地手动跑 | CI 未落地（待办 E1；写 workflow 需实跑验证，否则会阻断合入） | 苏哲勋 | Sprint 2 |
+| 测试覆盖率未测量（无 `pytest-cov` 配置） | 未配置覆盖率工具与阈值 | 吕建江 | Sprint 2 |
+| Python 3.12 环境复跑未做（当前在 conda `jit-defect`） | 环境差异待统一 | 吕建江 | Sprint 2 |

@@ -47,24 +47,32 @@ context: |
   需求用 SHALL / MUST 描述；每个需求至少一个 Scenario，用 WHEN / THEN 写，
   并且必须包含至少一个**异常或边界场景**（课程明确要求）。
 
-  # 规格里引用的文档
-  - docs/contracts/             三条契约（数据表字段 / 特征列名 / 接口格式）
-  - docs/sprint0-scope.md       本次范围与系统边界、做与不做
-  - docs/dev-handbook.md        代码项目开工手册：按代码活动组织（仓库基线 / OpenSpec / 契约冻结 /
-                                数据链路 / 库表与接口 / 前端联调 / 非功能证据）
-  - docs/pages.md               三个页面 ↔ 接口 ↔ 字段映射、三态与错误码、风险阈值定义
-  - docs/collaboration.md       协作规范与项目开发规范
-  - docs/data-pipeline.md       数据源、版本固定规则与复现命令
+  # 规格里引用的文档（六包结构，2026-10-13 起统一）
+  - docs/backend/api-spec.md       契约三：接口请求/响应/错误码/非功能（原 docs/contracts/api-format.md）
+  - docs/design/data-fields.md     契约一：库表字段与 ER（原 docs/contracts/data-fields.md）
+  - docs/model/feature-columns.md  契约二：特征列名与顺序（原 docs/contracts/feature-columns.md）
+  - docs/design/sprint0-scope.md   本次范围与系统边界、做与不做
+  - docs/common/dev-handbook.md    代码项目开工手册（仓库基线 / OpenSpec / 契约冻结 / 数据链路 / 库表与接口 / 前端联调 / 非功能证据）
+  - docs/frontend/pages.md         三个页面 ↔ 接口 ↔ 字段映射、三态与错误码、风险阈值定义
+  - docs/repo/collaboration.md     协作规范与项目开发规范
+  - docs/model/data-pipeline.md    数据源、版本固定规则与复现命令
+  - docs/common/test-strategy.md   测试分层与三层测试责任（单元/集成/验收 + 非功能）
+  - docs/common/openspec-task-template.md  tasks.md 统一模板（强制「测试与验证」板块）
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
 rules:
   proposal:
     - 写清「为什么做」与「不做什么」，不做什么要显式列出
-    - 涉及范围变更时，必须同时说明是否触及 docs/sprint0-scope.md 的边界
+    - 涉及范围变更时，必须同时说明是否触及 docs/design/sprint0-scope.md 的边界
   tasks:
     - 每个任务必须是可验收的交付单元（能跑通、有证据）
     - 涉及跨线的任务要标明交付给哪条线、以什么形式交付
+    - **文件末尾必须有「测试与验证」板块**（2026-10-13 课堂要求，统一模板见 docs/common/openspec-task-template.md）：
+      含单元测试 / 集成测试 / 验收测试 / 非功能验证（触及则填）/ 已知缺口五节，每节都要有**可复现命令**与**证据路径**；
+      板块缺失即视为提案不完整，不得进入 apply。勾了 tasks ≠ 功能合格。
+    - 三层测试的责任人：单元测试 = 写该段代码的人；集成测试 = 大版本合并后由负责合入的一条线组织；
+      验收测试 = 交付时按 specs/<cap>/spec.md 的 Scenario 逐条走。分层口径见 docs/common/test-strategy.md。
   design:
     - 只记录技术决策与取舍（为什么这么选），不重复 proposal 的内容
     - 涉及 AI 生成的图，标注 LLM 工具名称与提示词
@@ -75,7 +83,7 @@ rules:
 operations:
   apply:
     guidance:
-      - 实现前先确认对应的契约（docs/contracts/）已同步，字段名不得即兴改名
+      - 实现前先确认对应的三条契约（docs/backend/api-spec.md、docs/design/data-fields.md、docs/model/feature-columns.md）已同步，字段名不得即兴改名
       - 交付时附验证证据：跑了什么命令、看到什么输出
   archive:
     guidance:

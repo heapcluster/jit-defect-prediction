@@ -70,6 +70,7 @@
 
 - `data-pipeline.md` — 数据链路九步、版本固定、复现、统计（合并自 `docs/model/data-pipeline.md`）
 - `training-eval.md` — 训练/评估/8 模型/两类指标/校准阈值
+- `methodology-references.md` — **方法依据与文献阅读记录**（6 篇文献 + 8 条方法决策↔文献↔实现↔偏离 + 阅读签注表；2026-10-13 课堂反馈「不能全依赖 AI」）
 - `explanation.md` — SHAP 缺陷归因解释
 - `feature-columns.md` — 14 项特征口径（与后端/前端共用列名）
 - `a2-4-correction.md` — S6+1：A2-4 判据方向订正（仓库侧已对齐，待贴飞书）

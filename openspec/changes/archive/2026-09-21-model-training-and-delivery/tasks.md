@@ -102,3 +102,50 @@
       —— PR #28 已提交，描述中写明关联 change id 与合并顺序
       —— **2026-09-19 已合入**：PR #28 合入 main（`31cd4b6`）；审阅人苏哲勋先 `CHANGES_REQUESTED`、
          复核后 **`APPROVED`** —— 非作者审阅留痕在 PR 上（含 four 处意见的修改记录）
+
+---
+
+## 测试与验证（强制板块 · 2026-10-13 回溯补录）
+
+> 本节由 2026-10-13 课堂反馈后统一补录，**按实际已发生的验证写实**，未做的一律进 §5 缺口，不倒填。
+> 分层口径见 `docs/common/test-strategy.md`；模板见 `docs/common/openspec-task-template.md`。
+
+### 1. 单元测试（蒋励）
+| 项 | 内容 |
+|---|---|
+| 覆盖对象 | 特征计算（03）、时间序切分（05）、训练（06）、全量预测（07）、模型加载契约 |
+| 测试文件 | 特征口径由 `data_model/tests/test_feature_contract.py`（8 条）钉住；训练/预测脚本当时未写单测 |
+| 用例数与结果 | 8 条全通过 |
+| 复现命令 | `cd data_model && python -m pytest -q` |
+| 正向用例 | `test_contract_has_no_unknown_column` —— 产出 CSV 的列名与 `docs/model/feature-columns.md` 第三节逐一对上、无多余列 |
+| 异常 / 边界用例 | `feature_order.txt` 与契约 14 项顺序一致性断言；列数不符即失败 |
+
+### 2. 集成测试
+| 项 | 内容 |
+|---|---|
+| 集成范围 | 样本集 → 训练 → `.pkl` 交付 → 后端 `model_registry` 加载 → `/api/predict` 推理 |
+| 测试文件 | 加载侧由 `backend/tests/test_model_registry.py`（5 条）覆盖；训练侧无集成测试 |
+| 用例数与结果 | 5 条全通过 |
+| 复现命令 | `cd backend && python -m pytest tests/test_model_registry.py -q` |
+| 关键断言 | `joblib.load` 可加载、特征数自检不符时跳过、`explain()` 残差归零 |
+
+### 3. 验收测试（交付时）
+| 项 | 内容 |
+|---|---|
+| 验收依据 | `specs/model-training/spec.md`、`specs/feature-extraction/spec.md`、`specs/model-delivery/spec.md` 的 SHALL/MUST 与 Scenario |
+| 用例数与结果 | 两类指标（Effort-unaware + Effort-aware）全 8 模型实测齐备 |
+| 证据归档 | `data_model/reports/model_matrix.md`（8 模型 × 两类指标）、`calibration_threshold.md`（阈值与重排） |
+
+### 4. 非功能验证
+| 维度 | 是否触及 | 证据 |
+|---|---|---|
+| 性能 | 否 | 模型侧性能由后端接口实测（见 backend change 的非功能表） |
+| 安全 | 否 | —— |
+| 可靠 | 是 | 训练/检验按 `committed_at` 时间序切分（禁随机），脚本固定随机种子 |
+| 易用 | 否 | —— |
+
+### 5. 已知缺口与后续计划
+| 缺口 | 原因 | 归属 | 计划时间 |
+|---|---|---|---|
+| 训练/预测脚本无单元测试（06/07/08/09） | 当时以指标报告为验收 | 蒋励 | Sprint 2 |
+| `mlp_v1` 迭代上限内未收敛，指标按实际结果记录 | 已如实登记在 `model_matrix.md`，不重跑调参（见 `defect-records.md` N-02） | 蒋励 | 不处置（有理由） |
