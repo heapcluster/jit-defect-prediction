@@ -1,11 +1,15 @@
 ## ADDED Requirements
 
-### Requirement: 双路线语义特征提取
+### Requirement: 代码专用预训练语义特征提取
 
-系统 SHALL 支持用两条预训练路线从代码变更提取深层语义特征：
-① **打底路线（全量）**——轻量句向量模型（默认 `all-MiniLM-L6-v2`）对全部样本提特征；
-② **增强路线（抽样）**——代码专用预训练模型（CodeBERT / GraphCodeBERT 等）在抽样子集上提特征。
-提取结果 MUST 以新 `feature_version`（v2）标识落盘，MUST NOT 改动契约二既有 14 项列名与顺序。
+系统 SHALL 用**代码专用预训练模型**（CodeBERT / GraphCodeBERT 等）从代码变更提取深层语义特征，作为主路线；提取结果 MUST 以新 `feature_version`（v2）标识落盘，MUST NOT 改动契约二既有 14 项列名与顺序。
+
+通用句向量模型（如 `all-MiniLM-L6-v2`，非代码专用）MAY 作为「标注清晰的弱基线」保留或省略；若保留，报告中 MUST 明确标注其为非代码预训练模型，MUST NOT 与主路线结果混为一谈。
+
+#### Scenario: 主路线提取
+
+- **WHEN** 用代码专用预训练模型对样本提特征
+- **THEN** 优先全量提取；先以 100 条基准测试确定耗时与设备配置，超预期时按 `design.md` D1 降级为抽样，并如实标注
 
 #### Scenario: 按文件构造变更文本
 
