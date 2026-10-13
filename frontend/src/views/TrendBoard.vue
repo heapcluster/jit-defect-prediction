@@ -200,25 +200,32 @@ const summary = computed(() => {
   }
 })
 
+// 最新请求标识：并发时丢弃过期响应，避免旧响应覆盖新结果
+let requestId = 0
+
 async function load() {
+  const id = ++requestId
   loading.value = true
   error.value = ''
   retryable.value = false
   try {
-    loadedGranularity.value = filters.granularity
     const data = await getTrends({
       granularity: filters.granularity,
       model_name: filters.model_name || undefined,
       start_time: timeRange.value?.[0] || undefined,
       end_time: timeRange.value?.[1] || undefined
     })
+    if (id !== requestId) return
     series.value = data.series || []
+    // 粒度与 series 一起提交，保证两者对应（乱序响应不会错配）
+    loadedGranularity.value = filters.granularity
   } catch (e) {
+    if (id !== requestId) return
     series.value = []
     error.value = errText(e)
     retryable.value = e?.code === 50000
   } finally {
-    loading.value = false
+    if (id === requestId) loading.value = false
   }
 }
 
