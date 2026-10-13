@@ -51,7 +51,21 @@
 - [ ] 10.1 确认 `backend/app/model_registry.py` 与 `data_model/models/[models]` 段**未被本 change 改动**；交付模型仍为现有 `xgb_v1` 等
 - [ ] 10.2 若三类对比显示语义/融合更优，**另开「模型切换」提案**（spec `model-coverage` R6），本 change 不切换
 
-## 11. 文档与周报（蒋励统稿）
+## 11. 评测协议对齐文献标准（蒋励，2026-10-13 新增）
+- [ ] 11.1 `06_train_model.py` 的 `effort_aware_metrics()` 补标准指标：**CE@20%、Recall@20%、Popt、ALPA/PCI**；工作量代理继续 LOC 与文件数两种都报
+- [ ] 11.2 `P_norm` 保留但在报告与文档中**明确标注「自造变体，非文献标准」**，不得作为主指标汇报
+- [ ] 11.3 新增 `data_model/16_statistical_test.py`：8 模型在同一测试集上做 **Wilcoxon signed-rank**（或 paired t-test），输出两两显著性表
+- [ ] 11.4 补显式基线：① 全部审查（随机排序，CE@20% ≈ 20%）；② 按单个最强特征（`la` 或 `ld`）排序；输出「模型 vs 基线」对照
+- [ ] 11.5 复核测试集未参与调参（`fit` 只用训练集、早停验证子集来自训练集内部），把查证结论写进报告
+
+## 12. 形态说明与文档同步（蒋励统稿）
+- [ ] 12.1 在模型线报告中写明形态定位：**「预训练模型提特征 → 经典分类器」的混合形态，非端到端**；并列 DeepJIT / CC2Vec / LApredict / SimCom 各自形态，**不得暗示复现 SOTA**
+- [ ] 12.2 `docs/design/addons.md` §4 定位改写为「已提升为模型线主线，见 `openspec/changes/semantic-feature-mainline`」
+- [ ] 12.3 `docs/model/methodology-references.md` §3 补「语义特征路线」与「评测协议标准」决策行及文献依据
+- [ ] 12.4 `docs/model/training-eval.md` §4 增补标准 effort-aware 指标与显著性检验结果
+- [ ] 12.5 周报记录已完成 / 下一步 / 存在问题
+
+## 测试与验证（强制板块）
 - [ ] 11.1 `docs/design/addons.md` §4 G1-4 定位改写为「已提升为模型线主线，见 `openspec/changes/semantic-feature-mainline`」
 - [ ] 11.2 `docs/model/methodology-references.md` §3 补「语义特征路线」决策行与文献依据
 - [ ] 11.3 `docs/model/training-eval.md` §4 增补三类对比结果；周报记录已完成/下一步/存在问题
