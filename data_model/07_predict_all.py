@@ -1,7 +1,7 @@
 """07 全量推理，产出 `prediction_result.csv` 交付后端线灌库。
 
 对应 OpenSpec change: model-training-and-delivery（第 4.2 条任务）
-字段口径: `docs/contracts/data-fields.md` 表三 `prediction`
+字段口径: `docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md` 表三 `prediction`
 交付方式: A + C —— 本脚本只产出**文件**，由后端线导入 `prediction` 表
 
 ── 三条边界（都在本脚本里用断言钉住）────────────────────────────────────
@@ -173,7 +173,7 @@ def main() -> int:
 
 PREDICTION_REPORT = """# 全量预测结果统计（07_predict_all.py 产出）
 
-> 本文件可入库。字段口径见 `docs/contracts/data-fields.md` 表三 `prediction`。
+> 本文件可入库。字段口径见 `docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md` 表三 `prediction`。
 > **产出文件本身不入库**（`data/` 在 `.gitignore` 里）—— 它随包交付后端线，由后端导入。
 
 ## 产出

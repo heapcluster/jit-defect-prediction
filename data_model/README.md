@@ -21,7 +21,7 @@
 | `data_model/reports/` | 小体积统计结果、指标表、评估报告 | ✅ **可入库** —— 这是给别人比对的证据 |
 | `data_model/artifacts/` | 中间产物、缓存 | ❌ 被排除 |
 
-**脚本命名**：`01_xxx.py` / `02_xxx.py`（`0X` 前缀就是执行顺序），跑通后在 `docs/data-pipeline.md` 第 4 节回填路径。
+**脚本命名**：`01_xxx.py` / `02_xxx.py`（`0X` 前缀就是执行顺序），跑通后在 `docs/model/data-pipeline.md` 第 4 节回填路径。
 
 **不要为了提交数据去改 `.gitignore`，也不要用 `git add -f`。**
 
@@ -33,11 +33,11 @@ pip install -r data_model/requirements.txt
 
 ## 链路（九步，顺序固定）
 
-完整规则见 `docs/data-pipeline.md` —— **版本固定方式与复现命令都在那里，动手前先读**。
+完整规则见 `docs/model/data-pipeline.md` —— **版本固定方式与复现命令都在那里，动手前先读**。
 
 | 步 | 做什么 | 脚本 | 输出 |
 |---|---|---|---|
-| ① | 克隆 + checkout 到固定版本 | 手工执行（命令见 `docs/data-pipeline.md` 第 2 节） | `data/activemq/` |
+| ① | 克隆 + checkout 到固定版本 | 手工执行（命令见 `docs/model/data-pipeline.md` 第 2 节） | `data/activemq/` |
 | ② | 读提交记录（GitPython），过滤合并提交 | `01_extract_commits.py` | `data/commits.csv` |
 | ③ | SZZ 打标 | `02_szz_labeling.py` | `data/commit_labels_{szz,szz_lite}.csv` |
 | ④ | 算 Kamei 14 项特征 | `03_extract_features.py` | `data/commit_features.csv` + `reports/feature_stats.md` |
@@ -47,9 +47,9 @@ pip install -r data_model/requirements.txt
 | ⑧ | 覆盖矩阵（8 种 / 2 类，并自证与前 3 个模型口径一致） | `08_model_matrix.py` | `reports/model_matrix.md` |
 | ⑨ | 概率校准（时间序折）与阈值/配额等工作量对照 —— **只出证据，不改契约** | `09_calibration_threshold.py` | `reports/calibration_threshold.md` |
 
-复现命令（含「先跑窗口子集验证链路」的短路径）见 `docs/data-pipeline.md` 第 5 节。
+复现命令（含「先跑窗口子集验证链路」的短路径）见 `docs/model/data-pipeline.md` 第 5 节。
 
-②③④ 的字段口径以契约为准，不要自己发明列名：`docs/contracts/data-fields.md`、`docs/contracts/feature-columns.md`。
+②③④ 的字段口径以契约为准，不要自己发明列名：`docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md`、`docs/model/feature-columns.md`。
 
 ## 模型覆盖（8 种 / 2 类 —— 课程要求的落点）
 
@@ -69,15 +69,15 @@ pip install -r data_model/requirements.txt
 ## 四条铁规矩
 
 1. **训练集/检验集按 `committed_at` 时间序切**（前 70% 训练、后 30% 检验），**禁止随机切分**。`EXP`、`NUC` 等特征与时间相关，随机切分等于让模型提前看到未来，测出的准确率是假的。
-2. **特征列名与取值口径以 `docs/contracts/feature-columns.md` 为准**（v1.0 已冻结，`feature_version = v1`）：归一化分母、log 变换、熵的两周窗口都照契约，**不要自己改口径** —— 口径一改要全量重算，且与已有特征表对不上。
+2. **特征列名与取值口径以 `docs/model/feature-columns.md` 为准**（v1.0 已冻结，`feature_version = v1`）：归一化分母、log 变换、熵的两周窗口都照契约，**不要自己改口径** —— 口径一改要全量重算，且与已有特征表对不上。
 3. **数据集与模型文件一律不入库**（课程硬要求）。
-4. 只在本目录内写代码：**不写接口、不写页面、不建库表**。方案 C 的交付物是一份 `prediction_result.csv`（字段对应契约一表三），**由后端线导入 `prediction` 表** —— 本线不直连数据库。表结构仍以 `docs/contracts/data-fields.md` 为准，本线不改、也不跑建表脚本。
+4. 只在本目录内写代码：**不写接口、不写页面、不建库表**。方案 C 的交付物是一份 `prediction_result.csv`（字段对应契约一表三），**由后端线导入 `prediction` 表** —— 本线不直连数据库。表结构仍以 `docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md` 为准，本线不改、也不跑建表脚本。
 
 ## 「可复现」的最低要求
 
 别人在你机器之外跑，要能拿到同一份结果。交付时必须能出示三样：
 
-- 数据固定在哪个 tag / commit —— 回填进 `docs/data-pipeline.md` 第 2 节
+- 数据固定在哪个 tag / commit —— 回填进 `docs/model/data-pipeline.md` 第 2 节
 - `reports/` 下的统计表：总提交数、正样本数、负样本数、**正样本比例**、打标方法
 - 一条「从干净 clone 到出结果」的命令序列
 
@@ -85,7 +85,7 @@ pip install -r data_model/requirements.txt
 
 ## 与后端线的对接（2026-09-16 已定：方案 A + C，不再是待定项）
 
-`docs/contracts/data-fields.md` 已定 `commit_hash` 是对接主键、**四张表**的字段。**模型怎么交到后端**的三个候选，裁定如下：
+`docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md` 已定 `commit_hash` 是对接主键、**四张表**的字段。**模型怎么交到后端**的三个候选，裁定如下：
 
 | 方案 | 裁定 | 理由 / 用在哪 |
 |---|---|---|
@@ -104,14 +104,14 @@ pip install -r data_model/requirements.txt
 | 项 | 内容 |
 |---|---|
 | 模型文件 | `data_model/models/` 下的 `.pkl` / `.joblib`，文件名含版本号（如 `xgb_v1.pkl`）。**该目录被 `.gitignore` 排除** —— 交付走打包或网盘，不提交进仓库 |
-| 特征顺序 | **以 `docs/contracts/feature-columns.md` 第三节为唯一权威**；随包交付的清单**是契约的副本、不是独立来源** —— 与契约第三节**逐字一致**，**不一致时以契约为准**，契约升版时副本 MUST 同步。保留它是为了「交付包自包含」（后端不必翻契约就能把模型装起来），但它不构成第二个权威 —— 出两份早晚不一致 |
+| 特征顺序 | **以 `docs/model/feature-columns.md` 第三节为唯一权威**；随包交付的清单**是契约的副本、不是独立来源** —— 与契约第三节**逐字一致**，**不一致时以契约为准**，契约升版时副本 MUST 同步。保留它是为了「交付包自包含」（后端不必翻契约就能把模型装起来），但它不构成第二个权威 —— 出两份早晚不一致 |
 | 版本标识 | `model_name` 取值（如 `xgb_v1`），与 `prediction.model_name`、接口入参同名 |
 | 加载说明 | 模型类型（sklearn / XGBoost）、依赖与版本，写进 `reports/` 的评估报告 |
 | SHAP 解释器 | 模型类型要能对应到 SHAP Explainer（树模型用 `TreeExplainer`）—— 契约已定 `explanation` 由 SHAP 产出，故 `shap` 是本线依赖 |
 
 > 模型文件不入库，所以「别人 clone 后能否复现」靠的是**能重新训出同一个模型**：固定数据版本 + 固定特征口径 + 固定随机种子。这也是本线「可复现」三样证据之外的第四样。
 
-> 依据：`docs/sprint0-scope.md` 第 4 节已裁定「特征顺序以 `contracts/feature-columns.md` 为准，**不另发清单**（出两份早晚不一致）」；审阅人 2026-09-17 进一步裁定「清单**保留但降级为交付副本**」。本处写法与 PR #20 的 `model-delivery` 规格同口径。
+> 依据：`docs/design/sprint0-scope.md` 第 4 节已裁定「特征顺序以 `contracts/feature-columns.md` 为准，**不另发清单**（出两份早晚不一致）」；审阅人 2026-09-17 进一步裁定「清单**保留但降级为交付副本**」。本处写法与 PR #20 的 `model-delivery` 规格同口径。
 
 > 本节此前写的是「待启动会定，先别写死」+ A/B/C 三候选。启动会已裁定，故回填；同时**修掉一处自相矛盾**：原文 C 方案写「模型线批量预测写 `prediction` 表」，与本文铁规矩 4「不建库表」直接打架。现已统一为「数据线出文件、后端线灌库」。
 
@@ -123,6 +123,6 @@ pip install -r data_model/requirements.txt
 |---|---|---|---|
 | 2026-09-17 | 1.0 | 蒋励 | 初版（本文件此前无版本头与变更日志，本次补齐）：线的职责、目录结构、启动命令、四条铁规矩、数据源与版本固定 |
 | 2026-09-17 | 1.1 | 蒋励 | ① 「与后端线的对接」由「**待启动会定**」+ A/B/C 三候选，回填为「**已裁定 A+C**」，写明两条交付链的分工（数据线出文件、后端线灌库）；② **修掉自相矛盾**：原 C 方案写「模型线批量预测写 `prediction` 表」，与铁规矩 4「不建库表」冲突，答辩时会被抓；③ 补版本头与变更日志 |
-| 2026-09-18 | 1.2 | 蒋励 | **A 方案的「特征顺序清单」按裁定降级为「交付清单（契约副本）」**（审阅意见；依据是 `docs/sprint0-scope.md` 第 4 节既有的「特征顺序以 `contracts/feature-columns.md` 为准、**不另发清单**」）：① 表格内改称**交付清单**（`.pkl` 路径、特征顺序、SHAP 依赖版本 pin）；② 新增三条约束 —— 与契约二第三节**逐字一致**、**不一致时以契约为准**、契约二升版时副本 MUST 同步；③ 写明保留它的理由是「交付包自包含」，但**它不是第二个权威**。本处与 PR #20 的 `model-delivery` 规格同期对齐 |
+| 2026-09-18 | 1.2 | 蒋励 | **A 方案的「特征顺序清单」按裁定降级为「交付清单（契约副本）」**（审阅意见；依据是 `docs/design/sprint0-scope.md` 第 4 节既有的「特征顺序以 `contracts/feature-columns.md` 为准、**不另发清单**」）：① 表格内改称**交付清单**（`.pkl` 路径、特征顺序、SHAP 依赖版本 pin）；② 新增三条约束 —— 与契约二第三节**逐字一致**、**不一致时以契约为准**、契约二升版时副本 MUST 同步；③ 写明保留它的理由是「交付包自包含」，但**它不是第二个权威**。本处与 PR #20 的 `model-delivery` 规格同期对齐 |
 | 2026-09-20 | 1.3 | 蒋励 | **新增「模型覆盖（8 种 / 2 类）」一节**（由 change `model-expansion` 带来，PR #42 已合入）：① 写明课程「至少 2 类（经典机器学习、深度学习）不少于 8 种」的落点 —— 经典机器学习 6（`lr` / `rf` / `xgb` / `nb` / `dt` / `knn`）+ 神经网络 2（`mlp` / `mlp_deep`），类别与名单以 `06_train_model.py` 的 `MODEL_NAMES` / `MODEL_CLASS` 为唯一来源；② 写明**交付模型不变**（后端仍加载 `xgb_v1`，`models/feature_order.txt` 的 `[models]` 段与 `07_predict_all.py` 未动，新模型只进评估矩阵）；③ 8 种全部落在既有 `scikit-learn` / `xgboost` 内，**未引入 PyTorch / TensorFlow**；不做序列模型（LSTM / RNN）及其重开条件指向该 change 的 `design.md` 决策二。同时「链路」一节由五步扩到**九步**（补 ⑥ 切分训练、⑦ 全量推理、⑧ 覆盖矩阵、⑨ 校准与阈值证据）。<br>**补记说明**：本节内容随 PR #42 先落进本文件，而本文件的版本头与变更日志是 PR #26 后合才建立的 —— 本行为事后补记，不属于新改动 |
 

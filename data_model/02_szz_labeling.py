@@ -4,7 +4,7 @@
 规格: openspec/changes/data-collection-and-szz-labeling/specs/szz-labeling/spec.md
 决策: openspec/changes/data-collection-and-szz-labeling/design.md（D3/D4/D5/D6）
 
-字段口径以 docs/contracts/data-fields.md 表二 `commit_label` 为准，不在此处发明列名。
+字段口径以 docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md 表二 `commit_label` 为准，不在此处发明列名。
 
 ── 判据（D4）────────────────────────────────────────────────────────────
 一条提交被判为「修缺陷提交」需要同时命中两类：
@@ -18,9 +18,9 @@
 其余为同类），**没有一条是真修复**；反过来收窄成「严格词表」又会漏掉 `fixe` /
 `fixinng` / `patchh` 这类拼写错误的**真**修复。故取两者中间的词首边界：保留词形变化
 （fixes / fixed / patching / bugfix），排除同词内嵌（dispatch / debug / prefix）。
-这条界定的理由在规格上必须落到文字，故与 docs/data-pipeline.md 第 7 节同步维护。
+这条界定的理由在规格上必须落到文字，故与 docs/model/data-pipeline.md 第 7 节同步维护。
 
-命中外沿数字登记在 docs/data-pipeline.md 第 7 节「打标判据（2026-09-16 实测）」。
+命中外沿数字登记在 docs/model/data-pipeline.md 第 7 节「打标判据（2026-09-16 实测）」。
 
 ── 两套方法（D3）────────────────────────────────────────────────────────
 同一固定版本各打一次标，靠 label_method 区分，互不覆盖：
@@ -38,7 +38,7 @@
 
 > 关于方法名：经实测 **PySZZ 不在 PyPI**（https://pypi.org/pypi/pyszz/json 返回 404），
 > 其官方仓库依赖 gitlog 数据格式，属研究专用工具，Sprint 0 内跑通不现实。故按
-> docs/data-pipeline.md 第 7 节的兜底策略切自研实现：`szz` 由本脚本实现标准行级 SZZ
+> docs/model/data-pipeline.md 第 7 节的兜底策略切自研实现：`szz` 由本脚本实现标准行级 SZZ
 > 算法。**契约一已于 1.2 版同步该口径**（`szz` = 标准行级 SZZ，自研实现），
 > `label_method` 取值集合 `{szz, szz_lite}` 与契约保持一致。
 
@@ -69,7 +69,7 @@ DEFAULT_COMMITS = BASE / "data" / "commits.csv"
 DATA_DIR = BASE / "data"
 REPORTS_DIR = BASE / "reports"
 
-# 与 docs/contracts/data-fields.md 表二 `commit_label` 逐字对齐（id 由数据库自增，CSV 不落）
+# 与 docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md 表二 `commit_label` 逐字对齐（id 由数据库自增，CSV 不落）
 LABEL_FIELDS = ["commit_hash", "is_bug_inducing", "label_method", "bug_fix_hash", "labeled_at"]
 
 # ── 判据（D4）──────────────────────────────────────────────────────────────
@@ -78,12 +78,12 @@ BUG_ID_RE = re.compile(r"AMQ-\d+", re.IGNORECASE)
 # 严格词表又会漏掉 fixe/fixinng/patchh 这类拼写错误的真修复 —— 词首边界是二者的中点。
 FIX_WORD_RE = re.compile(r"\b(fix|bug|patch)", re.IGNORECASE)
 
-# docs/data-pipeline.md 第 7 节登记的外沿数字，用于自检判据实现是否与文档一致。
+# docs/model/data-pipeline.md 第 7 节登记的外沿数字，用于自检判据实现是否与文档一致。
 # 这三个数是在**完整固定版本**（11,050 条非合并提交）上算出来的，故只在全量运行时可比。
 # 2026-09-16 由旧登记值 6041 / 2538 / 1865 改为实测可复现值：旧值无法从提交清单复现
 # （1865 用任何自然正则都算不出），且 2538 那一项用的是子串口径、含 122 条假阳性。
 EXPECTED_OUTER = {"has_id": 6042, "id_and_fix_word": 2417, "id_and_fix_form": 1939}
-FULL_COMMIT_COUNT = 11050  # docs/data-pipeline.md 第 2 节登记的完整版本非合并提交数
+FULL_COMMIT_COUNT = 11050  # docs/model/data-pipeline.md 第 2 节登记的完整版本非合并提交数
 FIX_FORM_RE = re.compile(r"\bfix", re.IGNORECASE)  # 与 FIX_WORD_RE 同一套词首语义
 
 # ── diff / blame 解析 ─────────────────────────────────────────────────────
@@ -394,7 +394,7 @@ def write_labels(path: Path, method: str, result: dict, labeled_at: str) -> None
 
 
 def judge_selfcheck(commits: list[dict[str, str]]) -> tuple[dict[str, int], bool | None, bool]:
-    """按登记在 docs/data-pipeline.md 第 7 节的三条判据复算外沿，核对是否与文档一致。
+    """按登记在 docs/model/data-pipeline.md 第 7 节的三条判据复算外沿，核对是否与文档一致。
 
     文档登记的是**完整固定版本**上的外沿。子集运行（01 带 --since）时提交数不足，
     这组数字天然对不上 —— 那种情况下返回 comparable=False，报告里标「不可比」而不是
@@ -424,7 +424,7 @@ def write_report(
     got, ok, comparable = selfcheck
     L: list[str] = []
     L.append("# SZZ 打标统计（02_szz_labeling.py 产出）\n")
-    L.append("> 本文件可入库，是链路可复现与标签可信度的证据（见 `docs/data-pipeline.md` 第 3、6 节）\n")
+    L.append("> 本文件可入库，是链路可复现与标签可信度的证据（见 `docs/model/data-pipeline.md` 第 3、6 节）\n")
     L.append("## 输入与判据\n")
     L.append("| 项 | 值 |\n|---|---|")
     L.append(f"| 样本提交数（01 产出） | {len(commits)} |")
@@ -438,7 +438,7 @@ def write_report(
         "\n判据 D4 = 含缺陷编号 `AMQ-<数字>` **且** 含修复语义 `fix`/`bug`/`patch`"
         "（词首边界 `\\b`，故 `dispatch`/`debug`/`prefix` 不算命中）。\n"
     )
-    L.append("### 判据自检（与 docs/data-pipeline.md 第 7 节登记的外沿对照）\n")
+    L.append("### 判据自检（与 docs/model/data-pipeline.md 第 7 节登记的外沿对照）\n")
     if not comparable:
         L.append(
             f"> 本次只处理 **{len(commits)}** 条提交，少于完整版本的 **{FULL_COMMIT_COUNT}** 条"
@@ -484,7 +484,7 @@ def write_report(
         if ABNORMAL_LOW <= r["ratio"] <= ABNORMAL_HIGH:
             L.append(f"- ❌ **`{r['method']}` 正样本比例 {r['ratio']:.2%} 落在 {ABNORMAL_LOW:.0%}–{ABNORMAL_HIGH:.0%} 异常区间**，先复核打标逻辑，不要进入下游")
         else:
-            L.append(f"- ✅ `{r['method']}` 正样本比例 {r['ratio']:.2%} 不在异常区间（判据见 docs/data-pipeline.md 第 6 节：落在 {ABNORMAL_LOW:.0%}–{ABNORMAL_HIGH:.0%} 才需自查）")
+            L.append(f"- ✅ `{r['method']}` 正样本比例 {r['ratio']:.2%} 不在异常区间（判据见 docs/model/data-pipeline.md 第 6 节：落在 {ABNORMAL_LOW:.0%}–{ABNORMAL_HIGH:.0%} 才需自查）")
 
     if len(results) == 2:
         a, b = results
@@ -526,7 +526,7 @@ def main() -> int:
         print("[失败] 找不到 git 可执行文件（blame/log 回溯需要它）", file=sys.stderr)
         return 2
     if not (args.repo / ".git").exists():
-        print(f"[失败] 找不到仓库：{args.repo}（先按 docs/data-pipeline.md 第 2 节克隆并固定版本）", file=sys.stderr)
+        print(f"[失败] 找不到仓库：{args.repo}（先按 docs/model/data-pipeline.md 第 2 节克隆并固定版本）", file=sys.stderr)
         return 2
 
     commits = load_commits(args.commits)

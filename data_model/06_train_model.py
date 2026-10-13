@@ -1,8 +1,8 @@
 """06 训练 2–3 个经典模型并产出两类指标。
 
 对应 OpenSpec change: model-training-and-delivery（第 3.2 / 3.3 / 4.1 / 4.4 条任务）
-标签: 只用 `szz`（主标签，契约一见 `docs/contracts/data-fields.md` 表二）
-特征列序: docs/contracts/feature-columns.md 第三节（14 项，顺序即交付清单顺序）
+标签: 只用 `szz`（主标签，契约一见 `docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md` 表二）
+特征列序: docs/model/feature-columns.md 第三节（14 项，顺序即交付清单顺序）
 指标口径: 见下方「两类指标」一节
 
 ── 两类指标，缺一不可 ────────────────────────────────────────────────────
@@ -436,7 +436,7 @@ def main() -> int:
         "# 模型交付清单（A 方案：后端加载 .pkl）\n"
         "# 生成：data_model/06_train_model.py\n"
         "#\n"
-        "# 说明：本清单是 `docs/contracts/feature-columns.md` 第三节的**副本**，\n"
+        "# 说明：本清单是 `docs/model/feature-columns.md` 第三节的**副本**，\n"
         "#       不是独立来源。两者不一致时**以契约为准**；契约二升版时本文件须同步。\n"
         "\n"
         "[models]\n"
@@ -445,7 +445,7 @@ def main() -> int:
         + "".join("%2d. %s\n" % (i + 1, c)
                   for i, c in enumerate(FEATURE_FIELDS))
         + "\n[contract]\n"
-        + "docs/contracts/feature-columns.md 第三节（**契约二 v1.2**；14 项特征列，顺序即上表顺序）\n"
+        + "docs/model/feature-columns.md 第三节（**契约二 v1.2**；14 项特征列，顺序即上表顺序）\n"
         + "\n[how_to_load]\n"
         + "统一用 joblib.load(\"<模型>.pkl\") 读取；所需依赖见上面 [dependencies] 段。\n"
         + "  · lr_v1.pkl / rf_v1.pkl 落成 **joblib 格式**（内含 numpy 缓冲），标准 pickle.load\n"
@@ -457,7 +457,7 @@ def main() -> int:
         + "\n[dependencies]\n"
         + _dependency_pins()
         + "\n[decision]\n"
-        + "风险阈值 %.2f（服务端常量，见 docs/contracts/api-format.md 第三节）\n"
+        + "风险阈值 %.2f（服务端常量，见 docs/backend/api-spec.md 第三节）\n"
         % DECISION_THRESHOLD,
         encoding="utf-8", newline="\n")
 

@@ -1,6 +1,6 @@
 # 附加功能立项（缺陷可视化定位 + 高质量修复建议 + 公开数据集 + 语义特征）
 
-> Sprint 3 候选 ｜ 起草 2026-10-09 ｜ 起草人 蒋励 ｜ 关联契约：docs/contracts/（契约三，冻结日期见各文件头）
+> Sprint 3 候选 ｜ 起草 2026-10-09 ｜ 起草人 蒋励 ｜ 关联契约：docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}（契约三，冻结日期见各文件头）
 >
 > ⚠️ 契约基线判定沿用首 change：以各契约文件头的「版本 + 冻结日期」为准，不引用 PR 编号或合并时机。
 

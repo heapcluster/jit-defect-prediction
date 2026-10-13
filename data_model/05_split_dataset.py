@@ -1,7 +1,7 @@
 """05 按时间序把样本集切成训练集 / 检验集。
 
 对应 OpenSpec change: model-training-and-delivery（第 3.1 条任务）
-切分依据列: docs/contracts/feature-columns.md 第二节 —— `committed_at`（UTC）
+切分依据列: docs/model/feature-columns.md 第二节 —— `committed_at`（UTC）
 口径铁规矩: data_model/README.md 第 1 条 —— 前 70% 训练、后 30% 检验，**禁止随机切分**
 
 ── 为什么必须按时间序 ─────────────────────────────────────────────────────
@@ -207,7 +207,7 @@ def main() -> int:
 
 SPLIT_REPORT_TEMPLATE = """# 时间序切分统计（05_split_dataset.py 产出）
 
-> 本文件可入库。切分口径见 `data_model/README.md` 铁规矩 1 与 `docs/contracts/feature-columns.md` 第二节。
+> 本文件可入库。切分口径见 `data_model/README.md` 铁规矩 1 与 `docs/model/feature-columns.md` 第二节。
 
 ## 切分结果
 

@@ -1,8 +1,8 @@
 """03 抽取 Kamei 14 项特征。
 
 对应 OpenSpec change: data-collection-and-szz-labeling（第 4 组任务的第 ④ 步）
-字段与取值口径: docs/contracts/feature-columns.md（已冻结，feature_version = v1）
-                docs/contracts/data-fields.md 表四 `commit_feature`
+字段与取值口径: docs/model/feature-columns.md（已冻结，feature_version = v1）
+                docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md 表四 `commit_feature`
 
 ── 纪律 ───────────────────────────────────────────────────────────────────
 列名逐字取自契约第三节，**不在此处发明列名**。归一化与对数变换逐条取自契约第四节：
@@ -73,10 +73,10 @@ REPORTS_DIR = BASE / "reports"
 
 SZZ_SCRIPT = BASE / "02_szz_labeling.py"
 
-# docs/contracts/feature-columns.md 第二节：标识列
+# docs/model/feature-columns.md 第二节：标识列
 ID_FIELDS = ["commit_hash", "committed_at", "feature_version"]
 
-# docs/contracts/feature-columns.md 第三节：14 项特征列，顺序即契约中的出现顺序
+# docs/model/feature-columns.md 第三节：14 项特征列，顺序即契约中的出现顺序
 FEATURE_FIELDS = [
     "ns", "nd", "nf", "entropy",          # 代码分布 Diffusion
     "la", "ld", "lt",                     # 规模 Size
@@ -95,7 +95,7 @@ DAYS_PER_YEAR = 365.25
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="按 docs/contracts/feature-columns.md 抽取 Kamei 14 项特征",
+        description="按 docs/model/feature-columns.md 抽取 Kamei 14 项特征",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument("--repo", type=Path, default=DEFAULT_REPO, help=f"仓库副本路径（默认 {DEFAULT_REPO}）")
@@ -513,10 +513,10 @@ def write_report(
 ) -> None:
     L: list[str] = []
     L.append("# 特征抽取统计（03_extract_features.py 产出）\n")
-    L.append("> 本文件可入库，是特征口径落地的证据（见 `docs/data-pipeline.md` 第 4 节第 ④ 步）\n")
+    L.append("> 本文件可入库，是特征口径落地的证据（见 `docs/model/data-pipeline.md` 第 4 节第 ④ 步）\n")
     L.append("## 输入\n")
     L.append("| 项 | 值 |\n|---|---|")
-    L.append(f"| 特征表口径版本 | `{FEATURE_VERSION}`（`docs/contracts/feature-columns.md` 已冻结） |")
+    L.append(f"| 特征表口径版本 | `{FEATURE_VERSION}`（`docs/model/feature-columns.md` 已冻结） |")
     L.append(f"| 提交清单 | `{len(targets)}` 条 |")
     L.append(f"| 时间窗口 | `{since or '(全量)'}` |")
     if limit:
@@ -568,7 +568,7 @@ def main() -> int:
     args = parse_args()
 
     if not (args.repo / ".git").exists():
-        print(f"[失败] 找不到仓库：{args.repo}（先按 docs/data-pipeline.md 第 2 节克隆并固定版本）", file=sys.stderr)
+        print(f"[失败] 找不到仓库：{args.repo}（先按 docs/model/data-pipeline.md 第 2 节克隆并固定版本）", file=sys.stderr)
         return 2
     if not args.commits.exists():
         print(f"[失败] 找不到提交清单：{args.commits}（先跑 01_extract_commits.py）", file=sys.stderr)

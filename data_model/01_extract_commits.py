@@ -4,9 +4,9 @@
 规格: openspec/changes/data-collection-and-szz-labeling/specs/commit-collection/spec.md
 
 只做三件事：读提交记录、过滤合并提交、按契约落字段。
-字段口径以 docs/contracts/data-fields.md 表一为准，不在此处发明列名。
+字段口径以 docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md 表一为准，不在此处发明列名。
 
-为什么要 --since：全量 11,050 条提交做回溯的开销尚未实测（见 docs/data-pipeline.md
+为什么要 --since：全量 11,050 条提交做回溯的开销尚未实测（见 docs/model/data-pipeline.md
 第 7 节第 5 项）。首次跑通先用窗口子集验证链路，跑通后再扩大到全量。
 窗口只决定「哪些提交进样本」，不影响特征计算 —— 特征用的是窗口之前的历史。
 """
@@ -26,7 +26,7 @@ DEFAULT_REPO = BASE / "data" / "activemq"
 DEFAULT_OUT = BASE / "data" / "commits.csv"
 REPORTS_DIR = BASE / "reports"
 
-# 与 docs/contracts/data-fields.md 表一 `commit` 逐字对齐（id 由数据库自增，CSV 不落）
+# 与 docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md 表一 `commit` 逐字对齐（id 由数据库自增，CSV 不落）
 FIELDS = [
     "repo_name",
     "commit_hash",
@@ -37,7 +37,7 @@ FIELDS = [
     "parent_hash",
 ]
 
-# docs/data-pipeline.md 第 2 节登记表登记的完整提交哈希
+# docs/model/data-pipeline.md 第 2 节登记表登记的完整提交哈希
 EXPECTED_HEAD = "7c03f67d46ae290ca49d549215277ab384c2bb8a"
 REPO_NAME = "activemq"
 
@@ -64,7 +64,7 @@ def main() -> int:
     args = parse_args()
 
     if not (args.repo / ".git").exists():
-        print(f"[失败] 找不到仓库：{args.repo}（先按 docs/data-pipeline.md 第 2 节克隆并固定版本）", file=sys.stderr)
+        print(f"[失败] 找不到仓库：{args.repo}（先按 docs/model/data-pipeline.md 第 2 节克隆并固定版本）", file=sys.stderr)
         return 2
 
     repo = Repo(str(args.repo))
@@ -74,7 +74,7 @@ def main() -> int:
     if head != EXPECTED_HEAD and not args.allow_head_mismatch:
         print(
             f"[失败] HEAD 与登记哈希不一致：\n  实际 {head}\n  登记 {EXPECTED_HEAD}\n"
-            f"若确要更换版本，先更新 docs/data-pipeline.md 第 2 节的登记表。",
+            f"若确要更换版本，先更新 docs/model/data-pipeline.md 第 2 节的登记表。",
             file=sys.stderr,
         )
         return 3
@@ -130,7 +130,7 @@ def main() -> int:
     stat = REPORTS_DIR / "commit_extract_stats.md"
     stat.write_text(
         "# 提交抽取统计（01_extract_commits.py 产出）\n\n"
-        "> 本文件可入库，是链路可复现的证据之一（见 `docs/data-pipeline.md` 第 3 节）\n\n"
+        "> 本文件可入库，是链路可复现的证据之一（见 `docs/model/data-pipeline.md` 第 3 节）\n\n"
         "| 指标 | 值 |\n|---|---|\n"
         f"| 仓库副本 | `{args.repo.name}` |\n"
         f"| 固定版本 HEAD | `{head}` |\n"

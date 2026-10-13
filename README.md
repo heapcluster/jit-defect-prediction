@@ -36,7 +36,7 @@ ActiveMQ 仓库 → 抽提交信息 → SZZ 打标 → Kamei 14 项特征
 
 > `docs/` 与 `openspec/` 是**全员公共**的，任何人都可以改，**但同样走 PR** —— 公共是所有权，不是免审权。
 
-> **上表是「谁负责什么」的摘要。** 完整口径 —— 职责范围、必须交出的东西、不碰什么、任务认领规则、时间节点与出勤纪律 —— 见 **`docs/team-charter.md`**。两处若出现不一致，**以那份为准**。
+> **上表是「谁负责什么」的摘要。** 完整口径 —— 职责范围、必须交出的东西、不碰什么、任务认领规则、时间节点与出勤纪律 —— 见 **`docs/common/team-charter.md`**。两处若出现不一致，**以那份为准**。
 
 ### 两个 Scrum 角色
 
@@ -49,7 +49,7 @@ ActiveMQ 仓库 → 抽提交信息 → SZZ 打标 → Kamei 14 项特征
 
 1. **时间序切分**：训练集与检验集按提交时间先后切（前 70% 训练、后 30% 检验），**不许随机抽**。
    原因：`EXP`、`NUC` 等特征与时间相关，随机切分等于让模型提前看到未来，测出的准确率是假的。
-2. **合并前必须由非作者审阅**：`main` 分支受保护，禁止直接推送。本项目统一由**苏哲勋**审；他自己的 PR 由**蒋励**审（详见 `docs/collaboration.md` 第 3.3 节）。
+2. **合并前必须由非作者审阅**：`main` 分支受保护，禁止直接推送。本项目统一由**苏哲勋**审；他自己的 PR 由**蒋励**审（详见 `docs/repo/collaboration.md` 第 3.3 节）。
 3. **改代码同步改规格**：规格与代码不一致，视为缺陷。
 
 ---
@@ -79,7 +79,7 @@ python -m venv .venv && source .venv/Scripts/activate   # 或用 conda / uv，�
 python -V                                               # 必须是 3.12.x
 ```
 
-**第一次上手**：Python 环境装 3.12（见下方）；OpenSpec CLI 与三种工具初始化见 `infra/README.md` §团队工具版本约定；代码怎么干、跑什么命令见 `docs/dev-handbook.md`。数据集、模型文件、密钥**一律不入库**；`.venv/`、`venv/` 也已被 `.gitignore` 排除。
+**第一次上手**：Python 环境装 3.12（见下方）；OpenSpec CLI 与三种工具初始化见 `infra/README.md` §团队工具版本约定；代码怎么干、跑什么命令见 `docs/common/dev-handbook.md`。数据集、模型文件、密钥**一律不入库**；`.venv/`、`venv/` 也已被 `.gitignore` 排除。
 
 ---
 
@@ -92,16 +92,16 @@ python -V                                               # 必须是 3.12.x
 | 知道这周该做什么、谁做、做到什么程度 | **飞书《工作周报-YYYYMMDD》**（不在仓库） |
 | 需求、功能说明、用户故事、页面原型与交互 | **飞书《产品需求文档》**（不在仓库） |
 | 系统架构、API 清单、库表设计 | **飞书《产品设计文档》**（不在仓库） |
-| 装环境、OpenSpec CLI 自检 | `infra/README.md` §团队工具版本约定 ＋ `docs/dev-handbook.md` §1 |
-| **一件事在代码里怎么做、跑什么命令、验收什么** | `docs/dev-handbook.md` ← **开工第一份** |
-| 提交、分支、PR 怎么做、代码怎么写 | `docs/collaboration.md` |
-| **谁做什么、什么时候交、怎么沟通、任务怎么认领** | **`docs/team-charter.md`** |
-| **文档怎么命名、注释怎么写、周报怎么填** | **`docs/writing-norms.md`** |
-| **缺陷（Bug）怎么记、谁修、什么优先级** | **`docs/defect-management.md`** |
-| 代码边界：做什么、**不做什么**、四条线边界、冻结点 | `docs/sprint0-scope.md` |
-| 数据表字段 / 特征列名 / 接口格式 | `docs/contracts/` |
-| 三个页面用接口的哪些字段 | `docs/pages.md` |
-| 数据源、版本固定规则与复现命令 | `docs/data-pipeline.md` |
+| 装环境、OpenSpec CLI 自检 | `infra/README.md` §团队工具版本约定 ＋ `docs/common/dev-handbook.md` §1 |
+| **一件事在代码里怎么做、跑什么命令、验收什么** | `docs/common/dev-handbook.md` ← **开工第一份** |
+| 提交、分支、PR 怎么做、代码怎么写 | `docs/repo/collaboration.md` |
+| **谁做什么、什么时候交、怎么沟通、任务怎么认领** | **`docs/common/team-charter.md`** |
+| **文档怎么命名、注释怎么写、周报怎么填** | **`docs/common/writing-norms.md`** |
+| **缺陷（Bug）怎么记、谁修、什么优先级** | **`docs/repo/defect-management.md`** |
+| 代码边界：做什么、**不做什么**、四条线边界、冻结点 | `docs/design/sprint0-scope.md` |
+| 数据表字段 / 特征列名 / 接口格式 | `docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}` |
+| 三个页面用接口的哪些字段 | `docs/frontend/pages.md` |
+| 数据源、版本固定规则与复现命令 | `docs/model/data-pipeline.md` |
 | AI 助手的规则入口（含任务与需求的权威位置） | `AGENTS.md`（仓库根，不在 `docs/`） |
 | OpenSpec CLI 版本、命令与陷阱 | `infra/README.md` |
 | 各线技术约定（目录结构、启动命令） | 对应的 `<线>/README.md` |
@@ -124,9 +124,9 @@ python -V                                               # 必须是 3.12.x
 
 ## 六、范围边界与结题材料
 
-**代码侧范围**：MVP 与附加功能的划分、做 / 不做清单及各条理由，一律以 `docs/sprint0-scope.md` 为准（本文不重复，避免两处说法不一致）。**需求范围**本身以飞书《产品需求文档》第五章为准。
+**代码侧范围**：MVP 与附加功能的划分、做 / 不做清单及各条理由，一律以 `docs/design/sprint0-scope.md` 为准（本文不重复，避免两处说法不一致）。**需求范围**本身以飞书《产品需求文档》第五章为准。
 
-**两项非功能要求**：性能（预测接口 95% 请求 < 500ms）、安全（接口鉴权 + 非法输入不泄露内部信息）。验证方式与证据形式见 `docs/contracts/api-format.md` 第四节。
+**两项非功能要求**：性能（预测接口 95% 请求 < 500ms）、安全（接口鉴权 + 非法输入不泄露内部信息）。验证方式与证据形式见 `docs/backend/api-spec.md` 第四节。
 
 **结题材料**（组长上传到智慧课程平台，放同一个文件夹）：
 
@@ -142,6 +142,6 @@ python -V                                               # 必须是 3.12.x
 
 | 日期 | 版本 | 变更人 | 主要变更 |
 |---|---|---|---|
-| 2026-10-09 | 1.2 | 蒋励 | **文档整理（删除入门文档 + 精简权威边界）**：§三 首次上手改指向 `infra/README.md`（OpenSpec CLI）与 `docs/dev-handbook.md`（环境 / 代码做法）；§四 文档地图同步改指向，重复的「权威边界」引导语精简为单行指针（完整版见 `docs/README.md` §0） |
+| 2026-10-09 | 1.2 | 蒋励 | **文档整理（删除入门文档 + 精简权威边界）**：§三 首次上手改指向 `infra/README.md`（OpenSpec CLI）与 `docs/common/dev-handbook.md`（环境 / 代码做法）；§四 文档地图同步改指向，重复的「权威边界」引导语精简为单行指针（完整版见 `docs/README.md` §0） |
 | 2026-09-17 | 1.0 | 蒋励 | 初版（本文件此前无版本头与变更日志，本次补齐）。含四条线与两个角色、三条硬规矩、技术选型、开发环境、文档地图、工程基线、范围边界与结题材料 |
-| 2026-09-17 | 1.1 | 蒋励 | ① §一补一句「上表是摘要，完整口径见 `docs/team-charter.md`，不一致以那份为准」—— 避免分工在两处各说各话；② §四文档地图补三份新规范（团队章程 / 写作规范 / 缺陷管理）|
+| 2026-09-17 | 1.1 | 蒋励 | ① §一补一句「上表是摘要，完整口径见 `docs/common/team-charter.md`，不一致以那份为准」—— 避免分工在两处各说各话；② §四文档地图补三份新规范（团队章程 / 写作规范 / 缺陷管理）|
