@@ -1,6 +1,6 @@
 # JIT 缺陷预测 · docs 文档地图
 
-> 版本 2.5 ｜ 更新 2026-10-13 ｜ 主笔 蒋励 ｜ 审核 苏哲勋
+> 版本 2.6 ｜ 更新 2026-10-13 ｜ 主笔 蒋励 ｜ 审核 苏哲勋
 > 文档只分 **6 个包**：`backend` `frontend` `model` `repo` `design` `common`。其余设计/文档已全部并入这 6 包。
 
 ## §0 强制合入规则（蒋励的 docs PR ｜ GitHub 账号 `jolly326`）
@@ -45,7 +45,7 @@
 - `README.md` 总览 ｜ `collaboration.md` 分支/PR/开发/Issue 规范 ｜ `git-pr.md` 分支与 PR 速查 ｜ `kanban.md` 看板字段 ｜ `defect-management.md` 缺陷管理 ｜ `defect-records.md` 缺陷处置记录索引 ｜ `weekly-reports.md` 周报规范 ｜ `openspec-workflow.md` SDD 流程 ｜ `sprints.md` Sprint 日历 ｜ `user-story-traceability.md` 31 条故事挂接 ｜ `catchup-ledger.md` 进度台账 ｜ `demo-script-sprint1.md` Sprint1 演示脚本
 
 ### `design/`（全员）
-- `README.md` 总览 ｜ `architecture.md` 架构 ｜ `database.md` 四表 ER ｜ `diagrams.md` 四张图(含生成方式) ｜ `non-functional.md` 安全/性能/可靠/易用 ｜ `prototype.md` 低保真原型 ｜ `sprint0-scope.md` 系统边界与代码线边界 ｜ `data-fields.md` 库表字段详表 ｜ `engineering.md` 工程化：分支/评审/CI-CD/插件化 ｜ `addons.md` **可选附加模块 G1-1~G1-4**
+- `README.md` 总览 ｜ `architecture.md` 架构 ｜ `database.md` 四表 ER ｜ `diagrams.md` **图源登记总表（全项目 14 张，含生成方式｜提示词）** ｜ `non-functional.md` 安全/性能/可靠/易用 ｜ `prototype.md` 低保真原型 ｜ `sprint0-scope.md` 系统边界与代码线边界 ｜ `data-fields.md` 库表字段详表 ｜ `engineering.md` 工程化：分支/评审/CI-CD/插件化 ｜ `addons.md` **可选附加模块 G1-1~G1-4**
 
 ### `common/`（公共）
 - `README.md` 总览 ｜ `course-requirements.md` 课程要求与映射 ｜ `openspec-rules.md` 每次改动必须走规范 ｜ `writing-norms.md` 写作规范 ｜ `team-charter.md` 团队章程 ｜ `dev-handbook.md` 开工手册 ｜ `glossary.md` 术语表 ｜ `templates.md` 模板基线 ｜ `acceptance-overview.md` 跨包验收总览 ｜ `test-plan.md` **测试方案总纲** ｜ `test-report-sprint1.md` Sprint 1 测试报告
@@ -77,6 +77,7 @@
 
 | 日期 | 版本 | 变更 |
 |---|---|---|
+| 2026-10-13 | 2.6 | 图源登记与飞书同步：① `design/diagrams.md` 由「四张图」扩为**全项目 14 张图的唯一图源登记表**（表头：图名／飞书章节／载体／生成方式／提示词），与飞书《产品设计文档》14 个图块一一对应；② 图注格式补齐课程要素「工具名+模型」（`CodeBuddy（AI 编程助手；Mermaid → 渲染）｜提示词：「…」`），`backend/implementation.md` 四处图注同步并指向总表；③ 飞书侧修正 **19 处（设计文档）+ 6 处（需求文档）** 失效路径（`docs/contracts/*` → 六包口径、`docs/pages.md` → `docs/frontend/pages.md`、`docs/data-pipeline.md` → `docs/model/data-pipeline.md`），修正 14+3 处图注工具名要素；④ 变更日志中的历史路径表述保留不改（溯源） |
 | 2026-10-13 | 2.5 | 组长身份口径订正：`jolly326` 即**蒋励本人的 GitHub 账号**（非第二位成员），8 处表述统一（`common/team-charter.md`、`docs/README.md` §0、`repo/collaboration.md` §3.7、`repo/README.md`、`repo/git-pr.md`、`common/openspec-rules.md`、`design/engineering.md`、`infra/README.md`） |
 | 2026-10-13 | 2.4 | 复审后整改：① `common/test-plan.md` 状态写实（单元测试两层已跑绿，用例清单与 Sprint1 报告一致，消除自相矛盾）；② `frontend/src/utils/format.js` 阈值改为从 `constants.js` 引入（消除第二处硬编码）；③ `data_model/tests/test_feature_contract.py` 无 `.pkl` 时 skip 而非失败（干净 clone 可复现）；④ `repo/weekly-reports.md` 补「课程三要素 ↔ 模板列」映射；⑤ `model/`、`frontend/`、`design/` README 补依赖/阻塞章节（六包齐备）；⑥ 修 `repo/defect-records.md` D-04 复现条件、`model/README.md` 路径笔误 |
 | 2026-10-13 | 2.3 | 按《项目要求》逐条核对后整改：① 新增 `common/test-plan.md`（四层测试总纲 + 用例清单 + 退出准则）与 `common/test-report-sprint1.md`（87+8 条测试实跑结果）；② 新增 `repo/defect-records.md`（缺陷处置记录索引 11 项）；③ 实现前端三页面（`RiskList`/`CommitDetail`/`TrendBoard` + `constants.js`/`utils/`），`frontend-integration` tasks 写实；④ 新增测试 `data_model/tests/test_feature_contract.py`（8）、`backend/tests/test_security_boundaries.py`（48）、`frontend/src/__tests__/contract.test.js`；⑤ 修 60+ 处失效路径引用（六包重构遗留，含代码注释与 `feature_order.txt`）；⑥ 消除三处口径矛盾（CI、模型线单测、demo-script 契约外参数）；⑦ `repo/`、`common/`、`backend/` README 补依赖/阻塞关系；⑧ `design/non-functional.md` 可靠/易用从「演示佐证」改为可点验文件 |
