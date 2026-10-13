@@ -32,7 +32,7 @@ uvicorn app.main:app --reload --port 8000
 - 配置从 `.env` 读（本地创建，**不入库**）；`.env.example` **要入库**，列出所有键名、不含真实值。
 - 加依赖时同步往 `backend/requirements.txt` 加一行。
 
-## 接口实现以 `docs/contracts/api-format.md` 为准
+## 接口实现以 `docs/backend/api-spec.md` 为准
 
 | 接口 | 用途 | 对应页面 |
 |---|---|---|
@@ -45,12 +45,12 @@ uvicorn app.main:app --reload --port 8000
 - 错误码用契约表里那 5 个（`0` / `40001` / `40100` / `40400` / `50000`），**不要自造**。
 - **`50000` 的 message 不得回显堆栈、SQL 语句、文件路径** —— 课程明确要求「非法输入不泄露内部信息」，内部细节只写服务端日志。**模型文件路径尤其不能回显**。
 - 分页 `size` 默认 20、上限 100；鉴权失败返回 `40100`。**四个接口一律要鉴权，`POST /api/predict` 不例外**。
-- `features` 的键名必须与 `docs/contracts/feature-columns.md` 完全一致。
+- `features` 的键名必须与 `docs/model/feature-columns.md` 完全一致。
 - 前三个接口读库里**已落盘**的结果；第四个接口**实时推理**。**不要把 `POST /api/predict` 写成查库** —— 那样就失去了「在线预测服务」的意义，压测也证明不了模型推理的性能。
 
 ## 库表
 
-按 `docs/contracts/data-fields.md` 建**四张表**：`commit` / `commit_label` / `commit_feature` / `prediction`。命名、类型、索引要求都以该契约为准（`commit_hash` 唯一索引、`committed_at` 普通索引）。
+按 `docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md` 建**四张表**：`commit` / `commit_label` / `commit_feature` / `prediction`。命名、类型、索引要求都以该契约为准（`commit_hash` 唯一索引、`committed_at` 普通索引）。
 
 > **`commit_feature` 由后端建，跟前三张一起、同一份迁移脚本。** 它不在第一版 README 的三张表清单里，是这个清单当时写漏了 —— 字段从来没争议（`feature-columns.md` §1 早已定表名），争议只在「谁建」，现明确归后端。数据线只产出这份特征数据，不建库表（见 `data_model/README.md` 第 4 条铁规矩）。
 
@@ -75,8 +75,8 @@ python -m app.ingest predictions <prediction_result.csv>
 
 **A（后端加载模型文件）**：后端启动时从 `data_model/models/` 加载 `.pkl` 文件，供 `POST /api/predict` 实时推理。
 
-- 模型文件路径与特征顺序由契约约定，见 `docs/sprint0-scope.md` 第 4 节「跨线接口已定」。
-- **特征顺序以 `docs/contracts/feature-columns.md` 为准**，不要按 `dict` 的插入顺序自己猜 —— 顺序错了模型不报错，只会给出错误答案。
+- 模型文件路径与特征顺序由契约约定，见 `docs/design/sprint0-scope.md` 第 4 节「跨线接口已定」。
+- **特征顺序以 `docs/model/feature-columns.md` 为准**，不要按 `dict` 的插入顺序自己猜 —— 顺序错了模型不报错，只会给出错误答案。
 
 **C（离线预测结果入库）**：数据线批量跑完，把结果写进 `prediction` 表；前三个查询接口读它。
 
