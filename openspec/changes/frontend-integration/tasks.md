@@ -48,20 +48,20 @@
 
 ### 5.2 验证清单
 
-- [x] `npm run build` 通过
-- [x] `npm run lint` 0 error
-- [x] `openspec validate` 通过
-- [x] 前后端联调：前端代理 `/api` 调到本地后端，返回 3 条种子提交；鉴权无 key 返回 401
+- [x] 5.2.1 `npm run build` 通过 —— 判据：exit 0 且输出 `✓ built`
+- [x] 5.2.2 `npm run lint` 0 error —— 判据：exit 0 且无 error / warning
+- [x] 5.2.3 `openspec validate --changes frontend-integration` 通过 —— 判据：显示 valid
+- [x] 5.2.4 前后端联调 —— 判据：带 `X-API-Key` 请求 `GET /api/commits` 返回 `code=0` 且有 `items`；无 key 返回 401
 
 ### 5.3 执行证据
 
 | 项 | 证据 |
 |---|---|
-| 提交 | 业务实现 `94b43b3`；格式调整 `cbc9f6b`；并发修复 `77d5e83` |
-| 环境 | Windows 11，Node 24，Python 3.12，SQLite 种子数据（3 提交/3 特征/3 预测） |
+| 提交 | 粒度快照 `d6bc0f4`（业务实现 `94b43b3`；格式 `cbc9f6b`；并发 `77d5e83`） |
+| 环境 | Windows 11，Node 24，Python 3.12；cwd=backend 执行 `python -m scripts.seed_dev_data` 生成 SQLite 种子（3 提交/3 特征/3 预测） |
 | 命令 | `npm run build` / `npm run lint` / `openspec validate --changes frontend-integration` |
 | 结果 | build ✓（<1s）；lint 0 error 0 warning；openspec validate 通过 |
-| 联调证据 | `GET /api/commits?page=1&size=3`（带 `X-API-Key: dev-token-*`）返回 3 条 seed 提交；不带 key 返回 401；详情 `GET /api/commits/{hash}`、趋势 `GET /api/trends` 同链路可达 |
+| 联调证据 | `GET /api/commits?page=1&size=3`（`X-API-Key: dev-token-*`）→ `{"code":0,...,"items":[...3 条]}`；无 key → HTTP 401；详情 `GET /api/commits/{hash}`、趋势 `GET /api/trends` 同链路可达 |
 
 ### 5.4 阻断 / 不适用说明
 
@@ -70,4 +70,4 @@
 
 ### 5.5 落地结论
 
-F2/F3 已落地（三页面 + 提案 + 规格）；F4 联调已打通本地前后端链路（三页均拉到真实数据）。待 #62 合入后 #60 复审合并，正式联调记录补入 `docs/implementation/`。
+F2/F3 已落地（三页面 + 提案 + 规格）；F4 联调已打通本地前后端链路（三页均拉到真实数据）。待 #62 合入后 #60 复审合并，正式联调记录补入 `docs/frontend/`（不使用已迁移的 docs/implementation/ 路径）。
