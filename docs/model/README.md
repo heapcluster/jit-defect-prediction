@@ -30,7 +30,7 @@
 | **J4** | 周报常态化（1009/1016/1023 周五晚提交） | 三份周报链接，与看板/Git 对得上 | ⬜未开始 | 每周五 17:00 前收供稿统稿 |
 | **J5** | 每周五收各人供稿并统稿，提交前对账（周报=看板=Git） | 每周留痕 | 🔄进行中 | 常态项 |
 | J6 | 补勾已归档 `data-collection` change 5.4（回看板） | tasks 全勾；看板状态真实 | ✅已完成 | 已勾 |
-| J7 | 四项附加功能（G1-1 缺陷可视化定位 / G1-2 高质量修复建议 / G1-3 公开数据集加载与治理 / G1-4 预训练语义特征建模）立项 | 看板新增 Sprint3 四行 / 立 change | ✅已完成 | 已立 `feature-addons-sprint3/`（含 `specs/public-dataset`、`specs/semantic-feature`）；看板 Sprint3 四行 G1-1~G1-4 |
+| J7 | 四项附加功能立项（G1-1/G1-2 缺陷定位·修复建议；**G1-3 公开数据集治理→`public-dataset-quality`**；**G1-4 语义特征→`semantic-feature-mainline` 主线**） | 看板新增对应行 / 立 change | ✅已完成 | G1-1/G1-2→`feature-addons-sprint3`；G1-3→`public-dataset-quality`；G1-4→`semantic-feature-mainline` |
 
 > 实时状态以**飞书看板**为准。J1 是 Sprint 1（10/23）课上验收主证据，优先。
 
@@ -64,7 +64,7 @@
 | 两类评估指标 | Effort-unaware + Effort-aware（实测见 `training-eval.md` §4） |
 | 训练/测试集划分 | 按 `committed_at` 时间序，禁随机 |
 | 缺陷概率 + 归因/解释 | SHAP 逐特征带 `direction` |
-| 可选附加（G1-3/G1-4） | 公开数据集加载与治理 / 预训练语义特征建模（立项，详设 `design/addons.md`） |
+| 可选附加（G1-1/G1-2 行级定位·修复建议） | 缺陷可视化定位 / 高质量修复建议（立项，详设 `design/addons.md` §1–§2）；**G1-4 语义特征已提升为模型线主线**（change `semantic-feature-mainline`）、G1-3 公开数据集治理已提升为承诺范围（change `public-dataset-quality`） |
 
 ## 5. 子文件导航
 
@@ -74,6 +74,7 @@
 - `explanation.md` — SHAP 缺陷归因解释
 - `feature-columns.md` — 14 项特征口径（与后端/前端共用列名）
 - `a2-4-correction.md` — S6+1：A2-4 判据方向订正（仓库侧已对齐，待贴飞书）
+- `model-line-plan.md` — **模型线路方案与改造计划（当前方案 + 执行清单，权威入口）**
 - `openspec-compliance.md` — 数据/模型线改动如何走 change
 - `acceptance.md` — 模型验收功能板块
 

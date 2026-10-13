@@ -20,15 +20,15 @@
 | 课程模块 | Epic | 落在哪个包 | 真工作量 |
 |---|---|---|---|
 | 数据采集与仓库解析（Git 克隆 / SZZ / 持久化） | A | `model/` + `data_model/` | 重（离线） |
-| 特征工程（Kamei 14 + 语义可选） | B | `model/` | 重（离线） |
+| 特征工程（Kamei 14 基线 + 语义特征主线） | B | `model/` | 重（离线） |
 | 模型训练与评估（≥2 类 ≥8 种 / 两类指标 / 时间切分） | C | `model/` | 重（离线） |
 | 预测与解释（概率 + SHAP 归因） | D | `backend/` + `model/` | 中 |
 | 查询接口 | E | `backend/` | 4 接口（在线） |
 | 可视化前端（风险列表 / 趋势看板） | F | `frontend/` | 3 页面（在线） |
 | 工程化（分支 / 评审 / CI-CD / 插件化） | — | `repo/` + `design/engineering.md` | 本模块补齐 |
-| 可选附加功能（行级定位 / 修复建议 / 公开数据集 / 语义特征） | G | `design/addons.md` + 各线 | 增强（Sprint 3） |
+| 附加功能（G1-1/G1-2 行级定位·修复建议；G1-3 公开数据集治理；**G1-4 语义特征已提升为模型线主线**） | G | `design/addons.md` + change `semantic-feature-mainline` / `public-dataset-quality` | 增强（语义特征为主线；G1-3 治理为承诺范围） |
 
-**在线服务层（4 表 / 4 接口 / 3 页面）是「方案 A+C 跨线交付」的必然结果**：模型离线算好 → 交 `prediction_result.csv` + `.pkl` → 后端加载展示。所以在线库只需 4 张表（`commit`/`commit_label`/`commit_feature`/`prediction`），不是偷工。工程化设计见 `design/engineering.md`；Epic G 附加模块（**只立项不实现、不替换基线**）见 `design/addons.md`；离线重活在 `model/README.md` §4。
+**在线服务层（4 表 / 4 接口 / 3 页面）是「方案 A+C 跨线交付」的必然结果**：模型离线算好 → 交 `prediction_result.csv` + `.pkl` → 后端加载展示。所以在线库只需 4 张表（`commit`/`commit_label`/`commit_feature`/`prediction`），不是偷工。工程化设计见 `design/engineering.md`；附加功能（Epic G）见 `design/addons.md`——其中 **G1-4 语义特征已提升为模型线主线**（Kamei 14 降为基线对照）、G1-3 公开数据集治理已提升为承诺范围；离线重活在 `model/README.md` §4。
 
 ## 1. 六个包导航
 
@@ -56,7 +56,7 @@
 |---|---|
 | 技术架构 / 数据库设计 / 核心图 / 非功能 / 原型 | `design/` 各文件 |
 | **工程化（分支规范 / 代码评审 / CI-CD / 插件化）** | `design/engineering.md` + `repo/collaboration.md` `repo/git-pr.md` |
-| **可选附加功能（Epic G：G1-1~G1-4）** | `design/addons.md` + change `feature-addons-sprint3` |
+| **附加功能（Epic G）** | `design/addons.md`；**G1-4 语义特征主线** → change `semantic-feature-mainline`；G1-3 公开数据集治理 → change `public-dataset-quality`；G1-1/G1-2 → change `feature-addons-sprint3` |
 | OpenSpec SDD（propose→specs→design→tasks） | `common/openspec-rules.md` + `repo/openspec-workflow.md` |
 | **测试方案（单元/集成/系统/非功能 + 用例清单 + 退出准则）** | `common/test-plan.md` |
 | **测试报告（每 Sprint 一份，含覆盖率与差距）** | `common/test-report-sprint1.md` |
@@ -77,7 +77,8 @@
 
 | 日期 | 版本 | 变更 |
 |---|---|---|
-| 2026-10-13 | 2.14 | **自我纠正：撤销 2.12/2.13 中关于评测层的误判**。核对 `data_model/reports/model_matrix.md` 实际输出后确认：`effort_aware_metrics()` **已经报出** Recall@20% / Recall@50% / 曲线下面积 / 随机基线（200 次抽样均值 ± 标准差）/ 上界 / 两种工作量代理（LOC 与改动文件数）/ 四种排序。「只报自造 `P_norm`、缺文献标准 effort-aware 指标」的说法**不成立**。真正缺的只有三件：① 统计显著性检验（Wilcoxon + McNemar）；② 特征消融与重要性；③ `P_norm` 需加一句「非文献 Popt」的标注。`design.md` D9 与 tasks §11 已按实际代码收窄修订。**教训**：不得凭代码片段推断报告内容，必须核对产出文件本身 |
+| 2026-10-13 | 2.14 | **自我纠正：撤销 2.12/2.13 中关于评测层的误判**。核对 `data_model/reports/model_matrix.md` 实际输出后确认：`effort_aware_metrics()` **已经报出** Recall@20% / Recall@50% / 曲线下面积 / 随机基线（200 次抽样均值 ± 标准差）/ 上界 / 两种工作量代理（LOC 与改动文件数）/ 四种排序。「只报自造 `P_norm`、缺文献标准 effort-aware 指标」的说法**不成立**。真正缺的只有三件：① 统计显著性检验（Wilcoxon + McNemar）；② 特征消融与重要性；③ `P_norm` 需加一句「非文献 Popt」的标注。`design.md` D9 与 tasks §11 已按实际代码收窄修订。**教训**：不得凭代码片段推断报告内容，必须核对产出文件本身
+| 2026-10-13 | 2.15 | 模型线路方案落地（蒋励的活）：① 新建 `docs/model/model-line-plan.md`——模型线路**方案 + 改造计划**权威入口（单仓库 / Kamei 14 基线 + CodeBERT 语义主线 / 8 模型三类设置 / 标准 effort-aware / 责任到人执行清单 / N-01 与文献对照待补项）；② `docs/` 全包统一残留旧表述——「语义可选 / 只立项不实现 / G1-3·G1-4 误挂 `feature-addons-sprint3` / 失效 `specs/public-dataset`·`specs/semantic-feature` 路径 / `P_norm` 未标注自造变体」全部替换，与 `semantic-feature-mainline`·`public-dataset-quality` 新口径一致；③ `training-eval.md`·`methodology-references.md` 为 `P_norm` 加「自造归一化变体、非文献 Popt」标注 | |
 | 2026-10-13 | 2.13 | **一步到位落实课程附加功能 (3)(4)**（蒋励的活）：① 新增 change `public-dataset-quality`（6 Requirement / 21 tasks，`validate` 通过）逐条回应 (3) 三缺陷——标签粒度过粗、主要针对 Java、数据质量；**第 0 号任务为「可下载性验证」，不过则整体降级并如实写明原因，不虚构数据**；② `semantic-feature-mainline` 补 **D9 评测协议对齐文献标准**（查证确认未在测试集上调参；但 `P_norm` 是自造变体而非文献标准，须补 CE@20% / Recall@20% / Popt / ALPA，并补 Wilcoxon 显著性检验与显式基线）、**D10 形态说明**（我们是「预训练提特征→经典分类器」混合形态，非端到端，不得暗示复现 SOTA）、D11 三组设置口径统一；tasks 增至 39 条；③ `feature-addons-sprint3` 的 G1-3 移出并留痕，删除旧 `specs/public-dataset`；④ 全量校验：3/4 change valid（`frontend-integration` 仍失败，属刘帅华线，已派活未代修） |
 | 2026-10-13 | 2.12 | 模型线路范围调整：语义特征提升为主线（蒋励的活）：① 新增 change `semantic-feature-mainline`（proposal/design/specs/tasks 四件，`openspec validate --strict` **通过**，7 Requirement / 10 Scenario / 29 tasks），Sprint 2 启动，Kamei 14 降为基线对照组；② `feature-addons-sprint3` 的 G1-4 移出（proposal/design/tasks 同步改为「已顶替」留痕，删除旧 `specs/semantic-feature`），避免双入口；③ `design/addons.md` §4 改写为「已提升为模型线主线」并更新排期（Sprint 3 → Sprint 2–3）；④ **修复 `openspec/config.yaml` 的 YAML 解析错误**（我此前编辑引入，导致 `rules.tasks` 被 CLI 忽略 —— 多行 list 项改单行后 `openspec list` 不再告警）；⑤ 论文方法论补两项：专家特征留一法消融 + 置换重要性、跨项目不可迁移显式登记；⑥ 顺带发现 `frontend-integration` 校验失败（spec 缺 delta 头与 Scenario），**未代修**，已派活刘帅华 |
 | 2026-10-13 | 2.11 | openspec 格式把关人落规（组长指派苏哲勋）：① `common/openspec-task-template.md` 新增 §6「PR 审阅时的 openspec 检查清单」——十项逐份检查 + 一致性抽查 + 结论三写法，**把关不代改、只管增量**；② `repo/collaboration.md` PR 审阅清单由六项改**七项**（新增「openspec 格式合规」）并写明把关人与增量口径；③ `repo/README.md` 苏哲勋职责新增第 6 条；④ 1009 周报本周计划对应任务同步指向 §6 |

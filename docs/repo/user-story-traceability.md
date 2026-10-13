@@ -2,7 +2,7 @@
 
 > 任务：苏哲勋 S5 ｜ 飞书 PRD 第五章「需求范围」：**核心 27 条（Epic A–F）+ 可选附加 4 条（Epic G）= 31 条**
 > 目标：每条 User Story 能点回 `openspec/specs/` 或 `openspec/changes/`（看板「规格变更或任务」列可点开）。
-> 现状：核心 22/27 待挂接（卡在 #60 前置），5 条已挂；可选附加 G1-1~G1-4 已挂 change `feature-addons-sprint3`（2026-10-13 补）。
+> 现状：核心 22/27 待挂接（卡在 #60 前置），5 条已挂；可选附加 G1-1/G1-2 已挂 `feature-addons-sprint3`，G1-3→`public-dataset-quality`、G1-4→`semantic-feature-mainline`（2026-10-13 拆分）。
 
 ## 1. 为什么做
 
@@ -10,7 +10,7 @@
 
 ## 2. 映射表（31 条 → openspec）
 
-> 口径：核心 27 条按「界面 / 数据模型 / 工程协作」三族归纳（对应 PRD Epic A–F），A=需求/界面类 → 多挂 `specs/` 能力；B=数据/模型类 → 挂 `data-collection-*`/`model-*` change；C=工程/协作类 → 挂 `repo` 规范与 `openspec` 流程。第 28–31 条为 PRD **可选附加功能 Epic G**（不进 MVP，Sprint 3 排期），统一挂 change `feature-addons-sprint3`。
+> 口径：核心 27 条按「界面 / 数据模型 / 工程协作」三族归纳（对应 PRD Epic A–F），A=需求/界面类 → 多挂 `specs/` 能力；B=数据/模型类 → 挂 `data-collection-*`/`model-*` change；C=工程/协作类 → 挂 `repo` 规范与 `openspec` 流程。第 28–31 条为 PRD **可选附加功能 Epic G**：G1-1/G1-2（不进 MVP，Sprint 3）挂 `feature-addons-sprint3`，**G1-3 已提升为承诺范围挂 `public-dataset-quality`、G1-4 已提升为模型线主线挂 `semantic-feature-mainline`**。
 
 | # | Epic | User Story（摘要） | 挂接目标（openspec） |
 |---|---|---|---|
@@ -43,12 +43,12 @@
 | 27 | C | 非功能验证（性能/安全） | change `nfr-evidence-scripts` |
 | 28 | G | 缺陷可视化定位（行级，可选） | change `feature-addons-sprint3` |
 | 29 | G | 高质量修复建议（可选） | change `feature-addons-sprint3` |
-| 30 | G | 公开缺陷数据集加载与质量治理（可选） | change `feature-addons-sprint3` + `specs/public-dataset` |
-| 31 | G | 预训练语义特征建模（可选） | change `feature-addons-sprint3` + `specs/semantic-feature` |
+| 30 | G | 公开缺陷数据集加载与质量治理（**已提升为承诺范围**） | change `public-dataset-quality` |
+| 31 | G | 预训练语义特征建模（**已提升为模型线主线**） | change `semantic-feature-mainline` |
 
 ## 3. 操作
 
 - #60 合入后，把每条的「规格变更或任务」列填对应 change id / spec 路径。
 - 纯飞书产物（如需求文档章节）填 `—`，不硬凑。
-- Epic G 4 条已挂 `feature-addons-sprint3`（2026-10-13 立，**仅立项不实现**）；Sprint 3 开工时按 change 内 tasks 逐条回填。
+- Epic G 已拆分（2026-10-13）：G1-1/G1-2 挂 `feature-addons-sprint3`（仅立项不实现）；**G1-3 已提升为承诺范围挂 `public-dataset-quality`、G1-4 已提升为模型线主线挂 `semantic-feature-mainline`**；各 change 开工时按 tasks 逐条回填。
 - 挂接完成 = S5 收口（看板该列可点开）。

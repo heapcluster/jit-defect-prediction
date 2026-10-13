@@ -49,7 +49,7 @@
 - G1-3 公开缺陷数据集加载与质量治理（标签粒度 / 语种单一 / 数据质量三项）
 - G1-4 预训练语义特征建模（专家 vs 语义 vs 融合对比）
 
-> Epic G 四项已立项（change `feature-addons-sprint3`），**只立项不实现**；不替换 Kamei 14 基线与交付模型，详设见 `design/addons.md`。
+> Epic G 已拆分：G1-4 **语义特征提升为模型线主线**（change `semantic-feature-mainline`，Kamei 14 降为基线对照）、G1-3 公开数据集治理提升为承诺范围（change `public-dataset-quality`）、G1-1/G1-2 仍为可选附加（change `feature-addons-sprint3`）；不替换 Kamei 14 基线与交付模型（切换须另开「模型切换」提案），详设见 `design/addons.md`。
 
 ## 2. 依赖图（铁链）
 

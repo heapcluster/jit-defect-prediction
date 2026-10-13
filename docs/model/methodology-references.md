@@ -47,7 +47,7 @@
 | Entropy = 两周（14 天）滚动窗口 | B-2（Hassan 定义） | `03_extract_features.py` 窗口 14 天 | 与原文一致 |
 | subsystem = 路径根目录名 | B-1 | `03_extract_features.py`：根目录下的文件单列一组 | 与原文一致 |
 | 训练/检验**必须按 `committed_at` 时间序**切分（前 70% / 后 30%），禁随机 | B-3 / C-1：时间相关特征下随机切分会高估性能 | `05_split_dataset.py` 时间序切分；`openspec/config.yaml` 立为硬约束 | 与文献结论一致，且本项目特征集里 EXP / NUC 与时间强相关，风险更高 |
-| 同时报 Effort-unaware 与 Effort-aware 两类指标 | C-1：effort-aware 才能反映评审员真实收益 | `06_train_model.py` / `08_model_matrix.py` 输出 AUC/F1/P/R/Acc + `P_norm`（按 `risk_score/工作量` 重排） | 与文献一致。**如实报告**：LOC 工作量代理下三个模型 `P_norm` 为负（-0.67 / -0.25 / -0.42，Issue #37），并给出同预算召回 +31.72 pp 的重排证据 |
+| 同时报 Effort-unaware 与 Effort-aware 两类指标 | C-1：effort-aware 才能反映评审员真实收益 | `06_train_model.py` / `08_model_matrix.py` 输出 AUC/F1/P/R/Acc + `P_norm`（按 `risk_score/工作量` 重排） | 与文献一致。**口径标注**：`P_norm` 为本组自造归一化变体，与文献 `Popt` 非同一指标。**如实报告**：LOC 工作量代理下三个模型 `P_norm` 为负（-0.67 / -0.25 / -0.42，Issue #37），并给出同预算召回 +31.72 pp 的重排证据 |
 | 高风险阈值 `p ≥ 0.50` | **无论文直接依据**，是本组按校准结果定的 | `09_calibration_threshold.py`；Issue #38 登记「`p≥0.50` 的提交真实缺陷率仅 29.6%」 | **这是本组的口径选择，不是文献结论**，答辩必须说明它已被登记为待契约变更提案，不得包装成论文结论 |
 
 ## 3.1 SZZ 打标的定位与已知局限（2026-10-13 补）

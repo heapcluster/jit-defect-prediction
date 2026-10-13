@@ -32,7 +32,7 @@
 | **S2** | 用户调研问卷设计与发放（≥10 有效样本） | 问卷链接+回收记录；10/16 前回收 | ⬜未开始 | 围绕三假设出题，发问卷 |
 | S3 | 《用户调研报告》入 PRD 附录 | 报告入附录 B；第四章据实重写 | ✅已完成 | 已入 rev 329 |
 | S4 | PR 审阅 #52/#33 非作者结论 | 两 PR 留 Approve/Request changes | ✅已完成 | 闭环 |
-| **S5** | 31 条用户故事（核心 27 + 可选 G 4）与 OpenSpec 逐条挂接 | 每条能点回 change/spec；看板可点开 | 🔄进行中 | 蒋励代建 `user-story-traceability.md`（Epic G 4 条已挂 `feature-addons-sprint3`），你贴飞书链接 + #60 合入封口 |
+| **S5** | 31 条用户故事（核心 27 + 可选 G 4）与 OpenSpec 逐条挂接 | 每条能点回 change/spec；看板可点开 | 🔄进行中 | 蒋励代建 `user-story-traceability.md`（Epic G 已拆分：G1-1/G1-2→`feature-addons-sprint3`、G1-3→`public-dataset-quality`、G1-4→`semantic-feature-mainline`），你贴飞书链接 + #60 合入封口 |
 | S6 | 跨章一致性逐章过口径收口 | 需求/设计跨章口径一致 | ✅已完成 | PRD v0.6→v0.8、设计 v0.4→v0.5 |
 | **S6+1** | A2-4 正样本比例判据方向订正 | 二选一订正；dataset_stats 同步 | 🔄进行中 | 蒋励代出 `model/a2-4-correction.md`，你贴飞书即闭环（Issue #59） |
 | S7 | 分支保护可自助核验说明 | `collaboration.md` 给核验步骤，照做能自查 | ✅已完成 | PR #57 已合入 |

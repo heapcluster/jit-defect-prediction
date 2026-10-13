@@ -54,7 +54,7 @@
 | 成员 | Sprint 1 在办任务（看板） | 状态 |
 |---|---|---|
 | 蒋励 | 端到端链路演示准备（10/23 课上验收主证据，脚本已建、录屏待补）；归档 change model-expansion；仓库卫生（陈旧分支清理、origin 统一）；周报常态化（1009 已交 / 1016 / 1023 待写） | J2 已完成；J1 脚本已建（录屏待补）；J3/J4 未开始（1016/1023 周报待写） |
-| 苏哲勋 | 需求范围表回填（31 条 User Story 对齐实测：核心 27 + 可选 G 4）；用户调研问卷设计与发放（P0，10/16 前回收）；《用户调研报告》入 PRD 附录 | S1/S3/S4/S6/S7 已完成（详见追平台账）；S5 核心 22/27 未封口（前置 #60；Epic G 4 条已挂 `feature-addons-sprint3`）；S2 问卷设计发放进行中（10/16 前回收） |
+| 苏哲勋 | 需求范围表回填（31 条 User Story 对齐实测：核心 27 + 可选 G 4）；用户调研问卷设计与发放（P0，10/16 前回收）；《用户调研报告》入 PRD 附录 | S1/S3/S4/S6/S7 已完成（详见追平台账）；S5 核心 22/27 未封口（前置 #60；Epic G 已拆分：G1-1/G1-2→`feature-addons-sprint3`、G1-3→`public-dataset-quality`、G1-4→`semantic-feature-mainline`）；S2 问卷设计发放进行中（10/16 前回收） |
 | 吕建江 | 合入 PR #52（SHAP 适配真交付模型，Fix #50）；回填 change nfr-evidence-scripts 的 tasks 勾选；设计文档订正（api-format 1.3 → 1.4） | #52 待审阅（Request changes），其余未开始 |
 | 刘帅华 | 合入 PR #33（Vue 3 脚手架）；建 change frontend-integration；前端三页面实现；前后端联调 | #33 已合入（10/09）；F2/F3/F4 未开始 |
 

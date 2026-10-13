@@ -23,7 +23,7 @@
 | 类型 | 指标 | 说明 |
 |---|---|---|
 | Effort-unaware | AUC / Precision / Recall / F1（/ Accuracy） | 不计审查成本，衡量整体判别力 |
-| Effort-aware | `P_norm`、Recall@20% / @50% | 以审查工作量为权重，衡量「优先审高风险提交」的收益 |
+| Effort-aware | `P_norm`、Recall@20% / @50% | 以审查工作量为权重，衡量「优先审高风险提交」的收益；⚠️ `P_norm` 为**本组自造归一化变体**（锚点取实测随机均值与上界），**与文献 `Popt` 非同一指标**，仅作内部对照，不得对外宣称「标准 effort-aware 指标」 |
 
 只报一类不足以说明问题；覆盖矩阵报告须与 `model_metrics.md` 逐项比对**差异为 0**。
 

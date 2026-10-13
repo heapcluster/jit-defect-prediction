@@ -27,7 +27,7 @@
 | `frontend/`（刘帅华） | `prototype.md` 低保真范围、`diagrams.md` 四张图 | 页面结构与演示缺依据 |
 | `model/`（蒋励） | `sprint0-scope.md` 三个冻结点（库表字段 / 特征列名 / 接口格式） | 契约漂移 = 一票否决 |
 | `repo/`（苏哲勋） | `engineering.md` 工程基线设计（分支/评审/CI-CD/插件化） | CI 与插件化无处落地 |
-| 全员 | `addons.md` 附加功能边界（只立项不实现、不替换基线） | 范围控制失据 |
+| 全员 | `addons.md` 附加功能边界（G1-4 语义特征为主线、其余并列增强、不替换 Kamei 14 基线） | 范围控制失据 |
 
 > 反向：本包**依赖各线供稿**（§0 表），蒋励统稿后进飞书《产品设计文档》；设计变更必须先提 OpenSpec change，不许直接改飞书文档不记规格。
 
@@ -40,7 +40,7 @@
 | J1 | 端到端演示脚本（设计侧四张图要支撑演示） | 🔄进行中 | 蒋励 |
 | E1 | 落 `.github/workflows/ci.yml`（lint→test→build） | ⬜未开始 | 苏哲勋 |
 | E2 | `backend/app/model_registry.py` 落地 Predictor 接口 + 8 实现（插件化） | ⬜未开始 | 吕建江 + 蒋励 |
-| E5 | 可选附加 G1-3/G1-4 详设落本地 design（`addons.md` + change `feature-addons-sprint3`） | ✅已完成 | 蒋励 |
+| E5 | 语义特征主线（G1-4→change `semantic-feature-mainline`）+ 公开数据集治理（G1-3→change `public-dataset-quality`）详设落本地 design（`addons.md`） | ✅已完成 | 蒋励 |
 
 > 实时状态以**飞书看板**为准。
 
