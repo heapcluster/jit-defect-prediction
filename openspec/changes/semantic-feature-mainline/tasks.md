@@ -52,11 +52,11 @@
 - [ ] 10.1 确认 `backend/app/model_registry.py` 与 `data_model/models/[models]` 段**未被本 change 改动**；交付模型仍为现有 `xgb_v1` 等
 - [ ] 10.2 若三类对比显示语义/融合更优，**另开「模型切换」提案**（spec `model-coverage` R6），本 change 不切换
 
-## 11. 评测协议对齐文献标准（蒋励，2026-10-13 新增）
-- [ ] 11.1 `06_train_model.py` 的 `effort_aware_metrics()` 补标准指标：**CE@20%、Recall@20%、Popt、ALPA/PCI**；工作量代理继续 LOC 与文件数两种都报
-- [ ] 11.2 `P_norm` 保留但在报告与文档中**明确标注「自造变体，非文献标准」**，不得作为主指标汇报
-- [ ] 11.3 新增 `data_model/16_statistical_test.py`：8 模型在同一测试集上做 **Wilcoxon signed-rank**（或 paired t-test），输出两两显著性表
-- [ ] 11.4 补显式基线：① 全部审查（随机排序，CE@20% ≈ 20%）；② 按单个最强特征（`la` 或 `ld`）排序；输出「模型 vs 基线」对照
+## 11. 评测协议补齐（蒋励，2026-10-13；**已按实际代码核对后收窄**）
+- [x] 11.1 **核对既有口径**：`effort_aware_metrics()` 与 `model_matrix.md` 实际已报 Recall@20% / Recall@50% / 曲线下面积 / 随机基线（200 次均值±std）/ 上界 / 两种工作量代理 / 四种排序。**此前「只报自造 P_norm」的判断有误，已纠正**（见 `design.md` D9）。无需重复实现
+- [ ] 11.2 `P_norm` 在报告与文档中**加一句标注**：本组自造归一化变体，锚点为实测随机均值与上界；**与文献的 Popt 不是同一个指标**，不得混称
+- [ ] 11.3 新增 `data_model/16_statistical_test.py`：① **Bootstrap 重采样**（≥1000 次）产出各模型指标的分布；② 模型两两 **Wilcoxon signed-rank**（配对于 bootstrap 样本）；③ 阈值 0.5 下二值预测的 **McNemar 检验**。输出显著性表 + `data_model/reports/statistical_test.md`
+- [ ] 11.4 补**单特征基线**：按 `la` / `ld` 单特征排序，与模型排序对照（随机基线已有，不必重做）
 - [ ] 11.5 复核测试集未参与调参（`fit` 只用训练集、早停验证子集来自训练集内部），把查证结论写进报告
 
 ## 12. 形态说明与文档同步（蒋励统稿）
