@@ -37,3 +37,79 @@ def test_wrong_feature_count_skipped(tmp_path, monkeypatch, restore_registry):
     model_registry.load_models()
     assert not model_registry.has("bad_v1")
     assert model_registry.has("good_v1")
+
+
+def _explain_of(tmp_path, monkeypatch, model, name):
+    joblib.dump(model, tmp_path / f"{name}.pkl")
+    monkeypatch.setattr(config, "MODEL_DIR", tmp_path)
+    model_registry.load_models()
+    assert model_registry.has(name)
+    rows = model_registry.explain(model_registry.get_model(name), [0.5] * 14)
+    assert rows, "explanation must not degrade to empty for delivered-model shapes"
+    assert all(set(r) == {"feature", "contribution", "direction"} for r in rows)
+    assert all(r["feature"] in config.FEATURE_COLUMNS for r in rows)
+
+
+def test_explain_linear_pipeline(tmp_path, monkeypatch, restore_registry):
+    """lr_v1 真形态：Pipeline(StandardScaler → LogisticRegression)（Issue #50）。"""
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import StandardScaler
+
+    rng = np.random.RandomState(3)
+    X = rng.rand(60, 14)
+    y = (X[:, 3] + 0.5 * X[:, 0] > 0.7).astype(int)
+    pipe = Pipeline(
+        [
+            ("scaler", StandardScaler()),
+            ("lr", LogisticRegression(max_iter=500, random_state=3)),
+        ]
+    ).fit(X, y)
+    _explain_of(tmp_path, monkeypatch, pipe, "pipe_v1")
+
+
+def test_explain_random_forest(tmp_path, monkeypatch, restore_registry):
+    """rf_v1 真形态：多树森林，shap 0.52 返回 (n, 14, 2) 三维数组（Issue #50）。"""
+    from sklearn.ensemble import RandomForestClassifier
+
+    rng = np.random.RandomState(5)
+    X = rng.rand(60, 14)
+    y = (X[:, 3] > 0.5).astype(int)
+    forest = RandomForestClassifier(
+        n_estimators=10, min_samples_leaf=2, random_state=5
+    ).fit(X, y)
+    _explain_of(tmp_path, monkeypatch, forest, "forest_v1")
+
+
+def test_explain_linear_pipeline_shap_additivity(
+    tmp_path, monkeypatch, restore_registry
+):
+    """SHAP 可加性：线性 Pipeline 的贡献和 == margin(x)−margin(background)，禁止再折算（#52 复审 10-06）。"""
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import StandardScaler
+
+    rng = np.random.RandomState(3)
+    X = rng.rand(200, 14)
+    y = (X[:, 3] + 0.5 * X[:, 0] > 0.7).astype(int)
+    pipe = Pipeline(
+        [
+            ("scaler", StandardScaler()),
+            ("lr", LogisticRegression(max_iter=500, random_state=3)),
+        ]
+    ).fit(X, y)
+    joblib.dump(pipe, tmp_path / "pipe_v1.pkl")
+    monkeypatch.setattr(config, "MODEL_DIR", tmp_path)
+    model_registry.load_models()
+    rows = model_registry.explain(model_registry.get_model("pipe_v1"), [0.5] * 14)
+    signed = sum(
+        r["contribution"] * (1 if r["direction"] == "increase" else -1) for r in rows
+    )
+    sc = pipe.named_steps["scaler"]
+    lr = pipe.named_steps["lr"]
+    expected = float(
+        lr.decision_function(sc.transform([[0.5] * 14]))[0]
+        - lr.decision_function(sc.transform(np.zeros((1, 14))))[0]
+    )
+    # explain() 对贡献 round 到 6 位并丢弃 0 项，容差 1e-4 仍远小于 /scale_ 级错误（O(1)）
+    assert abs(signed - expected) < 1e-4
