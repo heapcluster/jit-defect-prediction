@@ -33,15 +33,29 @@
 |---|---|---|---|---|---|
 | 后端 `backend/` | **87 条**（8 个文件；`test_security_boundaries.py` 48 条参数化） | `test_mirror.py` 8 + `test_ingest.py` 2 + `test_model_registry.py` 5 = 15 条 | `docs/repo/demo-script-sprint1.md` API-01~04 | 性能 + 安全两阶段证据齐 | ✅ 最完整 |
 | 前端 `frontend/` | **13 个 it / 30 断言**（`src/__tests__/contract.test.js`，纯口径函数） | **0**（未联调） | **0**（未跑演示） | 易用（三态）待联调 | 🟡 已写未跑 |
-| 数据/模型 `data_model/` | **8 条**（`tests/test_feature_contract.py`，特征契约） | 以九份统计报告代替，**无自动化** | `data_model/reports/` 九份 | 可靠（版本固定 + 可复现） | 🟡 覆盖薄 |
+| 数据/模型 `data_model/` | **59 条**（`test_feature_contract.py` 8 + `test_szz_labeling.py` 34 + `test_split_dataset.py` 17） | 以九份统计报告代替，**无自动化** | `data_model/reports/` 九份 | 可靠（版本固定 + 可复现） | 🟡 单测已补，集成待建 |
 | 工程化 `infra/` | **0**（CI 未落地） | —— | —— | —— | 🔴 缺口 |
 
 **复现命令**（环境：conda `jit-defect`）：
 ```bash
 cd backend    && python -m pytest -q     # 87 passed
-cd data_model && python -m pytest -q     # 8 passed
+cd data_model && python -m pytest -q     # 59 passed（2026-10-13 由 8 补到 59）
 cd frontend   && npm ci && npm run test:unit   # 13 it（尚未执行，node_modules 未装）
 ```
+
+## 3.1 数据线补齐记录（2026-10-13，蒋励）
+
+课堂反馈后由**数据线负责人蒋励**按「谁写代码谁写单测」补齐，只覆盖纯函数、不依赖 git 与仓库数据：
+
+| 文件 | 条数 | 覆盖 |
+|---|---|---|
+| `data_model/tests/test_feature_contract.py` | 8 | 特征契约（14 项列名与顺序） |
+| `data_model/tests/test_szz_labeling.py` | 34 | 打标判据词首边界、diff 解析、区间合并、blame 缓存键 |
+| `data_model/tests/test_split_dataset.py` | 17 | 切分下标、排序稳定性、守恒与时间序断言 |
+
+**过程中测试抓到了自己的两个错误预期**（已修正，证明断言有效）：
+① 把「`AMQ-102 fix the message dispatch handling`」误列为应拒案例 —— 该消息 `fix` 在词首，本就应判为修复提交；
+② `merge_ranges` 默认阈值预期算错 —— 合并条件是 `start - 上段止行 - 1 <= gap`，间隔 20 仍合并、21 才不合并。
 
 ## 4. 缺口清单与责任人（按优先级）
 

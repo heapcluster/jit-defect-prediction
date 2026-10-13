@@ -90,14 +90,14 @@
 ### 1. 单元测试（蒋励）
 | 项 | 内容 |
 |---|---|
-| 覆盖对象 | 提交抽取（01）、SZZ 打标判据（02）、特征计算（03）、样本构建（04）、时间序切分（05） |
-| 测试文件 | **本 change 当时未写单元测试**（2026-10-13 才发现缺口，即课堂反馈第 3 条所指） |
-| 用例数与结果 | 0 条 |
-| 复现命令 | —— |
-| 正向用例 | —— |
-| 异常 / 边界用例 | —— |
+| 覆盖对象 | SZZ 打标判据（`is_fix_commit`）、diff 解析（`parse_old_ranges`）、区间合并（`merge_ranges`）、blame 缓存键（`blame_cache_key`）；时间序切分（`split_index` / `sort_key` / `validate_split` / `parse_ts`） |
+| 测试文件 | `data_model/tests/test_szz_labeling.py`（34 条）、`data_model/tests/test_split_dataset.py`（17 条） |
+| 用例数与结果 | **51 条全通过**（2026-10-13 补齐，含在数据线 59 条内） |
+| 复现命令 | `cd data_model && python -m pytest -q` |
+| 正向用例 | `test_命中编号与修复词时判为修复提交` —— `AMQ-8123 fix NPE in broker` → True；`test_解析出旧侧行区间` —— 标准 `-U0` diff → `{A.java: [(10,3),(40,1)]}` |
+| 异常 / 边界用例 | `test_同词内嵌不得命中词首边界` —— `improve dispatch throughput` / `add debug logging` / `prefix-based routing` → False（子串匹配会误收这 122 条假阳性）；`test_拼写错误的真修复必须收` —— `fixe` / `fixinng` → True；`test_纯新增行数为零不收录`；`test_时间序被破坏被拦住`；`test_同秒边界严格大于` |
 
-> 当时的验证方式是**跑全链路 + 出示统计报告**（见下），不是自动化单测。这是本 change 的最大缺口，已登记为 Sprint 2 补齐项。
+> **2026-10-13 补齐说明**：本 change 归档时（Sprint 0）**没有单元测试**，验证方式是跑全链路 + 出示九份统计报告。2026-10-13 课堂反馈「缺少测试」后，由蒋励按「谁写代码谁写单测」补齐上述 51 条，只覆盖纯函数、不依赖 git 与仓库数据。
 
 ### 2. 集成测试（数据线内部端到端）
 | 项 | 内容 |
