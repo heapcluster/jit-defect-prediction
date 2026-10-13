@@ -178,6 +178,8 @@ const filters = reactive({
 const timeRange = ref([])
 const series = ref([])
 const loading = ref(false)
+// 已加载数据的粒度（下钻跳转用它，不能用尚未查询的筛选器粒度）
+const loadedGranularity = ref('week')
 const error = ref('')
 const retryable = ref(false)
 
@@ -203,11 +205,12 @@ async function load() {
   error.value = ''
   retryable.value = false
   try {
+    loadedGranularity.value = filters.granularity
     const data = await getTrends({
       granularity: filters.granularity,
       model_name: filters.model_name || undefined,
       start_time: timeRange.value?.[0] || undefined,
-      end_time: toEndTime(timeRange.value?.[1])
+      end_time: timeRange.value?.[1] || undefined
     })
     series.value = data.series || []
   } catch (e) {
@@ -232,7 +235,7 @@ const router = useRouter()
 
 // 点击数据点 → 跳风险列表，时间范围收窄到该周期（docs/pages.md §4）
 function onPointClick(s) {
-  const range = periodToRange(s.period, filters.granularity)
+  const range = periodToRange(s.period, loadedGranularity.value)
   if (range.length) {
     router.push({ path: '/', query: { start_time: range[0], end_time: range[1] } })
   }
@@ -263,12 +266,6 @@ function periodToRange(period, granularity) {
 
 function toDateStr(d) {
   return d.toISOString().slice(0, 10)
-}
-
-// end_time 闭区间收尾：纯日期串补到当天 23:59:59，否则后端按 00:00:00 解析会丢最后一天（#62 合入后可移除）
-function toEndTime(dateStr) {
-  if (!dateStr) return undefined
-  return dateStr.includes('T') ? dateStr : dateStr + 'T23:59:59'
 }
 
 function resetRange() {

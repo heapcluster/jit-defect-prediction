@@ -164,7 +164,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getCommits } from '../api'
 
@@ -199,12 +199,6 @@ function formatTime(iso) {
   return new Date(iso).toLocaleString('zh-CN', { hour12: false })
 }
 
-// end_time 闭区间收尾：纯日期串补到当天 23:59:59，否则后端按 00:00:00 解析会丢最后一天（#62 合入后可移除）
-function toEndTime(dateStr) {
-  if (!dateStr) return undefined
-  return dateStr.includes('T') ? dateStr : dateStr + 'T23:59:59'
-}
-
 async function load(page = filters.page) {
   filters.page = page
   loading.value = true
@@ -217,7 +211,7 @@ async function load(page = filters.page) {
       model_name: filters.model_name || undefined,
       min_risk: filters.min_risk ?? undefined,
       start_time: timeRange.value?.[0] || undefined,
-      end_time: toEndTime(timeRange.value?.[1])
+      end_time: timeRange.value?.[1] || undefined
     })
     items.value = data.items || []
     total.value = data.total || 0
@@ -253,13 +247,18 @@ function goDetail(row) {
   router.push(`/commit/${row.commit_hash}`)
 }
 
-onMounted(() => {
-  // 从趋势看板点数据点跳转过来时，带上收窄的时间范围
-  if (route.query.start_time && route.query.end_time) {
-    timeRange.value = [route.query.start_time, route.query.end_time]
-  }
+// 从 route.query 同步时间范围（趋势下钻跳转带回 start_time/end_time）
+function applyQueryAndLoad() {
+  const { start_time, end_time } = route.query
+  timeRange.value = start_time && end_time ? [start_time, end_time] : []
+  filters.page = 1
   load(1)
-})
+}
+
+onMounted(applyQueryAndLoad)
+
+// 响应同路由 query 变化：query 变化重新查；query 移除清日期 + 重置分页
+watch(() => route.query, applyQueryAndLoad)
 </script>
 
 <style scoped>
