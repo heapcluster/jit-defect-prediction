@@ -71,6 +71,7 @@
 ## 3. 改造计划（执行清单，责任到人）
 
 > 状态口径：🔄 进行中 / ✅ 已完成 / ⬜ 未开始 / 🔶 阻塞前置（torch 可装性、数据集可下载性）。
+> **端到端执行计划（启动 → 完成）**：见 `docs/model/model-line-execution-plan.md`（阶段编排 P0–P7 / 依赖关系 / 里程碑 Gate / 完成定义 DoD / 复现命令）；本节为按 SF·PD·EV 编号的任务主清单。
 
 ### 3.1 语义特征主线 — change `semantic-feature-mainline`（39 tasks，Sprint 2 启动）
 
