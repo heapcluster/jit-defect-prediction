@@ -1,6 +1,6 @@
 # JIT 缺陷预测 · docs 文档地图
 
-> 版本 2.11 ｜ 更新 2026-10-13 ｜ 主笔 蒋励 ｜ 审核 苏哲勋
+> 版本 2.12 ｜ 更新 2026-10-13 ｜ 主笔 蒋励 ｜ 审核 苏哲勋
 > 文档只分 **6 个包**：`backend` `frontend` `model` `repo` `design` `common`。其余设计/文档已全部并入这 6 包。
 
 ## §0 强制合入规则（蒋励的 docs PR ｜ GitHub 账号 `jolly326`）
@@ -77,6 +77,7 @@
 
 | 日期 | 版本 | 变更 |
 |---|---|---|
+| 2026-10-13 | 2.12 | 模型线路范围调整：语义特征提升为主线（蒋励的活）：① 新增 change `semantic-feature-mainline`（proposal/design/specs/tasks 四件，`openspec validate --strict` **通过**，7 Requirement / 10 Scenario / 29 tasks），Sprint 2 启动，Kamei 14 降为基线对照组；② `feature-addons-sprint3` 的 G1-4 移出（proposal/design/tasks 同步改为「已顶替」留痕，删除旧 `specs/semantic-feature`），避免双入口；③ `design/addons.md` §4 改写为「已提升为模型线主线」并更新排期（Sprint 3 → Sprint 2–3）；④ **修复 `openspec/config.yaml` 的 YAML 解析错误**（我此前编辑引入，导致 `rules.tasks` 被 CLI 忽略 —— 多行 list 项改单行后 `openspec list` 不再告警）；⑤ 论文方法论补两项：专家特征留一法消融 + 置换重要性、跨项目不可迁移显式登记；⑥ 顺带发现 `frontend-integration` 校验失败（spec 缺 delta 头与 Scenario），**未代修**，已派活刘帅华 |
 | 2026-10-13 | 2.11 | openspec 格式把关人落规（组长指派苏哲勋）：① `common/openspec-task-template.md` 新增 §6「PR 审阅时的 openspec 检查清单」——十项逐份检查 + 一致性抽查 + 结论三写法，**把关不代改、只管增量**；② `repo/collaboration.md` PR 审阅清单由六项改**七项**（新增「openspec 格式合规」）并写明把关人与增量口径；③ `repo/README.md` 苏哲勋职责新增第 6 条；④ 1009 周报本周计划对应任务同步指向 §6 |
 | 2026-10-13 | 2.10 | 分工边界订正 + 蒋励的活落地：① **组长不包揽** —— 明确各组只对自已那条线负责，他人任务一律进飞书《工作周报》本周计划并责任到人，组长只做标准/模板/统稿与验收把关；② 蒋励补齐数据线单测 51 条（`test_szz_labeling.py` 34 + `test_split_dataset.py` 17），数据线 8 → **59 条全绿**，`test-strategy.md` §3.1 记录过程（含测试抓到本人两个错误预期）；③ 1009 周报本周计划清掉 2 条模板脏数据，写入 **8 条责任到人**任务（蒋励 2 / 刘帅华 2 / 吕建江 2 / 苏哲勋 2，含 openspec 风格统一把关归苏哲勋） |
 | 2026-10-13 | 2.9 | 落实 2026-10-13 课堂反馈三项：① **openspec 统一格式** —— 新增 `common/openspec-task-template.md`（统一文件头/任务编号/证据写法），`openspec/config.yaml` 的 `rules.tasks` 把「测试与验证」板块立为**强制**（缺失不得进入 apply），并同步修正 config 内 8 处失效文档路径；② **7/7 份 `tasks.md` 全部补「测试与验证」板块**（5 份已归档按实际已发生的验证回溯补录、2 份进行中如实记缺口，不倒填）；③ **测试体系** —— 新增 `common/test-strategy.md`（V 模型四层 + 三层测试责任 + 现状覆盖矩阵 + 7 项缺口 + 证据归档 + 答辩口径），补 `backend/pytest.ini`、`data_model/pytest.ini`、`frontend/vitest.config.js` 与 `test:coverage` 入口；④ **模型线方法依据** —— 新增 `model/methodology-references.md`（6 篇文献 + 8 条方法决策 ↔ 文献 ↔ 实现 ↔ 偏离映射 + 阅读签注表 + 代码证据位置），回应「模型训练不能全依赖 AI」 |
