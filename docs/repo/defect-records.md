@@ -12,6 +12,7 @@
 | D-02（#50） | `explain()` 对线性模型重复折算 `scaler.scale_`、对随机森林遇 shap 三维数组，解释链失效 | 对 `Pipeline(StandardScaler→LogisticRegression)` 与 `RandomForestClassifier` 调 `explain()` | P1 | ✅ 已修复 | PR #52 已合入 main | `backend/app/model_registry.py` 解释分支；`test_model_registry.py::test_explain_linear_pipeline_shap_additivity`（残差归零断言） |
 | D-03（#56） | 分支保护设置读不到（API 404 / 权限不足），且缺一份可自助核验说明，他人无法自查 | 无令牌调 GitHub branch-protection API | P2 | ✅ 已修复 | PR #57 已合入 main | `infra/README.md`（核验步骤与命令） |
 | D-04（#33 前端脚手架） | 前端无工程基线，三页面无处落地 | `ls frontend/` 只有 `README.md`，无 `src/`、无 `package.json` | P1 | ✅ 已修复 | PR #33 已合入 main | `frontend/package.json`、`vite.config.js`（`/api` 代理） |
+| D-12（飞书侧，2026-10-13 登记） | 飞书《产品设计文档》与《产品需求文档》的**变更日志表格被砸碎**：表体各行（11 / 13 行 × 4 格）降级为表格外的散落段落，文档中不再渲染为表格 | 用 `docs +update --command block_replace` 回写整表时，`--content` 片段**缺少 `<table …>` 开标签**（从 `IndexOf(<id>)` 起切而非从 `<table id="` 起切）→ CLI 把 `<tr>/<td>` 当作普通内容降级为独立 `<p>` | P1 | ✅ 已修复（2026-10-13） | 无代码变更（**飞书交付物运维缺陷**，非产品代码路径） | 修复后两份文档变更日志恢复为完整表格：设计文档 `table id=doxcnEBMCo3YfonccdzPFlLo44g`（12 行，末行 v0.10）、PRD `table id=doxcni0qxT1aXxePSfUGbSufy3f`（14 行，末行 v1.2）；均为 `<colgroup>+<thead>+<tbody>` 完整结构，垃圾文本残留 0。重建方法 = 从改坏前的文档快照取完整 `<table>…</table>`，`block_replace` 首个残留段落，再批量 `block_delete` 其余散落段落 |
 
 ## 2. 处理中 / 待提案
 

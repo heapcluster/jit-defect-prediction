@@ -1,6 +1,6 @@
 # JIT 缺陷预测 · docs 文档地图
 
-> 版本 2.7 ｜ 更新 2026-10-13 ｜ 主笔 蒋励 ｜ 审核 苏哲勋
+> 版本 2.8 ｜ 更新 2026-10-13 ｜ 主笔 蒋励 ｜ 审核 苏哲勋
 > 文档只分 **6 个包**：`backend` `frontend` `model` `repo` `design` `common`。其余设计/文档已全部并入这 6 包。
 
 ## §0 强制合入规则（蒋励的 docs PR ｜ GitHub 账号 `jolly326`）
@@ -77,6 +77,7 @@
 
 | 日期 | 版本 | 变更 |
 |---|---|---|
+| 2026-10-13 | 2.8 | 飞书两份文档变更日志表格**损坏修复**（缺陷 D-12，已闭环）：v2.7 回写整表时因提取片段缺 `<table>` 开标签，导致设计文档 11 行 / PRD 13 行表体降级为散落段落。已从改坏前快照重建完整表格（含 v0.10 / v1.2 行）并批量清理散落段落，两份文档变更日志恢复为 `<colgroup>+<thead>+<tbody>` 正常渲染。**新增工具红线**：① 表格追加行必须取 `<table id="` 起的完整片段，禁止半截标签回写；② `block_replace` 会更换块 id，后续锚点须重取。详见 `repo/defect-records.md` D-12 |
 | 2026-10-13 | 2.7 | 图注「模型名」写定 + PRD 图源缺口收口：① 本地 `design/diagrams.md`（19 处）与 `backend/implementation.md`（4 处）图注由占位「AI 编程助手」写定为 **CodeBuddy（DeepSeek-V4.1-Flash）**，口径说明定稿（两种渲染路径 + 四处同源要求）；② 飞书《产品设计文档》升 **v0.10**、《产品需求文档》升 **v1.2** 并各补变更日志行；③ PRD 6.2 三张低保真原型图（`05/06/07-低保真原型-*.png`）补图源标注，落实 v0.9 登记的第 ④ 项缺口；④ PRD 6.3.1「图2 页面与接口及字段映射图」补齐 Mermaid 画板图块（三页面 ↔ 三查询接口 ↔ 响应关键字段），移除「⚠️ 待补图」警告 |
 | 2026-10-13 | 2.6 | 图源登记与飞书同步：① `design/diagrams.md` 由「四张图」扩为**全项目 14 张图的唯一图源登记表**（表头：图名／飞书章节／载体／生成方式／提示词），与飞书《产品设计文档》14 个图块一一对应；② 图注格式补齐课程要素「工具名+模型」（`CodeBuddy（AI 编程助手；Mermaid → 渲染）｜提示词：「…」`），`backend/implementation.md` 四处图注同步并指向总表；③ 飞书侧修正 **19 处（设计文档）+ 6 处（需求文档）** 失效路径（`docs/contracts/*` → 六包口径、`docs/pages.md` → `docs/frontend/pages.md`、`docs/data-pipeline.md` → `docs/model/data-pipeline.md`），修正 14+3 处图注工具名要素；④ 变更日志中的历史路径表述保留不改（溯源） |
 | 2026-10-13 | 2.5 | 组长身份口径订正：`jolly326` 即**蒋励本人的 GitHub 账号**（非第二位成员），8 处表述统一（`common/team-charter.md`、`docs/README.md` §0、`repo/collaboration.md` §3.7、`repo/README.md`、`repo/git-pr.md`、`common/openspec-rules.md`、`design/engineering.md`、`infra/README.md`） |
