@@ -54,7 +54,7 @@
 - **对比实验**：同一切分、同一测试集、同一套 8 模型下评测「仅专家 / 仅语义 / 融合」三类设置，沿用两类指标（Effort-unaware + effort-aware），产出 `data_model/reports/three_way_comparison.md`。
 - **补两项论文方法论工作**（Kamei et al. 2013）：① Kamei 14 留一法消融 + 置换重要性；② 「跨项目 JIT 不可迁移」结论显式登记，作为单仓库设计依据。
 - **降级与边界**：无 GPU 或时间受限时用 CPU 推理 / 抽样，报告中**如实标注**模型、设备、样本量、是否全量、截断统计（不声称全量 GPU 结果）；**不静默切换交付模型**（切换另开「模型切换」提案，spec `model-coverage` R6）。
-- **环境隔离**：语义特征依赖（`torch` / `sentence-transformers`）装独立环境 `jit-semantic`，**不污染** `jit-defect`（87 + 59 条测试依赖它）。
+- **环境隔离**：语义特征依赖（`torch` / `sentence-transformers`）装独立环境 `jit-defect-prediction`，**不污染** `jit-defect`（87 + 59 条测试依赖它）。
 - **规格**：change `semantic-feature-mainline` → `specs/semantic-features`（**7 Requirement / 10 Scenario**，覆盖原 `semantic-feature` 全部内容并扩充）。
 
 ## 5. 插件化落点（与 `engineering.md` §4 衔接）

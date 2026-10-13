@@ -36,7 +36,7 @@
 3. **三类设置对比实验**（沿用 `semantic-feature` spec 已有口径）：仅 Kamei 14 专家特征 / 仅语义特征 / 二者融合；同一切分、同一测试集、同一套指标（Effort-unaware + effort-aware）。
 4. **补两项论文方法论工作**：① 专家特征消融与重要性分析；② 跨项目不可迁移的显式登记（作为单仓库设计的论证依据）。
 5. **评测协议对齐文献标准**（2026-10-13 新增，详见 `design.md` D9）：补 CE@20% / Recall@20% / Popt / ALPA；`P_norm` 保留但标注「自造变体」；补 Wilcoxon signed-rank 显著性检验与显式基线。
-6. **依赖隔离**：语义特征装在独立 conda 环境 `jit-semantic`，**不污染**现有 `jit-defect`（87 + 59 条测试依赖它）。
+6. **依赖隔离**：语义特征装在独立 conda 环境 `jit-defect-prediction`，**不污染**现有 `jit-defect`（87 + 59 条测试依赖它）。
 7. **规格与看板同步**：`feature-addons-sprint3` 的 G1-4 条目移出；看板新增 Sprint 2 行。
 
 ## Capabilities
@@ -51,14 +51,14 @@
 | 触及 `docs/design/sprint0-scope.md` 边界？ | **是**。原文把「代码语义特征」列为可选；本 change 将其**提升为主线**，属范围变更，须同步改该文件的边界表述 |
 | **不做什么** | ① **不推翻 Kamei 14** —— 保留为基线对照组，契约二 14 项列名与顺序不动；② **不动** 8 模型训练框架、时间序切分规则；③ **不静默切换交付模型** —— 切换须另开「模型切换」提案（spec `model-coverage` R6）；④ **不新增接口、不改库表**；⑤ 公开数据集（G1-3）不在本 change 范围，归 `public-dataset-quality`；⑥ **不做端到端深度模型**（DeepJIT/CC2Vec 式）—— 本 change 是「预训练提特征 → 经典分类器」混合形态，Sprint 3 有余量才补形态对照 |
 | 数据边界 | 语义向量落盘为独立文件（`.csv`），以新 `feature_version` v2 标识；**不入库**、不进交付链 |
-| 新增依赖 | `torch` + `transformers`（CodeBERT/GraphCodeBERT），环境 `jit-semantic`；不影响 `jit-defect` |
+| 新增依赖 | `torch` + `transformers`（CodeBERT/GraphCodeBERT），环境 `jit-defect-prediction`；不影响 `jit-defect` |
 | 算力边界 | 无 GPU 时降级为 CPU 推理或抽样，报告中**如实标注**模型、设备、样本量、是否全量、截断统计，不声称全量 GPU 结果 |
 
 ## 风险与应对
 
 | 风险 | 应对 |
 |---|---|
-| `torch` 安装体量大、可能影响主线测试环境 | 独立 conda 环境 `jit-semantic`；主线 87 + 59 条测试继续用 `jit-defect` |
+| `torch` 安装体量大、可能影响主线测试环境 | 独立 conda 环境 `jit-defect-prediction`；主线 87 + 59 条测试继续用 `jit-defect` |
 | CodeBERT CPU 全量耗时超预期 | 先跑 100 条基准测试定时限；超预期则抽样并如实标注，**不谎报全量** |
 | CodeBERT 表示能力不及预期 | 如实报告；三类对比表本身就是交付物，「语义不占优」不是失败 |
 | Sprint 2 内跑不完全量 | 语义特征优先保证；消融与显著性可延至 Sprint 3，但**三类对比表必须在 Sprint 2 末出** |

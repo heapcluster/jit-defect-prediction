@@ -18,11 +18,11 @@
 
 **保留 MiniLM 的唯一价值**：作为「非代码预训练模型」的对照，证明我们理解域匹配的重要性。若进度紧张，**直接砍掉**，不影响主线成立。
 
-## D2：独立环境 `jit-semantic`，不污染主线
+## D2：独立环境 `jit-defect-prediction`，不污染主线
 
 - 现有 `jit-defect` 环境跑着 **backend 87 条 + data_model 59 条**测试，是 Sprint 1/2 的验收基线。
 - `torch` 在 Windows + conda 是 GB 级安装，且可能与既有 `scikit-learn` / `xgboost` 版本冲突。
-- **决策**：语义特征全部装在 `jit-semantic`；`jit-defect` 一个包都不加。语义特征的**单测**也跑在 `jit-semantic`，命令写进 tasks.md 的测试板块。
+- **决策**：语义特征全部装在 `jit-defect-prediction`；`jit-defect` 一个包都不加。语义特征的**单测**也跑在 `jit-defect-prediction`，命令写进 tasks.md 的测试板块。
 
 ## D3：代码变更文本如何构造（决定语义特征质量的关键）
 

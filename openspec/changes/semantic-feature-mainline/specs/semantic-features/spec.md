@@ -66,7 +66,7 @@
 #### Scenario: 环境隔离
 
 - **WHEN** 安装语义特征依赖（`torch` / `sentence-transformers`）
-- **THEN** MUST 装在独立环境（`jit-semantic`），MUST NOT 改动既有 `jit-defect` 环境的包版本
+- **THEN** MUST 装在独立环境（`jit-defect-prediction`），MUST NOT 改动既有 `jit-defect` 环境的包版本
 
 ### Requirement: 专家特征消融与重要性分析
 

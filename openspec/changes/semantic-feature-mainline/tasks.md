@@ -81,7 +81,7 @@
 |---|---|
 | 覆盖对象 | 变更文本构造（`10_semantic_text.py`：文件切分、截断统计、增删行剥离）、按提交聚合（均值、单文件直取）、融合左连接与缺失标注、留一法消融的样本数守恒 |
 | 测试文件 | `data_model/tests/test_semantic_text.py`、`data_model/tests/test_feature_ablation.py` |
-| 用例数与结果 | 计划 ≥ 20 条；环境 `jit-semantic`，跑法 `conda activate jit-semantic && cd data_model && python -m pytest tests/test_semantic_text.py tests/test_feature_ablation.py -q` |
+| 用例数与结果 | 计划 ≥ 20 条；环境 `jit-defect-prediction`，跑法 `conda activate jit-defect-prediction && cd data_model && python -m pytest tests/test_semantic_text.py tests/test_feature_ablation.py -q` |
 | 复现命令 | 同上 |
 | 正向用例 | 多文件提交的语义向量 = 各文件向量均值；专家 14 项与语义列左连接后行数守恒、无重复 `commit_hash` |
 | 异常 / 边界用例 | 单文件文本超上限 → 按行截断且**记录**截断文件数与行数（不静默丢）；提交无任何改动文件 → 显式报错而非产出空向量；融合时某提交缺语义向量 → 单列计数，**不用 0 填充** |
@@ -92,7 +92,7 @@
 | 集成范围 | 语义特征样本集 → 时间序切分 → 8 模型训练 → 评估汇总，与既有 `05`/`06`/`08` 脚本的衔接 |
 | 测试文件 | `data_model/tests/test_compare_settings_pipeline.py`（新增，计划） |
 | 用例数与结果 | 计划 ≥ 6 条 |
-| 复现命令 | `conda activate jit-semantic && cd data_model && python -m pytest tests/test_compare_settings_pipeline.py -q` |
+| 复现命令 | `conda activate jit-defect-prediction && cd data_model && python -m pytest tests/test_compare_settings_pipeline.py -q` |
 | 关键断言 | 三类设置用**同一切分下标**（train/test 的 `commit_hash` 集合逐字相同）；契约二 14 项列名与顺序未被改动；`feature_version` 正确标为 v2 |
 
 ### 3. 验收测试（交付时，按 spec 的 SHALL/MUST 逐条走）
@@ -114,7 +114,7 @@
 ### 5. 已知缺口与后续计划
 | 缺口 | 原因 | 归属 | 计划时间 |
 |---|---|---|---|
-| `torch` 未安装、`jit-semantic` 未建 | Sprint 1 收口前不动环境（避免影响 10/23 验收） | 蒋励 | Sprint 2 第 1 天 |
+| `torch` 未安装、`jit-defect-prediction` 未建 | Sprint 1 收口前不动环境（避免影响 10/23 验收） | 蒋励 | Sprint 2 第 1 天 |
 | CodeBERT 全量可能因算力无法完成 | 无 GPU，CPU 耗时待 100 条基准测试实测 | 蒋励 | Sprint 2 第 1 天测出时限；完不成则分层抽样并如实登记 |
 | 语义向量维度（MiniLM 384 维）与 14 项专家特征量纲差异大，融合前是否需标准化待定 | 需先看三类对比的未标准化结果再定 | 蒋励 | Sprint 2 |
 | 交付模型切换未做（硬约束，不静默切换） | 须另开「模型切换」提案 | 蒋励 | Sprint 3（若指标支持） |
