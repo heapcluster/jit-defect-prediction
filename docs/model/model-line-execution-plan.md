@@ -51,7 +51,7 @@
   - `conda activate jit-defect-prediction` → `python -c "import torch,transformers,sentence_transformers,numpy,pandas,sklearn,xgboost,shap"` 通过；
   - 项目根 `python -m pytest -q` → **146 passed**（合并 torch 后基线无破坏）。
 - **事实源**：项目根 `environment.yml`（已去除写死 `prefix`，可移植）。
-- **待办（非阻塞）**：CodeBERT 权重（`microsoft/codebert-base`）**未预下载**；HF 经代理验证可达（`HF_VIA_PROXY=200`）、直连镜像可达（`HFMIRROR_DIRECT=200`）。按当前决定**不预拉**，SF-2 首次运行时自动下载。
+- **权重（已就绪）**：CodeBERT 权重（`microsoft/codebert-base`，124.6M 参数）**已预下载**到本地 HF 缓存，并**离线验证通过**（`HF_HUB_OFFLINE=1` 加载成功、`hidden=768`、前向输出 `(1,15,768)`）；缓存路径 `~/.cache/huggingface/hub/models--microsoft--codebert-base`。SF-2 / SF-3 可离线直接调用，无需联网。
 
 ### P1 变更文本构造 → CodeBERT 语义特征落盘
 
