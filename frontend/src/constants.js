@@ -8,11 +8,11 @@ export const MODEL_OPTIONS = [
   'xgb_v1',
   'rf_v1',
   'lr_v1',
-  'nb_v1',
-  'dt_v1',
-  'knn_v1',
-  'mlp_v1',
-  'mlp_deep_v1'
+  'lgbm_v1',
+  'et_v1',
+  'svm_v1',
+  'mlp_deep_v1',
+  'tabnet_v1'
 ]
 
 /** 风险着色阈值（pages.md §5：≥0.5 高 / ≥0.3 中 / 其余常规） */

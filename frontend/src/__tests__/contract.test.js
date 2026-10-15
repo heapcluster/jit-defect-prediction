@@ -45,8 +45,8 @@ describe('风险阈值与百分比（T-FE-01，pages.md §5 一处定义）', ()
 describe('模型下拉清单（T-FE-02，pages.md §6 静态清单）', () => {
   it('共 8 个，覆盖 2 类', () => {
     expect(MODEL_OPTIONS).toHaveLength(8)
-    const classic = ['lr_v1', 'rf_v1', 'xgb_v1', 'nb_v1', 'dt_v1', 'knn_v1']
-    const neural = ['mlp_v1', 'mlp_deep_v1']
+    const classic = ['lr_v1', 'rf_v1', 'xgb_v1', 'lgbm_v1', 'et_v1', 'svm_v1']
+    const neural = ['mlp_deep_v1', 'tabnet_v1']
     classic.forEach((m) => expect(MODEL_OPTIONS).toContain(m))
     neural.forEach((m) => expect(MODEL_OPTIONS).toContain(m))
   })
