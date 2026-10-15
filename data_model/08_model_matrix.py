@@ -14,8 +14,8 @@
 「至少 2 类（经典机器学习、深度学习）不少于 8 种预测模型」。本矩阵的类别归属：
 
   经典机器学习（6）：`lr` 逻辑回归 / `rf` 随机森林 / `xgb` XGBoost /
-                      `nb` 高斯朴素贝叶斯 / `dt` 决策树 / `knn` k 近邻
-  神经网络（深度学习）（2）：`mlp` 1 隐藏层 / `mlp_deep` 3 隐藏层 + 早停
+                       `lgbm` LightGBM / `et` 极端随机树 / `svm` RBF 核 SVM
+  神经网络（深度学习）（2）：`mlp_deep` 3 隐藏层 + 早停 / `tabnet` TabNet
 
 ── 自证：口径没被动过（tasks.md 2.2）────────────────────────────────────────
 既有 3 个模型（`lr_v1` / `rf_v1` / `xgb_v1`）在本矩阵下的 Effort-unaware 指标
@@ -43,7 +43,7 @@ from sklearn.metrics import (accuracy_score, f1_score, precision_score,
 BASE = Path(__file__).resolve().parent
 DATA_DIR = BASE / "data"
 REPORTS_DIR = BASE / "reports"
-DEFAULT_MODELS = "lr,rf,xgb,nb,dt,knn,mlp,mlp_deep"
+DEFAULT_MODELS = "lr,rf,xgb,lgbm,et,svm,mlp_deep,tabnet"
 
 
 def load_training_module():

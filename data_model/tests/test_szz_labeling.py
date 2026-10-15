@@ -35,12 +35,12 @@ class TestIsFixCommit:
     @pytest.mark.parametrize(
         "message",
         [
-            "AMQ-8123 fix NPE in broker",
-            "amq-1234: Fixed the dispatch regression",
-            "[AMQ-9999] PATCH for memory leak",
-            "AMQ-1 bugfix: handle null session",
-            "AMQ-42 fixe typo in config",  # 拼写错误的真修复，必须收
-            "AMQ-42 fixinng the patchh logic",  # 词首边界保留词形变化
+            "CAMEL-8123 fix NPE in broker",
+            "camel-1234: Fixed the dispatch regression",
+            "[CAMEL-9999] PATCH for memory leak",
+            "CAMEL-1 bugfix: handle null session",
+            "CAMEL-42 fixe typo in config",  # 拼写错误的真修复，必须收
+            "CAMEL-42 fixinng the patchh logic",  # 词首边界保留词形变化
         ],
     )
     def test_命中编号与修复词时判为修复提交(self, message):
@@ -49,10 +49,10 @@ class TestIsFixCommit:
     @pytest.mark.parametrize(
         "message",
         [
-            "AMQ-8123 add new transport",  # 有编号无修复词
-            "AMQ-8123 refactor: extract helper",  # 有编号无修复词
+            "CAMEL-8123 add new transport",  # 有编号无修复词
+            "CAMEL-8123 refactor: extract helper",  # 有编号无修复词
             "fix the flaky test in module A",  # 有修复词无编号
-            "AMQ-8123 documentation update",  # 有编号无修复词
+            "CAMEL-8123 documentation update",  # 有编号无修复词
             "",  # 空消息
         ],
     )
@@ -63,27 +63,27 @@ class TestIsFixCommit:
         "message",
         [
             # 这些词天然含 fix / bug / patch 子串，但词不在词首 —— 子串匹配会误收
-            "AMQ-100 improve dispatch throughput",
-            "AMQ-101 add debug logging for prefix resolution",
-            "AMQ-103 support prefix-based routing",
-            "AMQ-104 rework the dispatcher internals",
+            "CAMEL-100 improve dispatch throughput",
+            "CAMEL-101 add debug logging for prefix resolution",
+            "CAMEL-103 support prefix-based routing",
+            "CAMEL-104 rework the dispatcher internals",
         ],
     )
     def test_同词内嵌不得命中词首边界(self, message):
-        """dispatch / debug / prefix 是 ActiveMQ 的核心功能词，误收会污染候选池。"""
+        """dispatch / debug / prefix 这类功能词误收会污染候选池（词首边界用以排除）。"""
         assert szz.is_fix_commit(message) is False
 
     def test_词首出现即算修复词(self):
         """同一条消息里 dispatch 与 fix 并存时，fix 在词首，应判为修复提交。"""
-        assert szz.is_fix_commit("AMQ-102 fix the message dispatch handling") is True
+        assert szz.is_fix_commit("CAMEL-102 fix the message dispatch handling") is True
 
     def test_大小写不敏感(self):
-        assert szz.is_fix_commit("amq-8123 FIX npe") is True
-        assert szz.is_fix_commit("AMQ-8123 Fix npe") is True
-        assert szz.is_fix_commit("AMQ-8123 PATCH npe") is True
+        assert szz.is_fix_commit("camel-8123 FIX npe") is True
+        assert szz.is_fix_commit("CAMEL-8123 Fix npe") is True
+        assert szz.is_fix_commit("CAMEL-8123 PATCH npe") is True
 
     def test_编号必须带数字(self):
-        assert szz.is_fix_commit("AMQ- fix something") is False
+        assert szz.is_fix_commit("CAMEL- fix something") is False
 
 
 # ── diff 解析：parse_old_ranges ──────────────────────────────────────────────

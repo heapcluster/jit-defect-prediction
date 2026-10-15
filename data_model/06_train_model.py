@@ -47,21 +47,39 @@
 写明 `.pkl` 路径、14 项特征顺序、依赖版本 pin。按裁定（PR #20）**这份清单是契约二
 第三节的副本、不是独立来源**，两者不一致时以契约为准。
 
-── 模型覆盖（change `model-expansion`）────────────────────────────────────
+清单的 `[models]` 段只列**交付模型**（`--delivery-models`，不传则等于 `--models`
+的历史行为）：评估模型多于交付模型时必须显式传，例如训练 8 个而只交付
+`lr,rf,xgb` 时传 `--delivery-models lr,rf,xgb` —— 否则清单会列出后端环境装不出来
+的模型（`tabnet` 需 `pytorch-tabnet`），加载端直接起不来。
+
+── 模型覆盖（性能优先选型，2026-10-14）────────────────────────────────────
 课程要求「至少 2 类（经典机器学习、深度学习）不少于 8 种」，本脚本承载其中 8 种：
 
   经典机器学习族（6）：`lr` 逻辑回归 / `rf` 随机森林 / `xgb` XGBoost /
-                        `nb` 高斯朴素贝叶斯 / `dt` 决策树 / `knn` k 近邻
-  神经网络（深度学习）族（2）：`mlp` 1 隐藏层 / `mlp_deep` 3 隐藏层
+                        `lgbm` LightGBM / `et` 极端随机树 / `svm` RBF 核 SVM
+  神经网络（深度学习）族（2）：`mlp_deep` 3 隐藏层 + 早停 / `tabnet` TabNet + 早停
 
 **默认值仍是 `lr,rf,xgb`** —— 首 change 的复现命令与 `reports/model_metrics.md`
 因此逐行不变（`--models` 显式传参才跑到扩展模型）。新增模型**只进评估矩阵**，
 不进 `models/feature_order.txt` 的 `[models]` 段，也不是后端加载对象。
 
-> `mlp_deep` 打开早停（`early_stopping=True`）。早停的内部验证子集从**训练集内部**
-> 随机抽取（种子固定），检验集始终时间在后 —— 不构成红线第 1 条所说的「提前看到未来」。
-> 代价是它不属于「同一命令连跑两次逐字节一致」的那一类，故报告里指标照常登记，
-> 复现核对比对以固定迭代的模型为准。
+> **依赖**：`lgbm` 需 `lightgbm`、`tabnet` 需 `pytorch-tabnet`（均已在 `requirements.txt` 钉版本）；
+> 未安装时**只在训练到该模型时**报错退出，不影响其余模型。
+> `svm` / `mlp_deep` / `tabnet` 对量纲敏感，统一包进 `StandardScaler` 管道。
+
+── 训练口径（标准做法，不因算力折损；登记于 docs/model/model-line-plan.md §2.3）────
+8 个模型共用同一份特征、同一切分、同一种子；每个模型用自己的标准超参。
+
+> **早停（`mlp_deep` / `tabnet`）**：两者的验证子集都**只从训练集内部**抽取（种子固定），
+> 检验集始终时间在后 —— 不构成红线第 1 条所说的「提前看到未来」。
+> 代价是它们**不属于「同一命令连跑两次逐字节一致」那一类**，故报告里指标照常登记，
+> **复现核对比对以固定迭代的模型（`lr` / `rf` / `xgb` / `lgbm` / `et` / `svm`）为准**。
+> ⚠️ `tabnet` 的早停由 `TabNetWithEarlyStop` 包装器保证生效 —— pytorch-tabnet 的
+> `patience` **只在 `fit()` 收到 `eval_set` 时才起作用**（2026-10-14 订正）。
+> ⚠️ `svm` 的 `probability=True` 走 libsvm 内部 5 折 Platt 校准，输出的是**校准后概率**、
+> 非 SVC 原生 `decision_function`；保留它是为了与其余 7 个模型的 `predict_proba` 口径一致。
+> ⚠️ `xgb` / `lgbm` 用**固定 300 棵**而非早停轮数：为让 8 个模型在「不依赖验证集」上口径一致，
+> 并保证可逐字节复现；`lgbm` 另需 `subsample_freq=1` 行采样才生效（2026-10-14 订正）。
 """
 
 from __future__ import annotations
@@ -76,16 +94,16 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (accuracy_score, f1_score, precision_score,
                              recall_score, roc_auc_score)
-from sklearn.naive_bayes import GaussianNB
-from sklearn.neighbors import KNeighborsClassifier
+from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.svm import SVC
 
 BASE = Path(__file__).resolve().parent
 DATA_DIR = BASE / "data"
@@ -103,21 +121,19 @@ FEATURE_FIELDS = [
 
 LABEL_COL = "is_bug_inducing"
 MODEL_NAMES = {
-    # 经典机器学习族
+    # 经典机器学习族（性能优先选型，2026-10-14）
     "lr": "逻辑回归", "rf": "随机森林", "xgb": "XGBoost",
-    "nb": "高斯朴素贝叶斯", "dt": "决策树", "knn": "k 近邻",
+    "lgbm": "LightGBM", "et": "极端随机树（Extra Trees）", "svm": "RBF 核支持向量机",
     # 神经网络（深度学习）族
-    "mlp": "多层感知机（1 隐藏层）",
     "mlp_deep": "多层感知机（3 隐藏层 + 早停）",
+    "tabnet": "TabNet（深度表格）",
 }
-# 类别标注（change `model-expansion` 的「至少 2 类」口径）
+# 类别标注（「至少 2 类」口径）
 MODEL_CLASS = {
     "lr": "经典机器学习", "rf": "经典机器学习", "xgb": "经典机器学习",
-    "nb": "经典机器学习", "dt": "经典机器学习", "knn": "经典机器学习",
-    "mlp": "神经网络（深度学习）", "mlp_deep": "神经网络（深度学习）",
+    "lgbm": "经典机器学习", "et": "经典机器学习", "svm": "经典机器学习",
+    "mlp_deep": "神经网络（深度学习）", "tabnet": "神经网络（深度学习）",
 }
-# k 近邻的 k：取奇数（二分类平票时不会各占一半）
-KNN_NEIGHBORS = 25
 DEFAULT_SEED = 42
 DECISION_THRESHOLD = 0.5
 # 随机基线的抽样次数与种子（固定，保证可复现）
@@ -140,6 +156,11 @@ def parse_args() -> argparse.Namespace:
                    help="03 产出的原始特征表，用于取工作量（LOC / 文件数）")
     p.add_argument("--models", default="lr,rf,xgb",
                    help="要训练的模型，逗号分隔；可选 %s" % ",".join(MODEL_NAMES))
+    p.add_argument("--delivery-models", default=None,
+                   help="写进 feature_order.txt [models] 段的交付模型，逗号分隔；"
+                        "不传则与 --models 相同（历史行为）。评估模型多于交付模型时"
+                        "必须显式传（如 --models 8 个而 --delivery-models lr,rf,xgb），"
+                        "否则清单会列出后端装不出来的模型")
     p.add_argument("--seed", type=int, default=DEFAULT_SEED, help="随机种子（必须固定）")
     p.add_argument("--model-dir", type=Path, default=MODELS_DIR)
     p.add_argument("--report", type=Path,
@@ -246,6 +267,66 @@ def effort_aware_metrics(proba: np.ndarray, y: np.ndarray,
 
 # ─────────────────────────── 模型与工作量 ───────────────────────────
 
+class TabNetWithEarlyStop(BaseEstimator, ClassifierMixin):
+    """TabNet + 标准早停（与 `MLPClassifier(early_stopping=True)` 同语义）。
+
+    ── 为什么必须包一层（2026-10-14 订正）──────────────────────────────────────
+    pytorch-tabnet 的早停回调**只在 `fit()` 收到 `eval_set` 时才启用**。
+    若直接把 `TabNetClassifier` 放进 `Pipeline`，`Pipeline.fit(X, y)` 只会调用
+    `tabnet.fit(X, y)` —— 没有 `eval_set`，`patience` **静默失效**，实际会跑满
+    `max_epochs`（看起来配了早停，其实没有）。本类在 `fit` 内部**从训练集切出**
+    `validation_fraction` 作为 `eval_set`，做法与 `MLPClassifier` 完全一致。
+
+    ── 为什么不算「提前看到未来」（红线第 1 条）────────────────────────────────
+    `eval_set` 取自**训练集内部**；检验集按 `committed_at` 时间序切分、始终在时间上
+    更晚，**从不参与早停决策**。
+
+    ── 复现性 ────────────────────────────────────────────────────────────────
+    内部切分带随机性（种子固定），且 torch 多线程的浮点求和顺序不保证一致 ——
+    故本模型**不属于「同一命令连跑两次逐字节一致」那一类**，与 `mlp_deep` 同口径；
+    复现核对比对以固定迭代的模型（lr / rf / xgb / lgbm / et / svm）为准。
+    登记见 docs/model/model-line-plan.md §2.3。
+    """
+
+    def __init__(self, seed: int = 42, max_epochs: int = 100,
+                 patience: int = 15, validation_fraction: float = 0.1):
+        self.seed = seed
+        self.max_epochs = max_epochs
+        self.patience = patience
+        self.validation_fraction = validation_fraction
+
+    def fit(self, X, y):
+        # pytorch-tabnet 4.1.0（requirements.txt 钉的版本）里分类器在
+        # `pytorch_tabnet.tab_model`，没有 `pytorch_tabnet.tabnet` 这个模块 ——
+        # 2026-10-14 实测：原写法 `from pytorch_tabnet.tabnet import ...` 直接
+        # ModuleNotFoundError，tabnet 一个模型都训不出来。故改从 tab_model 导入。
+        from pytorch_tabnet.tab_model import TabNetClassifier
+        # 分层切分：保持训练集内部的正负样本比例（正例属少数类，不能随机切丢）
+        X_tr, X_val, y_tr, y_val = train_test_split(
+            X, y, test_size=self.validation_fraction,
+            random_state=self.seed, stratify=y)
+        # 14 维小样本设小容量（n_d/n_a=8, n_steps=3），避免过拟合。
+        # ⚠️ pytorch-tabnet 4.1.0 起 `max_epochs` / `patience` 只是 **fit() 的参数**，
+        # 不再是构造器参数（写进构造器直接 TypeError）。故此处只留容量类超参，
+        # 轮数与耐心交给下面的 fit()。
+        self.model_ = TabNetClassifier(
+            n_d=8, n_a=8, n_steps=3, gamma=1.3,
+            verbose=0, seed=self.seed)
+        self.model_.fit(
+            X_tr, y_tr,
+            eval_set=[(X_val, y_val)], eval_name=["internal_val"],
+            eval_metric=["auc"],
+            max_epochs=self.max_epochs, patience=self.patience)
+        self.classes_ = self.model_.classes_
+        return self
+
+    def predict_proba(self, X):
+        return self.model_.predict_proba(X)
+
+    def predict(self, X):
+        return self.model_.predict(X)
+
+
 def build_model(name: str, seed: int):
     if name == "lr":
         # 逻辑回归对量纲敏感，必须先标准化，否则 14 项特征量级差会主导系数
@@ -264,27 +345,31 @@ def build_model(name: str, seed: int):
             subsample=0.9, colsample_bytree=0.9,
             random_state=seed, n_jobs=-1,
             eval_metric="logloss")
-    # ── change `model-expansion` 新增：经典机器学习族另外三种 ──
-    if name == "nb":
-        # 高斯朴素贝叶斯：假设各维条件独立且服从高斯。对量纲单调变换不敏感，故不标准化
-        return GaussianNB()
-    if name == "dt":
-        # 单棵树：限制深度与叶节点样本数，避免长到把训练集背下来
-        return DecisionTreeClassifier(
-            max_depth=12, min_samples_leaf=20, random_state=seed)
-    if name == "knn":
-        # k 近邻按距离度量，必须先标准化（否则 la / lt 这类量级大的特征主导距离）
+    # ── 性能优先选型（2026-10-14）：经典机器学习族另外三种 ──
+    if name == "lgbm":
+        from lightgbm import LGBMClassifier
+        # ⚠️ LightGBM 的 bagging（行采样）必须配 `subsample_freq > 0` 才生效；
+        #    默认 0 = 关闭，此时 `subsample=0.9` 是**空转**（静默不生效、不报错），故显式打开。
+        return LGBMClassifier(
+            n_estimators=300, learning_rate=0.1, num_leaves=31,
+            subsample=0.9, subsample_freq=1, colsample_bytree=0.9,
+            random_state=seed, n_jobs=-1, verbose=-1)
+    if name == "et":
+        # 极端随机树：分裂阈值完全随机，方差低于随机森林、抗过拟合
+        return ExtraTreesClassifier(
+            n_estimators=300, min_samples_leaf=2, random_state=seed, n_jobs=-1)
+    if name == "svm":
+        # RBF 核按距离度量，必须先标准化。
+        # `probability=True` 会触发 libsvm **内部 5 折 Platt 校准** —— 输出的概率是
+        # **校准后的概率**、并非 SVC 原生输出（原生是 `decision_function`）。保留它是为了
+        # 与其余 7 个模型共用同一套 `predict_proba` 口径；单独改用它模型间就不可比了。
+        # 该口径已登记于 docs/model/model-line-plan.md §2.3。
         return Pipeline([
             ("scaler", StandardScaler()),
-            ("knn", KNeighborsClassifier(n_neighbors=KNN_NEIGHBORS, n_jobs=-1)),
+            ("svm", SVC(kernel="rbf", C=1.0, gamma="scale",
+                        probability=True, random_state=seed)),
         ])
-    # ── change `model-expansion` 新增：神经网络（深度学习）族两种深度 ──
-    if name == "mlp":
-        return Pipeline([
-            ("scaler", StandardScaler()),
-            ("mlp", MLPClassifier(hidden_layer_sizes=(32,), max_iter=500,
-                                  random_state=seed)),
-        ])
+    # ── 性能优先选型（2026-10-14）：神经网络（深度学习）族两种深度 ──
     if name == "mlp_deep":
         # 3 隐藏层 + L2（alpha）+ 早停：早停的验证子集只从训练集内部抽，检验集仍时间在后
         return Pipeline([
@@ -293,6 +378,13 @@ def build_model(name: str, seed: int):
                                   alpha=1e-4, early_stopping=True,
                                   n_iter_no_change=15, validation_fraction=0.1,
                                   random_state=seed)),
+        ])
+    if name == "tabnet":
+        # 用 TabNetWithEarlyStop 包装：它把「训练集内部切出的验证子集」作为 eval_set 传给
+        # pytorch-tabnet —— 只有这样 `patience` 才真正生效（见该类说明的订正记录）。
+        return Pipeline([
+            ("scaler", StandardScaler()),
+            ("tabnet", TabNetWithEarlyStop(seed=seed)),
         ])
     raise ValueError("未知模型：%s" % name)
 
@@ -316,7 +408,7 @@ def load_effort(path: Path, hashes: pd.Series) -> pd.DataFrame:
 # ─────────────────────────── SHAP 单条耗时 ───────────────────────────
 
 # 有精确 SHAP 解释器的模型；其余模型登记「未实测 + 原因」，不估算、不假装测过
-SHAP_TREE_MODELS = {"rf", "xgb", "dt"}
+SHAP_TREE_MODELS = {"rf", "xgb", "lgbm", "et"}
 SHAP_LINEAR_MODELS = {"lr"}
 
 
@@ -324,8 +416,9 @@ def shap_latency(name: str, model, X_test: np.ndarray, n_rows: int) -> dict:
     """实测单条 SHAP 解释耗时（tasks.md 4.4）。不达标不静默降级，只如实记录。"""
     if name not in SHAP_TREE_MODELS | SHAP_LINEAR_MODELS:
         return {"skipped": (
-            "非交付解释器：%s 没有精确 SHAP 解释器（`TreeExplainer` 只适用树模型，"
-            "`DeepExplainer` 需要 PyTorch/TensorFlow 而本项目未引入）"
+            "非交付解释器：%s 没有精确 SHAP 解释器（`TreeExplainer` 只适用树模型；"
+            "`svm` / `mlp_deep` / `tabnet` 需接 `KernelExplainer` / `DeepExplainer`，"
+            "本项目的解释链路未引入）"
             % MODEL_NAMES.get(name, name))}
     import shap
 
@@ -431,6 +524,15 @@ def main() -> int:
         return 0
 
     # 交付清单（tasks.md 4.1）
+    # [models] 段只列**交付模型**（--delivery-models）：评估模型（如 lgbm/et/svm/
+    # mlp_deep/tabnet）只进评估矩阵，不进清单、也不是后端加载对象 —— 清单列了后端
+    # 环境装不出来的模型（tabnet 需 pytorch-tabnet），加载端会直接起不来。
+    delivery = ([m.strip() for m in args.delivery_models.split(",") if m.strip()]
+                if args.delivery_models else list(wanted))
+    unknown_delivery = [m for m in delivery if m not in MODEL_NAMES]
+    if unknown_delivery:
+        print("[06] --delivery-models 含未知模型：%s" % unknown_delivery, file=sys.stderr)
+        return 2
     order_file = args.model_dir / "feature_order.txt"
     order_file.write_text(
         "# 模型交付清单（A 方案：后端加载 .pkl）\n"
@@ -438,9 +540,10 @@ def main() -> int:
         "#\n"
         "# 说明：本清单是 `docs/model/feature-columns.md` 第三节的**副本**，\n"
         "#       不是独立来源。两者不一致时**以契约为准**；契约二升版时本文件须同步。\n"
+        "#       [models] 段只列**交付模型**（--delivery-models），其余为评估对照。\n"
         "\n"
         "[models]\n"
-        + "".join("%s_v1.pkl\t%s\n" % (m, MODEL_NAMES.get(m, m)) for m in wanted)
+        + "".join("%s_v1.pkl\t%s\n" % (m, MODEL_NAMES.get(m, m)) for m in delivery)
         + "\n[feature_order]\n"
         + "".join("%2d. %s\n" % (i + 1, c)
                   for i, c in enumerate(FEATURE_FIELDS))

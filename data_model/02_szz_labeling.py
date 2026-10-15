@@ -8,19 +8,22 @@
 
 ── 判据（D4）────────────────────────────────────────────────────────────
 一条提交被判为「修缺陷提交」需要同时命中两类：
-  ① 含缺陷编号 `AMQ-<数字>`
+  ① 含缺陷编号 `CAMEL-<数字>`
   ② 含修复语义词 fix / bug / patch，且该词出现在**词首边界**（`\b`）
-只用编号会把 54.7% 的提交拉进候选池（含新功能与文档），故必须加 ②。
+只用编号会把大量提交拉进候选池（含新功能与文档），故必须加 ②。
 
-② 为什么卡词首边界、而不是子串：ActiveMQ 的词汇里 `dispatch` / `debug` / `prefix`
-天然含 `patch` / `bug` / `fix` 子串，而「消息分发」正是本仓库的核心功能词。实测在固定
-版本上，子串匹配会多收 122 条这样的提交（dispatch 词族 83 条、debug 17 条、prefix 9 条，
-其余为同类），**没有一条是真修复**；反过来收窄成「严格词表」又会漏掉 `fixe` /
-`fixinng` / `patchh` 这类拼写错误的**真**修复。故取两者中间的词首边界：保留词形变化
-（fixes / fixed / patching / bugfix），排除同词内嵌（dispatch / debug / prefix）。
-这条界定的理由在规格上必须落到文字，故与 docs/model/data-pipeline.md 第 7 节同步维护。
+② 为什么卡词首边界、而不是子串：仓库词汇里存在天然含 `patch` / `bug` / `fix` 子串的
+功能词（如 ActiveMQ 阶段实测到的 `dispatch` / `debug` / `prefix`），子串匹配会误收这类
+提交；反过来收窄成「严格词表」又会漏掉 `fixe` / `fixinng` / `patchh` 这类拼写错误的
+**真**修复。故取两者中间的词首边界：保留词形变化（fixes / fixed / patching / bugfix），
+排除同词内嵌（dispatch / debug / prefix）。这条界定的理由在规格上必须落到文字，
+故与 docs/model/data-pipeline.md 第 7 节同步维护。
 
-命中外沿数字登记在 docs/model/data-pipeline.md 第 7 节「打标判据（2026-09-16 实测）」。
+命中外沿数字登记在 docs/model/data-pipeline.md 第 7 节「打标判据」。
+
+> **待实测回填（Apache Camel，2026-10-14 换库）**：上文的外沿数字与假阳性词族是在 ActiveMQ
+> 固定版本上实测得到的；换库后必须在 Camel 的完整固定版本上重算并回填，
+> **回填之前不得对外引用这些数字**。
 
 ── 两套方法（D3）────────────────────────────────────────────────────────
 同一固定版本各打一次标，靠 label_method 区分，互不覆盖：
@@ -64,7 +67,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
-DEFAULT_REPO = BASE / "data" / "activemq"
+DEFAULT_REPO = BASE / "data" / "camel"
 DEFAULT_COMMITS = BASE / "data" / "commits.csv"
 DATA_DIR = BASE / "data"
 REPORTS_DIR = BASE / "reports"
@@ -73,17 +76,17 @@ REPORTS_DIR = BASE / "reports"
 LABEL_FIELDS = ["commit_hash", "is_bug_inducing", "label_method", "bug_fix_hash", "labeled_at"]
 
 # ── 判据（D4）──────────────────────────────────────────────────────────────
-BUG_ID_RE = re.compile(r"AMQ-\d+", re.IGNORECASE)
-# 修复语义词：**卡词首边界**。子串匹配会误收 dispatch/debug/prefix（实测 122 条，全为假阳性），
+BUG_ID_RE = re.compile(r"CAMEL-\d+", re.IGNORECASE)
+# 修复语义词：**卡词首边界**。子串匹配会误收 dispatch/debug/prefix 这类功能词，
 # 严格词表又会漏掉 fixe/fixinng/patchh 这类拼写错误的真修复 —— 词首边界是二者的中点。
 FIX_WORD_RE = re.compile(r"\b(fix|bug|patch)", re.IGNORECASE)
 
 # docs/model/data-pipeline.md 第 7 节登记的外沿数字，用于自检判据实现是否与文档一致。
-# 这三个数是在**完整固定版本**（11,050 条非合并提交）上算出来的，故只在全量运行时可比。
-# 2026-09-16 由旧登记值 6041 / 2538 / 1865 改为实测可复现值：旧值无法从提交清单复现
-# （1865 用任何自然正则都算不出），且 2538 那一项用的是子串口径、含 122 条假阳性。
-EXPECTED_OUTER = {"has_id": 6042, "id_and_fix_word": 2417, "id_and_fix_form": 1939}
-FULL_COMMIT_COUNT = 11050  # docs/model/data-pipeline.md 第 2 节登记的完整版本非合并提交数
+# **2026-10-14 换库（ActiveMQ → Apache Camel）后置为 None**：这三个数必须在 Camel 的
+# **完整固定版本**上重算后回填（先 `01` 全量跑出提交清单，再在此登记）。None = 「尚未登记」，
+# 此时自检一律判为不可比 —— 不拿旧仓库的数字硬套新仓库。
+EXPECTED_OUTER: dict[str, int | None] = {"has_id": None, "id_and_fix_word": None, "id_and_fix_form": None}
+FULL_COMMIT_COUNT: int | None = None  # 回填 docs/model/data-pipeline.md 第 2 节登记的完整版本非合并提交数
 FIX_FORM_RE = re.compile(r"\bfix", re.IGNORECASE)  # 与 FIX_WORD_RE 同一套词首语义
 
 # ── diff / blame 解析 ─────────────────────────────────────────────────────
@@ -399,6 +402,9 @@ def judge_selfcheck(commits: list[dict[str, str]]) -> tuple[dict[str, int], bool
     文档登记的是**完整固定版本**上的外沿。子集运行（01 带 --since）时提交数不足，
     这组数字天然对不上 —— 那种情况下返回 comparable=False，报告里标「不可比」而不是
     标「❌」，否则每次跑子集都会报一个假警报。
+
+    换库后 `EXPECTED_OUTER` / `FULL_COMMIT_COUNT` 处于「尚未登记」（None）状态，
+    此时同样返回 comparable=False —— 不回退到旧仓库的登记值。
     """
     got = {
         "has_id": sum(1 for r in commits if BUG_ID_RE.search(r["message"])),
@@ -407,7 +413,7 @@ def judge_selfcheck(commits: list[dict[str, str]]) -> tuple[dict[str, int], bool
             1 for r in commits if BUG_ID_RE.search(r["message"]) and FIX_FORM_RE.search(r["message"])
         ),
     }
-    comparable = len(commits) >= FULL_COMMIT_COUNT
+    comparable = FULL_COMMIT_COUNT is not None and len(commits) >= FULL_COMMIT_COUNT
     ok = all(got[k] == v for k, v in EXPECTED_OUTER.items()) if comparable else None
     return got, ok, comparable
 

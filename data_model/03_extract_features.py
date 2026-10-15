@@ -20,9 +20,9 @@
 这与 AGENTS.md 里「禁止随机切分、按时间序切分」是同一条纪律的两面。
 
 ── 计算成本 ───────────────────────────────────────────────────────────────
-历史明细用**一次** `git log --numstat` 拿全（约 9.5 万行），不按提交逐个问 git；
+历史明细用**一次** `git log --numstat` 拿全，不按提交逐个问 git；
 `lt` 需要的「父提交时刻各文件行数」用一个常驻 `git cat-file --batch` 进程批量取，
-避免为每个文件起一个新进程。全量 11,050 条提交在本机是分钟级，不是小时级。
+避免为每个文件起一个新进程。全量提交在本机是分钟级，不是小时级。
 
 ── 契约里没写清、本脚本必须作主的三处（跑通后要回契约确认）─────────────────
 1. **`rexp` 的衰减函数契约未定义**，只写了中文「按时间衰减加权」。本脚本按 Kamei
@@ -65,7 +65,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
-DEFAULT_REPO = BASE / "data" / "activemq"
+DEFAULT_REPO = BASE / "data" / "camel"
 DEFAULT_COMMITS = BASE / "data" / "commits.csv"
 DEFAULT_OUT = BASE / "data" / "commit_features.csv"
 DEFAULT_RAW = BASE / "data" / "commit_features_raw.csv"
@@ -86,7 +86,7 @@ FEATURE_FIELDS = [
 ]
 
 FEATURE_VERSION = "v1"
-REPO_NAME = "activemq"
+REPO_NAME = "camel"
 
 # 契约第四节：entropy 采用两周（14 天）滚动窗口（Kamei 引用 Hassan 的定义）
 ENTROPY_WINDOW_SECONDS = 14 * 24 * 3600
@@ -306,7 +306,7 @@ def entropy_series(commits: dict[str, dict], target_ts: list[int]) -> list[float
     窗口 `(t - 14 天, t]`；`p_k` = 文件 k 在窗口内的被改次数 ÷ 窗口内全部文件的被改总次数；
     `H = -Σ p_k·log₂p_k`；窗口内无改动时记 0。
     用滑动窗口（双指针 + 计数器）实现：目标提交已按时间升序，所以窗口只向前走，
-    不重复扫历史。逐个提交重扫窗口在 11,050 条上会退化。
+    不重复扫历史。逐个提交重扫窗口在数万条提交上会退化。
     """
     ordered = sorted(((c["ts"], h) for h, c in commits.items()))
     out: list[float] = []

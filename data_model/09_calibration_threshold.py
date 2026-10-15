@@ -56,7 +56,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--test", type=Path, default=DATA_DIR / "split_szz_test.csv")
     p.add_argument("--features-raw", type=Path,
                    default=DATA_DIR / "commit_features_raw.csv")
-    p.add_argument("--models", default="xgb,lr,mlp",
+    p.add_argument("--models", default="xgb,lr,mlp_deep",
                    help="做校准对照的模型（默认一个提升树 / 一个线性 / 一个神经网络）")
     p.add_argument("--primary", default="xgb",
                    help="分箱可靠性表与策略对照表用哪个模型（默认交付模型 xgb）")

@@ -54,7 +54,7 @@ _spec06 = importlib.util.spec_from_file_location("train06", BASE / "06_train_mod
 t06 = importlib.util.module_from_spec(_spec06)
 _spec06.loader.exec_module(t06)
 
-DEFAULT_MODELS = "lr,rf,xgb,nb,dt,knn,mlp,mlp_deep"
+DEFAULT_MODELS = "lr,rf,xgb,lgbm,et,svm,mlp_deep,tabnet"
 DEFAULT_BOOTSTRAP = 1000
 BONFERRONI_ALPHA = 0.05
 
@@ -306,7 +306,7 @@ def render(args, test, names, boot, rows, mcn, alpha_bonf, n_pairs) -> None:
     L.append("**因此本报告的正确用法**：")
     L.append("1. **不要**用 §三 的 p 值宣称模型优劣。**可用的是 §二 的分布与 §三 的差 + 95%CI** ——")
     L.append("   两者的差 CI 若不跨 0，说明差异在检验集抽样下是稳的。")
-    L.append("2. 对 **AUC 差 < 0.01 的模型对**（如 `rf_v1` vs `xgb_v1` 0.0065、`mlp_v1` vs `mlp_deep_v1` 0.0038），")
+    L.append("2. 对 **AUC 差 < 0.01 的模型对**（具体数值由本报告 §二 在每次重跑后给出），")
     L.append("   结论只能是「**在当前检验集上无法区分**」，不得排序。")
     L.append("3. 答辩若被问到「你怎么证明 A 比 B 好」，正确答法是**引 §二 的 CI 重叠情况**，")
     L.append("   而不是引一个 1e-165 的 p 值 —— 后者会被追问方法学而答不上。\n")

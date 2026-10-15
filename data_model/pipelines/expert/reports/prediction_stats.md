@@ -1,26 +1,26 @@
 # 全量预测结果统计（07_predict_all.py 产出）
 
-> 本文件可入库。字段口径见 `docs/contracts/data-fields.md` 表三 `prediction`。
+> 本文件可入库。字段口径见 `docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md` 表三 `prediction`。
 > **产出文件本身不入库**（`data/` 在 `.gitignore` 里）—— 它随包交付后端线，由后端导入。
 
 ## 产出
 
 | 项 | 值 |
 |---|---|
-| 模型 | `xgb_v1`（`D:\workspace\code\course\jit-defect-prediction\data_model\models\xgb_v1.pkl`） |
-| 推理条数 | 10893（全量，含检验集） |
+| 模型 | `xgb_v1`（`pipelines\expert\models\xgb_v1.pkl`） |
+| 推理条数 | 83943（全量，含检验集） |
 | `feature_version` | `v1` |
-| `predicted_at` | 2026-09-18 06:38:03（UTC） |
-| 输出文件 | `D:\workspace\code\course\jit-defect-prediction\data_model\data\prediction_result.csv` |
+| `predicted_at` | 2026-10-15 03:03:04（UTC） |
+| 输出文件 | `pipelines\expert\data\prediction_result.csv` |
 
 ## 风险分数分布
 
 | 统计量 | 值 |
 |---|---|
-| 均值 | 0.46382 |
-| 中位数 | 0.37709 |
-| p95 | 0.98227 |
-| `risk_score >= 0.5` 的条数 | 4900（44.98%） |
+| 均值 | 0.23639 |
+| 中位数 | 0.13322 |
+| p95 | 0.81257 |
+| `risk_score >= 0.5` 的条数 | 14596（17.39%） |
 
 ## 三条断言（tasks.md 4.2）
 
@@ -32,7 +32,7 @@
 
 ## 一个要一起看的数：高分占比 vs 真实正样本比例
 
-`risk_score >= 0.5` 的占比（**44.98%**）是**模型输出侧**的「高风险」比例。
+`risk_score >= 0.5` 的占比（**17.39%**）是**模型输出侧**的「高风险」比例。
 把它和 `reports/model_metrics.md` 里**检验集的真实正样本比例**并排看：
 
 - 两者差得越远，说明模型**校准越偏**（高分判得过多），风险列表的 triage 区分度越弱 ——
