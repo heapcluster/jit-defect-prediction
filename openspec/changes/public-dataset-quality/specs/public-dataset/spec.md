@@ -61,9 +61,9 @@
 - **WHEN** 记录的 `committed_at` 无法解析或早于仓库首个提交
 - **THEN** 计入时间序不一致项并单列，MUST NOT 静默剔除
 
-### Requirement: 与 ActiveMQ 基线并列而非替换
+### Requirement: 与 Apache Camel 基线并列而非替换
 
-公开数据集 MUST NOT 替换 ActiveMQ 基线；MUST NOT 进入交付链（不入库、不改交付模型、不改接口路径）。
+公开数据集 MUST NOT 替换 Apache Camel 基线；MUST NOT 进入交付链（不入库、不改交付模型、不改接口路径）。
 
 #### Scenario: 基线不变
 
@@ -73,7 +73,7 @@
 #### Scenario: 用途限定
 
 - **WHEN** 使用公开数据集产出任何结论
-- **THEN** 结论 MUST 标注「基于公开数据集 X，与 ActiveMQ 基线并列对照」，MUST NOT 表述为替换了交付数据
+- **THEN** 结论 MUST 标注「基于公开数据集 X，与 Apache Camel 基线并列对照」，MUST NOT 表述为替换了交付数据
 
 ### Requirement: 与文献数字对照（可选，仅当获取到标准 benchmark）
 

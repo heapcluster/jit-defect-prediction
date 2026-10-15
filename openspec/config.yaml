@@ -6,16 +6,16 @@ schema: spec-driven
 context: |
   # 项目：JIT（即时）缺陷预测系统
   在**一次代码提交（commit）**的粒度上预测该提交是否引入缺陷，输出风险概率并排序，
-  供代码评审员优先审阅高风险提交。数据源为 Apache ActiveMQ 单仓库（固定在某一版本）。
+  供代码评审员优先审阅高风险提交。数据源为 Apache Camel 单仓库（固定在某一版本）。
   系统只做**建议性预警**，不做 CI 强制拦截。
 
-  链路：ActiveMQ 仓库 → 抽取提交 → SZZ 打标 → Kamei 14 项特征
-        → 按提交时间序切分训练 → 模型文件 → 预测接口 → 前端三个页面
+  链路：Apache Camel 仓库 → 抽取提交 → SZZ 打标 → Kamei 14 项特征
+       → 按提交时间序切分训练 → 模型文件 → 预测接口 → 前端三个页面
 
   # 技术栈
   - 后端：Python 3.12 + FastAPI + SQLAlchemy + MySQL 8
   - 前端：Vue 3 + Element Plus + ECharts
-  - 模型：scikit-learn、XGBoost（2–3 个经典模型，本期不做深度学习）
+  - 模型：经典机器学习（scikit-learn / XGBoost / LightGBM）+ 神经网络（深度前馈 MLP / 深度表格 TabNet），覆盖 2 类不少于 8 种
   - 数据：GitPython 读提交记录；SZZ 打标（标准行级 + 文件级简化版，两套自研实现做对照校验）
   - 架构：三层（前端 → 后端/API → 数据与模型层）
 

@@ -17,7 +17,7 @@
 #### Scenario: 修复语义的匹配口径
 
 - **WHEN** 判定一条提交的 message 是否含修复语义
-- **THEN** 用**词首边界**匹配（`\b(fix|bug|patch)`，大小写不敏感）；**不用**无边界子串匹配 —— 后者会把 `dispatch`（内含 `patch`）、`debug`（内含 `bug`）、`prefix`（内含 `fix`）误判为修复语义，实测三族 109 条、连同其余同类 13 条共 122 条全部为假阳性，而「消息分发」正是 ActiveMQ 的核心功能词；也**不收窄成严格词表** —— 会漏掉 `fixe` / `fixinng` / `patchh` 这类拼写错误的真修复
+- **THEN** 用**词首边界**匹配（`\b(fix|bug|patch)`，大小写不敏感）；**不用**无边界子串匹配 —— 后者会把 `dispatch`（内含 `patch`）、`debug`（内含 `bug`）、`prefix`（内含 `fix`）这类功能词误判为修复语义；也**不收窄成严格词表** —— 会漏掉 `fixe` / `fixinng` / `patchh` 这类拼写错误的真修复（假阳性条数须在 Apache Camel 完整固定版本上重测后回填，登记于 `docs/model/data-pipeline.md` 第 7 节）
 
 #### Scenario: 判据可复算
 
@@ -74,7 +74,7 @@
 #### Scenario: 用经验描述充当判据
 
 - **WHEN** 有人以「JIT 数据集的正样本比例是个位数到十几百分点」这类**经验描述**作为判据
-- **THEN** 该说法 MUST NOT 被采纳 —— 全量实测 `szz` 38.98%、`szz_lite` 27.74%，既不在「个位数到十几」之内、也够不上「接近 50%」，两套话术都判不了它。经验描述无法复算，判据只能是一对写死的数字
+- **THEN** 该说法 MUST NOT 被采纳 —— 判据只能是**在固定版本上实测并登记的一对比例**（登记处：`reports/szz_labeling_stats.md` 与 `docs/model/data-pipeline.md` §6），且该实测值既不由「个位数到十几」的经验区间判定、也不由「接近 50%」的经验话术判定。经验描述无法复算，判据只能是写死的数字。**主对象为 Apache Camel：其 `szz` / `szz_lite` 正样本比例待全量实测回填**（旧仓库实测值已随 2026-10-14 换库失效，不再引用）
 
 ### Requirement: 打标结果可复现
 

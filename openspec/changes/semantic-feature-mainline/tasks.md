@@ -24,7 +24,7 @@
 - [ ] 4.2 输出 `semantic_text_<feature_version>.csv`（一行一个 `commit_hash` + 文件路径 + 文本），供 5/6 两步共用；**同一份文本供两条路线**，避免双份构造漂移
 
 ## 5. 主路线：CodeBERT 语义特征（蒋励，全量或近全量）
-- [ ] 5.1 新增 `data_model/11_semantic_codebert.py`：CodeBERT / GraphCodeBERT 对全部 11,050 条提交提特征，按提交聚合（多文件取均值）
+- [ ] 5.1 新增 `data_model/11_semantic_codebert.py`：CodeBERT / GraphCodeBERT 对全部提交提特征，按提交聚合（多文件取均值）
 - [ ] 5.2 **先跑 100 条基准测试**，实测单条耗时与吞吐，据此定时限与是否全量；记录设备、耗时、是否全量、截断统计
 - [ ] 5.3 若实测超预期无法全量：按时间序**分层抽样**（禁随机），产出 `data_model/data/semantic_codebert_v2_sample.csv` + 抽样说明（方法、样本量、设备、是否全量）
 - [ ] 5.4 交付给：`13_build_fused.py`（第 7 步），形式为上述 CSV
@@ -41,7 +41,7 @@
 ## 8. 三类设置对比实验（蒋励）
 - [ ] 8.1 新增 `data_model/14_compare_settings.py`：仅专家 / 仅语义 / 融合 三类各自跑同一套 8 模型，输出 Effort-unaware（AUC/F1/P/R/Acc）+ Effort-aware（`P_norm`、同预算重排召回）
 - [ ] 8.2 产出 `data_model/reports/three_way_comparison.md`（三类 × 8 模型 × 两类指标），标注每组所用特征版本与模型清单
-- [ ] 8.3 交付给：`docs/model/training-eval.md` §4 增补一节；后端**不接**新模型（见第 10 步）
+- [ ] 8.3 交付给：`docs/model/model-line-plan.md` §4.3 增补一节；后端**不接**新模型（见第 10 步）
 
 ## 9. 论文方法论补做（蒋励）
 - [ ] 9.1 新增 `data_model/15_feature_ablation.py`：Kamei 14 留一法消融 + 检验集置换重要性，输出特征效力排序（两个口径交叉验证）
@@ -62,8 +62,8 @@
 ## 12. 形态说明与文档同步（蒋励统稿）
 - [ ] 12.1 在模型线报告中写明形态定位：**「预训练模型提特征 → 经典分类器」的混合形态，非端到端**；并列 DeepJIT / CC2Vec / LApredict / SimCom 各自形态，**不得暗示复现 SOTA**
 - [ ] 12.2 `docs/design/addons.md` §4 定位改写为「已提升为模型线主线，见 `openspec/changes/semantic-feature-mainline`」
-- [ ] 12.3 `docs/model/methodology-references.md` §3 补「语义特征路线」与「评测协议标准」决策行及文献依据
-- [ ] 12.4 `docs/model/training-eval.md` §4 增补标准 effort-aware 指标与显著性检验结果
+- [ ] 12.3 `docs/model/README.md` §9 补「语义特征路线」与「评测协议标准」决策行及文献依据
+- [ ] 12.4 `docs/model/model-line-plan.md` §4.2 / §4.3 增补标准 effort-aware 指标与显著性检验结果
 - [ ] 12.5 周报记录已完成 / 下一步 / 存在问题
 
 ## 13. 多切分点稳健性检查（蒋励，2026-10-13 补，优先级低于 §11）
