@@ -28,7 +28,7 @@
 | 步 | 动作 | 脚本 / 命令 | 输出 | 关键校验 |
 |---|---|---|---|---|
 | ① | 克隆固定版本 | 手工：`git clone` + `git checkout camel-4.23.0` | `data_model/data/camel/`（四线共享） | `git rev-parse HEAD` 等于固定 commit |
-| ② | 抽取提交（GitPython，过滤合并提交） | `01_extract_commits.py` | `data_model/data/commits.csv` + 统计 | 总数与正负样本待实测回填 |
+| ② | 抽取提交（GitPython，过滤合并提交） | `01_extract_commits.py` | `data_model/data/commits.csv` + 统计 | 84,461 条；上游统计见 `docs/model/data-pipeline.md` §2、§6 |
 | ③ | SZZ 打标（两套：标准行级 + 文件级简化版） | `02_szz_labeling.py --method both` | `data_model/data/commit_labels_szz.csv`、`commit_labels_szz_lite.csv` | 修复判据 `CAMEL-\d+` 且词首边界；两套结果都要出 |
 | ④ | 计算 Kamei 14 项特征 | `03_extract_features.py` | `data_model/data/commit_features.csv`（`feature_version = v1`） | 列名与口径以契约二为准（见 §6.3） |
 | ⑤ | 汇总为可训练样本集 | `04_build_dataset.py --labels data/commit_labels_szz.csv --labels data/commit_labels_szz_lite.csv` | `data_model/data/dataset_szz.csv`、`dataset_szz_lite.csv` + 七项统计 | **正样本比例落在 40%–60% 必须停下查打标逻辑** |

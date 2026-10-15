@@ -9,20 +9,7 @@
 
 ## 2. 跑通数据线（蒋励线）
 
-```bash
-cd data_model
-pip install -r requirements.txt
-git -C data/activemq rev-parse HEAD   # 必须等于 7c03f67d46ae290ca49d549215277ab384c2bb8a
-python 01_extract_commits.py
-python 02_szz_labeling.py --method both
-python 03_extract_features.py
-python 04_build_dataset.py --labels data/commit_labels_szz.csv --labels data/commit_labels_szz_lite.csv
-python 05_split_dataset.py --tag szz
-python 06_train_model.py --train data/split_szz_train.csv --test data/split_szz_test.csv
-python 07_predict_all.py --model models/xgb_v1.pkl
-python 08_model_matrix.py
-python 09_calibration_threshold.py
-```
+按 [`docs/model/data-pipeline.md`](../model/data-pipeline.md) §2、§5 克隆固定的 Apache Camel 并执行九步链路；完整命令只维护在该权威文件中。expert 训练、模型与报告目录遵循该文，不再使用旧 ActiveMQ 路径。
 
 ## 3. 接/跑模型（吕建江线）
 

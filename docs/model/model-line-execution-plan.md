@@ -16,7 +16,7 @@
 4. 显著性检验完成：Bootstrap（≥1000 次）+ Wilcoxon signed-rank + McNemar，产出 `data_model/reports/statistical_test.md`。
 5. 专家特征消融完成（留一法 + 置换重要性，两口径交叉），产出 `data_model/reports/feature_ablation.md`。
 6. 多切分点稳健性完成（70/30 主切分 + 60/40、80/20），翻转须如实报告。
-7. PD 公开数据集支线按 PD-0 结论推到应有终点（取到则 PD-1~4；取不到则降级为「加载器框架 + ActiveMQ 自验」并写明原因）。
+7. PD 公开数据集支线按 PD-0 结论推到应有终点（取到则 PD-1~4；取不到则降级为「加载器框架 + Camel 自验」并写明原因）。
 8. 单测 + 集成测试通过：`test_semantic_text.py` / `test_feature_ablation.py`（计划 ≥20 条）、`test_compare_settings_pipeline.py`（计划 ≥6 条）。
 9. 交付边界确认：未静默切换模型（`model-coverage` R6）；若要切换须另开「模型切换」提案。
 10. 文档口径同步完成：`training-eval.md` §4、`methodology-references.md` §3、`design/addons.md` §4、周报。
@@ -60,7 +60,7 @@
   - 新增 `data_model/10_semantic_text.py`：按**文件**构造变更文本（路径 + 变更类型 + 增删行 + 提交信息首行），单文件超上限**按行截断并记录**截断文件数与行数；输出 `semantic_text_v2.csv`。
   - 同一份文本供 CodeBERT 与 MiniLM 两条路线**共用**，避免双份构造漂移。
   - **先跑 100 条基准测试**（SF-2）：实测单条耗时与吞吐（CPU 预期 50–150ms/条），据此决定全量或抽样；记录设备、耗时、是否全量、截断统计。
-  - 新增 `data_model/11_semantic_codebert.py`：CodeBERT / GraphCodeBERT 对 11,050 条提交提特征，按提交聚合（多文件取均值），落 `data_model/data/semantic_codebert_v2.csv`（`feature_version=v2`，**不入库、不进交付链**）。
+  - 新增 `data_model/11_semantic_codebert.py`：CodeBERT / GraphCodeBERT 对当前 Camel 固定版本的 84,461 条提交提特征，按提交聚合（多文件取均值），落 `data_model/data/semantic_codebert_v2.csv`（`feature_version=v2`，**不入库、不进交付链**）。
   - 降级项：CPU 超预期则按时间序**分层抽样**（禁随机），产出 `semantic_codebert_v2_sample.csv` + 抽样说明。
   - 可选：`11b_semantic_minilm.py`（`all-MiniLM-L6-v2`，通用句向量非代码专用），仅作弱基线对照，进度紧可直接砍。
 - **输出**：`semantic_text_v2.csv`、`semantic_codebert_v2.csv`（或 `_sample`）、100 条基准计时报告、截断统计。
@@ -110,7 +110,7 @@
 
 - **目标**：把 G1-3 从"可选"做成承诺范围内的质量治理 + 多语言证据。
 - **任务**：
-  - **PD-0（阻塞前置）**：公开 JIT 数据集**可下载性验证**（HF 经代理/镜像已 200，但公开数据集需单独验证）；不通过则降级为「加载器框架 + ActiveMQ 自验」并写明原因，**不虚构数据**。
+  - **PD-0（阻塞前置）**：公开 JIT 数据集**可下载性验证**（HF 经代理/镜像已 200，但公开数据集需单独验证）；不通过则降级为「加载器框架 + Camel 自验」并写明原因，**不虚构数据**。
   - PD-1：对齐 `commit` / `commit_label` / `commit_feature` 的加载器；缺字段报错终止，不产半成品。
   - PD-2：三维度质量治理（标签粒度 / 语种分布 / 缺失率·重复率·时间序一致性）→ 质量报告。
   - PD-3：多语言证据（非 Java 样本单列统计）→ 语种分布报告。
@@ -179,9 +179,9 @@ cd .. && python -m pytest -q               # 期望 146 passed
 
 | 风险 | 降级路径 | 红线 |
 |---|---|---|
-| CPU 跑不动全量 11,050 条 | 100 条基准 → 时间序分层抽样 + 如实登记 | **不得谎报全量** |
+| CPU 跑不动 Camel 全量 84,461 条 | 100 条基准 → 时间序分层抽样 + 如实登记 | **不得谎报全量** |
 | CodeBERT 权重下载失败 | HF 经代理/镜像均 200 可用；失败改用 `HF_ENDPOINT=https://hf-mirror.com` | **不得伪造语义结果** |
-| 公开数据集取不到 | PD-0 结论 → 加载器框架 + ActiveMQ 自验 + 写明原因 | **不得虚构数据** |
+| 公开数据集取不到 | PD-0 结论 → 加载器框架 + Camel 自验 + 写明原因 | **不得虚构数据** |
 | 语义特征不如专家特征 | 如实报告三类对比结论 | "不占优"不是失败 |
 | 想换更优模型上线 | 另开「模型切换」提案（R6） | **不得静默切换** |
 

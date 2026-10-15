@@ -1,6 +1,6 @@
 # 仅专家（基线）pipeline 包 · 产出归属
 
-> 负责人：蒋励 ｜ 线名 `expert` ｜ 状态：**✅ 已跑通（Camel 数据待重跑）**
+> 负责人：蒋励 ｜ 线名 `expert` ｜ 状态：**✅ 上游 866b7dc 已提交 Camel 运行证据（本次未重跑全量）**
 > 方案与口径：`docs/model/pipelines/expert-only.md`（权威，本文不重复其内容）
 
 ## 1. 这个包是干什么的

@@ -15,7 +15,7 @@
 | 方向 | 对象 | 依赖什么 | 卡住的后果 |
 |---|---|---|---|
 | **你依赖** | `repo/`（苏哲勋） | 分支模型 + OpenSpec SDD 流程 + 缺陷管理 | 改动不走 change = **SDD 缺陷（一票否决）** |
-| **你依赖** | ActiveMQ 仓库（固定 `activemq-5.18.7`） | 可克隆的完整 Git 历史（SZZ 需要 fix 与引入方的对应关系） | 数据链路断在第一步 |
+| **你依赖** | Camel 仓库（固定 `camel-4.23.0`） | 可克隆的完整 Git 历史（SZZ 需要 fix 与引入方的对应关系） | 数据链路断在第一步 |
 | **被你依赖** | `backend/`（吕建江） | **跨线交付方案 A+C**：`data_model/models/*.pkl` + `feature_order.txt`（14 项顺序 + `[models]` 段） | 在线预测无法加载，整条链路断 |
 | **被你依赖** | `frontend/`（刘帅华） | `model/feature-columns.md` 14 项列名（详情页解释条与特征分组） | 解释条取不到值、静默空白 |
 | **被你依赖** | `design/addons.md` G1-3 / G1-4 | 公开数据集加载与语义特征路线 | 附加功能无数据与特征来源 |
@@ -50,14 +50,14 @@
 
 - **不碰**：接口、页面、库表（跨线交付方案 A+C：模型文件 + `prediction_result.csv` 给后端）。
 - **特征零漂移**：14 项特征字段名与 `feature-columns.md` 一致；下游（后端 `commit_feature` 表、前端解释区）共用同一套列名。
-- **数据版本固定**：ActiveMQ 锁 `activemq-5.18.7`，报告出总数/正负样本/比例。
+- **数据版本固定**：Camel 锁 `camel-4.23.0`，报告出总数/正负样本/比例。
 - **模型加载口径**：`*.pkl` 用 `joblib.load`（lr/rf 是 joblib、xgb 是标准 pickle，见交付清单）。
 
 ## 4. 本包交付物与课程对应
 
 | 课程要求 | 本包落地 |
 |---|---|
-| 真实开源仓库挖掘历史数据 | ActiveMQ 固定 tag |
+| 真实开源仓库挖掘历史数据 | Camel 固定 tag |
 | SZZ 算法实现 | 自研标准行级 + 文件级简化版 |
 | Kamei 14 维度量元 | `feature-columns.md` |
 | ≥2 类不少于 8 种模型 | 经典 6（`lr` `rf` `xgb` `nb` `dt` `knn`）+ 神经网络 2（`mlp_v1` `mlp_deep_v1`），已实测达标 |

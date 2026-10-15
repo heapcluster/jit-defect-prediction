@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+from types import SimpleNamespace
+from typing import ClassVar
 
 import pytest
 
@@ -84,6 +86,9 @@ class TestIsFixCommit:
 
     def test_编号必须带数字(self):
         assert szz.is_fix_commit("CAMEL- fix something") is False
+
+    def test_旧仓库编号不进入Camel修复候选(self):
+        assert szz.is_fix_commit("AMQ-8123 fix NPE") is False
 
 
 # ── diff 解析：parse_old_ranges ──────────────────────────────────────────────
@@ -215,3 +220,73 @@ class TestBlameCacheKey:
         a = szz.blame_cache_key("rev1", "a.java", ((10, 2),))
         b = szz.blame_cache_key("rev2", "a.java", ((10, 2),))
         assert a != b
+
+
+class TestCamelSelfcheckReport:
+    """合成输入仅验证报告/分支逻辑，不充当 Camel 全量运行证据。"""
+
+    ROW: ClassVar[dict[str, str]] = {
+        "message": "CAMEL-1 fix regression", "committed_at": "2026-10-01 00:00:00",
+    }
+
+    def report(self, tmp_path, commits):
+        path = tmp_path / "szz.md"
+        szz.write_report(path, commits, commits, [], szz.judge_selfcheck(commits), 0)
+        return path.read_text(encoding="utf-8")
+
+    def test_报告描述Camel而非旧仓库(self, tmp_path):
+        text = self.report(tmp_path, [self.ROW])
+        assert "CAMEL-<数字>" in text
+        assert "AMQ-" not in text
+
+    @pytest.mark.parametrize("missing", ["count", "outer"])
+    def test_未登记基准不误报子集或失败(self, monkeypatch, tmp_path, missing):
+        monkeypatch.setattr(szz, "FULL_COMMIT_COUNT", None if missing == "count" else 1)
+        monkeypatch.setattr(szz, "EXPECTED_OUTER", {
+            "has_id": None if missing == "outer" else 1,
+            "id_and_fix_word": 1, "id_and_fix_form": 1,
+        })
+        _, ok, comparable = szz.judge_selfcheck([self.ROW])
+        assert ok is None and comparable is False
+        text = self.report(tmp_path, [self.ROW])
+        assert "尚未登记" in text
+        assert "None" not in text
+        assert "子集" not in text
+
+    @pytest.mark.parametrize("size", [1, 3])
+    def test_规模不等于完整版本时不可比(self, monkeypatch, tmp_path, size):
+        monkeypatch.setattr(szz, "FULL_COMMIT_COUNT", 2)
+        monkeypatch.setattr(szz, "EXPECTED_OUTER", {
+            "has_id": 2, "id_and_fix_word": 2, "id_and_fix_form": 2,
+        })
+        rows = [self.ROW] * size
+        _, ok, comparable = szz.judge_selfcheck(rows)
+        assert ok is None and comparable is False
+        text = self.report(tmp_path, rows)
+        assert "不可比" in text
+        assert "全部一致" not in text
+
+    def test_完整输入一致时报告通过(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(szz, "FULL_COMMIT_COUNT", 1)
+        monkeypatch.setattr(szz, "EXPECTED_OUTER", {
+            "has_id": 1, "id_and_fix_word": 1, "id_and_fix_form": 1,
+        })
+        assert szz.judge_selfcheck([self.ROW])[1:] == (True, True)
+        assert "全部一致" in self.report(tmp_path, [self.ROW])
+
+    def test_完整输入不一致时禁止回溯和写入(self, monkeypatch, tmp_path, capsys):
+        (tmp_path / ".git").mkdir()
+        monkeypatch.setattr(szz, "parse_args", lambda: SimpleNamespace(
+            repo=tmp_path, commits=tmp_path / "commits.csv", labeled_at=None,
+            method="both", limit=0, tag="",
+        ))
+        monkeypatch.setattr(szz, "load_commits", lambda _: [self.ROW])
+        monkeypatch.setattr(szz, "FULL_COMMIT_COUNT", 1)
+        monkeypatch.setattr(szz, "EXPECTED_OUTER", {
+            "has_id": 1, "id_and_fix_word": 0, "id_and_fix_form": 1,
+        })
+        monkeypatch.setattr(szz, "run_method", lambda *a: pytest.fail("自检失败后不应回溯"))
+        monkeypatch.setattr(szz, "write_labels", lambda *a: pytest.fail("自检失败后不应写标签"))
+        monkeypatch.setattr(szz, "write_report", lambda *a: pytest.fail("自检失败后不应覆盖报告"))
+        assert szz.main() != 0
+        assert "不一致" in capsys.readouterr().err

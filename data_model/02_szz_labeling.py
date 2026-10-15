@@ -21,9 +21,8 @@
 
 命中外沿数字登记在 docs/model/data-pipeline.md 第 7 节「打标判据」。
 
-> **待实测回填（Apache Camel，2026-10-14 换库）**：上文的外沿数字与假阳性词族是在 ActiveMQ
-> 固定版本上实测得到的；换库后必须在 Camel 的完整固定版本上重算并回填，
-> **回填之前不得对外引用这些数字**。
+> Camel 基准登记来源：上游提交 866b7dc 的全量采集与 SZZ 报告（2026-10-14）。
+> ActiveMQ 阶段的假阳性词族仅解释匹配边界，不作为 Camel 的实测数字。
 
 ── 两套方法（D3）────────────────────────────────────────────────────────
 同一固定版本各打一次标，靠 label_method 区分，互不覆盖：
@@ -82,11 +81,11 @@ BUG_ID_RE = re.compile(r"CAMEL-\d+", re.IGNORECASE)
 FIX_WORD_RE = re.compile(r"\b(fix|bug|patch)", re.IGNORECASE)
 
 # docs/model/data-pipeline.md 第 7 节登记的外沿数字，用于自检判据实现是否与文档一致。
-# **2026-10-14 换库（ActiveMQ → Apache Camel）后置为 None**：这三个数必须在 Camel 的
-# **完整固定版本**上重算后回填（先 `01` 全量跑出提交清单，再在此登记）。None = 「尚未登记」，
-# 此时自检一律判为不可比 —— 不拿旧仓库的数字硬套新仓库。
-EXPECTED_OUTER: dict[str, int | None] = {"has_id": None, "id_and_fix_word": None, "id_and_fix_form": None}
-FULL_COMMIT_COUNT: int | None = None  # 回填 docs/model/data-pipeline.md 第 2 节登记的完整版本非合并提交数
+# 来自 866b7dc 的 reports/commit_extract_stats.md、reports/szz_labeling_stats.md；
+# 这是已提交的上游全量证据，不代表本次回归测试重新执行了全量打标。
+# 将来换固定版本时可置 None，报告必须明确表示「尚未登记」，不能当作自检通过。
+EXPECTED_OUTER: dict[str, int | None] = {"has_id": 38716, "id_and_fix_word": 7787, "id_and_fix_form": 6631}
+FULL_COMMIT_COUNT: int | None = 84461
 FIX_FORM_RE = re.compile(r"\bfix", re.IGNORECASE)  # 与 FIX_WORD_RE 同一套词首语义
 
 # ── diff / blame 解析 ─────────────────────────────────────────────────────
@@ -396,6 +395,20 @@ def write_labels(path: Path, method: str, result: dict, labeled_at: str) -> None
 # ══ 报告 ══════════════════════════════════════════════════════════════════
 
 
+def baseline_registered() -> bool:
+    """完整提交数和三项外沿都已登记，才允许进行基准对照。"""
+    return FULL_COMMIT_COUNT is not None and all(v is not None for v in EXPECTED_OUTER.values())
+
+
+def selfcheck_verdict(ok: bool | None, comparable: bool) -> str:
+    """为 CLI 和报告提供相同的登记、可比性与判据结论。"""
+    if not baseline_registered():
+        return "Camel 基准尚未登记完整，外沿不可比"
+    if not comparable:
+        return "输入规模与完整版本不一致，外沿不可比"
+    return "全部一致，判据实现与文档口径相符" if ok else "与文档登记不一致，请核对"
+
+
 def judge_selfcheck(commits: list[dict[str, str]]) -> tuple[dict[str, int], bool | None, bool]:
     """按登记在 docs/model/data-pipeline.md 第 7 节的三条判据复算外沿，核对是否与文档一致。
 
@@ -413,7 +426,7 @@ def judge_selfcheck(commits: list[dict[str, str]]) -> tuple[dict[str, int], bool
             1 for r in commits if BUG_ID_RE.search(r["message"]) and FIX_FORM_RE.search(r["message"])
         ),
     }
-    comparable = FULL_COMMIT_COUNT is not None and len(commits) >= FULL_COMMIT_COUNT
+    comparable = baseline_registered() and len(commits) == FULL_COMMIT_COUNT
     ok = all(got[k] == v for k, v in EXPECTED_OUTER.items()) if comparable else None
     return got, ok, comparable
 
@@ -441,19 +454,24 @@ def write_report(
     if limit:
         L.append(f"| **本次仅处理前 N 条修复提交（烟雾测试）** | **{limit}** |")
     L.append(
-        "\n判据 D4 = 含缺陷编号 `AMQ-<数字>` **且** 含修复语义 `fix`/`bug`/`patch`"
+        "\n判据 D4 = 含缺陷编号 `CAMEL-<数字>` **且** 含修复语义 `fix`/`bug`/`patch`"
         "（词首边界 `\\b`，故 `dispatch`/`debug`/`prefix` 不算命中）。\n"
     )
     L.append("### 判据自检（与 docs/model/data-pipeline.md 第 7 节登记的外沿对照）\n")
-    if not comparable:
+    if not baseline_registered():
         L.append(
-            f"> 本次只处理 **{len(commits)}** 条提交，少于完整版本的 **{FULL_COMMIT_COUNT}** 条"
-            "（子集运行）。文档登记的三个外沿数字是在完整版本上算的，**此处不可比**，"
+            "> Camel 完整版本基准尚未登记完整，**此处不可比**。"
+            "下表只列本次复算值，不视为自检通过。\n"
+        )
+    elif not comparable:
+        L.append(
+            f"> 本次处理 **{len(commits)}** 条提交，与完整版本的 **{FULL_COMMIT_COUNT}** 条不同。"
+            "文档登记的三个外沿数字是在完整版本上算的，**此处不可比**，"
             "下表只出示本脚本的复算值。全量运行时才要求逐项相等。\n"
         )
     L.append("| 判据 | 本脚本复算 | 文档登记 | 一致 |\n|---|---|---|---|")
     for key, name in (
-        ("has_id", "只要求含 `AMQ-<数字>` 编号"),
+        ("has_id", "只要求含 `CAMEL-<数字>` 编号"),
         ("id_and_fix_word", "编号 **且** 含 `fix`/`bug`/`patch`（词首边界）"),
         ("id_and_fix_form", "编号 **且** 含 `fix` 词形（词首边界）"),
     ):
@@ -461,13 +479,10 @@ def write_report(
             mark = "✅" if got[key] == EXPECTED_OUTER[key] else "❌"
             expected = str(EXPECTED_OUTER[key])
         else:
-            mark = "—（子集，不可比）"
-            expected = f"{EXPECTED_OUTER[key]}（全量）"
+            mark = "—（不可比）"
+            expected = str(EXPECTED_OUTER[key]) if EXPECTED_OUTER[key] is not None else "尚未登记"
         L.append(f"| {name} | {got[key]} | {expected} | {mark} |")
-    if comparable:
-        L.append(f"\n自检结论：**{'全部一致，判据实现与文档口径相符' if ok else '存在不一致，需核对判据实现或更新文档登记'}**\n")
-    else:
-        L.append("\n自检结论：**子集运行，仅登记复算值；判据实现与文档是否一致需在全量运行后确认**\n")
+    L.append(f"\n自检结论：**{selfcheck_verdict(ok, comparable)}**\n")
 
     L.append("## 各方法结果\n")
     L.append("| 指标 | " + " | ".join(r["method"] for r in results) + " |\n|---|" + "---|" * len(results))
@@ -545,11 +560,14 @@ def main() -> int:
 
     selfcheck = judge_selfcheck(commits)
     got, ok, comparable = selfcheck
-    verdict = ("与文档登记一致" if ok else "与文档登记不一致，请核对") if comparable else "子集运行，外沿不可比"
+    verdict = selfcheck_verdict(ok, comparable)
     print(
         f"[自检] 判据外沿：含编号 {got['has_id']} / 编号+fix词 {got['id_and_fix_word']} / "
         f"编号+fix词形 {got['id_and_fix_form']} —— {verdict}"
     )
+    if comparable and not ok:
+        print("[失败] Camel 判据外沿与登记基准不一致，停止回溯和写入；先核对输入版本与判据。", file=sys.stderr)
+        return 5
     if not fix_rows:
         print("[失败] 没有识别到任何修缺陷提交，判据或输入有问题", file=sys.stderr)
         return 4

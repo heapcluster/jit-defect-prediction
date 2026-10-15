@@ -7,7 +7,7 @@
 
 ### Requirement: 识别修缺陷提交
 
-系统 MUST 按可复核的判据识别修缺陷提交，且判据 MUST 作为文字写进 `docs/data-pipeline.md`，MUST NOT 只存在于实现代码里。
+系统 MUST 按可复核的判据识别修缺陷提交，且判据 MUST 作为文字写进 `docs/model/data-pipeline.md`，MUST NOT 只存在于实现代码里。
 
 #### Scenario: 修复提交被识别
 
@@ -17,12 +17,12 @@
 #### Scenario: 修复语义的匹配口径
 
 - **WHEN** 判定一条提交的 message 是否含修复语义
-- **THEN** 用**词首边界**匹配（`\b(fix|bug|patch)`，大小写不敏感）；**不用**无边界子串匹配 —— 后者会把 `dispatch`（内含 `patch`）、`debug`（内含 `bug`）、`prefix`（内含 `fix`）误判为修复语义，实测三族 109 条、连同其余同类 13 条共 122 条全部为假阳性，而「消息分发」正是 ActiveMQ 的核心功能词；也**不收窄成严格词表** —— 会漏掉 `fixe` / `fixinng` / `patchh` 这类拼写错误的真修复
+- **THEN** 用**词首边界**匹配（`\b(fix|bug|patch)`，大小写不敏感）；**不用**无边界子串匹配 —— 后者会把 `dispatch`（内含 `patch`）、`debug`（内含 `bug`）、`prefix`（内含 `fix`）误判为修复语义，旧 ActiveMQ 阶段实测有 122 条假阳性，此数字仅作历史动机，不能作为 Camel 统计；也**不收窄成严格词表** —— 会漏掉 `fixe` / `fixinng` / `patchh` 这类拼写错误的真修复
 
 #### Scenario: 判据可复算
 
-- **WHEN** 他人拿到同一固定版本、照 `docs/data-pipeline.md` 第 7 节登记的判据文字复算
-- **THEN** 三个命中外沿与登记值逐项一致（含编号 6,042 ／ 编号且修复语义 2,417 ／ 编号且 `fix` 词形 1,939），且实现自带的自检与登记值比对，不相等即报错 —— 判据文字与实现必须同源
+- **WHEN** 他人拿到同一固定版本、照 `docs/model/data-pipeline.md` 第 7 节登记的判据文字复算
+- **THEN** 三个命中外沿与登记值逐项一致（Camel 编号 38,716 ／ 编号且修复语义 7,787 ／ 编号且 `fix` 词形 6,631），且实现自带的自检与登记值比对，不相等即报错 —— 判据文字与实现必须同源
 
 #### Scenario: 判据全部落空
 
@@ -45,7 +45,7 @@
 
 ### Requirement: 标签字段与方法标记
 
-标签 MUST 满足 `docs/contracts/data-fields.md` 表二 `commit_label` 的字段定义；MUST 记录 `label_method`，取值只在契约定义的方法集合内。
+标签 MUST 满足 `docs/design/data-fields.md` 表二 `commit_label` 的字段定义；MUST 记录 `label_method`，取值只在契约定义的方法集合内。
 
 #### Scenario: 两套方法并存
 
@@ -59,7 +59,7 @@
 
 ### Requirement: 正样本比例异常时先自查
 
-打标结果 MUST 报出正样本比例。**判据 MUST 与实现同源** —— 唯一来源是 `02_szz_labeling.py` 的 `ABNORMAL_LOW` / `ABNORMAL_HIGH`（当前为 0.40 / 0.60），`docs/data-pipeline.md` 第 6 节 MUST 引用同一组数值。
+打标结果 MUST 报出正样本比例。**判据 MUST 与实现同源** —— 唯一来源是 `02_szz_labeling.py` 的 `ABNORMAL_LOW` / `ABNORMAL_HIGH`（当前为 0.40 / 0.60），`docs/model/data-pipeline.md` 第 6 节 MUST 引用同一组数值。
 
 #### Scenario: 比例落在异常区间
 
@@ -74,7 +74,7 @@
 #### Scenario: 用经验描述充当判据
 
 - **WHEN** 有人以「JIT 数据集的正样本比例是个位数到十几百分点」这类**经验描述**作为判据
-- **THEN** 该说法 MUST NOT 被采纳 —— 全量实测 `szz` 38.98%、`szz_lite` 27.74%，既不在「个位数到十几」之内、也够不上「接近 50%」，两套话术都判不了它。经验描述无法复算，判据只能是一对写死的数字
+- **THEN** 该说法 MUST NOT 被采纳 —— 旧 ActiveMQ 实验 `szz` 38.98%、`szz_lite` 27.74%，既不在「个位数到十几」之内、也够不上「接近 50%」，两套话术都判不了它。经验描述无法复算，判据只能是一对写死的数字
 
 ### Requirement: 打标结果可复现
 
@@ -89,3 +89,27 @@
 
 - **WHEN** 两套算法对同一提交给出不同标签
 - **THEN** 该差异 MUST 计入对照统计并可在报告中出示，MUST NOT 静默取其一覆盖另一
+
+### Requirement: Camel 判据自检与报告一致
+
+实现与报告 MUST 使用 `CAMEL-\d+` 且词首边界修复语义的同一判据。完整版本提交数登记为 84461，含编号、编号且修复语义、编号且 fix 词形的外沿分别为 38716、7787、6631。基准来源 MUST 标明为已提交的 Camel 全量报告，不得把旧 ActiveMQ 数据或合成测试当作 Camel 实测。
+
+#### Scenario: 完整输入通过自检
+- **WHEN** 基准已登记，输入条数等于完整版本总数且三项外沿全部匹配
+- **THEN** 自检通过，报告和 CLI 使用同一结论
+
+#### Scenario: 完整输入自检不一致
+- **WHEN** 条数等于完整版本总数，但至少一项外沿与登记值不一致
+- **THEN** CLI 非零退出，在回溯、写标签和覆盖报告之前停止
+
+#### Scenario: 基准尚未登记
+- **WHEN** 完整提交数或任一外沿尚未登记
+- **THEN** 报告明确标记尚未登记且不可比，不打印 None，不误称子集或自检通过
+
+#### Scenario: 非完整规模输入
+- **WHEN** 输入条数小于或大于完整版本登记数
+- **THEN** 报告说明输入规模不同、外沿不可比，不误报完整自检通过
+
+#### Scenario: 排除旧仓库编号
+- **WHEN** 消息仅包含 AMQ 编号和修复词，而没有 CAMEL 编号
+- **THEN** 不进入 Camel 修复候选，报告仅描述 CAMEL 判据

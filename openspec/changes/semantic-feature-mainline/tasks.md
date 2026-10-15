@@ -24,7 +24,7 @@
 - [ ] 4.2 输出 `semantic_text_<feature_version>.csv`（一行一个 `commit_hash` + 文件路径 + 文本），供 5/6 两步共用；**同一份文本供两条路线**，避免双份构造漂移
 
 ## 5. 主路线：CodeBERT 语义特征（蒋励，全量或近全量）
-- [ ] 5.1 新增 `data_model/11_semantic_codebert.py`：CodeBERT / GraphCodeBERT 对全部 11,050 条提交提特征，按提交聚合（多文件取均值）
+- [ ] 5.1 新增 `data_model/11_semantic_codebert.py`：CodeBERT / GraphCodeBERT 对当前 Camel 固定版本的全部 84,461 条提交提特征，按提交聚合（多文件取均值）
 - [ ] 5.2 **先跑 100 条基准测试**，实测单条耗时与吞吐，据此定时限与是否全量；记录设备、耗时、是否全量、截断统计
 - [ ] 5.3 若实测超预期无法全量：按时间序**分层抽样**（禁随机），产出 `data_model/data/semantic_codebert_v2_sample.csv` + 抽样说明（方法、样本量、设备、是否全量）
 - [ ] 5.4 交付给：`13_build_fused.py`（第 7 步），形式为上述 CSV
