@@ -9,14 +9,14 @@
 | 课题 | 即时软件缺陷预测（JIT — Just-in-Time Defect Prediction） |
 | 课程 | 2026-2027-1 软件开发与测试综合实训 |
 | 小组 | 想到什么取什么 |
-| 数据源 | Apache ActiveMQ（单仓库，固定在某一版本） |
+| 数据源 | Apache Camel（单仓库，固定 `camel-4.23.0`） |
 | 系统定位 | **建议性预警**，不做 CI 强制拦截 |
 | 代码仓库 | GitHub（私有，结题前视课程要求决定是否转公开） |
 
 **核心链路**
 
 ```
-ActiveMQ 仓库 → 抽提交信息 → SZZ 打标 → Kamei 14 项特征
+Apache Camel 仓库 → 抽提交信息 → SZZ 打标 → Kamei 14 项特征
    → 按时间切分训练 → 模型文件 → 预测接口 → 前端三个页面
 ```
 
@@ -102,6 +102,7 @@ python -V                                               # 必须是 3.12.x
 | 数据表字段 / 特征列名 / 接口格式 | `docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}` |
 | 三个页面用接口的哪些字段 | `docs/frontend/pages.md` |
 | 数据源、版本固定规则与复现命令 | `docs/model/data-pipeline.md` |
+| 四类设置（仅专家/仅语义/融合/端到端）的输入、脚本与产物命名 | `docs/model/pipelines/` |
 | AI 助手的规则入口（含任务与需求的权威位置） | `AGENTS.md`（仓库根，不在 `docs/`） |
 | OpenSpec CLI 版本、命令与陷阱 | `infra/README.md` |
 | 各线技术约定（目录结构、启动命令） | 对应的 `<线>/README.md` |

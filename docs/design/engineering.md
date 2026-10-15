@@ -56,7 +56,7 @@
 
 - 抽象接口 `Predictor`：`load() -> self` / `predict(features: dict) -> float` / `explain(features) -> list[SHAP]`。
 - 注册表：`MODEL_REGISTRY: dict[str, Type[Predictor]]`，键为 `model_name`。
-- 8 种实现：经典 6（`lr` `rf` `xgb` `nb` `dt` `knn`）+ 神经网络 2（`mlp_v1` `mlp_deep_v1`），各实现同一接口（实测清单见 `model/training-eval.md` §2/§4）。
+- 8 种实现：经典 6（`lr` `rf` `xgb` `lgbm` `et` `svm`）+ 神经网络 2（`mlp_deep` `tabnet`），各实现同一接口（清单见 `model/model-line-plan.md` §2.1）。
 - 后端按 `model_name` 从注册表加载，对应 `prediction` 表复合主键 `(commit_hash, model_name)`——**新增模型只加注册项，不改 `api-spec` 与库表**。
 - 落点：`backend/app/model_registry.py`（接口 + 注册表 + 8 实现）。
 
@@ -68,7 +68,7 @@
 
 ### 4.3 数据集插件
 
-- `RepoSource` 接口：克隆 / 解析提交 / 产出样本。当前 `ActiveMQ`（锁 `activemq-5.18.7`）；新增仓库 / 公开 JIT 数据集（G1-3）只实现同一数据源接口，不动管线（详设见 `addons.md` §3）。
+- `RepoSource` 接口：克隆 / 解析提交 / 产出样本。当前 `Apache Camel`（锁 `camel-4.23.0`）；新增仓库 / 公开 JIT 数据集（G1-3）只实现同一数据源接口，不动管线（详设见 `addons.md` §3）。
 
 ### 4.4 收益
 

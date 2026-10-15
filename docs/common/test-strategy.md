@@ -54,7 +54,7 @@ cd frontend   && npm ci && npm run test:unit   # 13 it（尚未执行，node_mod
 | `data_model/tests/test_split_dataset.py` | 17 | 切分下标、排序稳定性、守恒与时间序断言 |
 
 **过程中测试抓到了自己的两个错误预期**（已修正，证明断言有效）：
-① 把「`AMQ-102 fix the message dispatch handling`」误列为应拒案例 —— 该消息 `fix` 在词首，本就应判为修复提交；
+① 把「`CAMEL-102 fix the message dispatch handling`」误列为应拒案例 —— 该消息 `fix` 在词首，本就应判为修复提交；
 ② `merge_ranges` 默认阈值预期算错 —— 合并条件是 `start - 上段止行 - 1 <= gap`，间隔 20 仍合并、21 才不合并。
 
 ## 4. 缺口清单与责任人（按优先级）

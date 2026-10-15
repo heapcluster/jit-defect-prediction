@@ -14,7 +14,7 @@
 
 | 方向 | 对象 | 依赖什么 | 卡住的后果 |
 |---|---|---|---|
-| **你依赖** | `model/`（蒋励） | **跨线交付方案 A+C**：`data_model/models/*.pkl` + `feature_order.txt`（含 `[models]` 段与 14 项顺序） | 模型文件或特征顺序不到位 → `POST /api/predict` 无法加载，在线预测整条断 |
+| **你依赖** | `model/`（蒋励） | **跨线交付方案 A+C**：`data_model/pipelines/expert/models/*.pkl` + `feature_order.txt`（含 `[models]` 段与 14 项顺序） | 模型文件或特征顺序不到位 → `POST /api/predict` 无法加载，在线预测整条断 |
 | **你依赖** | `design/database.md` | 四表字段与 ER | 库表对不上 → ingest 与查询全错 |
 | **你依赖** | `repo/`（苏哲勋） | 分支模型 + PR 非作者审阅 + CI 门禁 | PR 无法合入 main |
 | **被你依赖** | `frontend/`（刘帅华） | `api-spec.md` 四接口 + 错误码 + 三态口径（联调唯一依据） | 前端三页面拿不到数据，联调停摆 |
@@ -57,7 +57,7 @@
 
 | 课程要求 | 本包落地 |
 |---|---|
-| 对外提供在线预测服务 | `POST /api/predict` + 启动加载 `data_model/models/*.pkl` |
+| 对外提供在线预测服务 | `POST /api/predict` + 启动加载 `data_model/pipelines/expert/models/*.pkl` |
 | 预测与解释模块 | `explanation` 由 SHAP 算，逐特征带 `direction` |
 | 接口需鉴权 | `X-API-Key` 固定令牌（契约三 §1） |
 | 非功能：性能 / 安全 | `acceptance.md` 两项证据（p95<500ms 分位数 / 401+畸形参数不回显） |

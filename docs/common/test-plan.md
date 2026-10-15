@@ -24,8 +24,8 @@
 
 | # | 前置 | 依据 |
 |---|---|---|
-| 1 | 数据：按 `model/data-pipeline.md` 九步跑 01–04，产出 `split_szz_train/test.csv`（7625 / 3268，种子 42，时间序切分） | `model/data-pipeline.md` |
-| 2 | 模型：`data_model/models/` 内交付 `.pkl` + `feature_order.txt`；后端按 `joblib.load` 口径加载 | `model/training-eval.md` §6 |
+| 1 | 数据：按 `model/data-pipeline.md` 九步跑 01–04，产出 `split_szz_train/test.csv`（条数以 `reports/split_stats_szz.md` 为准，种子 42，时间序切分） | `model/data-pipeline.md` |
+| 2 | 模型：`data_model/models/` 内交付 `.pkl` + `feature_order.txt`；后端按 `joblib.load` 口径加载 | `model/model-line-plan.md` §6 |
 | 3 | 库表：`design/database.md` 四表建好；测试环境用 SQLite，类型按 `api-spec.md` §5 variant 口径 | `design/database.md`、`backend/api-spec.md` §5 |
 | 4 | 服务：后端 `:8000`、前端 `npm run dev`（`/api` 代理指向 `:8000`） | `frontend/pages.md` |
 | 5 | 密钥：`X-API-Key` 走构建期环境变量 `VITE_API_KEY`，**不入库** | `backend/api-spec.md` §一 |

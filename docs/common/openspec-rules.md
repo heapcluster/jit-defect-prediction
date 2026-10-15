@@ -16,7 +16,7 @@
 | 新增能力 / 新接口 | 新 change（propose → apply → archive） |
 | 改接口字段 / 响应结构 / 错误码 | 契约三变更 change |
 | 改库表字段 | 契约一变更 + 对应 change |
-| 改特征口径 | 升 `feature_version` v2 + change（`model/openspec-compliance.md`） |
+| 改特征口径 | 升 `feature_version` v2 + change（`model/README.md` §2.8） |
 | 改页面要的字段 | 先改契约 / 提 change，前端不自己造 |
 | 纯修复 Bug（不改规格语义） | `type:bug` Issue + PR，仍同步受影响 spec |
 | 纯视觉/文档笔误 | 可不走 change，但 PR 仍须审阅 |

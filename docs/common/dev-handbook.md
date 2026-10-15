@@ -12,7 +12,7 @@
 ```bash
 cd data_model
 pip install -r requirements.txt
-git -C data/activemq rev-parse HEAD   # 必须等于 7c03f67d46ae290ca49d549215277ab384c2bb8a
+git -C data/camel rev-parse HEAD   # 必须等于 b2329103df8f5d1edfca2ad262be09e3be95ee68
 python 01_extract_commits.py
 python 02_szz_labeling.py --method both
 python 03_extract_features.py

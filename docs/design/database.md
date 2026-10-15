@@ -9,7 +9,7 @@
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `commit_hash` | CHAR(40) PK | 提交哈希 |
-| `repo_name` | VARCHAR | 固定 `activemq` |
+| `repo_name` | VARCHAR | 固定 `camel` |
 | `author_name` | VARCHAR | 作者 |
 | `committed_at` | DATETIME | 提交时间（UTC，不加 Z） |
 | `message` | TEXT | 提交信息 |
