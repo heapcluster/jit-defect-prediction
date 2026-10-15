@@ -20,7 +20,6 @@
 | `data_model/preparation/` | **01–05 共享数据流水线**（四条线的共同上游）+ 其统计报告 | 代码/报告 ✅ |
 | `data_model/pipelines/<line>/` | **四条模型线各自独立成包**（expert / semantic / fused / e2e），包内统一含 `config/data/model/metrics/train/report` + `README` + `requirements`；产物落包内 `models/`（❌）、`data/`（❌）、`reports/`（✅） | 见各包 README |
 | `data_model/tests/` | 流水线与契约一致性测试 | ✅ |
-| `data_model/run_model_lines.ps1` | semantic / fused / e2e 三线一键执行（前置检查、依赖顺序、冒烟模式、日志落盘） | ✅ |
 
 **分包规则**：每条模型线一个独立功能包，**禁止合并为单一包**；包间只通过数据文件衔接（如 fused 吃 semantic 的编码缓存），不互相 import。各包结构与命名严格一致，便于横向对比——详见 `pipelines/README.md`。
 
