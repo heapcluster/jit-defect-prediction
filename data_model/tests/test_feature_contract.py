@@ -3,9 +3,9 @@
 课程把「规格与代码不一致」列为一票否决缺陷。本测试把四处来源钉在同一份**有序**清单上：
 
   1. 契约文档  ``docs/model/feature-columns.md`` 第三节（权威，v1.2 冻结）
-  2. 特征实现  ``data_model/03_extract_features.py`` 的 ``FEATURE_FIELDS``
+  2. 特征实现  ``data_model/preparation/03_extract_features.py`` 的 ``FEATURE_FIELDS``
   3. 后端装配  ``backend/app/config.py`` 的 ``FEATURE_COLUMNS``（模型输入向量顺序）
-  4. 交付清单  ``data_model/models/feature_order.txt`` 的 ``[feature_order]``
+  4. 交付清单  ``data_model/pipelines/expert/models/feature_order.txt`` 的 ``[feature_order]``
 
 任何一处列名改动 / 顺序漂移 / 漏项，本测试即红 —— 在合入前暴露，而不是等联调时解释条静默空白。
 
@@ -21,11 +21,11 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-EXTRACT_FEATURES = REPO_ROOT / "data_model" / "03_extract_features.py"
+EXTRACT_FEATURES = REPO_ROOT / "data_model" / "preparation" / "03_extract_features.py"
 BACKEND_CONFIG = REPO_ROOT / "backend" / "app" / "config.py"
-FEATURE_ORDER_TXT = REPO_ROOT / "data_model" / "models" / "feature_order.txt"
+FEATURE_ORDER_TXT = REPO_ROOT / "data_model" / "pipelines" / "expert" / "models" / "feature_order.txt"
 CONTRACT_MD = REPO_ROOT / "docs" / "model" / "feature-columns.md"
-MODEL_DIR = REPO_ROOT / "data_model" / "models"
+MODEL_DIR = REPO_ROOT / "data_model" / "pipelines" / "expert" / "models"
 
 # 契约二第三节：14 项，顺序即契约出现顺序（五维度分组）
 EXPECTED_14 = [

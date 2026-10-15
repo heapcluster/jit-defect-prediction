@@ -13,15 +13,15 @@
 cd data_model
 pip install -r requirements.txt
 git -C data/camel rev-parse HEAD   # 必须等于 b2329103df8f5d1edfca2ad262be09e3be95ee68
-python 01_extract_commits.py
-python 02_szz_labeling.py --method both
-python 03_extract_features.py
-python 04_build_dataset.py --labels data/commit_labels_szz.csv --labels data/commit_labels_szz_lite.csv
-python 05_split_dataset.py --tag szz
-python 06_train_model.py --train data/split_szz_train.csv --test data/split_szz_test.csv
-python 07_predict_all.py --model models/xgb_v1.pkl
-python 08_model_matrix.py
-python 09_calibration_threshold.py
+python preparation/01_extract_commits.py
+python preparation/02_szz_labeling.py --method both
+python preparation/03_extract_features.py
+python preparation/04_build_dataset.py --labels data/commit_labels_szz.csv --labels data/commit_labels_szz_lite.csv
+python preparation/05_split_dataset.py --tag szz
+python -m pipelines.expert.train --train data/split_szz_train.csv --test data/split_szz_test.csv
+python -m pipelines.expert.predict --model pipelines/expert/models/xgb_v1.pkl
+python -m pipelines.expert.matrix
+python -m pipelines.expert.calibrate
 ```
 
 ## 3. 接/跑模型（吕建江线）

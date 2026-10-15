@@ -33,7 +33,7 @@ from datetime import datetime
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
-DATA_DIR = BASE / "data"
+DATA_DIR = BASE.parent / "data"
 REPORTS_DIR = BASE / "reports"
 
 DEFAULT_RATIO = 0.70

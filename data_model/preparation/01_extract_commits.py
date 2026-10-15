@@ -22,8 +22,8 @@ from pathlib import Path
 from git import Repo
 
 BASE = Path(__file__).resolve().parent
-DEFAULT_REPO = BASE / "data" / "activemq"
-DEFAULT_OUT = BASE / "data" / "commits.csv"
+DEFAULT_REPO = BASE.parent / "data" / "activemq"
+DEFAULT_OUT = BASE.parent / "data" / "commits.csv"
 REPORTS_DIR = BASE / "reports"
 
 # 与 docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md 表一 `commit` 逐字对齐（id 由数据库自增，CSV 不落）

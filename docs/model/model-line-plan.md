@@ -44,7 +44,7 @@
 - **`1D-CNN` 不在此列**：它吃 diff token 序列、属**端到端**架构，归到 §2.2 作对标。
 - **保留 `lr/rf/xgb`**：与交付段（§6）一致，避免评估池与交付池冲突。
 - 8 个共用同一时间序切分、同一特征口径（`model-coverage` R2）。
-- **实现状态**：8 个均已在 `06_train_model.py` 落地；`lgbm` / `tabnet` 需 `lightgbm` / `pytorch-tabnet` 依赖。
+- **实现状态**：8 个均已在 `pipelines/expert/train.py`（原 `06_train_model.py`）落地；`lgbm` / `tabnet` 需 `lightgbm` / `pytorch-tabnet` 依赖。
 
 ### 2.2 端到端模型 1 个（第四类）
 
@@ -123,13 +123,13 @@
 
 ### 4.3 覆盖矩阵（⑧）
 
-`08_model_matrix.py` 产出 `reports/model_matrix.md`：8 种 × 2 类 × 两类指标，与 `model_metrics.md` 逐项比对**差异 0 项**。
+`pipelines/expert/matrix.py` 产出 `pipelines/expert/reports/model_matrix.md`：8 种 × 2 类 × 两类指标，与 `model_metrics.md` 逐项比对**差异 0 项**。
 
 > ⬜ **待重跑**：矩阵数字必须在 Apache Camel 数据上重训后重新登记。**本包不保留 ActiveMQ 阶段的指标数字**（已随换库清理）。收敛情况（神经网络迭代轮次 / 未收敛）须**如实登记，不许静默当已收敛**。
 
 ### 4.4 校准与阈值证据（⑨）
 
-- `09_calibration_threshold.py`：时间序折（`TimeSeriesSplit`，禁随机 `KFold`）校准；固定阈值 vs 工作量配额（LOC 与改动文件数各一版）的等工作量对照。
+- `pipelines/expert/calibrate.py`：时间序折（`TimeSeriesSplit`，禁随机 `KFold`）校准；固定阈值 vs 工作量配额（LOC 与改动文件数各一版）的等工作量对照。
 - ⑨ 只出证据、**不改契约**；两种策略对照必须同工作量口径。
 - ⬜ **实测结论待回填**：阈值 vs 工作量的对照必须在 Apache Camel 数据上重跑后登记（旧仓库实测已随 2026-10-14 换库清理）；历史结论「阈值校准到 50% 语义在时间序切分下走不通、建议转向配额取前 N%」需在新数据上复核后保留或修订。
 
@@ -216,7 +216,7 @@
 
 - **P0** ✅：单环境（torch 2.14.1 / transformers 5.19.0 等）+ 测试绿；CodeBERT 权重已预下载并离线验证（hidden=768）。
 - **P1**：`10_semantic_text.py`（按文件构造变更文本）→ 先跑 100 条基准（SF-2）定时限 → `11_semantic_codebert.py` 落 v2 向量。CPU 超预期则按时间序分层抽样并如实登记。
-- **P2**：补 CE@20%/Recall@20%/Popt/ALPA；`16_statistical_test.py`（Bootstrap + Wilcoxon + McNemar）；复核测试集未参与调参。
+- **P2**：补 CE@20%/Recall@20%/Popt/ALPA；`pipelines/expert/significance.py`（Bootstrap + Wilcoxon + McNemar）；复核测试集未参与调参。
 - **P3**：`13_build_fused.py` 左连接专家 14 项与语义向量 → 三套样本集，**必须同一切分下标**，缺失向量显式标注不填 0。
 - **P4**：`14_compare_settings.py` 三类 × 8 模型 × 两类指标 → `three_way_comparison.md`；语义不占优如实报告。
 - **P5**：`15_feature_ablation.py`（留一法 + 置换重要性）+ 三切分点稳健性，翻转如实报告。
@@ -262,7 +262,7 @@ python 11_semantic_codebert.py        # 先 100 条基准，再决定全量/抽�
 python 13_build_fused.py              # 三套样本集
 python 14_compare_settings.py         # 三类对比
 python 15_feature_ablation.py         # 消融
-python 16_statistical_test.py         # 显著性
+python -m pipelines.expert.significance   # 显著性
 ```
 
 > 数据线 ①–⑨ 的复现命令见 `data-pipeline.md` §5（两段命令互补，不重复）。

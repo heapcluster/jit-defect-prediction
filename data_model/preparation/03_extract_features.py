@@ -65,10 +65,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
-DEFAULT_REPO = BASE / "data" / "activemq"
-DEFAULT_COMMITS = BASE / "data" / "commits.csv"
-DEFAULT_OUT = BASE / "data" / "commit_features.csv"
-DEFAULT_RAW = BASE / "data" / "commit_features_raw.csv"
+DEFAULT_REPO = BASE.parent / "data" / "activemq"
+DEFAULT_COMMITS = BASE.parent / "data" / "commits.csv"
+DEFAULT_OUT = BASE.parent / "data" / "commit_features.csv"
+DEFAULT_RAW = BASE.parent / "data" / "commit_features_raw.csv"
 REPORTS_DIR = BASE / "reports"
 
 SZZ_SCRIPT = BASE / "02_szz_labeling.py"

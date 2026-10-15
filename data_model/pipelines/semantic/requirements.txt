@@ -1,0 +1,21 @@
+# semantic 线（冻结 CodeBERT + 8 分类器）依赖
+# 环境：Python 3.12.x；安装：pip install -r data_model/pipelines/semantic/requirements.txt
+#
+# ⚠️ torch：冻结编码是 8 万+ 条 × 512 token 的 Transformer 前向，CPU 上全量要数小时，
+#    只够小规模冒烟。按 GPU 环境安装：
+#    pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu124
+# ⚠️ 首次联网下载 microsoft/codebert-base（~500MB）；离线先缓存 + HF_HUB_OFFLINE=1。
+# numpy / pandas / scikit-learn 与 expert 线同源，跨线数字才可比。
+
+numpy==2.5.3
+pandas==3.0.5
+scikit-learn==1.9.1
+xgboost==3.4.1
+joblib==1.6.0
+matplotlib==3.10.1
+torch==2.5.1
+transformers==4.46.1
+tokenizers==0.20.1
+huggingface-hub==0.26.2
+safetensors==0.4.5
+GitPython

@@ -13,9 +13,9 @@
 
 | 表 | 谁建 | 数据从哪来 |
 |---|---|---|
-| `commit` | 后端 | 数据线 `01_extract_commits.py` 产出的提交清单 |
-| `commit_label` | 后端 | 数据线 `02_szz_labeling.py` 产出的标签表 |
-| `commit_feature` | 后端 | 数据线 `03_extract_features.py` 产出的特征表 |
+| `commit` | 后端 | 数据线 `preparation/01_extract_commits.py` 产出的提交清单 |
+| `commit_label` | 后端 | 数据线 `preparation/02_szz_labeling.py` 产出的标签表 |
+| `commit_feature` | 后端 | 数据线 `preparation/03_extract_features.py` 产出的特征表 |
 | `prediction` | 后端 | 后端实时推理写入；历史批量结果由**数据线离线预测产出 `prediction_result.csv`、由后端线导入本表**（数据线不直连数据库） |
 
 **入库链路**：数据线按 `docs/model/data-pipeline.md` 跑完 01–04 生成 CSV → 后端用导入脚本按本契约的表结构写入库。**"别人 clone 后一条命令把库建好"的前提是先跑完数据线 01–04**，这条要写进后端的启动说明。

@@ -1,5 +1,5 @@
 # 模型交付清单（A 方案：后端加载 .pkl）
-# 生成：data_model/06_train_model.py
+# 生成：data_model/pipelines/expert/train.py（--delivery-models）
 #
 # 说明：本清单是 `docs/model/feature-columns.md` 第三节的**副本**，
 #       不是独立来源。两者不一致时**以契约为准**；契约二升版时本文件须同步。

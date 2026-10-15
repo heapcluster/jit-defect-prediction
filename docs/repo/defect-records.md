@@ -18,7 +18,7 @@
 
 | 编号 | 现象 | 复现条件 | 优先级 | 处理状态 | 关联提交 / change | 仓库证据 |
 |---|---|---|---|---|---|---|
-| D-05（#37） | 契约三规定风险列表按 `risk_score` 降序；在 LOC 工作量代理下三个模型 `P_norm` 为负（-0.67 / -0.25 / -0.42），**不如随机排序**（旧仓库实测，已随 2026-10-14 换库清理） | 跑 `data_model/09_calibration_threshold.py` 看第四节 | P1 | 🔶 待契约变更提案 | 证据已产：`data_model/reports/calibration_threshold.md`（同预算召回 +31.72 pp，旧仓库实测） | `docs/model/model-line-plan.md` §4.3 |
+| D-05（#37） | 契约三规定风险列表按 `risk_score` 降序；在 LOC 工作量代理下三个模型 `P_norm` 为负（-0.67 / -0.25 / -0.42），**不如随机排序**（旧仓库实测，已随 2026-10-14 换库清理） | 跑 `pipelines/expert/calibrate.py` 看第四节 | P1 | 🔶 待契约变更提案 | 证据已产：`pipelines/expert/reports/calibration_threshold.md`（同预算召回 +31.72 pp，旧仓库实测） | `docs/model/model-line-plan.md` §4.3 |
 | D-06（#38） | `p >= 0.50` 被判高风险的提交里真实缺陷率仅 **29.6%**（Isotonic 校准后 29.1%），阈值语义与数值含义不符，会误导评审员（旧仓库实测，已随换库清理） | 同上报告第三节 | P1 | 🔶 待契约变更提案 | 同上 | `docs/model/model-line-plan.md` §4.4 |
 | D-07（#59） | A2-4 验收判据方向相反：PRD「正样本比例落在 40%–60% 之外时告警」vs `data-pipeline.md`「落在 40%–60% 就先查打标逻辑」 | 对读 PRD 与 `docs/model/data-pipeline.md` 第 6 节 | P2 | 🔶 仓库侧稿已出，待贴飞书 | `docs/model/data-pipeline.md` §6（原 a2-4-correction.md 已并入） | Issue #59（2026-10-06 登记） |
 | D-08（#60） | 用户故事与 OpenSpec 未逐条挂接（核心 22/27 未封口），看板「规格变更或任务」列点不回去 | 打开看板看该列 | P1 | 🔶 进行中 | `docs/repo/user-story-traceability.md`（Epic G 已拆分：G1-1/G1-2→`feature-addons-sprint3`、G1-3→`public-dataset-quality`、G1-4→`semantic-feature-mainline`） | Sprint 1 收口前置 |

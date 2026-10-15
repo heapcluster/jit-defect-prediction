@@ -1,0 +1,12 @@
+# expert 线（Kamei14 baseline）依赖
+# 环境：Python 3.12.x；安装：pip install -r data_model/pipelines/expert/requirements.txt
+# 版本与 data_model/requirements.txt 同源 + matplotlib（图表）；不要单独升版，跨线数字才可比。
+
+pandas==3.0.5
+numpy==2.5.3
+scikit-learn==1.9.1
+scipy        # significance.py 的 binomtest/wilcoxon；随 scikit-learn 传递安装，此处显式声明
+xgboost==3.4.1
+joblib==1.6.0
+shap==0.52.0
+matplotlib==3.10.1

@@ -49,20 +49,20 @@ Sprint 0 第 2 号交付物验收依据就是本文。权威边界：任务在�
 | 步 | 脚本 | 输出 |
 |---|---|---|
 | ① | 手工（§2 命令） | `data/camel/` |
-| ② | `01_extract_commits.py` | `commits.csv` + 统计 |
-| ③ | `02_szz_labeling.py --method both` | `commit_labels_{szz,szz_lite}.csv` |
-| ④ | `03_extract_features.py` | `commit_features.csv` |
-| ⑤ | `04_build_dataset.py` | `dataset_{szz,szz_lite}.csv` + 七项统计 |
-| ⑥ | `05_split_dataset.py` `06_train_model.py` | 切分文件/模型/指标报告 |
-| ⑦ | `07_predict_all.py` | `prediction_result.csv` |
-| ⑧ | `08_model_matrix.py` | `model_matrix.md`（8 种×2 类×两类指标） |
-| ⑨ | `09_calibration_threshold.py` | `calibration_threshold.md` |
+| ② | `preparation/01_extract_commits.py` | `commits.csv` + 统计 |
+| ③ | `preparation/02_szz_labeling.py --method both` | `commit_labels_{szz,szz_lite}.csv` |
+| ④ | `preparation/03_extract_features.py` | `commit_features.csv` |
+| ⑤ | `preparation/04_build_dataset.py` | `dataset_{szz,szz_lite}.csv` + 七项统计 |
+| ⑥ | `preparation/05_split_dataset.py` ＋ `python -m pipelines.expert.train` | 切分文件/模型/指标报告 |
+| ⑦ | `python -m pipelines.expert.predict` | `prediction_result.csv` |
+| ⑧ | `python -m pipelines.expert.matrix` | `model_matrix.md`（8 种×2 类×两类指标） |
+| ⑨ | `python -m pipelines.expert.calibrate` | `calibration_threshold.md` |
 
 **⑥ 两条铁规矩**：只能时间序切分（禁随机，防时序泄漏）；两类指标都要报。
 **⑦ 三条边界**：字段与契约一表三逐字一致；不直连数据库；全量推理（含检验集）。
 **①–⑤** 属 change `data-collection-and-szz-labeling`；**⑥⑦** 属 `model-training-and-delivery`；**⑧⑨** 属 `model-expansion`。
 
-> **语义特征主线（Sprint 2，change `semantic-feature-mainline`）在九步之后追加 ⑩–⑯**：`10_semantic_text.py`（按文件构造变更文本）→ `11_semantic_codebert.py`（CodeBERT 语义向量，按提交聚合，落 `feature_version=v2`，**不入库**）→ `13_build_fused.py`（三类设置样本集，同切分下标）→ `14_compare_settings.py`（三类对比）→ `15_feature_ablation.py`（消融）→ `16_statistical_test.py`（显著性）。执行顺序、依赖、里程碑 Gate 与完成定义见 `model-line-plan.md` §8。契约二 14 项列名与顺序**一字不动**。
+> **语义特征主线（Sprint 2，change `semantic-feature-mainline`）在九步之后追加 ⑩–⑯**：`10_semantic_text.py`（按文件构造变更文本）→ `11_semantic_codebert.py`（CodeBERT 语义向量，按提交聚合，落 `feature_version=v2`，**不入库**）→ `13_build_fused.py`（三类设置样本集，同切分下标）→ `14_compare_settings.py`（三类对比）→ `15_feature_ablation.py`（消融）→ 显著性检验（已落地为 `pipelines/expert/significance.py`）。执行顺序、依赖、里程碑 Gate 与完成定义见 `model-line-plan.md` §8。契约二 14 项列名与顺序**一字不动**。
 >
 > **⑩–⑯ 之后再加 ⑰（端到端，待立项）**。四类设置各自的输入形态、脚本段与产物命名（含「四条线产物不许同名」的命名规范）见 `pipelines/` 目录 —— `data-pipeline.md` 仍只管**共享的数据链路 ①–⑨**。
 
@@ -71,20 +71,20 @@ Sprint 0 第 2 号交付物验收依据就是本文。权威边界：任务在�
 ```bash
 cd data_model
 git -C data/camel rev-parse HEAD     # 必须等于 b2329103df8f5d1edfca2ad262be09e3be95ee68（tag camel-4.23.0）
-python 01_extract_commits.py
-python 02_szz_labeling.py --method both
-python 03_extract_features.py
-python 04_build_dataset.py --labels data/commit_labels_szz.csv --labels data/commit_labels_szz_lite.csv
-python 05_split_dataset.py --tag szz
-python 06_train_model.py --train data/split_szz_train.csv --test data/split_szz_test.csv
-python 07_predict_all.py --model models/xgb_v1.pkl
-python 08_model_matrix.py
-python 09_calibration_threshold.py
+python preparation/01_extract_commits.py
+python preparation/02_szz_labeling.py --method both
+python preparation/03_extract_features.py
+python preparation/04_build_dataset.py --labels data/commit_labels_szz.csv --labels data/commit_labels_szz_lite.csv
+python preparation/05_split_dataset.py --tag szz
+python -m pipelines.expert.train --train data/split_szz_train.csv --test data/split_szz_test.csv
+python -m pipelines.expert.predict --model pipelines/expert/models/xgb_v1.pkl
+python -m pipelines.expert.matrix
+python -m pipelines.expert.calibrate
 ```
 
-**⑥ 核对命令**：`python 05_split_dataset.py --selfcheck`（打乱输入断言必须拦住）；连跑两次 `06` 指标报告应逐行一致（仅 SHAP 计时行不同）。
+**⑥ 核对命令**：`python preparation/05_split_dataset.py --selfcheck`（打乱输入断言必须拦住）；连跑两次 `pipelines.expert.train` 指标报告应逐行一致（仅 SHAP 计时行不同）。
 
-**两条实测坑**：① 子集运行会覆盖全量四份统计报告（`--tag` 只改数据文件名不改报告名），跑完 `git checkout -- data_model/reports/` 恢复；② 改了 D4 判据必须重跑窗口对照，否则对照产物是旧口径。
+**两条实测坑**：① 子集运行会覆盖全量统计报告（`--tag` 只改数据文件名不改报告名），跑完 `git checkout -- data_model/preparation/reports/` 恢复；② 改了 D4 判据必须重跑窗口对照，否则对照产物是旧口径。
 
 ## 6. 必须报出的统计
 

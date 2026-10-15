@@ -17,7 +17,7 @@ import importlib.util
 from datetime import datetime
 from pathlib import Path
 
-_SPLIT = Path(__file__).resolve().parents[1] / "05_split_dataset.py"
+_SPLIT = Path(__file__).resolve().parents[1] / "preparation" / "05_split_dataset.py"
 _spec = importlib.util.spec_from_file_location("split_dataset", _SPLIT)
 split = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(split)

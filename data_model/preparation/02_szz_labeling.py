@@ -64,9 +64,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
-DEFAULT_REPO = BASE / "data" / "activemq"
-DEFAULT_COMMITS = BASE / "data" / "commits.csv"
-DATA_DIR = BASE / "data"
+DEFAULT_REPO = BASE.parent / "data" / "activemq"
+DEFAULT_COMMITS = BASE.parent / "data" / "commits.csv"
+DATA_DIR = BASE.parent / "data"
 REPORTS_DIR = BASE / "reports"
 
 # 与 docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md 表二 `commit_label` 逐字对齐（id 由数据库自增，CSV 不落）

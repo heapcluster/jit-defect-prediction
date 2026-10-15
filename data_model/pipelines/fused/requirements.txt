@@ -1,0 +1,13 @@
+# fused 线（Kamei14 ⊕ 语义 782 维）依赖
+# 环境：Python 3.12.x；安装：pip install -r data_model/pipelines/fused/requirements.txt
+#
+# 本线不装 torch / transformers：语义向量来自 semantic 线的编码缓存（npz），
+# 先跑 python -m pipelines.semantic.train 再跑本线。
+# numpy / pandas / scikit-learn 与 expert 线同源，跨线数字才可比。
+
+numpy==2.5.3
+pandas==3.0.5
+scikit-learn==1.9.1
+xgboost==3.4.1
+joblib==1.6.0
+matplotlib==3.10.1

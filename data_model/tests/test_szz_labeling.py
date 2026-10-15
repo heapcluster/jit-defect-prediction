@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 # 文件名以数字开头，不能直接 import，用 importlib 按路径加载
-_SZZ = Path(__file__).resolve().parents[1] / "02_szz_labeling.py"
+_SZZ = Path(__file__).resolve().parents[1] / "preparation" / "02_szz_labeling.py"
 _spec = importlib.util.spec_from_file_location("szz_labeling", _SZZ)
 szz = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(szz)

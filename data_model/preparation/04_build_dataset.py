@@ -33,7 +33,7 @@ import sys
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
-DATA_DIR = BASE / "data"
+DATA_DIR = BASE.parent / "data"
 REPORTS_DIR = BASE / "reports"
 SZZ_SCRIPT = BASE / "02_szz_labeling.py"
 
