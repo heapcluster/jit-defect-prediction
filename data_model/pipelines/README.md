@@ -49,6 +49,17 @@ data_model 01–05（共享上游：样本集 / 切分 / 原始特征）
 
 ## 通用命令（在 `data_model/` 目录下）
 
+**一键执行（新机拉取后推荐）**——前置检查、依赖顺序、冒烟模式、日志落盘都由脚本处理：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File data_model\run_model_lines.ps1 -CheckOnly  # 只做前置检查
+powershell -ExecutionPolicy Bypass -File data_model\run_model_lines.ps1 -Smoke      # 冒烟：验证环境
+powershell -ExecutionPolicy Bypass -File data_model\run_model_lines.ps1             # 全量跑三线
+powershell -ExecutionPolicy Bypass -File data_model\run_model_lines.ps1 -Lines semantic,fused
+```
+
+**分步执行**：
+
 ```bash
 python -m pipelines.expert.train        # baseline（CPU，约 10 分钟）
 python -m pipelines.semantic.train      # 需先有文本（见该包 README）
