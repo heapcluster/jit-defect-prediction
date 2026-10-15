@@ -56,7 +56,7 @@ def make_charts(y: np.ndarray, proba: np.ndarray, effort_loc: np.ndarray | None,
     return written
 
 
-def render(args, n_train, n_test, y_test, res) -> str:
+def render(args, n_train, n_val, n_test, y_test, res) -> str:
     eff = res.get("effort") or {}
     lines = [
         "# e2e 线模型评估指标（CodeBERT 端到端微调）\n",
@@ -65,7 +65,8 @@ def render(args, n_train, n_test, y_test, res) -> str:
         "| 项 | 值 |\n|---|---|\n",
         "| 骨干模型 | `%s` |\n" % args.text_model,
         "| 特征版本（本线标识） | `%s` |\n" % config.FEATURE_VERSION,
-        "| 训练/检验 | %d / %d 条（共享切分） |\n" % (n_train, n_test),
+        "| 训练/验证/检验 | %d / %d / %d 条（共享切分；验证集=训练尾部时间序，仅供选模） |\n"
+        % (n_train, n_val, n_test),
         "| 最大长度 / 轮数 / 学习率 | %d token / %d / %g |\n"
         % (args.max_len, args.epochs, args.lr),
         "| 有效 batch | %d（%d × 累积） |\n" % (args.batch_size * max(1, config.GRAD_ACCUM_TARGET // args.batch_size), args.batch_size),

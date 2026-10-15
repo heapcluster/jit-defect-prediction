@@ -71,8 +71,18 @@ def main() -> int:
               "跨线对比请先跑 05" % (args.eval_frac * 100))
     y_test = test_df["label"].to_numpy().astype(int)
 
-    train_ds = TextDataset(train_df["text"].tolist(), train_df["label"].tolist(),
+    # 验证集：从训练尾部按时间序切 10%，仅供 Trainer 选最佳模型。
+    # 检验集绝不参与模型选择（否则 load_best_model_at_end 就是信息泄漏）。
+    n_val = max(1, int(len(train_df) * args.eval_frac))
+    val_df = train_df.tail(n_val).reset_index(drop=True)
+    train_core = train_df.head(len(train_df) - n_val).reset_index(drop=True)
+    print("[e2e] 训练 %d / 验证 %d / 检验 %d（验证集来自训练尾部时间序）"
+          % (len(train_core), len(val_df), len(test_df)))
+
+    train_ds = TextDataset(train_core["text"].tolist(), train_core["label"].tolist(),
                            tokenizer, args.max_len)
+    val_ds = TextDataset(val_df["text"].tolist(), val_df["label"].tolist(),
+                         tokenizer, args.max_len)
     test_ds = TextDataset(test_df["text"].tolist(), y_test, tokenizer, args.max_len)
     test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False)
 
@@ -98,7 +108,7 @@ def main() -> int:
         report_to="none",
     )
     trainer = Trainer(model=model, args=training_args,
-                      train_dataset=train_ds, eval_dataset=test_ds)
+                      train_dataset=train_ds, eval_dataset=val_ds)
     t0 = time.perf_counter()
     trainer.train()
     print("[e2e] 训练耗时 %.1fs（最佳模型已加载）" % (time.perf_counter() - t0))
@@ -115,7 +125,8 @@ def main() -> int:
     print("[e2e] 模型已保存：%s" % args.model_dir)
 
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(report.render(args, len(train_df), len(test_df), y_test, res),
+    args.report.write_text(report.render(args, len(train_core), len(val_df),
+                                         len(test_df), y_test, res),
                            encoding="utf-8", newline="\n")
     print("[e2e] AUC=%.4f  F1=%.4f  P=%.4f  R=%.4f"
           % (res["auc"], res["f1"], res["precision"], res["recall"]))
