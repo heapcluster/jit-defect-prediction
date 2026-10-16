@@ -87,7 +87,7 @@ def test_default_model_is_version_order_not_recency(client):
 
 
 def test_end_pure_date_includes_whole_end_day(client):
-    """契约三 2.0：end 纯日期串含结束日全天（#61：此前丢当天数据）。"""
+    """契约三 1.5：end 纯日期串含结束日全天（#61：此前丢当天数据）。"""
     body = client.get(
         "/api/commits",
         params={"start_time": "2026-08-03", "end_time": "2026-08-03"},

@@ -2,12 +2,12 @@
 
 ## Context
 
-契约三冻结时只写了「ISO 8601 时间范围」，闭/开与纯日期串解释未定义；前端 date-picker 送纯日期串、后端按 00:00 解析、查询闭区间，三处相乘产生 #61。#55 重组后契约三位于 `docs/backend/api-spec.md`（v1.4）。
+契约三冻结时只写了「ISO 8601 时间范围」，闭/开与纯日期串解释未定义；前端 date-picker 送纯日期串、后端按 00:00 解析、查询闭区间，三处相乘产生 #61。#55 重组后契约三位于 `docs/backend/api-spec.md`（**本 change 之前为 v1.4**；本 change 按 `docs/common/writing-norms.md` §4 的口径补充 0.1 步进升为 **v1.5**，见 tasks 2.1）。
 
 ## Goals / Non-Goals
 
 - Goals：区间语义入契约且可判定；结束日含全天；同一日期只允许一种写法；列表/趋势同口径。
-- Non-Goals：不改前端代码（#60 内跟进）；不动排序/阈值（#37/#38，Sprint 2）；不为 46 处历史路径引用买单（12:41 裁定分工）。
+- Non-Goals：不改前端代码（#60 内跟进）；不动排序/阈值（#37/#38，PO 裁定 Sprint 2）；不为 Issue #65 登记的其余失效 `docs/contracts/` 引用买单（10-11 12:41 裁定分工，后端线只负责 `backend/README.md`）。
 
 ## Decisions
 
