@@ -141,6 +141,10 @@ gh api repos/$R/collaborators --jq '.[].login' | sort
 
 **说明放 docs，模板放 .github** —— 两边不重复写同一段规则，本目录只留指针。
 
+## CI 流水线
+
+入口为 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)，按 lint → test → build 顺序执行，固定检查名 `CI`。覆盖、复现命令及 main 必需检查配置见 [ci.md](ci.md)，实际运行/门禁验证见 [ci-validation.md](ci-validation.md)。没有服务端 required status check 时，YAML 失败本身不能阻断合入。
+
 ## 团队工具版本约定
 
 **OpenSpec CLI：全员统一 1.11.0。**
