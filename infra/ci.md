@@ -34,7 +34,9 @@ npm install --global @fission-ai/openspec@1.11.0 --ignore-scripts --no-audit --n
 
 ## GitHub 配置与故障定位
 
-YAML 本身不阻断合入。首次 PR 运行后，在 main 的 `protect_main` ruleset 中追加必需状态检查 `CI`（来源 GitHub Actions），启用严格最新基线，保留所有既有规则和无豁免设置。需要管理员权限。
+YAML 本身不阻断合入。启用顺序必须是：先修复实际 CI 失败 → CI PR 全绿并经非作者审阅合入 main → 各活动 PR 同步含工作流的 main 并触发 PR 检查 → 再在 `protect_main` ruleset 中追加必需 `CI`（来源 GitHub Actions）及严格最新基线。全程保留既有审阅/禁强推/禁删除规则和无豁免设置，需要管理员权限。
+
+不能在工作流尚未合入、旧 PR 尚无运行入口时先强制要求 CI，否则会一直显示 Expected / Waiting for status。2026-10-16 已按用户确认暂撤提前启用的 CI 必需项；工作流文件不删除，后续按上述顺序启用。
 
 ```sh
 gh api repos/heapcluster/jit-defect-prediction/rulesets/23522853

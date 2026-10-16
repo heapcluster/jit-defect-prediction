@@ -23,7 +23,7 @@ main 已有前端 lint/build 与后端 pytest，测试入口在其他分支上�
 
 ## Migration Plan
 
-从最新 main 独立提交 CI PR，观察 pull_request 首次运行，再追加 main ruleset 的 required status check `CI`，不覆盖审阅、禁强推、禁删除与豁免设置。失败时保留红灯并记录客观原因；不合并未经审阅的 CI PR。
+从最新 main 独立提交 CI PR，观察 pull_request 运行；修复真实失败并全绿后，由非作者审阅合入 main。活动 PR 同步工作流并触发检查后，再追加 main ruleset 的 required status check `CI`，不覆盖审阅、禁强推、禁删除与豁免设置。不能在旧 PR 尚无运行入口时先启用必需检查；本次提前启用已按用户确认暂撤。失败写实，不合并未经审阅的 CI PR。
 
 ## Open Questions
 

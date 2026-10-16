@@ -14,7 +14,7 @@
 ## 2. GitHub 门禁
 
 - [x] 2.1 创建独立 PR 并观察首次运行 — PR #72、首轮 run 和失败原因已归档到 [验证记录](../../../infra/ci-validation.md)，未称全绿。
-- [x] 2.2 配置 main 必需检查 — ruleset 中增加 Actions `CI` 并 GET 回读；原审阅、禁强推、禁删除与豁免设置不变；见 [验证记录](../../../infra/ci-validation.md)。
+- [ ] 2.2 正式启用 main 必需检查 — 提前启用已按用户确认暂撤；须 #72 全绿合入 main、活动 PR 同步工作流后，再增加 Actions `CI` 并 GET 回读，原保护不变；见 [验证记录](../../../infra/ci-validation.md)。
 
 ## 3. 测试与验证
 
@@ -44,7 +44,7 @@
 |---|---|
 | 依据 | [spec.md](specs/ci-quality-gate/spec.md) 全部 Scenario |
 | 命令 / 步骤 | `gh api repos/heapcluster/jit-defect-prediction/rulesets/23522853`；核 `required_status_checks` 为 `CI`，其余保护不变；核 PR 检查和合并状态 |
-| 用例数与结果 | 已回读 CI 必需检查、strict=true、来源 Actions 15368；PR BLOCKED，原保护保留；成功放行场景仍待验证，不造业务故障提交、不自审合并 |
+| 用例数与结果 | 提前配置的 CI 必需项已暂撤，原三条保护回读不变；正式启用和成功放行待 #72 全绿合入/活动 PR 同步后验证，不造故障提交、不自审合并 |
 | 证据 | [验证记录](../../../infra/ci-validation.md) |
 
 ### 4. 非功能验证
@@ -61,8 +61,9 @@
 | 缺口 | 原因 | 归属 | 计划时间 |
 |---|---|---|---|
 | 正常完整 CI / 成功放行尚未验证 | 首轮模型线 lint 阻塞 test/build；失败传播与必需检查已验证 | repo 苏哲勋 + model 线 | 模型 lint 修复后，本 PR 合入前 |
+| 正式必需门禁尚未启用 | 已撤回提前设置，避免无工作流的旧 PR 永久等待 | repo 苏哲勋 | 本 PR 全绿并合入 main、活动 PR 同步后 |
 | main 无前端/模型测试入口 | 对应测试尚在其他未合入分支，未将 skipped 说成 passed | frontend / model 各线 | 对应测试 PR 合入时自动接入 |
 | 模型线存量 126 项 lint | 已在首轮暴露并本地同版本复现，不跨线代改、不忽略失败 | model 蒋励 | CI PR 合入前修复；具体排期由该线确认 |
 | 浏览器 E2E 与真实数据训练未执行 | 不属于本 CI 工程化范围，不等于业务验收完成 | 各业务线 | 后续里程碑 |
 
-结论：CI 配置与 main 必需检查已交付，失败传播已实测；仍为进行中，业务 lint 阻塞导致 test/build 和正常成功放行尚未验证，不回头重排其他存量 change。
+结论：CI 工作流已提交 PR，失败传播已实测；提前启用的 main CI 必需项已暂撤，原保护保留。仍为进行中，待业务 lint 修复、全绿合入 main 和活动 PR 同步后正式启用，不回头重排其他存量 change。

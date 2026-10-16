@@ -18,6 +18,11 @@
 
 main 的服务端规则 MUST 将 GitHub Actions 的 `CI` 设为必需状态检查，并保留既有审阅和分支保护。
 
+#### Scenario: 首次上线
+
+- **WHEN** CI PR 尚未全绿合入 main，或活动 PR 尚未同步工作流运行入口
+- **THEN** CI 必需项 MUST 暂不启用，先完成运行入口接入，再正式启用；既有审阅和分支保护 MUST 始终保留
+
 #### Scenario: 未成功的 PR
 
 - **WHEN** PR 最新测试提交的 `CI` 失败、取消或未上报

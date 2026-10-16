@@ -9,7 +9,13 @@
 | OpenSpec 新 change | valid，exit 0 | `openspec validate ci-quality-gate --strict --no-interactive` |
 | 活规格 | 11 passed / 0 failed，exit 0 | `openspec validate --specs --strict --no-interactive`；不检查/重排存量 change |
 | GitHub PR 首次运行 | failure，Lint Python exit 1 | [PR #72](https://github.com/heapcluster/jit-defect-prediction/pull/72)；[run 38861835485](https://github.com/heapcluster/jit-defect-prediction/actions/runs/38861835485)，head `0f1be2295d23ed6cf7b60e88439a1fd4774f9ace` |
-| 必需状态检查 | 已配置并 GET 回读验证 | [ruleset 23522853](https://github.com/heapcluster/jit-defect-prediction/rules/23522853)，active，CI 来源 Actions 15368，strict=true，bypass=[]，原三条规则保持 |
+| 必需状态检查 | 已按用户确认暂撤，待正确顺序重新启用 | [ruleset 23522853](https://github.com/heapcluster/jit-defect-prediction/rules/23522853) GET 回读仅剩原三条保护，active、bypass=[]；启用/撤回经过见下节 |
+
+## 2026-10-16 门禁启用顺序订正
+
+首次在 14:35 启用 required `CI` 并回读，但 #72 未合入，main 与 #67 均无工作流，导致旧 PR 只有 Expected / Waiting for status 而无 run。经用户确认，14:44 已只撤回新增的 required_status_checks；GET 回读保留 deletion、non_fast_forward、pull_request，active、无豁免，原 1 位审阅要求及旧审阅作废规则不变。
+
+#67 当前仍是 CHANGES_REQUESTED；撤回 CI 必需项不等于撤销审阅修改意见。工作流仍在 #72，不删除、不绕过业务失败。重新启用的前提是 #72 全绿并经非作者审阅合入 main，活动 PR 同步后能真实上报 CI。
 
 ## 首轮真实 CI 与根因
 
@@ -26,8 +32,9 @@
 | spec Scenario | 结果 / 证据 |
 |---|---|
 | 正常运行 | 尚未完成：模型线 lint 阻塞 test/build，不称全绿 |
+| 首次上线 | 已暂撤提前启用的 CI 必需项，保留原三项保护；待工作流就位后再启用 |
 | 任一步失败 | 首轮 run 的 Lint Python failure，后续 skipped，job failure |
-| 未成功的 PR | required_status_checks 已回读；PR 红灯且合并 BLOCKED，不试推 main |
+| 未成功的 PR | 提前启用时已回读 CI 规则且 PR BLOCKED；当前已暂撤，不把历史状态冒充现行 CI 门禁，重新启用后须复核 |
 | 成功的 PR | 待业务 lint 修复后复核；仍要求非作者审阅，不自行合并 |
 | 已有套件 | 静态约束 8/8；首轮业务测试因 lint 失败未执行 |
 | 尚无套件 | main 无前端/模型用例，已记录缺口；首轮所有测试因更早失败而 skipped |
@@ -35,4 +42,4 @@
 
 ## 已知缺口
 
-main 尚无前端和模型测试配置/用例，不将对应 skipped 当成测试通过。本地验证不代表 Linux runner 全链路通过；模型线需自行处理上述 126 项 lint 后再测后续阶段，未擅自加忽略项。门禁启用后未带工作流的旧 PR 需同步 CI 分支/合入后的 main，否则等待 CI 上报。没有执行真实训练、浏览器 E2E 或自行合并。
+main 尚无前端和模型测试配置/用例，不将对应 skipped 当成测试通过。本地验证不代表 Linux runner 全链路通过；模型线需自行处理上述 126 项 lint 后再测后续阶段，未擅自加忽略项。CI 必需门禁当前暂撤，须工作流全绿并合入 main、活动 PR 同步后再启用。没有执行真实训练、浏览器 E2E 或自行合并。
