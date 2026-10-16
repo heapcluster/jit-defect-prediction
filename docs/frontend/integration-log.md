@@ -85,7 +85,7 @@
 | 风险列表（筛选） | `min_risk=0.2` 查询 | 只剩 2 条（30%、20%） | `GET /api/commits?min_risk=0.2` → total=2 |
 | 提交详情 | 点第一条 → 跳 `/commit/000...003` | 显示风险值 30% + 14 项特征 | `GET /api/commits/000...003` → code=0 |
 | 趋势看板 | 打开 `/trend`，粒度选「周」 | 折线 2 个点（W31/W32） | `GET /api/trends?granularity=week` → 2 周期 |
-| 趋势看板 | 粒度选「月」 | 折线 1 个点（2026-08） | `GET /api/trends?granularity=month` → 1 周期 |
+| 趋势看板 | 粒度选「月」 | 数据点 1 个（<2），不画折线，显明细表 + 「数据点不足」提示 | `GET /api/trends?granularity=month` → 1 周期 |
 
 ## 尚未覆盖（诚实标注）
 
