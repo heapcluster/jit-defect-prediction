@@ -105,7 +105,22 @@
 | B-1 | Nagappan, Ball, Zeller, *Mining Metrics to Predict Component Failures*, ICSE '06 | 14 项变更度量（Kamei 14）原始出处 |
 | B-2 | Hassan, *Predicting Faults Using the Complexity of Code Changes*, ICSE '09 | Entropy = 两周滚动窗口内改动文件的信息熵 |
 | B-3 | Kamei, Shihab, *Defect Prediction: Accomplishments and Future Directions*, PROMISE '16 | 问题 framing + effort-aware 必要性 |
-| C-1 | Mende & Koschke, *Effort-aware Defect Prediction Models*, ICSM '10 | 只报 AUC/F1 会被工作量代理带偏 → 两类指标同报 |
+| C-1 | Mende & Koschke, *Effort-aware Defect Prediction Models*, **CSMR 2010, pp. 107–116**（原写 ICSM '10，2026-10-16 核实更正） | 只报 AUC/F1 会被工作量代理带偏 → 两类指标同报；`Popt = 1 − Δopt` 的出处 |
+
+**阅读签注表（逐篇读后填；`原文页码` 与 `阅读日期` 必须由本人核对原文后填 —— 未读不得填，宁可留空）**：
+
+| 编号 | 文献 | 阅读日期 | 原文页码 | 一句话结论 | 与本组实现差异 |
+|---|---|---|---|---|---|
+| A-1 | Śliwerski 2005 (MSR) | 待填（本人阅读日） | ✅ ACM SIGSOFT SEN **30(4): 1–5** | 缺陷引入提交 = 修复提交中被删/改行的父提交，用 `git blame` 回溯 | 本组加「修复语义词首边界」过滤（D4）；原文未定义「什么是修复提交」 |
+| A-3 | da Costa (TSE 2017) | 待填（本人阅读日） | 🔶 TSE **43(7), 2017**（卷期已核，起止页待核） | SZZ 结果需评估而非默认正确 | 本组并行两套 SZZ（行级 + 文件级）并量化差异 |
+| B-1 | Nagappan 2006 (ICSE) | 待填（本人阅读日） | ✅ ICSE '06: **452–461** | 变更度量可预测缺陷，Kamei 14 的原始出处 | 本组按契约二重写取值口径（`rexp` 按原文补公式） |
+| B-2 | Hassan 2009 (ICSE) | 待填（本人阅读日） | ✅ ICSE 2009: **78–88** | 变更复杂度（信息熵）与缺陷相关 | 本组 entropy 取两周滚动窗口（契约二第四节） |
+| B-3 | Kamei & Shihab 2016 (PROMISE) | 待填（本人阅读日） | 🔶 PROMISE 2016（起止页待核） | 问题 framing 与 effort-aware 的必要性 | 本组两类指标同报；`Popt`/`CE@20%` 已按文献口径实现（`popt`/`ce20` 别名） |
+| C-1 | Mende & Koschke 2010 (**CSMR**) | 待填（本人阅读日） | ✅ CSMR 2010: **107–116** | 只报 AUC/F1 会被工作量代理带偏；`Popt = 1 − Δopt` 出处 | 本组 LOC 代理下 `Popt` 负值如实报告（Issue #37），不藏 |
+
+> **本轮（2026-10-16）只做「出处核注」**：`原文页码` 一列中 4 行已核到具体页码/卷期，2 行（A-3 起止页、B-3 起止页）卷期已核、起止页待核；`阅读日期` 属**人工项**（须本人对照原文逐篇读后填），不代填。核注来源：B-1/B-2 见 ICSE 论文集与多篇论文的参考文献；A-1 见 MSR 2005 引用条目（`SEN 30(4): 1–5`）；C-1 为 CSMR 2010（**注：原清单误写 ICSM '10，本次更正**）。
+
+> 上表由 2026-10-16 从 `methodology-references.md` §4 并入时补回脚手架：可核验列（文献、结论、与本组差异）已按仓库内已有证据填好；**`阅读日期` 与 `原文页码` 属人工项**（需原始 PDF 与本人确认），留空不填 —— 凭记忆填页码比留空更糟（见 `docs/repo/defect-records.md` 记录纪律）。
 
 **关键决策 ↔ 文献 ↔ 实现 ↔ 偏离**（详证见 `data-pipeline.md` 与各脚本 docstring）：
 
