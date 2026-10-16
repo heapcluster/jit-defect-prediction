@@ -53,13 +53,14 @@
 | 测试文件 | `data_model/tests/`（含本 PR 新增的缓存/注册/工作量/官方入口回归） |
 | 用例数与结果 | **逐分支实测**（同一份本 change 文件随三个分支走，用例数不同）：
 
-| 分支 | 修复提交 | 环境 | 结果 | 与 #68 的差值原因 |
-|---|---|---|---|---|
-| #71 `refactor/model-package-structure` | 见 PR head | conda `jit-defect-prediction`（Python 3.12.x） | 88 passed, 0 failed | 无 camel 采集测试及其回归（该 change 为 #68 独有） |
-| #67 `docs/update-project-docs` | 见 PR head | 同上 | 88 passed, 0 failed | 同上 |
-| #68 `feat/model/expert-line-training` | 见 PR head | 同上 | 97 passed, 0 failed | 基准（含 camel） |
+| 分支 | 环境 | 结果 | 与 #68 的差值原因 |
+|---|---|---|---|
+| #71 `refactor/model-package-structure` | conda `jit-defect-prediction`（Python 3.12.x） | 96 passed, 0 failed | 差 1 条 = `data_model/tests/test_camel_source.py`（camel 采集回归，该 change 为 #68 独有） |
+| #67 `docs/update-project-docs` | 同上 | 96 passed, 0 failed | 同上 |
+| #68 `feat/model/expert-line-training` | 同上 | 97 passed, 0 failed | 基准 |
 
-  （计数为**通过数**，非收集数；均为 0 failed、0 skipped。） |
+  （计数为**通过数**，非收集数；均为 0 failed、0 skipped。本表随分支实测更新，
+  不再用单一数字冒充三线一致 —— 三线用例数本就不同，原因见右列。） |
 | 复现命令 | `python -m pytest data_model` |
 | 关键断言 | 修订后的报告路径在仓库中真实存在：`data_model/preparation/reports/`、`data_model/pipelines/expert/reports/`、`data_model/pipelines/expert/models/feature_order.txt` |
 
