@@ -112,7 +112,10 @@ def render(args, train, test, results) -> str:
             r["model_name"], r["label"], r["auc"], r["f1"],
             r["precision"], r["recall"], r["accuracy"]))
     lines.append("\n## 二、Effort-aware 指标（检验集，LOC 工作量代理）\n\n")
-    lines.append("| 排序方式 | 模型 | 曲线下面积 | **P_norm** | Recall@20% | Recall@50% |\n"
+    lines.append("> 文献口径对照：`P_norm` 即 **Popt**（Mende & Koschke, CSMR 2010，"
+                 "`Popt = 1 − Δopt`，按「最优 − 随机」归一）；`Recall@20%` 即 **CE@20%**"
+                 "（20-80 原则）。ALPA 未获可核验定义，**不实现、登记待补**。\n\n")
+    lines.append("| 排序方式 | 模型 | 曲线下面积 | **P_norm（=Popt）** | Recall@20%（=CE@20%） | Recall@50% |\n"
                  "|---|---|---|---|---|---|\n")
     for name, r in results.items():
         m = r["effort"]["LOC（改动行数 la+ld）"]["model"]
