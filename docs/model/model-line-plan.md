@@ -113,9 +113,15 @@
 |---|---|---|
 | Effort-unaware | AUC / F1 / Precision / Recall / Accuracy | ✅ 已实现 |
 | Effort-aware（已实现） | `P_norm`、Recall@20% / @50%、曲线下面积、随机基线（200 次抽样均值 ± 标准差）、上界（真实缺陷密度降序）、四种排序（model / density / optimal / random）、两种工作量代理（LOC 与改动文件数） | ✅ 已实现 |
-| Effort-aware（文献标准） | CE@20% / Recall@20% / `Popt` / ALPA | ⬜ 待补（EV-1） |
+| Effort-aware（文献标准） | `CE@20%` / `Recall@20%` / `Popt` | ✅ 已实现（代码别名 `ce20` / `popt`，见 `pipelines/expert/metrics.py`） |
+| Effort-aware（文献标准） | `ALPA` | ⬜ **待补**：多轮检索未获可核验的原始定义出处 → **不实现、不编造**；待拿到原始论文（JIT effort-aware 方向）后再补 |
 
-- ⚠️ **`P_norm` 是本组自造的归一化变体**（锚点取实测随机均值与上界），**与文献 `Popt` 不是同一指标** —— 只能作内部对照，**不得对外宣称「标准 effort-aware 指标」**。
+**文献口径对照（2026-10-16 核实并回填）**：
+
+- **`Popt`**：Mende & Koschke（**CSMR 2010**, pp. 107–116）提出，定义为 `Popt = 1 − Δopt`——Δopt 为「最优排序（按缺陷**密度**降序）与模型排序」之间的面积差，并按「最优 − 随机」归一（定义转述见 Çarka, Esposito & Falessi, *On effort-aware metrics for defect prediction*, EMSE 27(152), 2022）。本组 `P_norm = (A_model − A_random)/(A_optimal − A_random)` **与之一致**，故代码同时输出 `popt` 别名。**待复核项**：原始论文的积分表达形式（本组按综述转述，未逐字核对原文公式）。
+- **`CE@20%` / `Recall@20%`**：20% 工作量截断处的缺陷召回率（20-80 原则；见 Huang, Xia & Lo, *Revisiting supervised and unsupervised models for effort-aware JIT defect prediction*, EMSE 24(5), 2019）。本组 `recall@20` 即该口径，代码输出 `ce20` 别名。
+- **`ALPA`**：**未实现**（未获可核验定义），登记待补。**不得**用 `Popt` 或其它数字冒名顶替（红线 2）。
+- ⚠️ 对外表述统一用文献名（`Popt` / `CE@20%`）；`P_norm` 仅作内部历史别名保留，**不再声称「自造变体、与 Popt 不同」**（该说法经核实不成立）——但**原始论文公式仍待逐字复核**，在复核完成前引用时必须带本注。
 - 只报一类不足以说明问题；覆盖矩阵报告须与 `model_metrics.md` 逐项比对**差异为 0**。
 - **统计检验**：Bootstrap（≥1000）+ Wilcoxon signed-rank（+ McNemar）；8 模型在同一测试集上配对比较。
 - **显式基线**：随机排序、上界、两种工作量代理（LOC 与改动文件数）。
@@ -248,7 +254,7 @@
 | SF-7 | 多切分稳健性（60/40、80/20） | ⬜ |
 | PD-0 | 公开数据集可下载性验证（阻塞前置） | 🔶 |
 | PD-1~4 | 加载器 / 质量治理 / 多语言 / 文献对照 | ⬜ |
-| EV-1 | 补标准 effort-aware 指标 | ⬜ |
+| EV-1 | 补标准 effort-aware 指标 | 🔶 `CE@20%`/`Recall@20%`/`Popt` 已实现（别名 `ce20`/`popt`）；`ALPA` 未获可核验定义，登记待补 |
 | EV-2 | Wilcoxon + McNemar 显著性检验 | ⬜ |
 | EV-3 | `P_norm` 标注自造 | ✅ |
 
@@ -283,7 +289,7 @@ python -m pipelines.expert.significance   # 显著性
 ## 9. 纪律红线（一票否决）
 
 1. 不声称全量 GPU 结果（无 GPU 则标 CPU / 抽样）。
-2. 不把自造 `P_norm` 包装成文献 `Popt`。
+2. 不把「未获可核验定义」的指标（当前为 `ALPA`）用别的数字冒名顶替；引用 `Popt` / `CE@20%` 时按 §4.2 注明的口径与待复核项如实标注。
 3. 不暗示复现 SOTA（本组为特征式混合 + 端到端探索）。
 4. 不静默切换交付模型（切换走提案）。
 5. 不虚构公开数据集（下载不到则降级并说明）。
