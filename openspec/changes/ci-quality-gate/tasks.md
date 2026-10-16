@@ -7,14 +7,14 @@
 
 ## 1. 流水线与交付
 
-- [ ] 1.1 顺序质量检查 — 交付 [ci.yml](../../../.github/workflows/ci.yml)，运行 lint/test/build，任一步失败即 CI failure。
+- [x] 1.1 顺序质量检查 — 交付 [ci.yml](../../../.github/workflows/ci.yml)，顺序配置 lint/test/build；首轮 lint 失败即 CI failure，后续跳过，证据见 [验证记录](../../../infra/ci-validation.md)。
 - [x] 1.2 防回退验证 — 交付 [静态约束测试](../../../infra/tests/test_ci_contract.py)，8 条 unittest 通过，actionlint 无错误；结果见 [验证记录](../../../infra/ci-validation.md)。
-- [ ] 1.3 跨线交付 — 向 backend/frontend/model 三线交付 PR 的 `CI` 日志和 [复现说明](../../../infra/ci.md)，失败定位到阶段；不代修业务代码。
+- [x] 1.3 跨线交付 — 向 backend/frontend/model 三线交付 PR #72 的 `CI` 日志和 [复现说明](../../../infra/ci.md)，失败定位到阶段；记录在 [验证记录](../../../infra/ci-validation.md)，不代修业务代码。
 
 ## 2. GitHub 门禁
 
-- [ ] 2.1 创建独立 PR 并观察首次运行 — 将 PR/run 链接归档到 [验证记录](../../../infra/ci-validation.md)，成功或失败均写实。
-- [ ] 2.2 配置 main 必需检查 — ruleset 中增加 Actions `CI`，读取回验证；原审阅、禁强推、禁删除与豁免设置不变。
+- [x] 2.1 创建独立 PR 并观察首次运行 — PR #72、首轮 run 和失败原因已归档到 [验证记录](../../../infra/ci-validation.md)，未称全绿。
+- [x] 2.2 配置 main 必需检查 — ruleset 中增加 Actions `CI` 并 GET 回读；原审阅、禁强推、禁删除与豁免设置不变；见 [验证记录](../../../infra/ci-validation.md)。
 
 ## 3. 测试与验证
 
@@ -35,7 +35,7 @@
 | 范围 | GitHub runner + lock/requirements + 现有 lint/pytest/build |
 | 命令 | `gh pr checks <本 PR 编号> --repo heapcluster/jit-defect-prediction`；`gh run view <run-id> --log-failed` |
 | 关键断言 | spec「正常运行」「任一步失败」「已有套件」；失败阶段非零、后续阶段不执行 |
-| 用例数与结果 | 首次 PR run 待执行；本地静态校验不等于 Linux 集成成功 |
+| 用例数与结果 | 首次 PR run failure，lint 失败传播成立；业务测试/build 未执行，不称全链路通过 |
 | 证据 | [验证记录](../../../infra/ci-validation.md) |
 
 ### 3. 验收测试
@@ -44,7 +44,7 @@
 |---|---|
 | 依据 | [spec.md](specs/ci-quality-gate/spec.md) 全部 Scenario |
 | 命令 / 步骤 | `gh api repos/heapcluster/jit-defect-prediction/rulesets/23522853`；核 `required_status_checks` 为 `CI`，其余保护不变；核 PR 检查和合并状态 |
-| 用例数与结果 | 服务端配置/失败阻断待验证，不造失败业务提交、不合并自审 PR |
+| 用例数与结果 | 已回读 CI 必需检查、strict=true、来源 Actions 15368；PR BLOCKED，原保护保留；成功放行场景仍待验证，不造业务故障提交、不自审合并 |
 | 证据 | [验证记录](../../../infra/ci-validation.md) |
 
 ### 4. 非功能验证
@@ -60,9 +60,9 @@
 
 | 缺口 | 原因 | 归属 | 计划时间 |
 |---|---|---|---|
-| 真实 GitHub 执行与必需检查尚未核验 | 待提交 PR 首次运行及规则配置 | repo 苏哲勋 | 本 PR 交付前 |
+| 正常完整 CI / 成功放行尚未验证 | 首轮模型线 lint 阻塞 test/build；失败传播与必需检查已验证 | repo 苏哲勋 + model 线 | 模型 lint 修复后，本 PR 合入前 |
 | main 无前端/模型测试入口 | 对应测试尚在其他未合入分支，未将 skipped 说成 passed | frontend / model 各线 | 对应测试 PR 合入时自动接入 |
-| 存量 lint/依赖/测试可能失败 | 不跨线代改、不忽略非零退出 | backend/frontend/model 对应线 | 失败后按 CI 日志由负责人修复 |
+| 模型线存量 126 项 lint | 已在首轮暴露并本地同版本复现，不跨线代改、不忽略失败 | model 蒋励 | CI PR 合入前修复；具体排期由该线确认 |
 | 浏览器 E2E 与真实数据训练未执行 | 不属于本 CI 工程化范围，不等于业务验收完成 | 各业务线 | 后续里程碑 |
 
-结论：待执行，本文件只在证据产生后勾选；不回头重排其他存量 change。
+结论：CI 配置与 main 必需检查已交付，失败传播已实测；仍为进行中，业务 lint 阻塞导致 test/build 和正常成功放行尚未验证，不回头重排其他存量 change。
