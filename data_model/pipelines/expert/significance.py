@@ -80,6 +80,23 @@ def bootstrap_ci(y: np.ndarray, proba: np.ndarray, n_repeats: int,
     return out
 
 
+def top_by_effort(p: np.ndarray, effort: np.ndarray,
+                  effort_fraction: float) -> np.ndarray:
+    """Commits reviewable within an LOC budget, taken in score order.
+
+    Budget = ``effort.sum() * effort_fraction``. Selection walks the
+    score-descending order and stops once the cumulative LOC would exceed the
+    budget, always keeping at least the first commit (a single high-LOC commit
+    may alone exceed the budget; returning nothing would make the metric
+    meaningless rather than honest).
+    """
+    order = np.argsort(-p, kind="stable")
+    cum = np.cumsum(effort[order])
+    within = int(np.searchsorted(cum, effort.sum() * effort_fraction,
+                                 side="right"))
+    return order[:max(1, within)]
+
+
 def main() -> int:
     args = parse_args()
     for path in (args.train, args.test):
@@ -129,17 +146,23 @@ def main() -> int:
     bootstrap = {name: bootstrap_ci(y_test, p, args.bootstrap_repeats, args.seed)
                  for name, p in probas.items()}
 
-    # 随机基线二项检验：Recall@effort_fraction
-    quota = max(1, int(round(len(y_test) * args.effort_fraction)))
+    # Effort-aware 配额：预算 = 检验集总 LOC 的 effort_fraction，
+    # 按模型分数降序「花」预算，累计 LOC 不超过预算的提交都在审阅范围内。
+    # 修掉旧口径：之前用 len(y_test) * fraction 取**条数**，effort 加载了却
+    # 一行都没用 —— 那是 count-based，不是 Effort-aware（见下方的最小反例）。
+    effort_budget = float(effort.sum()) * args.effort_fraction
+
+    # 随机基线二项检验：Recall@effort_fraction（按 LOC 预算）
     binom_rows = []
     for name, p in probas.items():
-        order = np.argsort(-p, kind="stable")
-        top = order[:quota]
+        top = top_by_effort(p, effort, args.effort_fraction)
         hit = int(y_test[top].sum())
         k_pos = int(y_test.sum())
-        binom = stats.binomtest(hit, k_pos, quota / len(y_test),
+        # 随机排序下，审阅集合的期望 LOC 占比就是 effort_fraction，
+        # 因此期望抓到的缺陷比例也是 effort_fraction。
+        binom = stats.binomtest(hit, k_pos, args.effort_fraction,
                                 alternative="greater")
-        binom_rows.append((name, hit, k_pos, binom.pvalue))
+        binom_rows.append((name, hit, k_pos, binom.pvalue, len(top)))
 
     # Wilcoxon 符号秩：交付模型两两配对（按正标签子集上的 rank 差）
     wilcoxon_rows = []
@@ -163,14 +186,14 @@ def main() -> int:
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(
         render(args, train, test, wanted, bootstrap, binom_rows, wilcoxon_rows,
-               y_test, quota),
+               y_test, effort_budget),
         encoding="utf-8", newline="\n")
     print("[expert-significance] 显著性检验报告：%s" % args.report)
     return 0
 
 
 def render(args, train, test, wanted, bootstrap, binom_rows, wilcoxon_rows,
-           y_test, quota) -> str:
+           y_test, effort_budget) -> str:
     L: list[str] = []
     L.append(f"""# 交付模型统计显著性检验（pipelines/expert/significance.py 产出）
 
@@ -185,7 +208,7 @@ def render(args, train, test, wanted, bootstrap, binom_rows, wilcoxon_rows,
 | 检验集 | `{args.test.name}` —— {len(test)} 条 |
 | 模型 | {', '.join('`%s_v1`' % m for m in wanted)} |
 | Bootstrap 重复次数 | {args.bootstrap_repeats}（种子 {args.seed}） |
-| Effort-aware 配额 | 前 {args.effort_fraction:.0%}（{quota} 条） |
+| Effort-aware 预算 | 检验集总 LOC 的 {args.effort_fraction:.0%}（{effort_budget:.0f} LOC） |
 | AUC 验收线 | ≥ {AUC_TARGET:.2f} |
 | 检验集正样本比例 | {y_test.mean() * 100:.2f}% |
 
@@ -206,22 +229,29 @@ def render(args, train, test, wanted, bootstrap, binom_rows, wilcoxon_rows,
 > **读法**：AUC 的区间**下限**也 ≥ {AUC_TARGET:.2f} 才叫「稳」；均值过线但下限不过线，
 > 说明波动大、结论不稳。交付报告引用时写「95% CI [下限, 上限]」，别只写均值。
 
-## 二、随机基线对比（二项检验， Recall@{args.effort_fraction:.0%}）
+## 二、随机基线对比（二项检验， Recall@{args.effort_fraction:.0%} effort）
 
-原假设：模型在「前 {args.effort_fraction:.0%} 条」里抓到的缺陷数与「随机抽 {quota} 条」无差别。
+原假设：模型在「累计 LOC = 检验集总 LOC 的 {args.effort_fraction:.0%}」的审阅范围内抓到的
+缺陷数，与「随机排序花同样预算」无差别。
 备择假设：模型抓得**更多**（单侧检验）。
 
-| 模型 | 抓到缺陷 | 随机期望 | p 值 | 结论（α=0.05） |
-|---|---|---|---|---|
+| 模型 | 审阅条数 | 抓到缺陷 | 随机期望 | p 值 | 结论（α=0.05） |
+|---|---|---|---|---|---|
 """)
-    for name, hit, k_pos, p_value in binom_rows:
-        expected = quota * k_pos / len(y_test)
-        L.append("| `%s_v1` | %d | %.1f | %.2e | %s |\n"
-                 % (name, hit, expected, p_value,
+    for name, hit, k_pos, p_value, n_reviewed in binom_rows:
+        expected = args.effort_fraction * k_pos
+        L.append("| `%s_v1` | %d | %d | %.1f | %.2e | %s |\n"
+                 % (name, n_reviewed, hit, expected, p_value,
                     "**拒绝 H0（显著优于随机）**" if p_value < 0.05
                     else "不能拒绝 H0"))
     L.append("""
-> 期望值 = 配额 × 整体缺陷率。p < 0.05 说明「抓这么多不是碰巧」。
+> 随机期望 = effort_fraction × 检验集缺陷总数（随机排序花同一 LOC 预算时，
+> 期望抓到的缺陷占比就是预算占比）。p < 0.05 说明「抓这么多不是碰巧」。
+>
+> **口径说明**：这里的 Effort-aware 用 **LOC = la + ld** 作工作量代理（Kamei et al. 2013）。
+> 旧版曾误用「提交条数的 20%」充当预算 —— 那是 count-based 指标，两者结果可差 0.5
+> 召回（最小反例：LOC=[10,10,10,10,60]、标签=[0,1,0,0,1]，条数口径前 20% 只审 1 条
+> 召回 0，LOC 预算可审 2 条召回 0.5）。已改为真实 LOC 预算。
 """)
 
     L.append("""

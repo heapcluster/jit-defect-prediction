@@ -1,4 +1,9 @@
-# Tasks — path-references-alignment
+# path-references-alignment — 任务清单
+
+> 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/commit-collection/spec.md`、`specs/labeled-dataset/spec.md`、`specs/feature-extraction/spec.md`、`specs/model-training/spec.md`、`specs/model-coverage/spec.md`
+> 负责人：model 蒋励 ｜ 创建：2026-10-16 ｜ 状态：进行中（规格路径修订完成，待严格校验与路径扫描证据）
+> 用户故事：无（工程化）—— 纯路径字符串修订，不改变任何规格行为语义
+> 统一格式见 `docs/common/openspec-task-template.md`；**本文件末的「测试与验证」为强制板块，缺失视为提案不完整。**
 
 ## 1. 规格修订（5 个能力的 MODIFIED delta）
 
@@ -16,5 +21,61 @@
 
 ## 3. 校验
 
-- [ ] 3.1 `openspec validate --all --strict` 全绿（15+1 项）
+- [ ] 3.1 `openspec validate --all --strict` 全绿（18 项）
 - [ ] 3.2 `git diff` 确认本 change 只动路径字符串，规格语义（阈值 / 判定 / 交付边界）逐字未改
+
+## 测试与验证（强制板块）
+
+> 分层口径见 `docs/common/test-strategy.md`：**单元测试**由写代码的人自己做、
+> **集成测试**在大版本合并后做、**验收测试**在交付时做，非功能验证并行。
+> 铁律：**勾了 tasks ≠ 功能合格，必须有可复现的运行证据。**
+> 本 change 是纯路径字符串修订（不改任何 Python 代码与运行时行为），
+> 因此单元 / 集成 / 验收三层的**功能用例均不新增**，验证手段改为
+> 「路径引用全量扫描 + 严格规格校验 + 语义逐字比对」三类静态检查；
+> 不适用之处逐项注明，不省略板块。
+
+### 1. 单元测试（本 change 新增/改动代码的作者负责）
+
+| 项 | 内容 |
+|---|---|
+| 覆盖对象 | 不适用 —— 本 change 不新增、不改动任何 Python / 前端代码，只改 `openspec/specs/**` 与进行中 change 文档里的路径字符串 |
+| 测试文件 | 不适用（无新增代码） |
+| 用例数与结果 | 0 条 ｜ 不适用 |
+| 复现命令 | 不适用 —— 既有 `data_model` 测试套件不受影响，见集成层 |
+| 正向用例 | 不适用 |
+| 异常 / 边界用例 | 不适用 |
+
+### 2. 集成测试（大版本合并后，由负责合入的一条线组织）
+
+| 项 | 内容 |
+|---|---|
+| 集成范围 | 修订后的 5 份规格 + 3 份进行中 change 文档，与仓库实际产物路径的一致性 |
+| 测试文件 | `data_model/tests/`（含本 PR 新增的缓存/注册/工作量回归，回归确认未被本 change 破坏） |
+| 用例数与结果 | 89 条 ｜ 89 passed, 0 failed（本 change 分支实测 2026-10-16，见下方命令） |
+| 复现命令 | `python -m pytest data_model` |
+| 关键断言 | 修订后的报告路径在仓库中真实存在：`data_model/preparation/reports/`、`data_model/pipelines/expert/reports/`、`data_model/pipelines/expert/models/feature_order.txt` |
+
+### 3. 验收测试（交付时，按 `specs/<cap>/spec.md` 的 Scenario 逐条走）
+
+| 项 | 内容 |
+|---|---|
+| 验收依据 | 5 份 MODIFIED delta 的 SHALL/MUST 条目中「MUST 可入库可复现 / 报告路径」相关条目 |
+| 用例数与结果 | 5 条 ｜ 待执行（见下方命令与证据归档） |
+| 复现命令 / 步骤 | `openspec validate path-references-alignment --strict`；随后对每条修订路径执行 `Test-Path <修订后路径>`（5/5 必须为 True） |
+| 证据归档 | `openspec/changes/path-references-alignment/path-scan.md`（见 §5 缺口行 1） |
+
+### 4. 非功能验证（本 change 触及则必填，否则写「本 change 不触及」）
+
+| 维度 | 是否触及 | 证据 |
+|---|---|---|
+| 性能 | 否 | 不触及 —— 无运行时代码变更 |
+| 安全 | 否 | 不触及 —— 无鉴权 / 输入处理变更 |
+| 可靠 | 否 | 不触及 —— 无幂等 / 降级逻辑变更 |
+| 易用 | 否 | 不触及 —— 无用户界面变更 |
+
+### 5. 已知缺口与后续计划
+
+| 缺口 | 原因 | 归属 | 计划时间 |
+|---|---|---|---|
+| §3 验收层的路径扫描证据文件尚未产出 | 严格校验已跑、`Test-Path` 扫描需在最终集成树上执行，合并前出证才有效 | model 蒋励 | #71 合入当日（2026-10-16～2026-10-17） |
+| §2 集成层的 `python -m pytest data_model` 需在合入后重跑 | 本分支 74 passed 是当前树实测；合入 main 后环境与依赖可能变化 | model 蒋励 | #68 合入窗口内（2026-10-17 前） |

@@ -101,7 +101,7 @@
 | 验收依据 | `specs/semantic-features/spec.md` 的 7 条 Requirement 与全部 Scenario |
 | 用例数与结果 | 计划 7 条（每条 Requirement 至少 1 条） |
 | 复现命令 / 步骤 | 按 `docs/model/data-pipeline.md` 增补后的 10→14 步顺序执行，比对 `data_model/pipelines/semantic/reports/three_way_comparison.md` |
-| 证据归档 | `data_model/pipelines/semantic/reports/three_way_comparison.md`、`feature_ablation.md`；设备/样本量/截断统计随报告附 |
+| 证据归档 | `data_model/pipelines/semantic/reports/three_way_comparison.md`、`data_model/pipelines/semantic/reports/feature_ablation.md`；设备/样本量/截断统计随报告附 |
 
 ### 4. 非功能验证
 | 维度 | 是否触及 | 证据 |
@@ -114,8 +114,8 @@
 ### 5. 已知缺口与后续计划
 | 缺口 | 原因 | 归属 | 计划时间 |
 |---|---|---|---|
-| `torch` 未安装、`jit-defect-prediction` 未建 | Sprint 1 收口前不动环境（避免影响 10/23 验收） | 蒋励 | Sprint 2 第 1 天 |
-| CodeBERT 全量可能因算力无法完成 | 无 GPU，CPU 耗时待 100 条基准测试实测 | 蒋励 | Sprint 2 第 1 天测出时限；完不成则分层抽样并如实登记 |
+| ~~`torch` 未安装、`jit-defect-prediction` 未建~~ **已就绪（2026-10-16 订正）**：环境 `jit-defect-prediction` 已建，`torch` / `sentence-transformers` / `transformers` 实测已安装 | 原表述写于 Sprint 1 收口前，环境当时未建；现已具备，本行改为记录订正，避免与环境实况冲突 | 蒋励 | 已完成（2026-10-16） |
+| CodeBERT 全量可能因算力无法完成 | 无 GPU（依赖 RTX 4060 新机到位），CPU 耗时待 100 条基准测试实测 | 蒋励 | Sprint 2 第 1 天测出时限；完不成则分层抽样并如实登记 |
 | 语义向量维度（MiniLM 384 维）与 14 项专家特征量纲差异大，融合前是否需标准化待定 | 需先看三类对比的未标准化结果再定 | 蒋励 | Sprint 2 |
 | 交付模型切换未做（硬约束，不静默切换） | 须另开「模型切换」提案 | 蒋励 | Sprint 3（若指标支持） |
 | 集成测试套件由后端线组织，本 change 只提供被测对象 | 跨线集成属吕建江职责 | 吕建江 | Sprint 2 |

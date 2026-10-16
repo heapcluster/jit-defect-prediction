@@ -7,6 +7,8 @@ numpy==2.5.3
 scikit-learn==1.9.1
 scipy        # significance.py 的 binomtest/wilcoxon；随 scikit-learn 传递安装，此处显式声明
 xgboost==3.4.1
+lightgbm==4.6.0
+pytorch-tabnet==4.1.0
 joblib==1.6.0
 shap==0.52.0
 matplotlib==3.10.1

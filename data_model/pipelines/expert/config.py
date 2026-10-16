@@ -31,7 +31,8 @@ LABEL_COL = "is_bug_inducing"        # 主标签 szz，不回退 szz_lite
 # ── 训练设置 ────────────────────────────────────────────────────────────
 SEED = 42                            # 随机种子显式固定，写进报告
 DECISION_THRESHOLD = 0.5             # 契约三：服务端常量，非请求参数
-DEFAULT_MODELS = ["lr", "rf", "xgb", "nb", "dt", "knn", "mlp", "mlp_deep"]
+DEFAULT_MODELS = ["lr", "rf", "xgb", "lgbm", "et", "svm",
+                  "nb", "dt", "knn", "mlp", "mlp_deep", "tabnet"]
 
 # ── Effort-aware 指标参数（与 06 同源，跨线可比）────────────────────────
 RANDOM_BASELINE_REPEATS = 200

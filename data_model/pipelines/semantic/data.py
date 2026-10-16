@@ -101,13 +101,35 @@ def encode_texts(texts: list[str], text_model: str, max_len: int,
     return np.concatenate(out)
 
 
+def _as_str_array(values) -> np.ndarray:
+    """Return a fixed-width Unicode array instead of an object array.
+
+    ``np.savez`` stores an object array as pickled data, which cannot be read
+    back with ``allow_pickle=False``. Casting to the widest ``U`` dtype keeps
+    the file pickle-free while remaining a plain sequence of ``str`` on load.
+    """
+    arr = np.asarray([str(v) for v in values], dtype=object)
+    if arr.size == 0:
+        return np.empty(0, dtype="U1")
+    return arr.astype("U%d" % max(1, max(len(s) for s in arr)))
+
+
 def save_embeddings(path: Path, df: pd.DataFrame, emb: np.ndarray) -> None:
+    """Persist the encoding cache.
+
+    Every string column must be written with a fixed-width Unicode dtype.
+    ``pandas`` string columns hand back an ``object`` array, and
+    ``np.savez_compressed`` then stores it as a pickled object array -- which
+    ``np.load(..., allow_pickle=False)`` refuses to read. Both the semantic and
+    the fused loader load with allow_pickle=False, so an object-dtype save
+    makes the cache unreadable by the very loaders that consume it.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(path,
-                        commit_hash=df["commit_hash"].to_numpy(),
+                        commit_hash=_as_str_array(df["commit_hash"]),
                         embeddings=emb,
                         labels=df["label"].to_numpy() if "label" in df.columns else np.array([]),
-                        feature_version=np.array(sorted(set(df["feature_version"]))))
+                        feature_version=_as_str_array(sorted(set(df["feature_version"]))))
 
 
 def load_embeddings(path: Path) -> tuple[list[str], np.ndarray, np.ndarray | None, list[str]]:
