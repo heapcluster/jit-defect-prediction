@@ -11,6 +11,11 @@ pandas==3.0.5
 numpy==2.5.3
 scikit-learn==1.9.1
 xgboost==3.4.1
+lightgbm==4.6.0
+
+# pytorch-tabnet：TabNet（深度表格）模型依赖。它自带 PyTorch 后端，
+# 装它会连带引入 torch —— 与语义线（CodeBERT）共用同一份 torch 运行时即可。
+pytorch-tabnet==4.1.0
 
 # joblib：交付 `.pkl` 的读取依赖。`lr_v1` / `rf_v1` 落成 joblib 格式（文件内含 numpy 缓冲
 # `numpy_array_alignment_bytes`，标准 `pickle.load` 会报 invalid load key）；`xgb_v1` 落成

@@ -110,7 +110,7 @@
 
 ## 交付清单（A 方案）
 
-`data_model/models/feature_order.txt`（**不入库**，随包交付）含：
+`data_model/pipelines/expert/models/feature_order.txt`（**不入库**，随包交付）含：
 
 - `.pkl` 文件路径与对应模型名
 - 14 项特征顺序（契约二第三节的副本，不一致时以契约为准）

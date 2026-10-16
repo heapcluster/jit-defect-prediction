@@ -153,8 +153,21 @@
 
 - **主对象**：**Apache Camel**（`https://github.com/apache/camel.git`，tag `camel-4.23.0` / commit `b2329103df8f5d1edfca2ad262be09e3be95ee68`，JIRA `CAMEL-xxxx`）——**2026-10-14 换库变更**（原因：ActiveMQ 为自建非标准 benchmark、时间漂移明显）。
 - **原 ActiveMQ 方案已废弃**：其仓库副本、中间数据、模型与全部评估报告已于 2026-10-14 一并清理（仅存于 git 历史），**不再作为对照基线**；本方案所有统计均以 Camel 重跑结果为准。
-- **为什么单仓库**：Kamei et al. 2013——JIT 预测**项目内可用、跨项目不可迁移**。管线插件化可扩展，但模型须逐仓库重训。
+- **为什么单仓库**：Kamei et al. 2013（IEEE TSE 39(6):757–773）——JIT 预测**项目内可用、跨项目不可迁移**。管线插件化可扩展，但模型须逐仓库重训。
 - **SZZ 局限已登记**（代理标注 / blame 过远 / 对重构敏感 / 双口径差 / D4 为自定启发式）：五条写入 `data-pipeline.md` §7.1，如实报告不包装。
+
+> 2026-10-15 数据源订正：上条 Camel 的实测数字来自上游提交 `866b7dc` 的全量报告 —— 固定版本非合并提交 **84,461**，`szz` 正例 **22.23%** / `szz_lite` 正例 **14.38%**（两套差 **7.85 个百分点**）。本次只对齐口径，**未重新运行全量采集 / SZZ / 训练**。
+
+### 5.1 常见质疑与答辩口径（必背）
+
+| 质疑 | 我们的选择 | 依据 |
+|---|---|---|
+| 仓库范围 | 「测任何仓库」「多仓库」 | **单仓库 Apache Camel**，管线插件化可扩展 | Kamei 2013（IEEE TSE 39(6):757–773）：跨项目不可迁移 |
+| 特征 | Kamei 14 是唯一主线；语义特征「可选附加、Sprint 3 才做」 | **CodeBERT 语义特征为主线**；Kamei 14 降基线 | 课程附加功能 (4)：现在主流是预训练语义特征；童老师「不能采用老旧方案」 |
+| 语义模型 | MiniLM 打底全量 | **CodeBERT/GraphCodeBERT 主路线**；MiniLM 仅弱基线/可砍 | 代码专用预训练 vs 通用句向量域不匹配 |
+| 评估 | 只报自造 `P_norm` | **标准 effort-aware（CE@20%/Recall@20%/Popt/ALPA）+ Wilcoxon**；`P_norm` 标注自造 | 文献 effort-aware 标准口径 |
+| 交付 | 语义更优就静默替换 | **不静默切换**，须另开模型切换提案 | `model-coverage` R6 硬约束 |
+| 形态 | 暗示端到端 SOTA | **特征式混合**，如实说明非端到端 | D10 答辩纪律 |
 
 ---
 
@@ -162,7 +175,7 @@
 
 - **本期交付模型 = `lr` / `rf` / `xgb` 三个**（后端 `[models]` 段）；其余 5 个仅评估对照，不进交付链（`model-coverage` R6）。
 - **不静默切换**：四类对比若显示更优者，须另开「模型切换」提案，走契约三变更流程。
-- **模型文件不入库**：`data_model/models/*.pkl` 被 `.gitignore` 排除，走打包交付；随包交付 `models/feature_order.txt`（**契约二第三节的副本**，不一致时以契约为准）。
+- **模型文件不入库**：`data_model/pipelines/expert/models/*.pkl` 被 `.gitignore` 排除，走打包交付；随包交付 `models/feature_order.txt`（**契约二第三节的副本**，不一致时以契约为准）。
 - **后端加载**：统一 `joblib.load`（`lr_v1`/`rf_v1` 是 joblib 格式、`xgb_v1` 是标准 pickle）；`model_name` 与 `prediction.model_name` 及接口入参同名。
 
 ---
