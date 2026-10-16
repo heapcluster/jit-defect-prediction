@@ -73,14 +73,14 @@ python -m app.ingest predictions <prediction_result.csv>
 
 ## 模型从哪来（2026-09-16 已定：方案 A + C）
 
-**A（后端加载模型文件）**：后端启动时从 `data_model/models/` 加载 `.pkl` 文件，供 `POST /api/predict` 实时推理。
+**A（后端加载模型文件）**：后端启动时从 `data_model/pipelines/expert/models/` 加载 `.pkl` 文件，供 `POST /api/predict` 实时推理。
 
-- 模型文件路径与特征顺序由契约约定，见 `docs/sprint0-scope.md` 第 4 节「跨线接口已定」。
+- 模型文件路径与特征顺序由契约约定，见 `docs/design/sprint0-scope.md` 第 4 节「跨线接口已定」。
 - **特征顺序以 `docs/model/feature-columns.md` 为准**，不要按 `dict` 的插入顺序自己猜 —— 顺序错了模型不报错，只会给出错误答案。
 
 **C（离线预测结果入库）**：数据线批量跑完，把结果写进 `prediction` 表；前三个查询接口读它。
 
-**为什么两个都要**：11,050 条提交不可能每翻一页都实时推理 —— 风险列表与趋势看板必须读预置结果（C）。而课程要求「在线预测服务」，新提交进来要能立刻出概率，这只能靠实时推理（A）。**两者写同一张 `prediction` 表，靠 `model_name` 区分。**
+**为什么两个都要**：历史全量提交不可能每翻一页都实时推理 —— 风险列表与趋势看板必须读预置结果（C）。而课程要求「在线预测服务」，新提交进来要能立刻出概率，这只能靠实时推理（A）。**两者写同一张 `prediction` 表，靠 `model_name` 区分。**
 
 **不选 B（后端调推理脚本）**：每次预测起一个 Python 进程，光解释器启动就几百毫秒，过不了契约第四节「95% < 500ms」。
 

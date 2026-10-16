@@ -79,12 +79,12 @@ def client(engine):
             session.query(table).delete()
         session.add_all(
             [
-                Commit(commit_hash=C1, repo_name="activemq", author_name="jdoe",
-                       committed_at=datetime(2026, 7, 20, 9, 0, 0), message="AMQ-1 fix", parent_hash=None),
-                Commit(commit_hash=C2, repo_name="activemq", author_name="jdoe",
-                       committed_at=datetime(2026, 8, 3, 9, 0, 0), message="AMQ-2 fix", parent_hash=None),
-                Commit(commit_hash=C3, repo_name="activemq", author_name="jdoe",
-                       committed_at=datetime(2026, 8, 10, 9, 0, 0), message="AMQ-3 fix", parent_hash=None),
+                Commit(commit_hash=C1, repo_name="camel", author_name="jdoe",
+                       committed_at=datetime(2026, 7, 20, 9, 0, 0), message="CAMEL-1 fix", parent_hash=None),
+                Commit(commit_hash=C2, repo_name="camel", author_name="jdoe",
+                       committed_at=datetime(2026, 8, 3, 9, 0, 0), message="CAMEL-2 fix", parent_hash=None),
+                Commit(commit_hash=C3, repo_name="camel", author_name="jdoe",
+                       committed_at=datetime(2026, 8, 10, 9, 0, 0), message="CAMEL-3 fix", parent_hash=None),
             ]
         )
         for hash_ in (C1, C2):

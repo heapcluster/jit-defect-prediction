@@ -19,7 +19,7 @@
 | 面向明确用户与真实场景，不简单复刻/CRUD | 用户=代码评审员；场景=提交粒度风险排序（`design/sprint0-scope.md`） |
 | 含可用界面/交互入口 + 可维护业务/数据层 | 三页面 + 后端 + 数据线（`frontend/` `backend/` `model/`） |
 | Scrum，每 Sprint 可演示可运行增量 | `repo/sprints.md` |
-| MVP + ≥20 关联核心用户故事形成闭环 | PRD 27 条故事（`repo/user-story-traceability.md`） |
+| MVP + ≥20 关联核心用户故事形成闭环 | PRD 31 条故事（核心 27 + 可选附加 Epic G 4；`repo/user-story-traceability.md`） |
 | 功能+非功能需求（非功能≥2 项） | `design/non-functional.md`（安全/性能/可靠/易用） |
 
 ## 2. 项目协作规则（原文 → 本项目落地）
@@ -41,7 +41,7 @@
 | 0（1–3 周） | 需求/设计/看板/OpenSpec 初始化 | 29 任务闭环；9 能力规格；模型包 r2（`repo/sprints.md`） |
 | 1（4–6 周） | 首 MVP，≥1 条界面→数据层完整流程 | #33/#52 合→三页面→联调→端到端（`frontend/acceptance.md`） |
 | 2（7–9 周） | 核心功能与集成，单元测试报告 | 契约三变更；各线单测（`backend/acceptance.md`） |
-| 3（10–14 周） | 测试验证，≥2 项非功能验证，缺陷处置记录 | 性能/安全证据；两项附加功能（`design/non-functional.md`） |
+| 3（10–14 周） | 测试验证，≥2 项非功能验证，缺陷处置记录 | 性能/安全证据；四项附加功能（G1-1~G1-4，`design/addons.md`） |
 | Final（15–16 周） | 可运行系统，change 全归档且规格一致 | 结题材料（`repo/sprints.md`） |
 
 ## 4. 评分维度（原文 → 本项目注意）

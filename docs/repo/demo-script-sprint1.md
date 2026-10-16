@@ -2,7 +2,7 @@
 
 > 负责人：蒋励 ｜ 用途：证明一条提交走完「风险列表 → 详情归因 → 趋势看板」完整链路
 > 配套产物：本脚本 + 录屏，二者入库 `docs/` 或附 Issue 链接。
-> 接口与错误码口径：`docs/contracts/api-format.md`；页面口径：`docs/pages.md`。
+> 接口与错误码口径：`backend/api-spec.md`；页面口径：`docs/frontend/pages.md`。
 
 ## 1. 前置（演示前逐项确认）
 
@@ -18,7 +18,7 @@
 ### 步骤 1 — 风险列表（被预警）
 
 ```
-GET /api/commits?order_by=risk_score&order=desc&min_risk=0.5
+GET /api/commits?min_risk=0.5&size=20
 Header: X-API-Key: <KEY>
 ```
 

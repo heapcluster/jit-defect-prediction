@@ -26,7 +26,7 @@ def seed() -> None:
             session.add(
                 Commit(
                     commit_hash=hash_,
-                    repo_name="activemq",
+                    repo_name="camel",
                     author_name=f"seed-author-{i}",
                     committed_at=datetime(2026, 8, i, 9, 0, 0),
                     message=f"seed commit {i}",

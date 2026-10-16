@@ -12,7 +12,7 @@ GitHub 仓库配置、分支规范与分支保护、PR / Issue 模板、CI 流�
 
 仓库规范、CI 配置、PR / Issue 模板。
 
-> **三条契约的归属已裁定**（飞书《讨论0915-项目启动与分工》）：落点在 `docs/contracts/`，契约一（数据表字段）与契约二（特征列名）由蒋励主笔，契约三（接口格式）由吕建江主笔。本线只负责「契约怎么冻结、怎么走变更」的**规则**，不另写一份契约。本目录只放工具与配置。
+> **三条契约的归属已裁定**（飞书《讨论0915-项目启动与分工》）：落点在 `docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}`，契约一（数据表字段）与契约二（特征列名）由蒋励主笔，契约三（接口格式）由吕建江主笔。本线只负责「契约怎么冻结、怎么走变更」的**规则**，不另写一份契约。本目录只放工具与配置。
 
 ## 边界
 
@@ -28,9 +28,9 @@ GitHub 仓库配置、分支规范与分支保护、PR / Issue 模板、CI 流�
 |---|---|---|
 | 默认分支 | `main` | — |
 | `main` 分支保护 | 禁止直接推送、禁止强制推送、合并前至少 1 位审阅 | 课程明确要求 |
-| Squash merge | 设为唯一允许的合并方式 | `docs/collaboration.md` 第 3.4 节：`main` 历史保持线性 |
+| Squash merge | 设为唯一允许的合并方式 | `docs/repo/collaboration.md` 第 3.4 节：`main` 历史保持线性 |
 | Automatically delete head branches | 开启 | 分支不堆积 |
-| 标签 | 按 `docs/collaboration.md` 第 5 节建全：`type:feat` `type:bug` `type:docs` `type:test`、`line:model` `line:backend` `line:frontend` `line:infra` `line:docs`、`sprint:0` `sprint:1` … | **`.github/ISSUE_TEMPLATE/` 里的标签引用需要标签已存在才生效**，缺了不报错、只是静默不挂上 |
+| 标签 | 按 `docs/repo/collaboration.md` 第 5 节建全：`type:feat` `type:bug` `type:docs` `type:test`、`line:model` `line:backend` `line:frontend` `line:infra` `line:docs`、`sprint:0` `sprint:1` … | **`.github/ISSUE_TEMPLATE/` 里的标签引用需要标签已存在才生效**，缺了不报错、只是静默不挂上 |
 | 协作者 | 三位组员加入，给写权限 | 否则无法推分支 |
 | 可见性 | 私有（结题前视课程要求决定是否转公开） | 与根 `README.md` 第二节一致 |
 
@@ -104,7 +104,7 @@ git push --dry-run origin HEAD:main
 gh api "repos/$R/labels?per_page=100" --jq '.[].name' | sort
 ```
 
-期望输出 = `docs/collaboration.md` 第 5.1 节那三组，共 **12** 个：
+期望输出 = `docs/repo/collaboration.md` 第 5.1 节那三组，共 **12** 个：
 
 ```
 line:backend line:docs line:frontend line:infra line:model
@@ -123,7 +123,7 @@ git ls-files .github/                                   # 期望三份模板
 gh api repos/$R/collaborators --jq '.[].login' | sort
 ```
 
-协作者期望四人：`1lsh74269` `jolly326` `s1mple-less` `sober-hub`。
+协作者期望四人：`1lsh74269`（刘帅华）`jolly326`（蒋励，组长）`s1mple-less`（吕建江）`sober-hub`（苏哲勋）。
 
 ### 6. ruleset 里写了、但上面的清单没提的两条行为
 
@@ -134,9 +134,9 @@ gh api repos/$R/collaborators --jq '.[].login' | sort
 
 | 内容 | 落点 |
 |---|---|
-| 分支 / 提交 / PR / Issue 的**说明**（人读的） | `docs/collaboration.md` |
+| 分支 / 提交 / PR / Issue 的**说明**（人读的） | `docs/repo/collaboration.md` |
 | PR 模板、Issue 模板、分支保护配置（**机器读的**） | `.github/` 与本目录 |
-| 三条契约 | `docs/contracts/` |
+| 三条契约 | `docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}` |
 | 技术规格与变更提案 | `openspec/` |
 
 **说明放 docs，模板放 .github** —— 两边不重复写同一段规则，本目录只留指针。

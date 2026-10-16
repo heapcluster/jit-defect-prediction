@@ -8,7 +8,11 @@
 # ===== 数据集、模型等大文件（严禁入库）=====
 data/
 datasets/
-models/
+# models/ 下只有 .pkl 是大文件；feature_order.txt 是**交付清单（纯文本）**，
+# 契约二第三节的副本，必须入库才能被审阅/比对（否则干净 clone 缺清单，
+# 且「规格与代码不一致」无处可查）。故排除目录内容但保留该清单。
+models/*
+!models/feature_order.txt
 artifacts/
 *.onnx
 *.pkl

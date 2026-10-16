@@ -10,14 +10,24 @@
 
 你是**前端与可视化线唯一负责人**：把后端四个接口变成「评审员看得懂、用得顺」的三个页面（风险列表 / 提交详情 / 缺陷引入趋势看板），并负责前后端联调。技术栈已定：**Vue 3 + Element Plus + ECharts**。
 
+## 0.5 谁依赖你 / 你依赖谁（阻塞关系）
+
+| 方向 | 对象 | 依赖什么 | 卡住的后果 |
+|---|---|---|---|
+| **你依赖** | `backend/`（吕建江） | `api-spec.md` 四接口 + 错误码 + 三态口径（联调唯一依据） | 接口未就绪 → 三页面拿不到数据 |
+| **你依赖** | `model/`（蒋励） | `model/feature-columns.md` 14 项列名（详情页解释条与特征分组按此渲染） | 列名漂移 → 解释条静默空白 |
+| **你依赖** | `repo/`（苏哲勋） | 分支模型 + PR 非作者审阅 + CI 门禁 | PR 无法合入 main |
+| **被你依赖** | 演示 / 周报 | 三页面可演示 + 联调记录 + 录屏 | Sprint 1「至少 1 条界面→数据层完整流程」无法验收 |
+| **被你依赖** | `design/addons.md` G1-1 / G1-2 | 行级定位与修复建议的展示层 | 附加功能无落地界面 |
+
 ## 1. 📋 你的任务清单（来自进度台账，带验收与下一步）
 
 | # | 任务 | 验收标准（做到什么效果） | 状态 | 你下一步 |
 |---|---|---|---|---|
 | F1 | 合入 PR #33（Vue3+Vite 脚手架：三路由/axios/X-API-Key 鉴权头） | PR 进 main；`frontend/` 不再只有 README | ✅已完成 | 已合入，脚手架可用 |
-| **F2** | 建 change `frontend-integration`（三页面+联调），走 propose→apply | change 进 `openspec/changes/`；看板可点回 | 🔄进行中 | 蒋励已代建 change+`implementation.md`，你 `apply` 并实现 |
-| **F3** | 前端三页面实现（风险列表排序/筛选/分页、提交详情风险分+SHAP 归因、趋势看板） | 页面代码进 main；字段与 `api-spec.md` 一致 | ⬜未开始 | 照 `implementation.md` 分步 + `pages.md` 字段对照 |
-| **F4** | 前后端联调（对接 API-01~04，留联调记录） | 联调记录入库；详情页解释区非空 | ⬜未开始 | 前置 L1(#52) 已合入，blocker 解除，可启动 |
+| **F2** | 建 change `frontend-integration`（三页面+联调），走 propose→apply | change 进 `openspec/changes/`；看板可点回 | ✅已完成 | change 已具 proposal + `specs/frontend-pages/` + design + tasks（apply 已跑，未归档） |
+| **F3** | 前端三页面实现（风险列表排序/筛选/分页、提交详情风险分+SHAP 归因、趋势看板） | 页面代码进 main；字段与 `api-spec.md` 一致 | 🔄进行中 | 2026-10-13 三页面已实现（`src/views/RiskList.vue`、`CommitDetail.vue`、`TrendBoard.vue`，共用常量与纯函数在 `src/constants.js`、`src/utils/`）；**待 `npm ci` 后跑 lint/build、待联调、待进 main** |
+| **F4** | 前后端联调（对接 API-01~04，留联调记录） | 联调记录入库；详情页解释区非空 | ⬜未开始 | 前置 L1(#52) 已合入，blocker 解除；联调记录落 `docs/frontend/frontend-integration-log.md` |
 
 > 实时状态以**飞书看板**为准。F3/F4 是 Sprint 1（10/23 验收）主交付，优先级最高。
 

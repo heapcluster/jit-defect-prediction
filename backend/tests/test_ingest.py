@@ -21,7 +21,7 @@ def test_ingest_commits_idempotent(tmp_path, engine):
         csv_path,
         [
             {
-                "repo_name": "activemq",
+                "repo_name": "camel",
                 "commit_hash": "e" * 40,
                 "author_name": "alice",
                 "author_email": "",
@@ -46,7 +46,7 @@ def test_ingest_missing_key_rolls_back(tmp_path, engine):
         csv_path,
         [
             {
-                "repo_name": "activemq",
+                "repo_name": "camel",
                 "commit_hash": "f" * 40,
                 "author_name": "bob",
                 "author_email": "",
@@ -55,7 +55,7 @@ def test_ingest_missing_key_rolls_back(tmp_path, engine):
                 "parent_hash": "",
             },
             {
-                "repo_name": "activemq",
+                "repo_name": "camel",
                 "commit_hash": "",
                 "author_name": "bob",
                 "author_email": "",

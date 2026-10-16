@@ -13,9 +13,9 @@
 
 | 表 | 谁建 | 数据从哪来 |
 |---|---|---|
-| `commit` | 后端 | 数据线 `01_extract_commits.py` 产出的提交清单 |
-| `commit_label` | 后端 | 数据线 `02_szz_labeling.py` 产出的标签表 |
-| `commit_feature` | 后端 | 数据线 `03_extract_features.py` 产出的特征表 |
+| `commit` | 后端 | 数据线 `preparation/01_extract_commits.py` 产出的提交清单 |
+| `commit_label` | 后端 | 数据线 `preparation/02_szz_labeling.py` 产出的标签表 |
+| `commit_feature` | 后端 | 数据线 `preparation/03_extract_features.py` 产出的特征表 |
 | `prediction` | 后端 | 后端实时推理写入；历史批量结果由**数据线离线预测产出 `prediction_result.csv`、由后端线导入本表**（数据线不直连数据库） |
 
 **入库链路**：数据线按 `docs/model/data-pipeline.md` 跑完 01–04 生成 CSV → 后端用导入脚本按本契约的表结构写入库。**"别人 clone 后一条命令把库建好"的前提是先跑完数据线 01–04**，这条要写进后端的启动说明。
@@ -38,7 +38,7 @@
 | 字段 | 类型 | 说明 | 必填 |
 |---|---|---|---|
 | `id` | BIGINT | 自增主键 | 是 |
-| `repo_name` | VARCHAR(64) | 仓库名，本期固定 `activemq` | 是 |
+| `repo_name` | VARCHAR(64) | 仓库名，本期固定 `camel` | 是 |
 | `commit_hash` | CHAR(40) | 提交的完整哈希，**模型线与后端线的对接主键** | 是 |
 | `author_name` | VARCHAR(128) | 提交者名称（取自提交记录） | 是 |
 | `author_email` | VARCHAR(128) | 提交者邮箱（用于跨改名识别同一人） | 否 |
@@ -99,7 +99,7 @@ erDiagram
 
     commit {
         BIGINT id PK "自增主键"
-        VARCHAR repo_name "本期固定 activemq"
+        VARCHAR repo_name "本期固定 camel"
         CHAR commit_hash UK "对接主键"
         VARCHAR author_name
         VARCHAR author_email "可空"
@@ -167,7 +167,7 @@ erDiagram
 | 原待确认项 | 结论 |
 |---|---|
 | `prediction` 表是否需要存「真实标签回填」字段 | **不需要**。真实标签的唯一来源是 `commit_label`，而它带 `label_method` 且可能随打标方法升级被重算；在 `prediction` 里冗余存一份，会出现「标签重算后 `prediction` 仍留旧值」的不一致，还要处理双写。若页面将来要展示「模型这次判对了没有」，由后端 join `commit_label` 现算即可，无需落库。**页面侧的对应结论是 MVP 不展示该项**，见契约三的冻结结论 |
-| 提交记录数量级是否需要分表 | **不分表**。实测固定版本 `activemq-5.18.7`：提交总数 11,616 条，过滤合并提交后 11,050 条。MySQL 单表在千万行量级仍可承载，本量级不需要分表。**重评阈值：单表行数超过 500 万行时再议** |
+| 提交记录数量级是否需要分表 | **不分表**。按唯一主对象 Apache Camel 的历史量级（万级提交）判定，MySQL 单表在千万行量级仍可承载，本量级不需要分表。**重评阈值：单表行数超过 500 万行时再议** |
 | 是否需要 `commit` 表记录「修改文件列表」 | **不记入 `commit` 表**。该表服务于接口查询（列表、详情）；文件级明细一行提交可有数十条，塞进来会让表一失去可读性、查询也变重。**特征计算所需的文件级明细由数据线中间产物承载、不入库** —— 特征表 `commit_feature` 已是最终产物，中间明细没有查询需求 |
 
 ## 变更日志

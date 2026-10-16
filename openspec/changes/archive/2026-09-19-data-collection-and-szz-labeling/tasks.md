@@ -79,3 +79,52 @@
       —— PR #6 已于 2026-09-18 合入 `main`：表二该行现为「szz（标准行级 SZZ，自研实现）」，「（PySZZ）」仅存变更日志与脚注两处解释性引用。取值仍在契约枚举 `{szz, szz_lite}` 内，只改说明文字、不改枚举，未触发版本升级
 - [x] 6.6 `docs/contracts/data-fields.md` 的 ER 图把 `ns`/`nd`/`nf` 由 INT 改为 DECIMAL
       —— 与 6.2 同一处矛盾的另一半：契约二改 DECIMAL 后，契约一 ER 图若仍是 INT，后端照图建表会出现「数据线落小数、后端建 INT 列」。**由本 PR 一并修改**（为修同一处自相矛盾而必须动的同一文件，不属夹带）
+
+---
+
+## 测试与验证（强制板块 · 2026-10-13 回溯补录）
+
+> 本节由 2026-10-13 课堂反馈后统一补录，**按实际已发生的验证写实**，未做的一律进 §5 缺口，不倒填。
+> 分层口径见 `docs/common/test-strategy.md`；模板见 `docs/common/openspec-task-template.md`。
+
+### 1. 单元测试（蒋励）
+| 项 | 内容 |
+|---|---|
+| 覆盖对象 | SZZ 打标判据（`is_fix_commit`）、diff 解析（`parse_old_ranges`）、区间合并（`merge_ranges`）、blame 缓存键（`blame_cache_key`）；时间序切分（`split_index` / `sort_key` / `validate_split` / `parse_ts`） |
+| 测试文件 | `data_model/tests/test_szz_labeling.py`（34 条）、`data_model/tests/test_split_dataset.py`（17 条） |
+| 用例数与结果 | **51 条全通过**（2026-10-13 补齐，含在数据线 59 条内） |
+| 复现命令 | `cd data_model && python -m pytest -q` |
+| 正向用例 | `test_命中编号与修复词时判为修复提交` —— `AMQ-8123 fix NPE in broker` → True；`test_解析出旧侧行区间` —— 标准 `-U0` diff → `{A.java: [(10,3),(40,1)]}` |
+| 异常 / 边界用例 | `test_同词内嵌不得命中词首边界` —— `improve dispatch throughput` / `add debug logging` / `prefix-based routing` → False（子串匹配会误收这 122 条假阳性）；`test_拼写错误的真修复必须收` —— `fixe` / `fixinng` → True；`test_纯新增行数为零不收录`；`test_时间序被破坏被拦住`；`test_同秒边界严格大于` |
+
+> **2026-10-13 补齐说明**：本 change 归档时（Sprint 0）**没有单元测试**，验证方式是跑全链路 + 出示九份统计报告。2026-10-13 课堂反馈「缺少测试」后，由蒋励按「谁写代码谁写单测」补齐上述 51 条，只覆盖纯函数、不依赖 git 与仓库数据。
+
+### 2. 集成测试（数据线内部端到端）
+| 项 | 内容 |
+|---|---|
+| 集成范围 | 01 抽取 → 02 SZZ 打标 → 03 特征 → 04 样本 → 05 切分 的产物衔接 |
+| 测试文件 | 无独立集成测试套件；以**九份统计报告**作证据 |
+| 用例数与结果 | 9 份报告齐备 |
+| 复现命令 | 按 `docs/model/data-pipeline.md` 的顺序执行 01→05，再比对 `data_model/reports/*.md` |
+| 关键断言 | 两套 SZZ（`szz` 标准行级 / `szz_lite` 文件级）差异**量化并出示**，不静默取其一；样本集行数、正负比例、时间序边界与报告一致 |
+
+### 3. 验收测试（交付时）
+| 项 | 内容 |
+|---|---|
+| 验收依据 | `specs/commit-collection/spec.md`、`specs/szz-labeling/spec.md`、`specs/labeled-dataset/spec.md` 的 SHALL/MUST 与 Scenario |
+| 用例数与结果 | 打标判据外沿数字、两套方法对照表、样本统计三项均有报告 |
+| 证据归档 | `data_model/reports/`（含 `dataset_stats.md`） |
+
+### 4. 非功能验证
+| 维度 | 是否触及 | 证据 |
+|---|---|---|
+| 性能 | 否 | 数据线为离线批处理，无在线性能要求 |
+| 安全 | 否 | 不碰接口与密钥 |
+| 可靠 | 是 | 仓库版本固定（`activemq-5.18.7`）+ 全链路可按文档复现 |
+| 易用 | 否 | —— |
+
+### 5. 已知缺口与后续计划
+| 缺口 | 原因 | 归属 | 计划时间 |
+|---|---|---|---|
+| **无单元测试**（01–05 全部） | Sprint 0 以「跑通 + 出报告」为验收，未建测试 | 蒋励 | Sprint 2（优先补 SZZ 判据与特征口径两条） |
+| 无自动化回归，改判据只能靠重跑全链路肉眼比对 | 同上 | 蒋励 | Sprint 2 |

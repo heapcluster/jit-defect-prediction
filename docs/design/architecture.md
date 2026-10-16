@@ -13,7 +13,7 @@
 ├─────────────────────────────────────────────┤
 │ 数据层                                       │
 │   ① MySQL：commit/label/feature/prediction    │
-│   ② 模型文件 data_model/models/*.pkl（A+C）    │
+│   ② 模型文件 data_model/pipelines/expert/models/*.pkl（A+C）    │
 │   ③ 数据线脚本 data_model/*.py（不直连库）     │
 └─────────────────────────────────────────────┘
 ```
@@ -31,7 +31,7 @@
 
 ## 3. 外部依赖
 
-- ActiveMQ 仓库（固定 `activemq-5.18.7`）—— 数据来源，不入库。
+- Apache Camel 仓库（固定 `camel-4.23.0`）—— 数据来源，不入库。
 - GitHub（协作/PR/Issue/OpenSpec）、飞书多维表格（看板/周报）。
 - 本地代理 `127.0.0.1:7890`（git 直连 github 用）。
 
@@ -45,4 +45,4 @@
 
 ## 5. 系统定位（三个限定词）
 
-提交粒度（非文件/行/需求）｜ 建议性预警（只排序不 CI 拦截）｜ 单仓库（只 ActiveMQ）。
+提交粒度（非文件/行/需求）｜ 建议性预警（只排序不 CI 拦截）｜ 单仓库（只 Apache Camel）。

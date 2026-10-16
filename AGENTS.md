@@ -10,7 +10,7 @@
 | 这周做什么、谁做、进度、截止 | **飞书《工作周报-YYYYMMDD》「本周计划」表** |
 | 需求、功能说明、用户故事、页面原型与交互 | **飞书《产品需求文档》** |
 | 系统设计、架构、API 清单、库表设计 | **飞书《产品设计文档》** |
-| 分工与角色的**规范口径**（谁负责哪条线、任务怎么认领、什么时候交什么） | **`docs/team-charter.md`** |
+| 分工与角色的**规范口径**（谁负责哪条线、任务怎么认领、什么时候交什么） | **`docs/common/team-charter.md`** |
 | 启动会当时的分工结论、会议记录 | 飞书《讨论0915-项目启动与分工》 |
 | 代码怎么写、跑什么命令、字段与接口叫什么 | **本仓库** |
 
@@ -22,7 +22,7 @@
 - 用户故事 / 功能点拆解 → 飞书《产品需求文档》
 - 需求与设计文档的章节骨架 → 飞书那两份文档本身
 - 页面线框与交互设计 → 飞书《产品需求文档》六、交互原型图
-- 「任务卡」式的任务手册 → 任务在飞书，代码做法见 `docs/dev-handbook.md`
+- 「任务卡」式的任务手册 → 任务在飞书，代码做法见 `docs/common/dev-handbook.md`
 
 引用方向是**单向的**：飞书文档指向仓库里的契约、命令与路径；仓库不定义任务、不写需求与设计正文。
 
@@ -31,7 +31,7 @@
 JIT（即时）缺陷预测系统：在**一次代码提交（commit）**的粒度上，预测这次提交是否引入缺陷，
 输出风险概率并排序，供评审员优先审阅高风险提交。
 
-链路：ActiveMQ 仓库 → 抽取提交 → SZZ 打标 → Kamei 14 项特征 → 按时间切分训练
+链路：Apache Camel 仓库 → 抽取提交 → SZZ 打标 → Kamei 14 项特征 → 按时间切分训练
      → 模型文件 → 预测接口 → 前端三个页面。
 
 **系统只做建议性预警，不做强制拦截。**
@@ -60,7 +60,7 @@ JIT（即时）缺陷预测系统：在**一次代码提交（commit）**的粒�
 
 1. **训练集与检验集必须按提交时间先后切分**（前 70% 训练、后 30% 检验），**禁止随机切分**。
    `EXP`、`NUC` 等特征与时间相关，随机切分等于让模型提前看到未来，准确率是假的。
-2. **改代码必须同步改规格**（`openspec/` 下的 specs，或 `docs/contracts/` 里的契约）。
+2. **改代码必须同步改规格**（`openspec/` 下的 specs，或 `docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}` 里的契约）。
    规格与代码不一致，课程判定为缺陷。
 3. **不得提交**：数据集、模型文件、`.env`、任何密钥。已在 `.gitignore` 中，
    不要用 `git add -f` 强行加入。
@@ -71,8 +71,8 @@ JIT（即时）缺陷预测系统：在**一次代码提交（commit）**的粒�
 5. **分支命名**：`<类型>/<线>/<简述>`，例 `feat/backend/predict-api`。**禁止直接推送 `main`。**
    分支生命周期：**PR 合入后立即删除**（远端 Delete branch + 本地 `git branch -d`），
    不要留在仓库里堆积；远端已删的分支用 `git fetch --prune` 清掉本地跟踪引用。
-   细则见 `docs/collaboration.md` 第 1.6 节。
-6. **接口字段名、数据库字段名、特征列名一律以 `docs/contracts/` 为准**，
+   细则见 `docs/repo/collaboration.md` 第 1.6 节。
+6. **接口字段名、数据库字段名、特征列名一律以 `docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}` 为准**，
    不得自行发明或改名。觉得契约不合理时先提变更，不要先改代码。
 7. **AI 生成的图必须标注来源。** 课程《产品设计文档》模板原文要求
    「大模型画的图务必附上相应的文档（LLM 工具名称 + 提示词）」。
@@ -85,7 +85,7 @@ JIT（即时）缺陷预测系统：在**一次代码提交（commit）**的粒�
 **动手前**
 
 1. 明确这次改动属于哪条线、哪个目录。
-2. 涉及接口、字段、特征列名时，先读 `docs/contracts/` 里对应的那一份。
+2. 涉及接口、字段、特征列名时，先读 `docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}` 里对应的那一份。
 3. 涉及功能变更时，确认已有对应的 `openspec/changes/` 提案；没有就先建提案。
 
 **交付时**
@@ -110,19 +110,19 @@ JIT（即时）缺陷预测系统：在**一次代码提交（commit）**的粒�
 
 | 什么时候需要 | 读哪份 |
 |---|---|
-| **开工第一份：这件事在代码里具体怎么做、验收什么** | `docs/dev-handbook.md` |
-| 装环境、OpenSpec CLI 自检是否就绪 | `infra/README.md` §团队工具版本约定 ＋ `docs/dev-handbook.md` §1 |
+| **开工第一份：这件事在代码里具体怎么做、验收什么** | `docs/common/dev-handbook.md` |
+| 装环境、OpenSpec CLI 自检是否就绪 | `infra/README.md` §团队工具版本约定 ＋ `docs/common/dev-handbook.md` §1 |
 | 你负责的那条线的技术约定、目录结构、启动命令 | 对应的 `<线>/README.md` |
-| 提交、分支、PR、Issue 具体怎么做、代码怎么写 | `docs/collaboration.md` |
-| **谁做什么、什么时候交、怎么沟通、任务怎么认领** | `docs/team-charter.md` |
-| **文档怎么命名、注释怎么写、周报怎么填** | `docs/writing-norms.md` |
-| **缺陷（Bug）怎么记、谁修、什么优先级** | `docs/defect-management.md` |
-| 代码边界：做什么不做什么、四条线边界、冻结点、DoD | `docs/sprint0-scope.md` |
-| 数据表字段 | `docs/contracts/data-fields.md` |
-| 特征列名与计算口径 | `docs/contracts/feature-columns.md` |
-| 接口请求响应格式与错误码 | `docs/contracts/api-format.md` |
-| 页面用接口的哪些字段、三态与错误码处理 | `docs/pages.md` |
-| 数据源、版本固定规则与复现命令 | `docs/data-pipeline.md` |
+| 提交、分支、PR、Issue 具体怎么做、代码怎么写 | `docs/repo/collaboration.md` |
+| **谁做什么、什么时候交、怎么沟通、任务怎么认领** | `docs/common/team-charter.md` |
+| **文档怎么命名、注释怎么写、周报怎么填** | `docs/common/writing-norms.md` |
+| **缺陷（Bug）怎么记、谁修、什么优先级** | `docs/repo/defect-management.md` |
+| 代码边界：做什么不做什么、四条线边界、冻结点、DoD | `docs/design/sprint0-scope.md` |
+| 数据表字段 | `docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md` |
+| 特征列名与计算口径 | `docs/model/feature-columns.md` |
+| 接口请求响应格式与错误码 | `docs/backend/api-spec.md` |
+| 页面用接口的哪些字段、三态与错误码处理 | `docs/frontend/pages.md` |
+| 数据源、版本固定规则与复现命令 | `docs/model/data-pipeline.md` |
 | OpenSpec CLI 版本、命令与陷阱 | `infra/README.md` |
 | 项目定位、分工、技术选型与文档地图 | `README.md` |
 
