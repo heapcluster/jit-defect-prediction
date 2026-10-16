@@ -23,3 +23,5 @@ joblib==1.6.0
 pytest==9.1.1
 httpx==0.28.1
 ruff==0.16.8
+# 行覆盖率测量（看板「覆盖率测量」行，Sprint 2 目标 ≥60%；证据见 scripts/evidence/coverage-2026-10-16.md）
+pytest-cov==7.1.0

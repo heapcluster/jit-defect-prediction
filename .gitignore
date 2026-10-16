@@ -26,6 +26,9 @@ venv/
 .ipynb_checkpoints/
 .pytest_cache/
 .ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
 *.egg-info/
 
 # ===== 前端 =====
