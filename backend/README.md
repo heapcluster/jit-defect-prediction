@@ -50,7 +50,7 @@ uvicorn app.main:app --reload --port 8000
 
 ## 库表
 
-按 `docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md` 建**四张表**：`commit` / `commit_label` / `commit_feature` / `prediction`。命名、类型、索引要求都以该契约为准（`commit_hash` 唯一索引、`committed_at` 普通索引）。
+按 `docs/design/data-fields.md` 建**四张表**：`commit` / `commit_label` / `commit_feature` / `prediction`。命名、类型、索引要求都以该契约为准（`commit_hash` 唯一索引、`committed_at` 普通索引）。
 
 > **`commit_feature` 由后端建，跟前三张一起、同一份迁移脚本。** 它不在第一版 README 的三张表清单里，是这个清单当时写漏了 —— 字段从来没争议（`feature-columns.md` §1 早已定表名），争议只在「谁建」，现明确归后端。数据线只产出这份特征数据，不建库表（见 `data_model/README.md` 第 4 条铁规矩）。
 
@@ -73,7 +73,7 @@ python -m app.ingest predictions <prediction_result.csv>
 
 ## 模型从哪来（2026-09-16 已定：方案 A + C）
 
-**A（后端加载模型文件）**：后端启动时从 `data_model/models/` 加载 `.pkl` 文件，供 `POST /api/predict` 实时推理。
+**A（后端加载模型文件）**：后端启动时从 `data_model/pipelines/expert/models/` 加载 `.pkl` 文件，供 `POST /api/predict` 实时推理。
 
 - 模型文件路径与特征顺序由契约约定，见 `docs/design/sprint0-scope.md` 第 4 节「跨线接口已定」。
 - **特征顺序以 `docs/model/feature-columns.md` 为准**，不要按 `dict` 的插入顺序自己猜 —— 顺序错了模型不报错，只会给出错误答案。
