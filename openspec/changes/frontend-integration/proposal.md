@@ -1,23 +1,44 @@
-# 前端三页面与联调（frontend-integration）
+# 前端三页面实现与联调
 
-> Sprint 1 交付 ｜ 起草 2026-10-11 ｜ 起草人 蒋励（代）｜ 关联 docs/implementation/frontend-design.md、docs/pages.md
->
-> ⚠️ 契约基线判定沿用首 change：以各契约文件头的「版本 + 冻结日期」为准，不引用 PR 编号或合并时机。
+> Sprint 1 ｜ 对应飞书《工作周报》任务 F2/F3/F4（建 change 提案 + 三页面实现 + 前后端联调）
+> 起稿 2026-10-09 ｜ 起稿人 刘帅华 ｜ 关联契约：`docs/frontend/pages.md`、`docs/backend/api-spec.md`
 
 ## Why
-Sprint 1 验收要求可视化前端（风险列表 / 提交详情 / 趋势看板）三页面 + 前后端联调。前端线目前仅有脚手架 README（F1，PR #33 已合），三页面（F3）与联调（F4）尚未开始；需立项使看板「规格变更或任务」列可点回，并让刘帅华有可执行的实现依据（见 `docs/implementation/frontend-design.md`）。
+
+脚手架已合入 `main`（PR #33），但三个页面仍是 `el-empty` 骨架占位。课程 Sprint 1 要求「MVP 至少一条从界面到数据层的完整流程」——前端线需要真正实现三页面并对接后端接口，链路才从「数据 → 模型 → 接口 → 页面」全部打通。
 
 ## What Changes
-1. 新增三页面：风险列表（`GET /api/commits`）、提交详情（`GET /api/commits/{hash}`）、趋势看板（`GET /api/trends`）；字段逐字照 `docs/pages.md`。
-2. 集中接口封装（`src/api/`，axios + `X-API-Key` 构建期注入），统一三态（加载 / 空 / 错）。
-3. 前后端联调 API-01~04，留联调记录。
+
+- **风险列表页**：按 `risk_score` 降序、筛选（`model_name` / `min_risk` / 时间范围）、分页、点击行跳详情
+- **提交详情页**：风险值 + 风险等级标签 + 14 项特征（五维分组）+ `explanation` 解释条
+- **趋势看板页**：粒度切换、折线图（ECharts）、汇总卡片、明细表
+- **三态处理**：加载中 / 空数据 / 请求失败，按 `docs/frontend/pages.md` 第 5 节错误码区分
+- **接口对接**：API-01 `GET /api/commits`、API-02 `GET /api/commits/{hash}`、API-03 `GET /api/trends`
+
+**不做什么（显式列出）**
+
+- **不做** 第四个页面（模型管理、用户设置等）——课程未要求
+- **不直连数据库、不自己算指标**——风险概率与聚合结果一律来自接口
+- **不改** 契约字段名——字段不够用先提契约变更
+- **不另立** 风险阈值——`risk_score ≥ 0.5` 只按 `docs/frontend/pages.md` 第 5 节一处定义
 
 ## Capabilities
-- `frontend-pages`：三页面 + 统一接口层 + 三态处理。
 
-## 影响与边界
+### New Capabilities
+
+- `risk-list`：按风险排序的提交列表，支持筛选与分页，点击跳详情
+- `commit-detail`：展示单次提交的风险值、14 项特征与模型解释
+- `trend-board`：按周/月聚合的风险趋势折线图与明细
+
+### Modified Capabilities
+
+无 —— 本 change 之前 `openspec/specs/` 无前端相关能力。
+
+## Impact
+
 | 项 | 内容 |
 |---|---|
-| 影响目录 | `frontend/src/{views,api,components}` |
-| 不做什么 | 不新增第四页面；不改契约字段名 / 接口路径；不直连数据库、不自己算指标 |
-| 数据边界 | 所有数据来自接口；高风险阈值只在 `docs/pages.md` §5 定义一处（前端不重算） |
+| 影响目录 | `frontend/src/`（views / api / components / router） |
+| 消费契约 | `docs/frontend/pages.md`（字段映射）、`docs/backend/api-spec.md`（接口格式）——只读不改 |
+| 新增依赖 | `globals`（devDependency，eslint 浏览器环境用）；运行时无新增 |
+| 下游依赖 | 后端 #52（API-01/02/03 落地，已合）；#62（时间范围闭区间语义，前端送纯日期依赖其先合入） |
