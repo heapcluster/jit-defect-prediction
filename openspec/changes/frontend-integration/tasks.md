@@ -1,75 +1,74 @@
-# frontend-integration — 任务清单
+## 1. 页面实现
 
-## 1. 立项（F2）
-- [x] 1.1 本 change 进 `openspec/changes/frontend-integration/`（propose → apply），看板「规格变更或任务」列可点回
-- [x] 1.2 飞书 PRD 第五章增补前端三页面 User Story（**F Epic**，非 C —— PRD 第五章分层为 A–F + G，见 `repo/user-story-traceability.md`），状态写实
+- [x] 1.1 风险列表页 `RiskList.vue`：筛选（model_name / min_risk / 时间范围）+ 表格 + 分页 + 点击行跳详情
+- [x] 1.2 提交详情页 `CommitDetail.vue`：风险值 + 风险等级标签 + 14 项特征（五维分组）+ explanation 解释条
+- [x] 1.3 趋势看板页 `TrendBoard.vue`：粒度切换 + 折线图 + 汇总卡片 + 明细表
+- [x] 1.4 ECharts 折线图封装到 `components/`，不在页面里散写
 
-## 2. 脚手架与接口层（F3 前置）
-- [x] 2.1 `npm create vue@latest` + 装 `element-plus`/`echarts`/`axios`；配 `/api` 代理 → PR #33 已合入 main：`frontend/package.json` 四依赖齐、`vite.config.js` 将 `/api` 代理到 `localhost:8000`、`.env.example` 给出密钥示例（真实密钥走 `.env.local`，不入库）
-- [x] 2.2 `src/api/request.js`（**实际为 `.js` 而非 `.ts`**：本组前端不使用 TypeScript，已在 tasks 中订正口径）：axios 实例 + `X-API-Key` 拦截器 + 统一解包 `code===0` + 错误码分发三态
+## 2. 三态与错误码
 
-## 3. 三页面（F3）—— 本 change 只承载规格与任务口径，实现载体为 PR #60
-- [ ] 3.1 风险列表 `views/RiskList.vue`（**实际文件名为 `RiskList.vue`，非 `CommitList.vue`**）：排序固定 `risk_score` 降序、筛选、分页、点击整行跳详情；字段与 `docs/frontend/pages.md` §2 逐条对应
-- [ ] 3.2 提交详情 `views/CommitDetail.vue`：风险值 / 模型版本 / SHAP 解释条（`increase` 右、`decrease` 左，按 `|contribution|` 降序取前 8）/ 特征值五维度分组
-- [ ] 3.3 趋势看板 `views/TrendBoard.vue`：ECharts 折线（`avg_risk`）+ 三项汇总（总数 / 高风险数求和、平均风险按 `commit_count` 加权）；数据点 < 2 不画折线
+- [x] 2.1 三态齐全：加载中 / 空数据 / 请求失败（空数据不是错误）
+- [x] 2.2 错误码按 `docs/frontend/pages.md` 第 5 节区分处理（40001 / 40100 / 40400 / 50000）
 
-> 3.1–3.3 于 2026-10-13 有一版实现，**尚未过 lint/build 实跑校验，也未与后端联调，未达验收判据，保持未勾选**（审阅意见 2026-10-13）。实现与测试统一以 PR #60 已审版本为基础推进；本 PR 已剥离重复的第二套页面实现。验收判据 = §5 的单测 / lint / build / 联调全部跑通，届时方可勾选并在周报记完成。
+## 3. 字段核对
 
-## 4. 联调（F4）
-- [ ] 4.1 起后端 `:8000`，按 `repo/demo-script-sprint1.md` 跑通 API-01~04
-- [ ] 4.2 联调记录入库 `docs/frontend/frontend-integration-log.md`（原写 `docs/implementation/...`，该目录在六包重构后不存在）
-- [ ] 4.3 PR 合入 main，看板行指向本 change
----
+- [x] 3.1 每页字段名与 `docs/frontend/pages.md` 映射表逐字一致，不改名、不驼峰
+- [x] 3.2 风险值由前端 ×100 转百分比；概率字段取 0~1 小数不转字符串
 
-## 5. 测试与验证（强制板块）
+## 4. 联调与交付
 
-> 分层口径见 `docs/common/test-strategy.md`；模板见 `docs/common/openspec-task-template.md`。
-> 铁律：勾了 tasks ≠ 功能合格，必须有可复现运行证据。**本 change 的代码已实现但尚未跑过任何测试命令**，如实记入 §5。
+- [x] 4.1 三页面对接 API-01/02/03（curl 层联调已通），留联调记录；浏览器人工冒烟待执行补截图
+- [ ] 4.2 提交 PR 并写明关联 change id `frontend-integration`，由非作者审阅合入
+- [ ] 4.3 回飞书看板更新任务状态
 
-### 1. 单元测试（刘帅华，写代码的人自己写）
-| 项 | 内容 |
-|---|---|
-| 覆盖对象 | 前端纯口径函数：风险阈值分档（`riskClass`）、百分比/哈希/时间格式化（`formatPct` / `shortHash` / `formatTime`）、特征值展示（`formatFeature`）、模型下拉清单（`MODEL_OPTIONS`）、特征五维度分组（`FEATURE_GROUPS`）、解释条上限、默认分页 |
-| 测试文件 | `frontend/src/__tests__/contract.test.js` |
-| 用例数与结果 | **13 个 it / 30 条断言已写**；**尚未执行**（`frontend/node_modules` 未安装） |
-| 复现命令 | `cd frontend && npm ci && npm run test:unit` |
-| 正向用例 | `riskClass(0.83) === 'high'`、`riskClass(0.3) === 'mid'`、`riskClass(0.29) === 'low'`；`MODEL_OPTIONS` 长度 8 且含经典 6 + 神经 2、无重复；`FEATURE_GROUPS` 展平后恰 14 项且五维度分组齐全 |
-| 异常 / 边界用例 | `riskClass(null)` / `riskClass(undefined)` → `'none'`（**不得当 0 处理**）；`formatTime('not-a-date')` 原样返回、`formatTime(null)` → `'—'`（不静默吞掉）；`shortHash('short')` 原样返回 |
+## 5. 测试与验证
 
-> 只覆盖**不依赖 DOM 与 element-plus 的纯口径函数**，与「前端零测试」的旧状态相比是补齐，但**组件层（三态 / 错误码分发 / 字段映射）尚无测试**，见 §5。
+### 5.1 场景覆盖矩阵
 
-### 2. 集成测试（大版本合并后，本 change 即为与后端的集成点）
-| 项 | 内容 |
-|---|---|
-| 集成范围 | 前端 `src/api/request.js`（axios + `X-API-Key` 拦截器 + `code===0` 解包 + 错误码三态分发）↔ 后端四个接口 |
-| 测试文件 | **尚无**（依赖联调，见 §3 与 §5） |
-| 用例数与结果 | —— |
-| 复现命令 | 起后端 `:8000` 后 `cd frontend && npm run dev`，按 `docs/frontend/pages.md` §2/§3/§4 逐页走 |
-| 关键断言 | 40100 → 登提示而非空白页；40001 → 指参数名；40400 →「该提交不存在」；提交存在但无预测记录 → `code=0` + null 字段 →「尚未预测」（不用 0.0 冒充） |
-
-### 3. 验收测试（交付时）
-| 项 | 内容 |
-|---|---|
-| 验收依据 | `specs/frontend-pages/spec.md` 的 SHALL/MUST 与 Scenario + `docs/frontend/acceptance.md` F1–F6 |
-| 用例数与结果 | 主链路演示 API-01~04 + 三页面走查，尚未执行 |
-| 复现命令 / 步骤 | `docs/repo/demo-script-sprint1.md`（需先起后端） |
-| 证据归档 | 联调记录拟入 `docs/frontend/frontend-integration-log.md`（tasks 4.2，未建） |
-
-### 4. 非功能验证
-| 维度 | 是否触及 | 证据 |
-|---|---|---|
-| 性能 | 否 | 由后端接口层实测（`backend/scripts/evidence/perf-real-2026-09-20.md`） |
-| 安全 | 是 | `X-API-Key` 只走 `.env.local` 不入库；`request.js` 统一注入；令牌缺失由后端返 40100 |
-| 可靠 | 是 | 数据点 < 2 不画折线（空数据不是错误）；接口空列表不当作异常 |
-| 易用 | 是 | 三页面三态（加载中 / 空 / 错误）+ `explanation` 为空数组时显示「该模型未提供特征解释」并保留特征值区域 |
-
-### 5. 已知缺口与后续计划（**本 change 的真实状态，不粉饰**）
-| 缺口 | 原因 | 归属 | 计划时间 |
+| 场景 | 风险列表 | 提交详情 | 趋势看板 |
 |---|---|---|---|
-| 13 条单测**未执行** | 本机 `frontend/node_modules` 未安装 | 刘帅华 | Sprint 1 收口前 |
-| **未过 lint / build 实跑** | 同上 | 刘帅华 | Sprint 1 收口前 |
-| **未与后端联调**，联调记录文件未建 | 依赖后端起服务 + tasks 4.1/4.2 未做 | 刘帅华 | Sprint 1 收口前 |
-| 组件层测试为零（三态、错误码分发、字段映射无自动化） | 组件测试需先跑通 vitest + 组件库环境 | 刘帅华 | Sprint 2 |
-| 无 `vitest.config.js`，测试入口配置散落在 `package.json` | 脚手架未配测试框架 | 刘帅华 | Sprint 1 |
+| 加载中 | ✅ 骨架屏 | ✅ 骨架屏 | ✅ loading 占位 |
+| 空数据 | ✅ 提示+清空筛选 | ✅ 空态 | ✅ 提示+重置范围 |
+| 请求失败 | ✅ 按错误码 | ✅ 按错误码 | ✅ 按错误码 |
+| 40001 参数非法 | ✅ 指出参数 | — | ✅ 指出参数 |
+| 40100 未鉴权 | ✅ 不重试 | ✅ 不重试 | ✅ 不重试 |
+| 40400 不存在 | — | ✅ 返回列表 | — |
+| 50000 服务错误 | ✅ 重试 | ✅ 重试 | ✅ 重试 |
+| 未预测提交（risk_score=null） | — | ✅ 显示「尚未预测」 | — |
 
-> 因此 tasks 3.1–3.3 的状态口径是「**已实现**」而非「**已验收**」：联调与测试命令跑通前，不得在周报记为完成。
+边界 / 异常场景：
+
+| 场景 | 覆盖 |
+|---|---|
+| 同路由 query 改变（下钻跳转带回新日期） | ✅ 风险列表 watch(route.query) 重查 |
+| 同路由 query 移除 | ✅ 清日期 + 重置分页 + 重查 |
+| 日期末秒（end 纯日期含当天） | ⏳ 待验证：前端已送纯日期，端到端含当天行为依赖 #62（未合入），未验证 |
+| 粒度切换不查询就下钻 | ✅ 下钻用 loadedGranularity（已加载粒度） |
+| 并发乱序响应 | ✅ requestId 防过期，粒度与 series 一起提交 |
+
+### 5.2 验证清单
+
+- [x] 5.2.1 `npm run build` 通过 —— 判据：exit 0 且输出 `✓ built`
+- [x] 5.2.2 `npm run lint` 0 error —— 判据：exit 0 且无 error / warning
+- [x] 5.2.3 `openspec validate --changes frontend-integration` 通过 —— 判据：显示 valid
+- [x] 5.2.4 前后端联调 —— 判据：带 `X-API-Key` 请求 `GET /api/commits` 返回 `code=0` 且有 `items`；无 key 返回 401
+
+### 5.3 执行证据
+
+| 项 | 证据 |
+|---|---|
+| 提交 | 粒度快照 `d6bc0f4`（业务实现 `94b43b3`；格式 `cbc9f6b`；并发 `77d5e83`） |
+| 环境 | Windows 11，Node 24，Python 3.12；cwd=backend 执行 `python -m scripts.seed_dev_data` 生成 SQLite 种子（3 提交/3 特征/3 预测） |
+| 命令 | `npm run build` / `npm run lint` / `openspec validate --changes frontend-integration` |
+| 结果 | build ✓（<1s）；lint 0 error 0 warning；openspec validate 通过 |
+| 联调证据 | `GET /api/commits?page=1&size=3`（`X-API-Key: dev-token-*`）→ `{"code":0,...,"items":[...3 条]}`；无 key → HTTP 401；详情 `GET /api/commits/{hash}`、趋势 `GET /api/trends` 同链路可达 |
+| 完整联调记录 | `docs/frontend/integration-log.md`（含请求、脱敏响应、预期/实际结果、启动命令） |
+
+### 5.4 阻断 / 不适用说明
+
+- **阻断**：#62（时间范围闭区间语义）未合入，前端送纯日期依赖 #62 落地；#60 按「#62 先合、#60 后合」排期。
+- **不适用**：`POST /api/predict` 无页面依赖，不纳入本 change 页面测试范围。
+
+### 5.5 落地结论
+
+F2/F3 已落地（三页面 + 提案 + 规格）；F4 后端联调（curl 层）已打通（三查询接口 + 鉴权均验证），三页浏览器人工冒烟待执行补截图。待 #62 合入后 #60 复审合并，联调记录见 `docs/frontend/integration-log.md`。
