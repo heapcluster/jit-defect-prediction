@@ -44,7 +44,7 @@
 ## D5：切分与评估口径全部复用
 
 - 切分：沿用 `05_split_dataset.py` 的时间序切分（前 70% / 后 30%，禁随机）与 `validate_split` 断言。
-- 评估：沿用 `06_train_model.py` / `08_model_matrix.py` 的两类指标（Effort-unaware：AUC/F1/P/R/Acc；Effort-aware：`P_norm` 与同预算重排）。
+- 评估：沿用 `python -m pipelines.expert.train` / `python -m pipelines.expert.matrix` 的两类指标（Effort-unaware：AUC/F1/P/R/Acc；Effort-aware：`P_norm` 与同预算重排）。
 - 8 模型框架：专家/语义/融合三组各自跑同一套模型，**不新造模型类**（`model_registry` 插件化直接复用）。
 
 ## D6：补两项论文方法论工作（Kamei et al. 2013）
@@ -63,7 +63,7 @@
 
 ## D9：评测协议必须对齐文献标准（2026-10-13 修正）
 
-**已查证的安全项**：`06_train_model.py` 中 `model.fit(X_train, y_train)`，早停的内部验证子集从**训练集内部**取，测试集只用于最终评估 —— **未在测试集上调参**，这条过关。
+**已查证的安全项**：`python -m pipelines.expert.train` 中 `model.fit(X_train, y_train)`，早停的内部验证子集从**训练集内部**取，测试集只用于最终评估 —— **未在测试集上调参**，这条过关。
 
 **先纠正一条我此前的误判（重要）**：我曾判断「我们只报自造 `P_norm`、缺文献标准 effort-aware 指标」。**核对 `model_matrix.md` 实际输出后，这个判断是错的。**
 

@@ -40,12 +40,12 @@
 
 ## 8. 三类设置对比实验（蒋励）
 - [ ] 8.1 新增 `data_model/14_compare_settings.py`：仅专家 / 仅语义 / 融合 三类各自跑同一套 8 模型，输出 Effort-unaware（AUC/F1/P/R/Acc）+ Effort-aware（`P_norm`、同预算重排召回）
-- [ ] 8.2 产出 `data_model/reports/three_way_comparison.md`（三类 × 8 模型 × 两类指标），标注每组所用特征版本与模型清单
+- [ ] 8.2 产出 `data_model/pipelines/semantic/reports/three_way_comparison.md`（三类 × 8 模型 × 两类指标），标注每组所用特征版本与模型清单
 - [ ] 8.3 交付给：`docs/model/model-line-plan.md` §4.3 增补一节；后端**不接**新模型（见第 10 步）
 
 ## 9. 论文方法论补做（蒋励）
 - [ ] 9.1 新增 `data_model/15_feature_ablation.py`：Kamei 14 留一法消融 + 检验集置换重要性，输出特征效力排序（两个口径交叉验证）
-- [ ] 9.2 产出 `data_model/reports/feature_ablation.md`（Top-K 特征 + 两项口径对照）
+- [ ] 9.2 产出 `data_model/pipelines/semantic/reports/feature_ablation.md`（Top-K 特征 + 两项口径对照）
 - [ ] 9.3 在模型线报告中显式登记「跨项目 JIT 不可迁移」结论（Kamei et al. 2013）与单仓库设计依据
 
 ## 10. 交付边界确认（蒋励，硬约束）
@@ -55,7 +55,7 @@
 ## 11. 评测协议补齐（蒋励，2026-10-13；**已按实际代码核对后收窄**）
 - [x] 11.1 **核对既有口径**：`effort_aware_metrics()` 与 `model_matrix.md` 实际已报 Recall@20% / Recall@50% / 曲线下面积 / 随机基线（200 次均值±std）/ 上界 / 两种工作量代理 / 四种排序。**此前「只报自造 P_norm」的判断有误，已纠正**（见 `design.md` D9）。无需重复实现
 - [ ] 11.2 `P_norm` 在报告与文档中**加一句标注**：本组自造归一化变体，锚点为实测随机均值与上界；**与文献的 Popt 不是同一个指标**，不得混称
-- [ ] 11.3 新增 `data_model/16_statistical_test.py`：① **Bootstrap 重采样**（≥1000 次）产出各模型指标的分布；② 模型两两 **Wilcoxon signed-rank**（配对于 bootstrap 样本）；③ 阈值 0.5 下二值预测的 **McNemar 检验**。输出显著性表 + `data_model/reports/statistical_test.md`
+- [ ] 11.3 复用 `python -m pipelines.expert.significance`：① **Bootstrap 重采样**（≥1000 次）产出各模型指标的分布；② 模型两两 **Wilcoxon signed-rank**（配对于 bootstrap 样本）；③ 阈值 0.5 下二值预测的 **McNemar 检验**。输出显著性表 + `data_model/pipelines/expert/reports/statistical_test.md`
 - [ ] 11.4 补**单特征基线**：按 `la` / `ld` 单特征排序，与模型排序对照（随机基线已有，不必重做）
 - [ ] 11.5 复核测试集未参与调参（`fit` 只用训练集、早停验证子集来自训练集内部），把查证结论写进报告
 
@@ -100,8 +100,8 @@
 |---|---|
 | 验收依据 | `specs/semantic-features/spec.md` 的 7 条 Requirement 与全部 Scenario |
 | 用例数与结果 | 计划 7 条（每条 Requirement 至少 1 条） |
-| 复现命令 / 步骤 | 按 `docs/model/data-pipeline.md` 增补后的 10→14 步顺序执行，比对 `data_model/reports/three_way_comparison.md` |
-| 证据归档 | `data_model/reports/three_way_comparison.md`、`feature_ablation.md`；设备/样本量/截断统计随报告附 |
+| 复现命令 / 步骤 | 按 `docs/model/data-pipeline.md` 增补后的 10→14 步顺序执行，比对 `data_model/pipelines/semantic/reports/three_way_comparison.md` |
+| 证据归档 | `data_model/pipelines/semantic/reports/three_way_comparison.md`、`feature_ablation.md`；设备/样本量/截断统计随报告附 |
 
 ### 4. 非功能验证
 | 维度 | 是否触及 | 证据 |

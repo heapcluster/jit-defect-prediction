@@ -49,7 +49,7 @@
 #### Scenario: 输出质量报告
 
 - **WHEN** 数据集加载完成
-- **THEN** 产出 `data_model/reports/public_dataset_quality.md`，含四项指标、异常样本清单（可点回具体记录）与处置建议
+- **THEN** 产出 `data_model/preparation/reports/public_dataset_quality.md`，含四项指标、异常样本清单（可点回具体记录）与处置建议
 
 #### Scenario: 重复记录
 

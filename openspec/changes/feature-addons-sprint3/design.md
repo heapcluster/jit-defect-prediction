@@ -1,7 +1,7 @@
 # 附加功能 — 设计要点
 
 ## 缺陷可视化定位
-- 数据源：复用 07_predict_all.py 产出的 `prediction_result.csv` 与 SHAP 归因结果。
+- 数据源：复用 `python -m pipelines.expert.predict` 产出的 `prediction_result.csv` 与 SHAP 归因结果。
 - 前端：提交详情页在「风险分 + SHAP 归因」区下方新增「定位」子页，按文件聚合 SHAP 绝对值，
   可下钻到具体代码行（行级高亮依赖 `data_model/` 提供的行级归因，若仅特征级则先展示特征→文件映射）。
 - 边界：行级数据缺失时降级为特征级，并在页面标注「行级数据待补」。

@@ -6,7 +6,7 @@
 > 统一格式见 `docs/common/openspec-task-template.md`；**本文件末的「测试与验证」为强制板块，缺失视为提案不完整。**
 
 ## 0. 阻塞前置：可下载性验证（第 1 号任务，不过则整体降级）
-- [ ] 0.1 逐个验证候选公开 JIT 数据集的可下载性（网络、链接、体积、许可证），输出 `data_model/reports/public_dataset_probe.md`：候选清单 / 可达性 / 体积 / 许可证 / 字段完备性
+- [ ] 0.1 逐个验证候选公开 JIT 数据集的可下载性（网络、链接、体积、许可证），输出 `data_model/preparation/reports/public_dataset_probe.md`：候选清单 / 可达性 / 体积 / 许可证 / 字段完备性
 - [ ] 0.2 **若全部不可达**：本 change 降级为「加载器 + 质量评价框架 + 用 Apache Camel 数据自验」，并在 0.1 报告与周报中**如实写明「未能获取公开数据集及原因」**，**不虚构数据**
 - [ ] 0.3 若部分可达：按「字段完备性优先、语种多样性优先」选定 1–2 个入change，其余记入候选清单备查
 
@@ -21,7 +21,7 @@
 - [ ] 2.2 **② 语种分布**：统计「数据集 × 语言 × 提交数 × 占比」；含非 Java 项目（如 OpenStack/Python、Qt/C++）时明确标注为对「主要针对 Java」的回应证据
 - [ ] 2.3 **③ 数据质量**：新增 `data_model/21_public_dataset_quality.py`，输出缺失率、重复率、字段一致性、时间序一致性四项指标 + 异常样本清单（可点回具体记录）
 - [ ] 2.4 重复记录的「标签冲突」子项单列，**不静默去重保留其一**
-- [ ] 2.5 产出 `data_model/reports/public_dataset_quality.md`
+- [ ] 2.5 产出 `data_model/preparation/reports/public_dataset_quality.md`
 
 ## 3. 变更文本统一表示（与语义特征线共用，蒋励）
 - [ ] 3.1 公开数据集的代码变更统一表示为「变更文本」（文件路径 + 变更类型 + 增删行 + 提交信息首行），与 `semantic-feature-mainline` D3 同一套构造，保证两条线可对比
@@ -74,8 +74,8 @@
 |---|---|
 | 验收依据 | `specs/public-dataset/spec.md` 的 7 条 Requirement 与全部 Scenario |
 | 用例数与结果 | 计划 7 条（每条 Requirement 至少 1 条） |
-| 复现命令 / 步骤 | 跑 20 → 21，比对 `data_model/reports/public_dataset_quality.md` 四项指标与异常清单 |
-| 证据归档 | `data_model/reports/public_dataset_probe.md`、`public_dataset_quality.md` |
+| 复现命令 / 步骤 | 跑 20 → 21，比对 `data_model/preparation/reports/public_dataset_quality.md` 四项指标与异常清单 |
+| 证据归档 | `data_model/preparation/reports/public_dataset_probe.md`、`public_dataset_quality.md` |
 
 ### 4. 非功能验证
 | 维度 | 是否触及 | 证据 |

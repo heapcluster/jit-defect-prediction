@@ -51,7 +51,7 @@
 |---|---|
 | 验收依据 | `specs/defect-visualization/spec.md`、`specs/fix-suggestion/spec.md`、`specs/public-dataset/spec.md`、`specs/semantic-feature/spec.md` |
 | 用例数与结果 | 0 条（未开始） |
-| 证据归档 | G1-3 → `data_model/reports/`（数据质量报告）；G1-4 → `data_model/reports/`（三类设置对比结论，含设备/样本量标注） |
+| 证据归档 | G1-3 → `data_model/preparation/reports/`（数据质量报告）；G1-4 → `data_model/pipelines/semantic/reports/`（三类设置对比结论，含设备/样本量标注） |
 
 ### 4. 非功能验证
 | 维度 | 是否触及 | 证据 |
