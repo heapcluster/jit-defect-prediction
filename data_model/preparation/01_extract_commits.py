@@ -4,9 +4,9 @@
 规格: openspec/changes/data-collection-and-szz-labeling/specs/commit-collection/spec.md
 
 只做三件事：读提交记录、过滤合并提交、按契约落字段。
-字段口径以 docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md 表一为准，不在此处发明列名。
+字段口径以 docs/design/data-fields.md 表一为准，不在此处发明列名。
 
-为什么要 --since：全量 11,050 条提交做回溯的开销尚未实测（见 docs/model/data-pipeline.md
+为什么要 --since：全量提交做回溯的开销尚未实测（见 docs/model/data-pipeline.md
 第 7 节第 5 项）。首次跑通先用窗口子集验证链路，跑通后再扩大到全量。
 窗口只决定「哪些提交进样本」，不影响特征计算 —— 特征用的是窗口之前的历史。
 """
@@ -22,11 +22,11 @@ from pathlib import Path
 from git import Repo
 
 BASE = Path(__file__).resolve().parent
-DEFAULT_REPO = BASE.parent / "data" / "activemq"
+DEFAULT_REPO = BASE.parent / "data" / "camel"
 DEFAULT_OUT = BASE.parent / "data" / "commits.csv"
 REPORTS_DIR = BASE / "reports"
 
-# 与 docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md 表一 `commit` 逐字对齐（id 由数据库自增，CSV 不落）
+# 与 docs/design/data-fields.md 表一 `commit` 逐字对齐（id 由数据库自增，CSV 不落）
 FIELDS = [
     "repo_name",
     "commit_hash",
@@ -37,13 +37,13 @@ FIELDS = [
     "parent_hash",
 ]
 
-# docs/model/data-pipeline.md 第 2 节登记表登记的完整提交哈希
-EXPECTED_HEAD = "7c03f67d46ae290ca49d549215277ab384c2bb8a"
-REPO_NAME = "activemq"
+# docs/model/data-pipeline.md 第 2 节登记表登记的完整提交哈希（Apache Camel tag `camel-4.23.0`）
+EXPECTED_HEAD = "b2329103df8f5d1edfca2ad262be09e3be95ee68"
+REPO_NAME = "camel"
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="从固定版本的 ActiveMQ 仓库抽取提交清单")
+    p = argparse.ArgumentParser(description="从固定版本的 Apache Camel 仓库抽取提交清单")
     p.add_argument("--repo", type=Path, default=DEFAULT_REPO, help=f"仓库副本路径（默认 {DEFAULT_REPO}）")
     p.add_argument("--out", type=Path, default=DEFAULT_OUT, help=f"输出 CSV（默认 {DEFAULT_OUT}）")
     p.add_argument("--since", default=None, help="只取此日期之后的提交，如 2018-01-01；不传=全量")
