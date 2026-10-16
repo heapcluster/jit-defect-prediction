@@ -29,6 +29,7 @@ EXPECTED_DIM = len(FEATURE_FIELDS) + 768     # 782
 # ── 训练设置 ────────────────────────────────────────────────────────────
 SEED = 42
 DECISION_THRESHOLD = 0.5
-DEFAULT_MODELS = ["lr", "rf", "xgb", "nb", "dt", "knn", "mlp", "mlp_deep"]
+DEFAULT_MODELS = ["lr", "rf", "xgb", "lgbm", "et", "svm",
+                  "nb", "dt", "knn", "mlp", "mlp_deep", "tabnet"]
 RANDOM_BASELINE_REPEATS = 200
 RANDOM_BASELINE_SEED = 0

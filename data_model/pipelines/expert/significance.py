@@ -33,6 +33,7 @@ from .model import MODEL_NAMES, build_model
 
 BOOTSTRAP_REPEATS = 1000
 EFFORT_FRACTION = 0.2
+NULL_REPEATS = 20000        # 随机基线的蒙特卡洛重抽次数
 AUC_TARGET = 0.7
 PAIRWISE_PAIRS = [("lr", "rf"), ("lr", "xgb"), ("rf", "xgb")]
 DELIVERY_MODELS = ("lr", "rf", "xgb")   # 契约约定: feature_order.txt 的 [models] 段
@@ -49,6 +50,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--models", default=",".join(DELIVERY_MODELS))
     p.add_argument("--seed", type=int, default=config.SEED)
     p.add_argument("--bootstrap-repeats", type=int, default=BOOTSTRAP_REPEATS)
+    p.add_argument("--null-repeats", type=int, default=NULL_REPEATS,
+                   help="随机基线（置换检验）的重抽次数")
     p.add_argument("--effort-fraction", type=float, default=EFFORT_FRACTION)
     p.add_argument("--report", type=Path,
                    default=config.REPORTS_DIR / "statistical_test.md")
@@ -95,6 +98,37 @@ def top_by_effort(p: np.ndarray, effort: np.ndarray,
     within = int(np.searchsorted(cum, effort.sum() * effort_fraction,
                                  side="right"))
     return order[:max(1, within)]
+
+
+def hits_for_order(order: np.ndarray, y: np.ndarray, effort: np.ndarray,
+                   effort_fraction: float) -> int:
+    """Defects caught when reviewing a given ordering under the LOC budget."""
+    cum = np.cumsum(effort[order])
+    within = max(1, int(np.searchsorted(
+        cum, effort.sum() * effort_fraction, side="right")))
+    return int(y[order[:within]].sum())
+
+
+def effort_null_distribution(y: np.ndarray, effort: np.ndarray,
+                             effort_fraction: float, repeats: int,
+                             seed: int) -> np.ndarray:
+    """Random-baseline hits under the SAME LOC budget and stopping rule.
+
+    A random ordering does NOT review each defect with probability
+    ``effort_fraction``: the budget stops after a whole number of commits
+    whose LOC sum first exceeds the budget, so the inclusion probability is
+    position- and effort-dependent. The only sound null is the distribution of
+    hits over random orderings, which depends on (y, effort, budget) alone --
+    it is therefore computed once and shared by every model.
+
+    Deterministic for a given seed.
+    """
+    rng = np.random.default_rng(seed)
+    out = np.empty(repeats, dtype=np.int64)
+    for i in range(repeats):
+        out[i] = hits_for_order(rng.permutation(len(y)), y, effort,
+                                effort_fraction)
+    return out
 
 
 def main() -> int:
@@ -152,17 +186,18 @@ def main() -> int:
     # 一行都没用 —— 那是 count-based，不是 Effort-aware（见下方的最小反例）。
     effort_budget = float(effort.sum()) * args.effort_fraction
 
-    # 随机基线二项检验：Recall@effort_fraction（按 LOC 预算）
+    # 随机基线置换检验：Recall@effort_fraction（按 LOC 预算）
+    # 零分布只依赖 (y, effort, budget)，与模型无关 —— 算一次三线共用。
+    null_hits = effort_null_distribution(y_test, effort, args.effort_fraction,
+                                         args.null_repeats, args.seed)
     binom_rows = []
     for name, p in probas.items():
         top = top_by_effort(p, effort, args.effort_fraction)
         hit = int(y_test[top].sum())
         k_pos = int(y_test.sum())
-        # 随机排序下，审阅集合的期望 LOC 占比就是 effort_fraction，
-        # 因此期望抓到的缺陷比例也是 effort_fraction。
-        binom = stats.binomtest(hit, k_pos, args.effort_fraction,
-                                alternative="greater")
-        binom_rows.append((name, hit, k_pos, binom.pvalue, len(top)))
+        # p 值 = 随机排序抓到 ≥ 实测缺陷数的频率（加 1 修正避免 p=0）
+        p_value = (1.0 + int((null_hits >= hit).sum())) / (len(null_hits) + 1.0)
+        binom_rows.append((name, hit, k_pos, p_value, len(top)))
 
     # Wilcoxon 符号秩：交付模型两两配对（按正标签子集上的 rank 差）
     wilcoxon_rows = []
@@ -186,14 +221,14 @@ def main() -> int:
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(
         render(args, train, test, wanted, bootstrap, binom_rows, wilcoxon_rows,
-               y_test, effort_budget),
+               y_test, effort_budget, null_hits),
         encoding="utf-8", newline="\n")
     print("[expert-significance] 显著性检验报告：%s" % args.report)
     return 0
 
 
 def render(args, train, test, wanted, bootstrap, binom_rows, wilcoxon_rows,
-           y_test, effort_budget) -> str:
+           y_test, effort_budget, null_hits) -> str:
     L: list[str] = []
     L.append(f"""# 交付模型统计显著性检验（pipelines/expert/significance.py 产出）
 
@@ -209,6 +244,7 @@ def render(args, train, test, wanted, bootstrap, binom_rows, wilcoxon_rows,
 | 模型 | {', '.join('`%s_v1`' % m for m in wanted)} |
 | Bootstrap 重复次数 | {args.bootstrap_repeats}（种子 {args.seed}） |
 | Effort-aware 预算 | 检验集总 LOC 的 {args.effort_fraction:.0%}（{effort_budget:.0f} LOC） |
+| 随机基线重抽次数 | {args.null_repeats}（同一 LOC/标签/停规则的置换检验，种子 {args.seed}） |
 | AUC 验收线 | ≥ {AUC_TARGET:.2f} |
 | 检验集正样本比例 | {y_test.mean() * 100:.2f}% |
 
@@ -229,29 +265,36 @@ def render(args, train, test, wanted, bootstrap, binom_rows, wilcoxon_rows,
 > **读法**：AUC 的区间**下限**也 ≥ {AUC_TARGET:.2f} 才叫「稳」；均值过线但下限不过线，
 > 说明波动大、结论不稳。交付报告引用时写「95% CI [下限, 上限]」，别只写均值。
 
-## 二、随机基线对比（二项检验， Recall@{args.effort_fraction:.0%} effort）
+## 二、随机基线对比（置换检验， Recall@{args.effort_fraction:.0%} effort）
 
-原假设：模型在「累计 LOC = 检验集总 LOC 的 {args.effort_fraction:.0%}」的审阅范围内抓到的
-缺陷数，与「随机排序花同样预算」无差别。
+原假设：模型在「累计 LOC = 检验集总 LOC 的 {args.effort_fraction:.0%}」预算下抓到的
+缺陷数，与**随机排序花同一预算**（同一停规则）无差别。
 备择假设：模型抓得**更多**（单侧检验）。
 
 | 模型 | 审阅条数 | 抓到缺陷 | 随机期望 | p 值 | 结论（α=0.05） |
 |---|---|---|---|---|---|
 """)
     for name, hit, k_pos, p_value, n_reviewed in binom_rows:
-        expected = args.effort_fraction * k_pos
-        L.append("| `%s_v1` | %d | %d | %.1f | %.2e | %s |\n"
+        expected = float(null_hits.mean())
+        L.append("| `%s_v1` | %d | %d | %.2f | %.2e | %s |\n"
                  % (name, n_reviewed, hit, expected, p_value,
                     "**拒绝 H0（显著优于随机）**" if p_value < 0.05
                     else "不能拒绝 H0"))
-    L.append("""
-> 随机期望 = effort_fraction × 检验集缺陷总数（随机排序花同一 LOC 预算时，
-> 期望抓到的缺陷占比就是预算占比）。p < 0.05 说明「抓这么多不是碰巧」。
+    L.append(f"""
+> **随机期望**取自零分布均值（{args.null_repeats} 次随机排序 = {null_hits.mean():.2f} 条缺陷），
+> **p 值** = (1 + 零分布中 ≥ 实测命中数的次数) / ({args.null_repeats} + 1)。
 >
-> **口径说明**：这里的 Effort-aware 用 **LOC = la + ld** 作工作量代理（Kamei et al. 2013）。
-> 旧版曾误用「提交条数的 20%」充当预算 —— 那是 count-based 指标，两者结果可差 0.5
-> 召回（最小反例：LOC=[10,10,10,10,60]、标签=[0,1,0,0,1]，条数口径前 20% 只审 1 条
-> 召回 0，LOC 预算可审 2 条召回 0.5）。已改为真实 LOC 预算。
+> ⚠️ 为什么不是二项检验：LOC 预算的停规则是「累计 LOC 首次超过预算就停」，
+> 一条 LOC 很大的提交会单独耗尽预算，各条被纳入审阅的概率**不相等**，
+> 也不独立 —— 用 `Binomial(k_pos, effort_fraction)` 会给错误方差。
+> 最小反例：LOC=[10,10,10,10,60]、标签=[0,1,0,0,1]、20% 预算，穷举 120 种
+> 随机排序期望命中 **0.55** 条；而 `Binomial(2, 0.2)` 给期望 0.40，且给
+> 「两条都命中」（实际不可能同时发生）4% 的概率。本报告的零分布按同一
+> LOC/标签/停规则重抽，口径自洽。
+>
+> **口径说明**：Effort-aware 用 **LOC = la + ld** 作工作量代理（Kamei et al. 2013）。
+> 更早一版曾误用「提交条数的 20%」充当预算 —— 那是 count-based 指标，两者结果可差
+> 0.5 召回（同上反例：条数口径只审 1 条召回 0，LOC 预算可审 2 条召回 0.5）。
 """)
 
     L.append("""

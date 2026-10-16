@@ -93,7 +93,11 @@ def build_model(name: str, seed: int):
                                                validation_fraction=0.1,
                                                random_state=seed))])
     if name == "tabnet":
-        from data_model.pipelines.expert.model import TabNetWithEarlyStop
+        # Relative import: resolves to `pipelines.expert.model` under the
+        # official entry (`cd data_model && python -m pipelines.<line>.train`)
+        # and to `data_model.pipelines.expert.model` when imported from the
+        # repo root. A hard-coded `data_model.` prefix would break the former.
+        from ..expert.model import TabNetWithEarlyStop
         return Pipeline([
             ("scaler", StandardScaler()),
             ("tabnet", TabNetWithEarlyStop(seed=seed)),

@@ -50,8 +50,16 @@
 | 项 | 内容 |
 |---|---|
 | 集成范围 | 修订后的 5 份规格 + 3 份进行中 change 文档，与仓库实际产物路径的一致性 |
-| 测试文件 | `data_model/tests/`（含本 PR 新增的缓存/注册/工作量回归，回归确认未被本 change 破坏） |
-| 用例数与结果 | 89 条 ｜ 89 passed, 0 failed（本 change 分支实测 2026-10-16，见下方命令） |
+| 测试文件 | `data_model/tests/`（含本 PR 新增的缓存/注册/工作量/官方入口回归） |
+| 用例数与结果 | **逐分支实测**（同一份本 change 文件随三个分支走，用例数不同）：
+
+| 分支 | 修复提交 | 环境 | 结果 | 与 #68 的差值原因 |
+|---|---|---|---|---|
+| #71 `refactor/model-package-structure` | 见 PR head | conda `jit-defect-prediction`（Python 3.12.x） | 88 passed, 0 failed | 无 camel 采集测试及其回归（该 change 为 #68 独有） |
+| #67 `docs/update-project-docs` | 见 PR head | 同上 | 88 passed, 0 failed | 同上 |
+| #68 `feat/model/expert-line-training` | 见 PR head | 同上 | 97 passed, 0 failed | 基准（含 camel） |
+
+  （计数为**通过数**，非收集数；均为 0 failed、0 skipped。） |
 | 复现命令 | `python -m pytest data_model` |
 | 关键断言 | 修订后的报告路径在仓库中真实存在：`data_model/preparation/reports/`、`data_model/pipelines/expert/reports/`、`data_model/pipelines/expert/models/feature_order.txt` |
 
@@ -78,4 +86,4 @@
 | 缺口 | 原因 | 归属 | 计划时间 |
 |---|---|---|---|
 | §3 验收层的路径扫描证据文件尚未产出 | 严格校验已跑、`Test-Path` 扫描需在最终集成树上执行，合并前出证才有效 | model 蒋励 | #71 合入当日（2026-10-16～2026-10-17） |
-| §2 集成层的 `python -m pytest data_model` 需在合入后重跑 | 本分支 74 passed 是当前树实测；合入 main 后环境与依赖可能变化 | model 蒋励 | #68 合入窗口内（2026-10-17 前） |
+| §2 集成层的 `python -m pytest data_model` 需在合入后重跑 | 上表计数是**修复提交各自分支**的实测；合入 main 后环境与依赖可能变化，须以 main 的树重测另出证 | model 蒋励 | #68 合入窗口内（2026-10-17 前） |

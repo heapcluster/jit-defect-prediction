@@ -29,6 +29,7 @@ DATASET_CSV = DATA_DIR / "dataset_szz.csv"                # 自建文本时的�
 # ── 分类器与指标 ────────────────────────────────────────────────────────
 SEED = 42
 DECISION_THRESHOLD = 0.5
-DEFAULT_MODELS = ["lr", "rf", "xgb", "nb", "dt", "knn", "mlp", "mlp_deep"]
+DEFAULT_MODELS = ["lr", "rf", "xgb", "lgbm", "et", "svm",
+                  "nb", "dt", "knn", "mlp", "mlp_deep", "tabnet"]
 RANDOM_BASELINE_REPEATS = 200
 RANDOM_BASELINE_SEED = 0

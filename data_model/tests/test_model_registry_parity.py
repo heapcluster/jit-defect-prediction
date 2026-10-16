@@ -19,9 +19,11 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from data_model.pipelines.expert import model as expert_m  # noqa: E402
-from data_model.pipelines.expert.config import DEFAULT_MODELS  # noqa: E402
+from data_model.pipelines.expert.config import DEFAULT_MODELS as EXPERT_DEFAULT  # noqa: E402
 from data_model.pipelines.fused import model as fused_m      # noqa: E402
+from data_model.pipelines.fused.config import DEFAULT_MODELS as FUSED_DEFAULT  # noqa: E402
 from data_model.pipelines.semantic import model as semantic_m  # noqa: E402
+from data_model.pipelines.semantic.config import DEFAULT_MODELS as SEMANTIC_DEFAULT  # noqa: E402
 
 EXPECTED = {
     "lr", "rf", "xgb", "lgbm", "et", "svm",
@@ -38,8 +40,12 @@ def test_semantic_and_fused_match_expert_registry():
     assert set(fused_m.MODEL_NAMES) == set(expert_m.MODEL_NAMES)
 
 
-def test_default_config_covers_every_registered_model():
-    assert set(DEFAULT_MODELS) == set(expert_m.MODEL_NAMES)
+def test_all_three_lines_share_the_same_default_model_set():
+    """train.py reads each line's own config; if the defaults drift, a plain
+    `python -m pipelines.<line>.train` silently compares different model sets
+    and the cross-line comparison is no longer about the feature modality."""
+    assert list(EXPERT_DEFAULT) == list(SEMANTIC_DEFAULT) == list(FUSED_DEFAULT)
+    assert set(EXPERT_DEFAULT) == EXPECTED
 
 
 def test_every_registered_model_builds():

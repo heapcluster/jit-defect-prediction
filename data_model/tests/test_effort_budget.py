@@ -71,3 +71,51 @@ def test_effort_is_never_zero_so_budget_is_never_zero():
     effort = np.maximum(loc, 1.0)
     top = top_by_effort(scores, effort, FRACTION)
     assert top.size >= 1
+
+
+# ---------------------------------------------------------------------------
+# Null hypothesis: the reviewer showed that Binomial(k_pos, effort_fraction)
+# is the WRONG null under a LOC-budget stop rule. On the counter-example,
+# enumerating all 5! = 120 orderings gives an expected 0.55 hits and never
+# reviews both positives, while Binomial(2, 0.2) claims 0.40 and assigns 4%
+# to that impossible event.
+# ---------------------------------------------------------------------------
+import itertools  # noqa: E402
+
+from data_model.pipelines.expert.significance import (  # noqa: E402
+    effort_null_distribution,
+    hits_for_order,
+)
+
+
+def test_null_matches_exhaustive_enumeration():
+    perms = list(itertools.permutations(range(5)))
+    exact = [hits_for_order(np.array(o), LABELS, LOC, FRACTION) for o in perms]
+    assert len(exact) == 120
+    assert np.mean(exact) == pytest.approx(0.55)
+    # the stop rule can never include both positives (60-LOC commit alone
+    # exhausts the 20-LOC budget)
+    assert max(exact) == 1
+
+
+def test_null_monte_carlo_agrees_with_enumeration():
+    mc = effort_null_distribution(LABELS, LOC, FRACTION, 30000, seed=7)
+    assert abs(mc.mean() - 0.55) < 0.02
+    assert (mc == 2).sum() == 0
+
+
+def test_null_is_deterministic_for_a_seed():
+    a = effort_null_distribution(LABELS, LOC, FRACTION, 500, seed=3)
+    b = effort_null_distribution(LABELS, LOC, FRACTION, 500, seed=3)
+    np.testing.assert_array_equal(a, b)
+
+
+def test_binomial_null_would_disagree():
+    """Documents the rejected null: 0.40 expected hits and 4% on an impossible
+    event -- neither holds under the actual stop rule."""
+    k_pos = int(LABELS.sum())
+    assert k_pos == 2
+    assert FRACTION * k_pos == pytest.approx(0.40)
+    from scipy import stats
+    # P(X == 2) under Binomial(2, 0.2) -- an event the stop rule cannot produce
+    assert stats.binom.pmf(2, k_pos, FRACTION) == pytest.approx(0.04)
