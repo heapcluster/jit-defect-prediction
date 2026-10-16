@@ -20,6 +20,44 @@ def test_invalid_granularity(client):
     assert "granularity" in body["message"]
 
 
+def test_month_aggregation_buckets_by_calendar_month(client):
+    """月粒度走 `_period()` 的 YYYY-MM 分支（Issue #73 缺口一：此前零覆盖）。"""
+    body = client.get("/api/trends", params={"granularity": "month"}, headers=HEADERS).json()
+    assert body["code"] == 0
+    assert body["data"]["granularity"] == "month"
+    series = body["data"]["series"]
+    # 种子 C1=2026-07-20、C2=2026-08-03 各一条预测 → 两个自然月桶，升序
+    assert [s["period"] for s in series] == ["2026-07", "2026-08"]
+    assert series[0]["commit_count"] == 1
+    assert series[0]["high_risk_count"] == 1
+    assert abs(series[0]["avg_risk"] - 0.8732) < 1e-9
+    assert series[1]["commit_count"] == 1
+    assert series[1]["high_risk_count"] == 0
+
+
+def test_month_granularity_pure_date_end_includes_whole_end_day(client):
+    """月粒度同样适用契约 1.5 区间语义：end 纯日期串含结束日全天。"""
+    body = client.get(
+        "/api/trends",
+        params={"granularity": "month", "start_time": "2026-08-01", "end_time": "2026-08-03"},
+        headers=HEADERS,
+    ).json()
+    series = body["data"]["series"]
+    assert [s["period"] for s in series] == ["2026-08"]
+    # C2 committed_at=2026-08-03 09:00 —— 语义回退时会丢成 0 条
+    assert series[0]["commit_count"] == 1
+
+
+def test_month_granularity_empty_range_is_not_error(client):
+    body = client.get(
+        "/api/trends",
+        params={"granularity": "month", "start_time": "2030-01-01", "end_time": "2030-12-31"},
+        headers=HEADERS,
+    ).json()
+    assert body["code"] == 0
+    assert body["data"]["series"] == []
+
+
 def test_empty_range_is_not_error(client):
     body = client.get(
         "/api/trends",
