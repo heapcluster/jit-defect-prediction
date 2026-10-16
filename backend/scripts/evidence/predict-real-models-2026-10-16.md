@@ -947,7 +947,7 @@ cd backend                                    # 以下命令一律在 backend/ �
 # 2) 环境变量（.env 或 export 均可，SQLite 文件放仓库外避免误入库）
 export DATABASE_URL="sqlite:///$TEMP/jit_predict04.db"
 export API_TOKEN="dev-token-20260918"
-export MODEL_DIR="<交付包路径>/models"      # 或把三个 .pkl 放进 data_model/models/ 后省略本行
+export MODEL_DIR="<交付包路径>/models"      # 或把三个 .pkl 放进 data_model/pipelines/expert/models/（#71 分包后的默认目录）后省略本行
 # 3) 种子数据 + 起服务
 python -m scripts.seed_dev_data            # 期望：3 提交 / 3 特征 / 3 预测
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 &
