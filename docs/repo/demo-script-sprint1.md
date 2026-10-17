@@ -4,6 +4,47 @@
 > 配套产物：本脚本 + 录屏，二者入库 `docs/` 或附 Issue 链接。
 > 接口与错误码口径：`backend/api-spec.md`；页面口径：`docs/frontend/pages.md`。
 
+## 0. 起服务与录屏准备（录屏前按序执行，2026-10-16 补）
+
+### 0.1 起后端（终端 A）
+
+```bash
+pip install -r backend/requirements.txt
+cd backend
+uvicorn app.main:app --reload --port 8000
+```
+
+自检：`curl -s -o /dev/null -w "%{http_code}" -H "X-API-Key: $KEY" http://localhost:8000/api/commits` → `200`。
+
+### 0.2 起前端（终端 B）
+
+```bash
+cd frontend
+npm ci
+npm run dev          # Vite 默认 http://localhost:5173
+```
+
+### 0.3 录屏前数据自检（终端 C）
+
+```bash
+# 演示步骤 1 需要「至少 1 条 risk_score >= 0.5」的高风险提交
+curl -s -H "X-API-Key: $KEY" "http://localhost:8000/api/commits?min_risk=0.5&size=5" | head -c 400
+```
+
+- 返回为空 → 先由后端线把 `data_model/pipelines/expert/predict.py` 产出的 `prediction_result.csv` 灌库；
+  **不要在演示现场临时造数据**（演示所用 `commit_hash` 必须与库中真实数据一致，见 §5 第 4 条）。
+
+### 0.4 录屏设置
+
+| 项 | 要求 |
+|---|---|
+| 分辨率 / 帧率 | 1920×1080 / 30fps（代码与数字可辨） |
+| 画面 | 全屏浏览器 + 终端同屏，或分段剪辑（列表/详情/趋势各一段） |
+| 音频 | 需口播（按 §2 / §3 的「口播」行） |
+| 命名 | `demo-sprint1-YYYYMMDD.mp4` |
+
+> 本节的启动命令取自 `backend/README.md` 与 `frontend/package.json`；命令若变更，以那两处为准。
+
 ## 1. 前置（演示前逐项确认）
 
 | 项 | 确认方式 | 通过标准 |
