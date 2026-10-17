@@ -7,11 +7,11 @@
 
 ## 1. 版本与实现
 - [x] 1.1 核验官方 Camel tag 的完整提交 — `docs/model/data-pipeline.md` §2。
-- [x] 1.2 修正报告判据、登记状态及不一致退出 — `data_model/02_szz_labeling.py`。
+- [x] 1.2 修正报告判据、登记状态及不一致退出 — `data_model/preparation/02_szz_labeling.py`。
 
 ## 2. 文档与验证
 - [x] 2.1 同步当前文档与活规格，注明历史报告勘误 — 数据链路、数据字段契约及两个规格。
-- [x] 2.2 执行数据线回归与 OpenSpec 验证 — `data_model/reports/camel_source_alignment_validation.md`。
+- [x] 2.2 执行数据线回归与 OpenSpec 验证 — `data_model/preparation/reports/camel_source_alignment_validation.md`。
 
 ## 测试与验证（强制板块）
 
@@ -19,18 +19,18 @@
 - 覆盖：Camel 判据、报告生成、自检基准与 CLI 提前失败；测试文件 `data_model/tests/test_szz_labeling.py`。
 - 命令：在 `data_model/` 执行 `.venv/Scripts/python.exe -m pytest -o addopts='' -q -ra`。
 - 正向：CAMEL 编号和修复词识别；边界：AMQ 编号不识别、未登记不可比、基准不符停止写入。
-- 结果及用例数：67 passed、1 skipped（缺少被忽略的模型文件），证据 `data_model/reports/camel_source_alignment_validation.md`。
+- 结果及用例数：67 passed、1 skipped（缺少被忽略的模型文件），证据 `data_model/preparation/reports/camel_source_alignment_validation.md`。
 
 ### 2. 集成测试
 - 本次验证数据线 CLI 到自检失败退出/报告生成，以及临时 Git 仓库的采集 → 两套 SZZ 回溯；命令同上。
 - 大版本合并后的前后端集成由负责合入的一条线组织；本次不修改前后端代码，未执行全系统联调。
-- 证据：`data_model/reports/camel_source_alignment_validation.md`。
+- 证据：`data_model/preparation/reports/camel_source_alignment_validation.md`。
 
 ### 3. 验收测试
 - 对照本 change 两份 spec 的 Scenario 执行数据线测试，运行 `openspec validate camel-source-alignment --strict`。
 - 结果：本 change 及两份同步仓库名和样本规模的未归档提案均 valid，11 份活规格全部通过 strict 校验。
 - 版本固定核验命令：`git ls-remote https://github.com/apache/camel.git refs/tags/camel-4.23.0 'refs/tags/camel-4.23.0^{}'`。
-- 证据：`data_model/reports/camel_source_alignment_validation.md`；尚未将合成输入测试等同于全量验收。
+- 证据：`data_model/preparation/reports/camel_source_alignment_validation.md`；尚未将合成输入测试等同于全量验收。
 
 ### 4. 非功能验证
 - 可靠性：基准不符时不得进入回溯或写文件，测试命令与证据同上。

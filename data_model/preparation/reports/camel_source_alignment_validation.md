@@ -25,7 +25,7 @@ e7094f7ca2abb03f36d118df0572b569eb28ca4f  refs/tags/camel-4.23.0
 b2329103df8f5d1edfca2ad262be09e3be95ee68  refs/tags/camel-4.23.0^{}
 ```
 
-附注 tag 对象与 peeled commit 不混用。`84461` 条非合并提交来自上游 `data_model/reports/commit_extract_stats.md`；三项外沿 `38716 / 7787 / 6631` 来自同一提交的 `szz_labeling_stats.md`。原报告自检基准未登记，本次仅透明勘误和登记，不追认原运行已通过自检。
+附注 tag 对象与 peeled commit 不混用。`84461` 条非合并提交来自上游 `data_model/preparation/reports/commit_extract_stats.md`；三项外沿 `38716 / 7787 / 6631` 来自同一提交的 `szz_labeling_stats.md`。**这两项数字是历史基线值**（引自 #71 分包迁移前的上游运行），数字本身未重跑，仅路径已更新到当前位置。原报告自检基准未登记，本次仅透明勘误和登记，不追认原运行已通过自检。
 
 ## 单元与本地 Git 集成测试
 
@@ -55,8 +55,15 @@ $env:PYTHONUTF8='1'
 ```powershell
 .\.venv\Scripts\python.exe -m ruff check tests/test_szz_labeling.py tests/test_camel_source.py
 .\.venv\Scripts\python.exe -m ruff check 02_szz_labeling.py --output-format concise
+# 下面一条是历史命令：从分包前的提交 866b7dc 取回旧路径下的文件做基线比对，
+# 路径与提交号均按当时实况保留，勿改为当前路径后重跑。
 git show 866b7dc:data_model/02_szz_labeling.py | .\.venv\Scripts\python.exe -m ruff check --stdin-filename 02_szz_labeling.py --output-format concise -
 ```
+
+> 命令均在 `data_model/` 目录下执行。第 2、3 条里的 `02_szz_labeling.py` 是
+> 相对 `data_model/` 的**当前**路径（分包后该文件位于 `data_model/preparation/`，
+> 但 CLI 入口从 `data_model/` 运行，故此处保持运行期口径）；
+> 第 3 条整条为历史基线命令，仅用于复现「未新增告警」的结论。
 
 两个测试文件 `All checks passed!`。脚本检查仍报告 3 条既有规则告警：UP022、UP028、UP017；对基线文件执行相同检查可复现同三项，未新增告警。本次不修改与数据源切换无关的 subprocess、生成器或 datetime 写法，因此**脚本 lint 整体未通过**。
 
