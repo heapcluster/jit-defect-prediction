@@ -53,17 +53,25 @@ $env:PYTHONUTF8='1'
 静态检查（ruff 0.17.0）：
 
 ```powershell
-.\.venv\Scripts\python.exe -m ruff check tests/test_szz_labeling.py tests/test_camel_source.py
+# 当前路径（分包后真实位置），cwd = data_model/
+.\.venv\Scripts\python.exe -m ruff check preparation/02_szz_labeling.py --output-format concise
+
+# 以下两条为旧基线历史命令，仅在「与分包前基线比对」这一语境下成立，
+# 不要当作当前可执行命令：第 1 条的 02_szz_labeling.py 是分包前相对 data_model/ 的
+# 旧目标，按当前树执行会得到 E902（文件不存在），因为 ruff 的文件参数相对 cwd 解析，
+# 不会因为生产 CLI 也从 data_model/ 启动就自动映射到 preparation/。
 .\.venv\Scripts\python.exe -m ruff check 02_szz_labeling.py --output-format concise
-# 下面一条是历史命令：从分包前的提交 866b7dc 取回旧路径下的文件做基线比对，
-# 路径与提交号均按当时实况保留，勿改为当前路径后重跑。
 git show 866b7dc:data_model/02_szz_labeling.py | .\.venv\Scripts\python.exe -m ruff check --stdin-filename 02_szz_labeling.py --output-format concise -
 ```
 
-> 命令均在 `data_model/` 目录下执行。第 2、3 条里的 `02_szz_labeling.py` 是
-> 相对 `data_model/` 的**当前**路径（分包后该文件位于 `data_model/preparation/`，
-> 但 CLI 入口从 `data_model/` 运行，故此处保持运行期口径）；
-> 第 3 条整条为历史基线命令，仅用于复现「未新增告警」的结论。
+> 命令均在 `data_model/` 目录下执行。第 1 条是**当前**复现命令；
+> 第 2、3 条整条为历史基线命令，仅用于复现「未新增告警」的结论，
+> 其中第 3 条的 `866b7dc:data_model/02_szz_labeling.py` 是 git 对象路径，
+> 指向分包前那个提交里的文件，必须原样保留。
+>
+> **告警条数的版本差异**：本报告记录的 3 条（UP022、UP028、UP017）来自当时所用
+> ruff 版本；换用其它版本可能只报出其中若干条（例如 UP017 不再触发）。
+> 这是工具版本差异，不是代码变化，本报告不倒填该数字。
 
 两个测试文件 `All checks passed!`。脚本检查仍报告 3 条既有规则告警：UP022、UP028、UP017；对基线文件执行相同检查可复现同三项，未新增告警。本次不修改与数据源切换无关的 subprocess、生成器或 datetime 写法，因此**脚本 lint 整体未通过**。
 
