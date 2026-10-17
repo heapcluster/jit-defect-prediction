@@ -118,7 +118,7 @@ JIT（即时）缺陷预测系统：在**一次代码提交（commit）**的粒�
 | **文档怎么命名、注释怎么写、周报怎么填** | `docs/common/writing-norms.md` |
 | **缺陷（Bug）怎么记、谁修、什么优先级** | `docs/repo/defect-management.md` |
 | 代码边界：做什么不做什么、四条线边界、冻结点、DoD | `docs/design/sprint0-scope.md` |
-| 数据表字段 | `docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md` |
+| 数据表字段 | `docs/design/data-fields.md` |
 | 特征列名与计算口径 | `docs/model/feature-columns.md` |
 | 接口请求响应格式与错误码 | `docs/backend/api-spec.md` |
 | 页面用接口的哪些字段、三态与错误码处理 | `docs/frontend/pages.md` |

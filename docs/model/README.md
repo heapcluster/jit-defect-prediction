@@ -20,7 +20,7 @@
 |---|---|---|---|
 | **你依赖** | `repo/`（苏哲勋） | 分支模型 + OpenSpec SDD 流程 + 缺陷管理 | 改动不走 change = **SDD 缺陷（一票否决）** |
 | **你依赖** | Apache Camel 仓库（tag `camel-4.23.0`） | 可克隆的完整 Git 历史 | 数据链路断在第一步 |
-| **被你依赖** | `backend/`（吕建江） | 跨线交付方案 A+C：`data_model/models/*.pkl` + `feature_order.txt` | 在线预测无法加载 |
+| **被你依赖** | `backend/`（吕建江） | 跨线交付方案 A+C：`data_model/pipelines/expert/models/*.pkl` + `feature_order.txt` | 在线预测无法加载 |
 | **被你依赖** | `frontend/`（刘帅华） | `feature-columns.md` 14 项列名 | 解释条取不到值、静默空白 |
 | **被你依赖** | `design/addons.md` G1-3 / G1-4 | 公开数据集加载与语义特征路线 | 附加功能无来源 |
 

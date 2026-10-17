@@ -1,12 +1,12 @@
 # data_model/ — 数据与模型线
 
-> 版本 1.3 ｜ 更新 2026-09-20 ｜ 主笔 蒋励 ｜ 审核 苏哲勋
+> 版本 1.6 ｜ 更新 2026-10-14 ｜ 主笔 蒋励 ｜ 审核 苏哲勋
 
 **负责人**：蒋励
 
 ## 职责
 
-拉取并固定 ActiveMQ 仓库版本 → SZZ 打标（标准行级 + 文件级简化版，两套自研实现对照）→ 抽取 Kamei 14 项特征 → 训练 8 种模型（2 类：经典机器学习 6 + 神经网络 2）→ 两类指标评估 + 概率校准与阈值证据。
+拉取并固定 Apache Camel 仓库版本 → SZZ 打标（标准行级 + 文件级简化版，两套自研实现对照）→ 抽取 Kamei 14 项特征 → 训练 8 种模型（2 类：经典机器学习 6 + 神经网络 2）→ 两类指标评估 + 概率校准与阈值证据。
 
 ## 交付物
 
@@ -51,16 +51,33 @@ pip install -r data_model/requirements.txt
 
 复现命令（含「先跑窗口子集验证链路」的短路径）见 `docs/model/data-pipeline.md` 第 5 节。
 
-②③④ 的字段口径以契约为准，不要自己发明列名：`docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md`、`docs/model/feature-columns.md`。
+②③④ 的字段口径以契约为准，不要自己发明列名：`docs/design/data-fields.md`、`docs/model/feature-columns.md`。
 
-## 模型覆盖（8 种 / 2 类 —— 课程要求的落点）
+**四类设置（仅专家 / 仅语义 / 融合 / 端到端）各自的输入形态、脚本段与产物命名**见 `docs/model/pipelines/` —— 那里规定了「四条线产物不许同名」的命名规范（`--line` / `--tag` 必须同时进数据文件名与报告名），新增脚本前先读。
+
+## 四条 pipeline 包（四线隔离，2026-10-14 建）
+
+一条 pipeline 一个包，`data/`（本线中间结果）、`models/`（本线模型）、`reports/`（本线报告）**只归该线所有**；四线共享的上游产物（仓库副本、提交清单、标签、特征表、切分下标）仍放 `data_model/data/`；跨线汇总报告（三线对比、显著性）放 `data_model/reports/`。
+
+| 包 | 线名 | 训练入口 | 状态 |
+|---|---|---|---|
+| `pipelines/expert/` | `expert` | `python -m pipelines.expert.train` | ✅ 可跑（Camel 数据待重跑） |
+| `pipelines/semantic/` | `semantic` | 待 `semantic-feature-mainline` 落地 | ⬜ 计划态 |
+| `pipelines/fused/` | `fused` | 待 `semantic-feature-mainline` 落地 | ⬜ 计划态 |
+| `pipelines/e2e/` | `e2e` | 待立项（须先有 openspec change） | ⬜ 计划态 |
+
+**为什么分包**：原先四类共用 `models/` 与 `reports/`，产物同名即互相覆盖（`06` 的报告名固定，四条线各跑一遍就互相盖掉），且看不出某个 `.pkl` 属于哪条线。分包后产出归属一目了然，`git status` 也能按线审阅。
+
+**实现不复制**：训练与指标实现只有一份，在 `0X_*.py`（唯一权威）；各包是**驱动 + 产出归属**。
+
+## 模型覆盖（8 种 / 2 类 —— 性能优先选型）
 
 课程《项目要求》要求「至少 **2 类**（经典机器学习、深度学习）不少于 **8 种**预测模型」。本线的 8 种与其类别归属如下，**唯一来源是 `pipelines/expert/model.py` 的 `MODEL_NAMES` / `MODEL_CLASS`**：
 
 | 类别 | 数量 | 模型（`model_name`） |
 |---|---|---|
-| 经典机器学习 | 6 | `lr_v1` 逻辑回归、`rf_v1` 随机森林、`xgb_v1` XGBoost、`nb_v1` 高斯朴素贝叶斯、`dt_v1` 决策树、`knn_v1` k 近邻 |
-| 神经网络（深度学习） | 2 | `mlp_v1` 多层感知机（1 隐藏层）、`mlp_deep_v1` 多层感知机（3 隐藏层 + 早停） |
+| 经典机器学习 | 6 | `lr_v1` 逻辑回归、`rf_v1` 随机森林、`xgb_v1` XGBoost、`lgbm_v1` LightGBM、`et_v1` 极端随机树、`svm_v1` RBF 核支持向量机 |
+| 神经网络（深度学习） | 2 | `mlp_deep_v1` 多层感知机（3 隐藏层 + 早停）、`tabnet_v1` TabNet（深度表格） |
 
 - **交付模型不变**：后端加载的仍是 `xgb_v1`；`pipelines/expert/models/feature_order.txt` 的 `[models]` 段（由 `train.py --delivery-models` 控制）与 `predict.py` 的产物口径都不因补齐而改变。新模型只进**评估矩阵**（`reports/model_matrix.md`）。
 - **不引入新依赖**：8 种模型全部落在既有 `scikit-learn` / `xgboost` 内 —— 补覆盖不需要动 `requirements.txt`。
@@ -73,7 +90,7 @@ pip install -r data_model/requirements.txt
 1. **训练集/检验集按 `committed_at` 时间序切**（前 70% 训练、后 30% 检验），**禁止随机切分**。`EXP`、`NUC` 等特征与时间相关，随机切分等于让模型提前看到未来，测出的准确率是假的。
 2. **特征列名与取值口径以 `docs/model/feature-columns.md` 为准**（v1.0 已冻结，`feature_version = v1`）：归一化分母、log 变换、熵的两周窗口都照契约，**不要自己改口径** —— 口径一改要全量重算，且与已有特征表对不上。
 3. **数据集与模型文件一律不入库**（课程硬要求）。
-4. 只在本目录内写代码：**不写接口、不写页面、不建库表**。方案 C 的交付物是一份 `prediction_result.csv`（字段对应契约一表三），**由后端线导入 `prediction` 表** —— 本线不直连数据库。表结构仍以 `docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md` 为准，本线不改、也不跑建表脚本。
+4. 只在本目录内写代码：**不写接口、不写页面、不建库表**。方案 C 的交付物是一份 `prediction_result.csv`（字段对应契约一表三），**由后端线导入 `prediction` 表** —— 本线不直连数据库。表结构仍以 `docs/design/data-fields.md` 为准，本线不改、也不跑建表脚本。
 
 ## 「可复现」的最低要求
 
@@ -87,15 +104,15 @@ pip install -r data_model/requirements.txt
 
 ## 与后端线的对接（2026-09-16 已定：方案 A + C，不再是待定项）
 
-`docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}data-fields.md` 已定 `commit_hash` 是对接主键、**四张表**的字段。**模型怎么交到后端**的三个候选，裁定如下：
+`docs/design/data-fields.md` 已定 `commit_hash` 是对接主键、**四张表**的字段。**模型怎么交到后端**的三个候选，裁定如下：
 
 | 方案 | 裁定 | 理由 / 用在哪 |
 |---|---|---|
-| **A. 后端加载模型文件** | ✅ **采用** | 后端启动时从 `data_model/models/` 加载 `.pkl`，供 `POST /api/predict` 实时推理 |
+| **A. 后端加载模型文件** | ✅ **采用** | 后端启动时从 `data_model/pipelines/expert/models/` 加载 `.pkl`，供 `POST /api/predict` 实时推理 |
 | **B. 后端调推理脚本** | ❌ 不采用 | 每次预测起一个 Python 进程，光解释器启动就几百毫秒，**过不了契约「95% 的请求 < 500ms」** |
 | **C. 离线预测结果入库** | ✅ **采用** | 数据线离线全量预测并产出 `prediction_result.csv`，**由后端线导入 `prediction` 表**，供风险列表 / 提交详情 / 趋势看板三个查询接口读 |
 
-**为什么 A 和 C 都要**：11,050 条提交不可能每翻一页都实时推理 —— 三个页面必须读预置结果（C）；而课程《项目要求》第 1 页要求「对外提供在线预测服务」，新提交进来要能立刻出概率，这只能靠实时推理（A）。**两者写同一张 `prediction` 表，靠 `model_name` 区分。**
+**为什么 A 和 C 都要**：历史全量提交不可能每翻一页都实时推理 —— 三个页面必须读预置结果（C）；而课程《项目要求》第 1 页要求「对外提供在线预测服务」，新提交进来要能立刻出概率，这只能靠实时推理（A）。**两者写同一张 `prediction` 表，靠 `model_name` 区分。**
 
 **C 单独用不成立**：只读历史结果满足不了「在线预测服务」这条课程要求。（注意：容器化部署在课程里是**可选**，而在线预测服务是任务描述正文 —— 两者约束力不同，不要混为一谈。）
 
