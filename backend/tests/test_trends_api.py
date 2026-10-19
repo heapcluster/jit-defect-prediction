@@ -100,10 +100,9 @@ def test_week_drilldown_monday_to_sunday_keeps_sunday(client):
     """
     from datetime import datetime
 
-    from tests.conftest import FEATURE_VALUES
-
     from app.db import SessionLocal
     from app.models import Commit, CommitFeature, Prediction
+    from tests.conftest import FEATURE_VALUES
 
     sunday = "e" * 40
     with SessionLocal() as session:

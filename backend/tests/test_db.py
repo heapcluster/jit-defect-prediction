@@ -40,15 +40,12 @@ def test_index_assertions_pass_on_fresh_schema():
     from sqlalchemy import inspect
 
     insp = inspect(eng)
-    unique_pairs = {
-        (tuple(c["column_names"]), bool(c.get("unique")))
-        for c in insp.get_unique_constraints("prediction")
+    # SQLite 方言：唯一约束经 get_unique_constraints 报告（条目无 unique 键，唯一性由约束本身保证）；
+    # 普通索引经 get_indexes 报告
+    assert ("commit_hash", "model_name") in {
+        tuple(c["column_names"]) for c in insp.get_unique_constraints("prediction")
     }
-    unique_pairs |= {
-        (tuple(idx["column_names"]), bool(idx.get("unique")))
-        for idx in insp.get_indexes("prediction")
-    }
-    assert (("commit_hash", "model_name"), True) in unique_pairs
+    assert ("commit_hash",) in {tuple(i["column_names"]) for i in insp.get_indexes("prediction")}
 
 
 def test_index_assertions_raise_when_unique_pair_missing():
