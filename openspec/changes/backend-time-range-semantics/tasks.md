@@ -50,7 +50,7 @@
 | 项 | 内容 |
 |---|---|
 | 集成范围 | 本 change 的区间语义 ↔ **真起服务**（uvicorn，不用 TestClient）↔ SQLite 种子库 ↔ 列表 / 趋势 / 详情三接口的跨口径一致性；前端三页面端到端另计（见 §5） |
-| 测试文件 | `backend/scripts/evidence/integration-time-range-2026-10-16.md`（本轮新增：11 条真 HTTP 断言 + 原始响应 verbatim + 复现步骤）；前端侧联调记录为 `docs/frontend/integration-log.md`（刘帅华，随 #60 已进 main） |
+| 测试文件 | `backend/scripts/evidence/integration-time-range-2026-10-16.md`（本轮新增：11 条真 HTTP 断言 + 原始响应 verbatim + 复现步骤；**其中 4 条跨接口一致性对账 —— 列表 `total` == 周桶之和 == 月桶 == 周下钻 —— 见该文件 §2 的专表**，非仅文件名罗列）；前端侧联调记录为 `docs/frontend/integration-log.md`（刘帅华，随 #60 已进 main） |
 | 用例数与结果 | 后端侧 **11** 条 ｜ 全部符合预期（其中 4 条为跨接口一致性断言）；前端三页面端到端 **0** 条 ｜ **未执行**（前置：#62 合入 + F4 联调窗口，不写成已完成） |
 | 复现命令 | cwd=`backend`：`python -m scripts.seed_dev_data` → `python -m uvicorn app.main:app --host 127.0.0.1 --port 8010` → 按证据文件 §4 的 curl 逐条打（`DATABASE_URL` 指仓库外的 SQLite 文件、`API_TOKEN` 走环境变量，均不入库）。执行记录：分支 head `9073cea`，2026-10-16，Windows 11 / Python 3.12.7 |
 | 关键断言 | ① 同区间 列表 `total=3` == 趋势周桶 `2026-W31:2 + 2026-W32:1`；② **周下钻** `start=2026-07-27&end=2026-08-02` 得 2 条 == 同区间周桶 `W31:2`（修复前只返回 1 条，即 #61 原现象）；③ 月桶 `2026-08:3` == 列表 3 条；④ 紧凑格式 `20260803` / `20260803T090000Z` → 400 + `40001`，message 只含参数名与合法写法（无堆栈 / SQL）；⑤ 无 `X-API-Key` → 401 + `40100`；⑥ `end=2026-08-02` 与 `end=2026-08-03T08:59:59` 均返回 2 条 —— 证明收尾规则没有外溢成「多给一天」 |
