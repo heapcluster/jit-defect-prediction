@@ -90,3 +90,36 @@ def test_compact_basic_format_rejected(client):
         resp = client.get("/api/trends", params={"end_time": value}, headers=HEADERS)
         assert resp.status_code == 400
         assert resp.json()["code"] == 40001
+
+
+def test_week_drilldown_monday_to_sunday_keeps_sunday(client):
+    """周下钻（周一→周日纯日期串）不丢周日当天 —— Issue #61 原现象的永久防回归判据。
+
+    蒋励在 #75 的建议：集成证据里的 D 断言（真服务 curl）是一次性的，
+    这里用夹具把它固化成用例。种子没有周日提交，故临时插一条 2026-08-02（周日）。
+    """
+    from datetime import datetime
+
+    from tests.conftest import FEATURE_VALUES
+
+    from app.db import SessionLocal
+    from app.models import Commit, CommitFeature, Prediction
+
+    sunday = "e" * 40
+    with SessionLocal() as session:
+        session.add(Commit(commit_hash=sunday, repo_name="camel", author_name="jdoe",
+                           committed_at=datetime(2026, 8, 2, 9, 0, 0), message="Sunday commit", parent_hash=None))
+        session.add(CommitFeature(commit_hash=sunday, committed_at=datetime(2026, 8, 2, 9, 0, 0),
+                                  feature_version="v1", **FEATURE_VALUES))
+        session.add(Prediction(commit_hash=sunday, model_name="xgb_v1", risk_score=0.50000,
+                               predicted_at=datetime(2026, 9, 1, 8, 0, 0), feature_version="v1"))
+        session.commit()
+    body = client.get(
+        "/api/trends",
+        params={"granularity": "week", "start_time": "2026-07-27", "end_time": "2026-08-02"},
+        headers=HEADERS,
+    ).json()
+    series = body["data"]["series"]
+    assert [s["period"] for s in series] == ["2026-W31"]
+    # 语义回退（end 停当天 00:00）时周日这条会丢，桶计数变 0 / 桶消失
+    assert series[0]["commit_count"] == 1

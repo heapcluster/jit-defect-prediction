@@ -36,6 +36,19 @@ def test_index_assertions_pass_on_fresh_schema():
     eng = _new_engine()
     Base.metadata.create_all(eng)
     _assert_indexes(eng)  # 不抛即通过：四条断言（含两条唯一性）全部满足
+    # 蒋励 #79 建议：正例也要有可读判据，不只靠「不抛」
+    from sqlalchemy import inspect
+
+    insp = inspect(eng)
+    unique_pairs = {
+        (tuple(c["column_names"]), bool(c.get("unique")))
+        for c in insp.get_unique_constraints("prediction")
+    }
+    unique_pairs |= {
+        (tuple(idx["column_names"]), bool(idx.get("unique")))
+        for idx in insp.get_indexes("prediction")
+    }
+    assert (("commit_hash", "model_name"), True) in unique_pairs
 
 
 def test_index_assertions_raise_when_unique_pair_missing():
