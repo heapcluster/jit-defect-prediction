@@ -145,6 +145,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { getCommitDetail } from '../api'
+import { riskColor, riskTag, riskLabel } from '../utils/risk'
 
 const props = defineProps({
   hash: { type: String, required: true }
@@ -174,24 +175,6 @@ const explanation = computed(() => {
     .sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution))
     .slice(0, 8)
 })
-
-function riskColor(score) {
-  if (score >= 0.5) return '#d9484a'
-  if (score >= 0.3) return '#d98a2b'
-  return '#4e9b68'
-}
-
-function riskTag(score) {
-  if (score >= 0.5) return 'danger'
-  if (score >= 0.3) return 'warning'
-  return 'success'
-}
-
-function riskLabel(score) {
-  if (score >= 0.5) return '高风险'
-  if (score >= 0.3) return '中等风险'
-  return '常规'
-}
 
 // 0.3 是解释条最大贡献度的可视化刻度（归一用），与风险阈值 0.3 无关
 function barWidth(contribution) {
