@@ -48,7 +48,7 @@
 - **目标**：单环境就绪，且证明未破坏既有基线。
 - **已交付**：`jit-defect-prediction`（python 3.12），含 `torch 2.5.1`（4060 装 cu124 wheel）/ `transformers 4.46.1`，以及 `numpy 2.5.3 / pandas 3.0.5 / scikit-learn 1.9.1 / scipy 1.18.1 / xgboost 3.4.1 / shap 0.52`（版本已随 change `env-single-source` 与各线 requirements 对齐）。
 - **验收证据**：
-  - `conda activate jit-defect-prediction` → `python -c "import torch,transformers,sentence_transformers,numpy,pandas,sklearn,xgboost,shap"` 通过；
+  - `conda activate jit-defect-prediction` → `python -c "import torch,transformers,numpy,pandas,sklearn,xgboost,shap"` 通过；
   - 项目根 `python -m pytest -q` → **146 passed**（合并 torch 后基线无破坏）。
 - **事实源**：`data_model/environment.yml`（已去除写死 `prefix` 与 win-64 专属 build，可移植；仓库内不再保留 requirements.txt）。
 - **权重（已就绪）**：CodeBERT 权重（`microsoft/codebert-base`，124.6M 参数）**已预下载**到本地 HF 缓存，并**离线验证通过**（`HF_HUB_OFFLINE=1` 加载成功、`hidden=768`、前向输出 `(1,15,768)`）；缓存路径 `~/.cache/huggingface/hub/models--microsoft--codebert-base`。SF-2 / SF-3 可离线直接调用，无需联网。
