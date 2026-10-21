@@ -15,7 +15,7 @@
 - **D2 路径映射按 #55 重组结论表**：`api-format.md → docs/backend/api-spec.md`、`data-fields.md → docs/design/data-fields.md`、`feature-columns.md → docs/model/feature-columns.md`；版本标注写「契约三 v1.5 / 契约一 v1.5」现状值（两者文件头分别见 `docs/backend/api-spec.md:3`、`docs/design/data-fields.md:3`）；契约二在 main 现行规格里本就只按节引用（§2/§3）不带版本号，本次只换路径、不新增版本锚，避免扩大改动面。选「写死当前版本」而非「不写版本」：规格其余条目本就按版本引用契约（如「§3 逐字一致」），去掉版本反而丢判据；代价是契约再升版时要同步扫规格（tasks §3 已放扫描命令，这正是 #65 的根因修复）。
 - **D3 归档排在 `backend-time-range-semantics` 之后**：两个 delta 改同一规格文件的不同 requirement（时间区间改「风险列表查询 / 趋势聚合查询」，本 change 改「统一包络与错误码 / 提交详情查询 / Swagger 实现镜像」），无语义冲突，排序只为避免同文件并发落地。
 - **D4 验证用静态三件套**：旧路径全量扫描 + `openspec validate --all --strict` + 语义逐字比对（纯字符串修订不新增功能用例，与蒋励 change 同法；不适用项在「测试与验证」板块逐节注明，不省略板块）。
-- **D5 版本标注的核对方式与工具边界**：每个写进规格的版本号都与契约文件头对读（`docs/backend/api-spec.md:3` = v1.5、`docs/design/data-fields.md:3` = v1.5、`docs/model/feature-columns.md:3` = v1.2），不凭记忆写版本。**本轮审阅（苏哲勋，`6edbe88`）指出 db-schema delta 曾把契约一写成 v1.4 —— 属实，已按文件头改正。** 另：`## Purpose` 段的两处旧版本号（`db-schema:4`、`query-api:4`）不在 requirement 里，OpenSpec 的 delta 结构承载不到，只能排进归档 PR 手工同步并单列判据（tasks 3.3），这是工具能力边界，记下来而不是假装 delta 已覆盖。
+- **D5 版本标注的核对方式与工具边界**：每个写进规格的版本号都与契约文件头对读（`docs/backend/api-spec.md:3` = v1.5、`docs/design/data-fields.md:3` = v1.5、`docs/model/feature-columns.md:3` = v1.2），不凭记忆写版本。**本轮审阅（苏哲勋，`6edbe88`）指出 db-schema delta 曾把契约一写成 v1.4 —— 属实，已按文件头改正。** 另：`## Purpose` 段的两处旧版本号（`db-schema:4`、`query-api:4`）不在 requirement 里，OpenSpec 的 delta 结构承载不到，只能排进归档 PR 手工同步并单列判据（tasks 3.3），这是工具能力边界，记下来而不是假装 delta 已覆盖。两处的分工已核实，不重复声称：`query-api:4` 归前置归档 PR **#84**（该 change 自己的 tasks 3.3 声明），本 change 按 D3 必在其后归档，故只认领 `db-schema:4`；判据仍一次扫两处，正是为了避免「两个 PR 各认一半、结果都没认」这种漏口。
 
 ## Risks / Trade-offs
 

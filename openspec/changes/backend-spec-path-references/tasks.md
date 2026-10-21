@@ -20,9 +20,9 @@
 
 ## 3. 归档与同步（排在依赖之后）
 
-- [ ] 3.1 等 `backend-time-range-semantics` 归档 PR 合入（design D3 顺序约束）—— 交付给：自己；形式：关注该 PR 状态
+- [ ] 3.1 等 `backend-time-range-semantics` 归档 PR 合入（design D3 顺序约束）—— 交付给：自己；形式：关注该 PR 状态。当前状态：归档 PR 已于 2026-10-21 提出 = **PR #84**（head `cadafc6`，前置 #75 已合入 main `07f4309`），待 sober-hub 审阅合入
 - [ ] 3.2 归档本 change：`openspec archive backend-spec-path-references -y`，delta 落 `openspec/specs/query-api/spec.md` 与 `openspec/specs/db-schema/spec.md` —— 交付给：自己；形式：归档 PR；同时跑 2.3 扫描并回填证据
-- [ ] 3.3 归档 PR 内手工同步两份规格的 `## Purpose` 旧版本号（delta 承载不到该段）：`openspec/specs/db-schema/spec.md:4`「契约一 1.4」→「契约一 1.5」、`openspec/specs/query-api/spec.md:4`「契约三 1.4」→「契约三 1.5」 —— 交付物：归档 PR 的该两处 diff；判据：cwd=仓库根 `git grep -n -E "契约(一|三) 1\.4" -- openspec/specs` 无输出
+- [ ] 3.3 归档 PR 内手工同步 `openspec/specs/db-schema/spec.md:4` 的 `## Purpose` 旧版本号「契约一 1.4」→「契约一 1.5」（delta 承载不到 Purpose 段） —— 交付物：归档 PR 的该处 diff；判据：cwd=仓库根 `git grep -n -E "契约(一|三) 1\.4" -- openspec/specs` 无输出。**范围收缩说明**：原列两处，其中 `openspec/specs/query-api/spec.md:4`「契约三 1.4」已由 `backend-time-range-semantics` 的归档 PR #84 声明并处理（其 tasks 3.3）；按 design D3 本 change 的归档必然排在 #84 之后，故本条不再重复声称，只保留 `db-schema` 一处，判据仍扫两处以防漏改
 - [ ] 3.4 看板行 18 与周报同步：后端线份额翻「已完成」，注明 archive 12 份仍待 PO 在 Issue #65 裁决 —— 交付给：吕建江（飞书为本人操作）；形式：看板备注
 
 ## 测试与验证（强制板块）
@@ -59,7 +59,7 @@
 |---|---|
 | 验收依据 | 本 change 两份 delta 共 5 条 requirement 的全部 Scenario —— 语义逐字未变，验收点即「引用可点开」 |
 | 用例数与结果 | 4 条静态验收 ｜ 2 过 2 待归档时执行（2.3 旧路径清零、3.3 Purpose 版本号） |
-| 复现命令 / 步骤 | ① cwd=仓库根：`openspec validate backend-spec-path-references --strict`；② `openspec validate --all --strict`；③ 归档后：`git grep -n "docs/contracts" -- openspec/specs/query-api openspec/specs/db-schema`（期望无输出）；④ 归档后：`git grep -n -E "契约(一\|三) 1\.4" -- openspec/specs/query-api openspec/specs/db-schema`（期望无输出，覆盖 Purpose 段） |
+| 复现命令 / 步骤 | ① cwd=仓库根：`openspec validate backend-spec-path-references --strict`；② `openspec validate --all --strict`；③ 归档后：`git grep -n "docs/contracts" -- openspec/specs/query-api openspec/specs/db-schema`（期望无输出）；④ 归档后：`git grep -n -E "契约(一\|三) 1\.4" -- openspec/specs/query-api openspec/specs/db-schema`（期望无输出，覆盖 Purpose 段；其中 `query-api` 首段由前置归档 PR #84 先行同步，本 PR 归档后复扫两处皆净 —— 判据写成扫两处正是为了不因两个 PR 分工而漏一处） |
 | 证据归档 | 本文件 §5 执行证据行 + 归档 PR 描述 |
 
 ### 4. 非功能验证（本 change 触及则必填）
@@ -78,7 +78,8 @@
 | archive 12 份旧引用未改 | 看板行 18 与 Issue #65 原文（「归档记录不改」按 #54 先例）口径冲突，已在 #65 请 PO 裁决；默认不改 | 苏哲勋（裁决）→ 吕建江/蒋励（按线执行） | 裁决后另立 change |
 | `openspec/config.yaml:35` 仍写「以 docs/contracts/ 为准」 | 按 #65 分工归蒋励（其 change `path-references-alignment` 范围） | 蒋励 | 随其 change |
 | 现行规格旧引用与旧版本号未清（2.3、3.3） | delta 未归档前现行规格本就不变，扫描必失败；且 Purpose 段的版本号 OpenSpec delta 结构上承载不到，只能在归档 PR 手工改 —— 均排在归档时 | 吕建江 | 3.2 归档 PR（含 3.3） |
-| 归档依赖 | design D3：必须晚于 `backend-time-range-semantics` 归档（其 PR 又等 PR #75 合入） | 吕建江 | 2026-10-22/23 |
+| 归档依赖 | design D3：必须晚于 `backend-time-range-semantics` 归档。前置已推进：PR #75 已合入 main（`07f4309`），该归档 PR 已提出 = **PR #84**（head `cadafc6`），待合入后本 change 才走 3.2 | 吕建江 | 2026-10-22/23 |
 
 > 执行证据（2026-10-21，Windows 11，仓库根）：`openspec validate backend-spec-path-references --strict` → 通过；`openspec validate --all --strict` → 全绿（项数见 PR 描述）；`git diff --name-only main...HEAD` → 仅本 change 目录 5 个文件。归档后在本表追加扫描输出，不倒填。
 > 审阅后复核（2026-10-21，苏哲勋在 `6edbe88` 提出 db-schema delta 的契约一版本应为 v1.5）：改正后 cwd=仓库根重跑 `openspec validate backend-spec-path-references --strict` → `Change 'backend-spec-path-references' is valid`；`openspec validate --all --strict` → `Totals: 19 passed, 0 failed (19 items)`；版本对读命令 `grep -n "版本" docs/design/data-fields.md | head -1` → `> 状态：**已冻结** ｜ 版本 1.5 ｜ …`（`docs/design/data-fields.md:3`）。
+> 依赖推进与分工收缩（2026-10-22 00:01，Windows 11，仓库根）：前置归档 PR 已提出 = **#84**（head `cadafc6`，#75 已合入 main `07f4309`），3.1 记录其状态；`query-api` 首段版本行由 #84 认领，tasks 3.3 相应收缩为 `db-schema` 一处（判据仍扫两处）。收缩后重跑：`openspec validate backend-spec-path-references --strict` → `Change 'backend-spec-path-references' is valid`；`openspec validate --all --strict` → `Totals: 19 passed, 0 failed (19 items)`（本分支基线尚未含 #84 的归档出队，故项数与 #84 上的 17 不同，非异常）。
