@@ -130,12 +130,31 @@ git check-ignore -v data_model/pipelines/expert/models/et_v1.pkl        # 应命
 git check-ignore -v data_model/pipelines/expert/reports/model_metrics.md # 应无输出（可提交）
 ```
 
-## 7. 模型文件交付（发出来）
+## 7. 模型数据回传（另一台电脑训练完 → 传回本机）
 
-模型权重不入库，交付走打包 / 网盘 / 飞书工作空间「想到什么取什么」：
+模型权重不入库，训练完必须单独回传。先明确「传什么」：
+
+| 类别 | 内容 | 体积 | 回传方式 |
+|---|---|---|---|
+| 必需交付模型 | `xgb_v1.pkl`（后端唯一加载）+ `feature_order.txt` | 约 1.2MB | 飞书群聊 / 云盘直接发 |
+| 全量评估模型 | 8 个 `.pkl`（`et_v1` 546MB、`rf_v1` 279MB 等） | 约 830MB | 分卷压缩 / 网盘 |
+| 报告 / 图表 / 清单 | `reports/*.md`、`figs/*.png`、`manifest.txt` | 小 | **走 git 提交** |
+
+### 7.1 训练机上先提交报告（走 git）
+
+```bash
+git add data_model/pipelines/*/reports data_model/pipelines/*/models/feature_order.txt data_model/pipelines/*/models/manifest.txt
+git commit -m "feat(model): <line> 训练指标报告"
+git push
+```
+
+### 7.2 打包模型（训练机上执行）
 
 ```powershell
-# Windows 打包（示例：expert 线）
+# 只发交付模型（推荐，最小，后端够用）
+Compress-Archive -Path data_model/pipelines/expert/models/xgb_v1.pkl,data_model/pipelines/expert/models/feature_order.txt -DestinationPath jit_delivery_xgb.zip
+
+# 全量 8 模型（大，压缩后约 153MB）
 Compress-Archive -Path data_model/pipelines/expert/models/* -DestinationPath expert_models.zip
 ```
 
@@ -144,7 +163,32 @@ Compress-Archive -Path data_model/pipelines/expert/models/* -DestinationPath exp
 zip -r expert_models.zip data_model/pipelines/expert/models
 ```
 
-交付内容：目标模型的 `.pkl`（后端只加载 `xgb_v1.pkl`，用 `joblib.load`）+ `feature_order.txt` + 指标报告中的依赖版本。
+### 7.3 选一种方式传回本机
+
+| 方式 | 适用 | 说明 |
+|---|---|---|
+| **A. 飞书群聊「想到什么取什么」** | 小文件（约 20MB 内） | 在飞书把 zip 直接拖进群；或用 CLI：`lark-cli im +messages-send --chat-id oc_838d67f14658f59672782cd7e2166f69 --file ./jit_delivery_xgb.zip --as user` |
+| **B. 分卷压缩** | 大文件（全量 830MB） | 分卷后逐卷发群 / 云盘，回传后合并：`7z a -v20m expert_models.7z data_model/pipelines/expert/models/*`（每卷 20MB），合并解压 `7z x expert_models.7z.001` |
+| **C. 网盘** | 任意大小 | 上传百度网盘 / 阿里云盘，发分享链接 |
+| **D. 局域网直传** | 同一局域网 | Windows 共享文件夹 / `scp` / `rsync` |
+
+> ⚠️ 实测：飞书云盘 `drive +upload` 单文件 153MB 会报 `file size beyond limit`（错误码 1061043）。**大文件请用分卷（B）或网盘（C）**；小交付包（`jit_delivery_xgb.zip`）可直接发群（A）。
+
+### 7.4 回传后校验与归位
+
+```powershell
+# 两端 SHA256 一致即传输完整
+Get-FileHash .\jit_delivery_xgb.zip -Algorithm SHA256
+```
+
+解压 / 合并后，把 `.pkl` 放回 **`data_model/pipelines/<line>/models/`**（后端按此路径加载 `xgb_v1.pkl`），并验证：
+
+```bash
+python -c "import joblib; m=joblib.load('data_model/pipelines/expert/models/xgb_v1.pkl'); print(type(m))"
+# 能打印出模型类型即加载成功
+```
+
+> 说明：`data/`（数据集与中间 CSV）不随 git 也不随回传包走；若换机后需要，按第 4 节整目录拷贝或重跑 01–05。
 
 ## 8. 常见问题
 
