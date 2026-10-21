@@ -34,6 +34,8 @@ conda env create -f data_model/environment.yml   # 仓库根目录执行
 conda activate jit-defect-prediction
 ```
 
+> 完整的「另一台电脑从零开训」步骤（CUDA torch、数据获取、四线训练、产物入库 / 模型交付、常见问题）见 **[`ENVIRONMENT.md`](ENVIRONMENT.md)**。
+
 ## 链路（九步，顺序固定）
 
 完整规则见 `docs/model/data-pipeline.md` —— **版本固定方式与复现命令都在那里，动手前先读**。

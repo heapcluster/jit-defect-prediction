@@ -16,6 +16,8 @@
 - [x] 2.1 更新安装命令：`README.md`、`data_model/README.md`、`backend/README.md`、`docs/common/dev-handbook.md`、`docs/repo/demo-script-sprint1.md`
 - [x] 2.2 更新路径引用：`docs/model/explanation.md`、`docs/model/data-pipeline.md`、`docs/model/model-line-execution-plan.md`、`data_model/pipelines/README.md`、`data_model/pipelines/e2e/README.md`、`data_model/pipelines/expert/model.py`
 - [x] 2.3 更新活规格：`openspec/specs/model-delivery/spec.md`、`openspec/specs/db-schema/spec.md`
+- [x] 2.4 新增 `data_model/ENVIRONMENT.md`：另一台电脑开箱即用（CUDA torch / 数据获取 / 四线训练 / 报告入库 / 模型交付）；并从 `data_model/README.md` 链接
+- [x] 2.5 修正 `.gitignore`：任意 pipeline `models/**` 权重（含 HF `*.safetensors` / `*.bin`）忽略，保留 `feature_order.txt` / `manifest.txt` 交付清单
 
 > 验证记录（2026-10-21，本机）：`data_model/environment.yml` YAML 解析通过（name=jit-defect-prediction，26 pip 包）；全仓库无 `data_model/requirements.txt` 活引用；`check_links.py` 对 `data_model/environment.yml` 全部 OK。`check_links` 报的 11 个 BROKEN 均为四包拆分前遗留的陈旧路径（`06_train_model.py`、计划中的 `10~16_*.py` 等），**非本 change 引入**，另记后续清理。
 
