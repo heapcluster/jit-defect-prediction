@@ -9,7 +9,7 @@
 
 - [x] 1.1 `specs/query-api/spec.md` delta：3 处 `docs/contracts/*` 改指 `docs/backend/api-spec.md`（契约三 v1.5）与 `docs/model/feature-columns.md`（契约二），三条 requirement 的 Scenario 逐字保留 —— 交付物：`openspec/changes/backend-spec-path-references/specs/query-api/spec.md`
       —— 完成判据：delta 内 `grep -c docs/contracts` = 0 且与 main 现行版逐段比对仅路径/版本差异。完成：见本 change 目录
-- [x] 1.2 `specs/db-schema/spec.md` delta：2 处改指 `docs/design/data-fields.md`（契约一 v1.4）与 `docs/model/feature-columns.md`（契约二）—— 交付物：`openspec/changes/backend-spec-path-references/specs/db-schema/spec.md`
+- [x] 1.2 `specs/db-schema/spec.md` delta：2 处改指 `docs/design/data-fields.md`（契约一 v1.5，与 main 文件头 `docs/design/data-fields.md:3` 对读核实）与 `docs/model/feature-columns.md`（契约二）—— 交付物：`openspec/changes/backend-spec-path-references/specs/db-schema/spec.md`
       —— 完成判据：同上。完成：见本 change 目录
 
 ## 2. 静态校验（本 PR 内完成）
@@ -22,7 +22,8 @@
 
 - [ ] 3.1 等 `backend-time-range-semantics` 归档 PR 合入（design D3 顺序约束）—— 交付给：自己；形式：关注该 PR 状态
 - [ ] 3.2 归档本 change：`openspec archive backend-spec-path-references -y`，delta 落 `openspec/specs/query-api/spec.md` 与 `openspec/specs/db-schema/spec.md` —— 交付给：自己；形式：归档 PR；同时跑 2.3 扫描并回填证据
-- [ ] 3.3 看板行 18 与周报同步：后端线份额翻「已完成」，注明 archive 12 份仍待 PO 在 Issue #65 裁决 —— 交付给：吕建江（飞书为本人操作）；形式：看板备注
+- [ ] 3.3 归档 PR 内手工同步两份规格的 `## Purpose` 旧版本号（delta 承载不到该段）：`openspec/specs/db-schema/spec.md:4`「契约一 1.4」→「契约一 1.5」、`openspec/specs/query-api/spec.md:4`「契约三 1.4」→「契约三 1.5」 —— 交付物：归档 PR 的该两处 diff；判据：cwd=仓库根 `git grep -n -E "契约(一|三) 1\.4" -- openspec/specs` 无输出
+- [ ] 3.4 看板行 18 与周报同步：后端线份额翻「已完成」，注明 archive 12 份仍待 PO 在 Issue #65 裁决 —— 交付给：吕建江（飞书为本人操作）；形式：看板备注
 
 ## 测试与验证（强制板块）
 
@@ -57,8 +58,8 @@
 | 项 | 内容 |
 |---|---|
 | 验收依据 | 本 change 两份 delta 共 5 条 requirement 的全部 Scenario —— 语义逐字未变，验收点即「引用可点开」 |
-| 用例数与结果 | 3 条静态验收 ｜ 2 过 1 待归档时执行（2.3） |
-| 复现命令 / 步骤 | ① cwd=仓库根：`openspec validate backend-spec-path-references --strict`；② `openspec validate --all --strict`；③ 归档后：`git grep -n "docs/contracts" -- openspec/specs/query-api openspec/specs/db-schema`（期望无输出） |
+| 用例数与结果 | 4 条静态验收 ｜ 2 过 2 待归档时执行（2.3 旧路径清零、3.3 Purpose 版本号） |
+| 复现命令 / 步骤 | ① cwd=仓库根：`openspec validate backend-spec-path-references --strict`；② `openspec validate --all --strict`；③ 归档后：`git grep -n "docs/contracts" -- openspec/specs/query-api openspec/specs/db-schema`（期望无输出）；④ 归档后：`git grep -n -E "契约(一\|三) 1\.4" -- openspec/specs/query-api openspec/specs/db-schema`（期望无输出，覆盖 Purpose 段） |
 | 证据归档 | 本文件 §5 执行证据行 + 归档 PR 描述 |
 
 ### 4. 非功能验证（本 change 触及则必填）
@@ -76,7 +77,8 @@
 |---|---|---|---|
 | archive 12 份旧引用未改 | 看板行 18 与 Issue #65 原文（「归档记录不改」按 #54 先例）口径冲突，已在 #65 请 PO 裁决；默认不改 | 苏哲勋（裁决）→ 吕建江/蒋励（按线执行） | 裁决后另立 change |
 | `openspec/config.yaml:35` 仍写「以 docs/contracts/ 为准」 | 按 #65 分工归蒋励（其 change `path-references-alignment` 范围） | 蒋励 | 随其 change |
-| 现行规格扫描（2.3）未执行 | delta 未归档前现行规格本就不变，扫描必失败 —— 排在归档时 | 吕建江 | 3.2 归档 PR |
+| 现行规格旧引用与旧版本号未清（2.3、3.3） | delta 未归档前现行规格本就不变，扫描必失败；且 Purpose 段的版本号 OpenSpec delta 结构上承载不到，只能在归档 PR 手工改 —— 均排在归档时 | 吕建江 | 3.2 归档 PR（含 3.3） |
 | 归档依赖 | design D3：必须晚于 `backend-time-range-semantics` 归档（其 PR 又等 PR #75 合入） | 吕建江 | 2026-10-22/23 |
 
 > 执行证据（2026-10-21，Windows 11，仓库根）：`openspec validate backend-spec-path-references --strict` → 通过；`openspec validate --all --strict` → 全绿（项数见 PR 描述）；`git diff --name-only main...HEAD` → 仅本 change 目录 5 个文件。归档后在本表追加扫描输出，不倒填。
+> 审阅后复核（2026-10-21，苏哲勋在 `6edbe88` 提出 db-schema delta 的契约一版本应为 v1.5）：改正后 cwd=仓库根重跑 `openspec validate backend-spec-path-references --strict` → `Change 'backend-spec-path-references' is valid`；`openspec validate --all --strict` → `Totals: 19 passed, 0 failed (19 items)`；版本对读命令 `grep -n "版本" docs/design/data-fields.md | head -1` → `> 状态：**已冻结** ｜ 版本 1.5 ｜ …`（`docs/design/data-fields.md:3`）。

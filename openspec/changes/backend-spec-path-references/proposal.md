@@ -8,8 +8,9 @@ PR #55 把三条契约重组进四线目录后，`docs/contracts/` 已不存在�
 
 - 上述 5 处引用改指现行权威路径，版本标注按契约现状钉准：
   - `docs/contracts/api-format.md` 1.4 → `docs/backend/api-spec.md`（契约三 **v1.5**，已随 #62 进 main `7844f8e`）
-  - `docs/contracts/data-fields.md` 1.4 → `docs/design/data-fields.md`（契约一 v1.4）
+  - `docs/contracts/data-fields.md` 1.4 → `docs/design/data-fields.md`（契约一 **v1.5**，2026-10-15 Camel 切换补齐，版本行 `docs/design/data-fields.md:3`）
   - `docs/contracts/feature-columns.md` → `docs/model/feature-columns.md`（契约二）
+- 另有 **2 处旧版本号在规格 `## Purpose` 段**（`openspec/specs/db-schema/spec.md:4`「契约一 1.4」、`openspec/specs/query-api/spec.md:4`「契约三 1.4」）：OpenSpec 的 delta 只承载 requirement，Purpose 行改不到，故排在归档时手工同步并在同一 PR 出证（tasks 3.3），不假装 delta 已覆盖。
 - **纯路径/版本字符串修订**：SHALL/MUST 措辞、阈值、判定、Scenario 期望一律逐字保留，不改任何行为语义。
 - 不做：不动冻结件本体（`docs/backend/api-spec.md` 等不在本 change 范围）、不动 archive（默认按 #65「归档记录不改」，若 PO 另裁再立 change）、不动 `openspec/config.yaml` 与模型线 specs（蒋励 `path-references-alignment` 范围）、`predict-api` 已核干净不涉及。
 
@@ -20,7 +21,7 @@ PR #55 把三条契约重组进四线目录后，`docs/contracts/` 已不存在�
 
 ## Impact
 
-- 规格：`openspec/specs/query-api/spec.md`、`openspec/specs/db-schema/spec.md`（delta 于归档时落地）
+- 规格：`openspec/specs/query-api/spec.md`、`openspec/specs/db-schema/spec.md`（delta 于归档时落地；两文件的 `## Purpose` 版本行由 tasks 3.3 在同一归档 PR 手工同步）
 - 代码：无；契约冻结件：无；数据库：无
 - 看板行 18（吕建江 + 蒋励）：本 change 覆盖后端线份额；archive 12 份是否改待 PO 在 Issue #65 裁决
 - 顺序约束：本 change 的归档必须排在 `backend-time-range-semantics` 归档**之后**（两者改同一规格文件的不同 requirement，排序只为避免同文件并发改动，无语义冲突）

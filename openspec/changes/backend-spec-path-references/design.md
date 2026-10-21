@@ -12,14 +12,15 @@
 ## Decisions
 
 - **D1 只做后端线两份文件**：`query-api` + `db-schema`。与蒋励同主题 change 按「一人一线」切分，文件集互斥，两 change 可并行推进、归档顺序互不阻塞（除 D3 的一条）。
-- **D2 路径映射按 #55 重组结论表**：`api-format.md → docs/backend/api-spec.md`、`data-fields.md → docs/design/data-fields.md`、`feature-columns.md → docs/model/feature-columns.md`；版本标注写「契约三 v1.5 / 契约一 v1.4 / 契约二」现状值。选「写死当前版本」而非「不写版本」：规格其余条目本就按版本引用契约（如「§3 逐字一致」），去掉版本反而丢判据；代价是契约再升版时要同步扫规格（tasks §3 已放扫描命令，这正是 #65 的根因修复）。
+- **D2 路径映射按 #55 重组结论表**：`api-format.md → docs/backend/api-spec.md`、`data-fields.md → docs/design/data-fields.md`、`feature-columns.md → docs/model/feature-columns.md`；版本标注写「契约三 v1.5 / 契约一 v1.5」现状值（两者文件头分别见 `docs/backend/api-spec.md:3`、`docs/design/data-fields.md:3`）；契约二在 main 现行规格里本就只按节引用（§2/§3）不带版本号，本次只换路径、不新增版本锚，避免扩大改动面。选「写死当前版本」而非「不写版本」：规格其余条目本就按版本引用契约（如「§3 逐字一致」），去掉版本反而丢判据；代价是契约再升版时要同步扫规格（tasks §3 已放扫描命令，这正是 #65 的根因修复）。
 - **D3 归档排在 `backend-time-range-semantics` 之后**：两个 delta 改同一规格文件的不同 requirement（时间区间改「风险列表查询 / 趋势聚合查询」，本 change 改「统一包络与错误码 / 提交详情查询 / Swagger 实现镜像」），无语义冲突，排序只为避免同文件并发落地。
 - **D4 验证用静态三件套**：旧路径全量扫描 + `openspec validate --all --strict` + 语义逐字比对（纯字符串修订不新增功能用例，与蒋励 change 同法；不适用项在「测试与验证」板块逐节注明，不省略板块）。
+- **D5 版本标注的核对方式与工具边界**：每个写进规格的版本号都与契约文件头对读（`docs/backend/api-spec.md:3` = v1.5、`docs/design/data-fields.md:3` = v1.5、`docs/model/feature-columns.md:3` = v1.2），不凭记忆写版本。**本轮审阅（苏哲勋，`6edbe88`）指出 db-schema delta 曾把契约一写成 v1.4 —— 属实，已按文件头改正。** 另：`## Purpose` 段的两处旧版本号（`db-schema:4`、`query-api:4`）不在 requirement 里，OpenSpec 的 delta 结构承载不到，只能排进归档 PR 手工同步并单列判据（tasks 3.3），这是工具能力边界，记下来而不是假装 delta 已覆盖。
 
 ## Risks / Trade-offs
 
 - 若 PO 裁「archive 一起改」→ 本 change 范围扩大：archive 是历史快照，届时单独补 change 处理，不在本 change 里混（保持「规格现状修订」与「历史记录改写」两类审计清晰）。
-- 版本标注漂移风险（契约升到 1.6 而规格还写 1.5）→ tasks §3 的扫描命令同时查 `docs/contracts` 与旧版本号，契约升版流程里顺手跑。
+- 版本标注漂移风险（契约升到 1.6 而规格还写 1.5）→ 契约升版流程里顺手跑一次对照：cwd=仓库根，`git grep -n -E "契约一 v|契约二 v|契约三 v" -- openspec/specs` 与三份契约文件头的「版本」行对读，不一致就在同一个升版 PR 里同步规格。tasks 2.3 的命令只清旧路径（`docs/contracts`），不含版本号，两者互补不重复。
 
 ## Migration
 
