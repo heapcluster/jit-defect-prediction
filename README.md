@@ -70,7 +70,7 @@ Apache Camel 仓库 → 抽提交信息 → SZZ 打标 → Kamei 14 项特征
 
 ## 三、开发环境
 
-Python 版本统一 **3.12.x**，依赖清单统一（各线 `requirements.txt`）；**环境管理工具各人自选** —— conda、venv、uv 都行，不要求环境同名。
+Python 版本统一 **3.12.x**，依赖清单统一（唯一权威文件 `data_model/environment.yml`，仓库内不再保留各线 `requirements.txt`）；**环境管理工具各人自选** —— conda、venv、uv 都行，不要求环境同名。
 
 会造出「本地能跑、别人跑不了」的是**版本与依赖不一致**，不是工具不一致，所以要锁的是前两者。
 

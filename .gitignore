@@ -50,3 +50,6 @@ Thumbs.db
 *.log
 logs/
 _tmp/
+
+# ===== 本地辅助脚本（个人工具，不入库；见 tools/）=====
+tools/

@@ -105,7 +105,7 @@ python -m pipelines.expert.matrix
 python -m pipelines.expert.calibrate
 ```
 
-`pipelines.expert.train` 已包含 ⑧ 覆盖矩阵；模型与评估报告留在 expert 目录。完整训练依赖按 `data_model/requirements.txt` 与既有环境约定准备，本次测试环境只覆盖采集/SZZ/切分回归。
+`pipelines.expert.train` 已包含 ⑧ 覆盖矩阵；模型与评估报告留在 expert 目录。完整训练依赖按 `data_model/environment.yml` 准备，本次测试环境只覆盖采集/SZZ/切分回归。
 
 **⑥ 核对命令**：`python preparation/05_split_dataset.py --selfcheck`（打乱输入断言必须拦住）；连跑两次 `pipelines.expert.train` 指标报告应逐行一致（仅 SHAP 计时行不同）。
 

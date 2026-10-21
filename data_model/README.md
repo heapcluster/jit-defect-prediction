@@ -27,10 +27,11 @@
 
 **不要为了提交数据去改 `.gitignore`，也不要用 `git add -f`。**
 
-## 依赖
+## 依赖（唯一权威环境文件）
 
 ```bash
-pip install -r data_model/requirements.txt
+conda env create -f data_model/environment.yml   # 仓库根目录执行
+conda activate jit-defect-prediction
 ```
 
 ## 链路（九步，顺序固定）
@@ -80,7 +81,7 @@ pip install -r data_model/requirements.txt
 | 神经网络（深度学习） | 2 | `mlp_deep_v1` 多层感知机（3 隐藏层 + 早停）、`tabnet_v1` TabNet（深度表格） |
 
 - **交付模型不变**：后端加载的仍是 `xgb_v1`；`pipelines/expert/models/feature_order.txt` 的 `[models]` 段（由 `train.py --delivery-models` 控制）与 `predict.py` 的产物口径都不因补齐而改变。新模型只进**评估矩阵**（`reports/model_matrix.md`）。
-- **不引入新依赖**：8 种模型全部落在既有 `scikit-learn` / `xgboost` 内 —— 补覆盖不需要动 `requirements.txt`。
+- **不引入新依赖**：8 种模型全部落在既有 `scikit-learn` / `xgboost` 内 —— 补覆盖不需要动 `environment.yml`。
 - **不做序列模型**（LSTM / RNN）：现有样本集是提交级特征矩阵、没有序列结构；要做需先建序列化数据集并冻结输入口径，属另开 change 的事（理由与重开条件见 `openspec/changes/model-expansion/design.md` 决策二）。
 - **神经网络收敛情况如实登记**：未收敛不许静默当成已收敛（`reports/model_matrix.md` 有专门的收敛登记表）。
 - **概率校准与阈值证据**在 `reports/calibration_threshold.md`：只出证据，**契约三的阈值与排序语义仍以提案为准**。

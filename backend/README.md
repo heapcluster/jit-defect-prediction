@@ -24,13 +24,15 @@
 ## 技术栈与启动
 
 ```bash
-pip install -r backend/requirements.txt
+# 依赖统一在 data_model/environment.yml（backend 不再有 requirements.txt）
+conda env create -f data_model/environment.yml
+conda activate jit-defect-prediction
 uvicorn app.main:app --reload --port 8000
 ```
 
 - 框架：FastAPI + SQLAlchemy + MySQL 8。
 - 配置从 `.env` 读（本地创建，**不入库**）；`.env.example` **要入库**，列出所有键名、不含真实值。
-- 加依赖时同步往 `backend/requirements.txt` 加一行。
+- 加依赖时同步往 `data_model/environment.yml` 的 pip 段（backend 相关）加一行。
 
 ## 接口实现以 `docs/backend/api-spec.md` 为准
 

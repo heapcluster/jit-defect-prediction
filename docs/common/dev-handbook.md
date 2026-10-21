@@ -11,7 +11,7 @@
 
 ```bash
 cd data_model
-pip install -r requirements.txt
+conda env create -f environment.yml   # 首次建环境；之后 conda activate jit-defect-prediction
 git -C data/camel rev-parse HEAD   # 必须等于 b2329103df8f5d1edfca2ad262be09e3be95ee68
 python preparation/01_extract_commits.py
 python preparation/02_szz_labeling.py --method both

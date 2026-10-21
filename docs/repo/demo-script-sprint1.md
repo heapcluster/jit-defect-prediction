@@ -9,7 +9,9 @@
 ### 0.1 起后端（终端 A）
 
 ```bash
-pip install -r backend/requirements.txt
+# 依赖统一在 data_model/environment.yml（backend 不再有 requirements.txt）
+conda env create -f data_model/environment.yml   # 首次
+conda activate jit-defect-prediction
 cd backend
 uvicorn app.main:app --reload --port 8000
 ```
