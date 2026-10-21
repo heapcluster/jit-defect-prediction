@@ -167,6 +167,7 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getCommits } from '../api'
+import { riskColor } from '../utils/risk'
 
 const router = useRouter()
 const route = useRoute()
@@ -186,13 +187,6 @@ const total = ref(0)
 const loading = ref(false)
 const error = ref('')
 const retryable = ref(false)
-
-// 风险阈值（docs/pages.md 第 5 节，只定义这一处）
-function riskColor(score) {
-  if (score >= 0.5) return '#d9484a'
-  if (score >= 0.3) return '#d98a2b'
-  return '#4e9b68'
-}
 
 function formatTime(iso) {
   if (!iso) return '—'
