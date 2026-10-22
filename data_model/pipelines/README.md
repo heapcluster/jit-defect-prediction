@@ -14,7 +14,6 @@ pipelines/<line>/
 ├── train.py           # 训练 + 验证主流程（唯一入口）
 ├── report.py          # 结果报告生成（Markdown 表格 + matplotlib 图表）
 ├── README.md          # 技术说明：设计思路 / 参数 / 用法 / 注意事项
-├── requirements.txt   # 本线依赖（精确版本）
 ├── data/              # 中间数据与预测产物（.gitignore 排除）
 ├── models/            # 模型产物（.pkl / HF 权重，不入库）
 └── reports/           # 指标报告 + 图表（可入库，横向比对的证据）

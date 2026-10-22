@@ -8,11 +8,12 @@
 # ===== 数据集、模型等大文件（严禁入库）=====
 data/
 datasets/
-# models/ 下只有 .pkl 是大文件；feature_order.txt 是**交付清单（纯文本）**，
-# 契约二第三节的副本，必须入库才能被审阅/比对（否则干净 clone 缺清单，
-# 且「规格与代码不一致」无处可查）。故排除目录内容但保留该清单。
-models/*
-!models/feature_order.txt
+# 模型产物：任意 pipeline 的 models/ 下权重不入库；feature_order.txt / manifest.txt 是
+# **交付清单（纯文本）**，必须入库才能被审阅/比对（否则干净 clone 缺清单）。
+# 故排除任意层级 models/ 的内容，但保留纯文本交付清单。
+data_model/pipelines/*/models/**
+!data_model/pipelines/*/models/feature_order.txt
+!data_model/pipelines/*/models/manifest.txt
 artifacts/
 *.onnx
 *.pkl
@@ -21,6 +22,8 @@ artifacts/
 *.pt
 *.pth
 *.ckpt
+*.safetensors
+*.bin
 
 # ===== Python =====
 __pycache__/
@@ -50,3 +53,9 @@ Thumbs.db
 *.log
 logs/
 _tmp/
+
+# ===== 本地辅助脚本（个人工具，不入库；见 tools/）=====
+tools/
+
+# ===== conda 建环境时的临时 pip 清单（conda 自动生成，勿入库）=====
+data_model/condaenv.*.requirements.txt

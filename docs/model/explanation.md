@@ -8,7 +8,7 @@
 契约三要求 `explanation` 逐特征且带 `direction`（推高/降低）。SHAP 天然满足；全局特征重要性无方向、非逐样本，满足不了。
 
 - 树模型：`TreeExplainer`（xgb/rf/dt）。
-- 数据与模型线需在 `data_model/requirements.txt` 加 `shap` 依赖。
+- 数据与模型线需在 `data_model/environment.yml` 加 `shap` 依赖。
 
 ## 2. 接口返回结构
 

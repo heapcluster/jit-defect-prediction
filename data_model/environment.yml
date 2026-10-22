@@ -1,0 +1,62 @@
+# JIT 缺陷预测系统 —— 唯一权威环境文件（Single Source of Truth）
+#
+# 位置：data_model/environment.yml（模型包根目录；模型线与后端线共用同一 conda 环境）
+# 用途：一次性创建全部依赖：数据与模型四条线（expert / semantic / fused / e2e）+ 后端线 + 测试工具。
+# 用法（二选一）：
+#   cd data_model && conda env create -f environment.yml
+#   仓库根目录：conda env create -f data_model/environment.yml
+#   （已存在同名环境先 `conda env remove -n jit-defect-prediction`）
+#
+# 单一权威约定（2026-10-21 起，change: env-single-source）：
+#   · 仓库内不再保留任何 requirements.txt；本文件是唯一依赖清单与安装入口。
+#   · 新增/升级依赖一律改本文件，并同步 data_model 各线 README 的安装命令；版本冲突时以本文件为准。
+#   · 跨平台：conda 段只装 python + pip；其余依赖全部走 pip，剔除旧文件里的 win-64 专属
+#     build（vc14_runtime / vs2015_runtime / ucrt / 各种 h***** 哈希），使 Linux/WSL 也能解。
+#   · 不写 prefix：由 conda 在创建时决定环境路径。
+#   · GPU：PyPI 的 torch==2.5.1 是 CPU 版。4060 上创建完环境后，必须再执行：
+#         pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu124
+#     验证：python -c "import torch; print(torch.cuda.is_available())"  -> True
+#   · 首次运行 semantic / e2e 会联网下载 microsoft/codebert-base（~500MB）；
+#     离线机先缓存并设 HF_HUB_OFFLINE=1。
+
+name: jit-defect-prediction
+channels:
+  - defaults
+dependencies:
+  # —— 只用 conda 装 Python 与 pip，其余交给 pip 段（跨平台）——
+  - python=3.12
+  - pip
+  - pip:
+      # ===== 数据与模型：四条线共享的数值 / 经典 ML 底座（版本必须同源，跨线指标才可比）=====
+      - pandas==3.0.5
+      - numpy==2.5.3
+      - scikit-learn==1.9.1
+      - scipy==1.18.1
+      - xgboost==3.4.1
+      - lightgbm==4.6.0
+      - pytorch-tabnet==4.1.0
+      - joblib==1.6.0
+      - shap==0.52.0
+      - matplotlib==3.10.1
+      - GitPython==3.1.62
+
+      # ===== 语义 / 端到端线（CodeBERT）：此处为 CPU 版 torch 占位，4060 必须按文件头换成 cu124 =====
+      - torch==2.5.1
+      - transformers==4.46.1
+      - tokenizers==0.20.1
+      - accelerate==1.1.1
+      - huggingface-hub==0.26.2
+      - safetensors==0.4.5
+
+      # ===== 后端线（训练机上可选；只跑数据/模型可不装）=====
+      - fastapi==0.141.1
+      - uvicorn==0.53.0
+      - sqlalchemy==2.0.54
+      - pymysql==1.2.3
+      - python-dotenv==1.2.3
+
+      # ===== 测试与代码风格 =====
+      - pytest==9.1.1
+      - pytest-cov==7.1.0
+      - httpx==0.28.1
+      - ruff==0.16.8

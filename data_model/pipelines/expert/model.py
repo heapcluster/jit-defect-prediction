@@ -5,7 +5,7 @@
   · lr / knn / svm 对量纲敏感 → Pipeline 内置 StandardScaler（拟合在训练集内部，不泄漏）；
   · mlp_deep / tabnet 开早停，验证子集只从训练集内部抽 —— 检验集始终时间在后，
     不构成「提前看未来」。
-依赖版本以 requirements.txt 为准；换 sklearn 大版本可能改变结果，不要静默升级。
+依赖版本以 data_model/environment.yml 为准；换 sklearn 大版本可能改变结果，不要静默升级。
 
 性能优先选型（2026-10-14）：lgbm / et / svm / tabnet 四种在
 docs/model/model-line-plan.md §2.3 登记。此前四线分包迁移时这一节被

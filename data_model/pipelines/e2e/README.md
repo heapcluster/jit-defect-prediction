@@ -29,7 +29,9 @@
 
 ```bash
 cd data_model
-pip install -r pipelines/e2e/requirements.txt
+# 依赖统一在 data_model/environment.yml（本包不再有 requirements.txt）
+conda env create -f environment.yml                  # 首次建环境
+conda activate jit-defect-prediction                 # 必须在装 CUDA 版 / 跑训练前激活
 pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu124  # 4060 必装 CUDA 版
 
 python -m pipelines.e2e.build_text_dataset            # ⑩ 文本

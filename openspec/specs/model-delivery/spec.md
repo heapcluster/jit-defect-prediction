@@ -51,7 +51,7 @@ C 方案交付物 `prediction_result.csv` MUST 且仅含契约一表三字段：
 
 ### Requirement: SHAP 依赖 MUST 随交付清单钉版本
 
-A 方案交付 MUST 含 SHAP 依赖及其版本 pin（写入 `requirements.txt`）。SHAP 实时计算 MUST 满足后端非功能要求（95% 请求 < 500ms），无法满足时 MUST 记录实测数据并提契约变更讨论。
+A 方案交付 MUST 含 SHAP 依赖及其版本 pin（写入 `data_model/environment.yml`）。SHAP 实时计算 MUST 满足后端非功能要求（95% 请求 < 500ms），无法满足时 MUST 记录实测数据并提契约变更讨论。
 
 > 契约三「待确认」项（`explanation` 的具体算法）**已由 PR #6 结清为 SHAP**，故本 Requirement 不再含「SHAP 定稿后回填契约」这一动作 —— 那条回填已无对象。
 

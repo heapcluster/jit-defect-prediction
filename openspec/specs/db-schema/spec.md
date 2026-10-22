@@ -25,7 +25,7 @@
 
 #### Scenario: 干净环境建库
 
-- **WHEN** 在完成 `pip install -r backend/requirements.txt` 与 `.env` 配置的环境执行建库命令
+- **WHEN** 在完成 `conda env create -f data_model/environment.yml` 与 `.env` 配置的环境执行建库命令
 - **THEN** 四张表创建完成，命令退出码为 0
 
 #### Scenario: 连接配置错误
