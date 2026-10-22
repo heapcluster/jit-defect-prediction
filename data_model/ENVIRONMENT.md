@@ -104,7 +104,7 @@ python -m pipelines.e2e.train --batch-size 8
 ```
 
 **跑序依赖**：expert 独立；semantic 必须在 fused 之前（fused 吃 `semantic/data/semantic_embeddings.npz`）；e2e 独立（吃文本）。
-**分类器数量**以各包 `config.py` 的 `DEFAULT_MODELS` 为准：`expert` / `semantic` / `fused` 均为 **12 个**（`lr rf xgb lgbm et svm nb dt knn mlp mlp_deep tabnet`），由 `data_model/tests/test_model_registry_parity.py` 守护三线一致；`e2e` 为单个 CodeBERT 二分类头。三条对照线的配置与产物契约见 `pipelines/config-and-output-spec.md`。
+**分类器数量**以各包 `config.py` 的 `DEFAULT_MODELS` 为准：`expert` / `semantic` / `fused` 均为 **12 个**（`lr rf xgb lgbm et svm nb dt knn mlp mlp_deep tabnet`），由 `data_model/tests/test_model_registry_parity.py` 守护三线一致；`e2e` 为单个 CodeBERT 二分类头。
 
 ## 6. 产物：哪些进仓库、哪些不进
 
@@ -137,9 +137,15 @@ git check-ignore -v data_model/pipelines/expert/reports/model_metrics.md # 应�
 
 | 类别 | 内容 | 体积 | 回传方式 |
 |---|---|---|---|
-| 必需交付模型 | `xgb_v1.pkl`（后端唯一加载）+ `feature_order.txt` | 约 1.2MB | 飞书群聊 / 云盘直接发 |
-| 全量评估模型 | 8 个 `.pkl`（`et_v1` 546MB、`rf_v1` 279MB 等） | 约 830MB | 分卷压缩 / 网盘 |
+| 必需交付模型 | `lr_v1.pkl` + `rf_v1.pkl` + `xgb_v1.pkl` + `feature_order.txt`（与清单 `[models]` 三项逐字一致） | 约 281MB（`rf_v1` 279.4MB 占大头） | 分卷 / 网盘（超飞书 153MB 单文件上限） |
+| 其余评估权重 | `et_v1` 546.4MB、`svm_v1` 3.2MB、`lgbm_v1` 1.0MB、`tabnet_v1` 0.3MB、`mlp_deep_v1` 0.1MB | 约 551MB | 分卷 / 网盘 |
 | 报告 / 图表 / 清单 | `reports/*.md`、`figs/*.png`、`manifest.txt` | 小 | **走 git 提交** |
+
+> **为什么交付三个而不是只交 `xgb_v1.pkl`**：`backend/app/model_registry.py::load_models()` 会
+> `glob("*.pkl")` 加载 `MODEL_DIR`（默认 `data_model/pipelines/expert/models/`）下的**全部** `.pkl`；
+> `POST /api/predict` 接受显式 `model_name`，未加载的名字直接返回 `40001 参数非法`。
+> `feature_order.txt` 的 `[models]` 也列了 `lr_v1` / `rf_v1` / `xgb_v1` 三项。
+> 只回传 `xgb_v1.pkl` 时，`lr_v1` / `rf_v1` 的请求会全部失败，与契约不一致。
 
 ### 7.1 训练机上先提交报告（走 git）
 
@@ -152,10 +158,10 @@ git push
 ### 7.2 打包模型（训练机上执行）
 
 ```powershell
-# 只发交付模型（推荐，最小，后端够用）
-Compress-Archive -Path data_model/pipelines/expert/models/xgb_v1.pkl,data_model/pipelines/expert/models/feature_order.txt -DestinationPath jit_delivery_xgb.zip
+# 交付三模型（与 feature_order.txt 的 [models] 一致，后端够用）
+Compress-Archive -Path data_model/pipelines/expert/models/lr_v1.pkl,data_model/pipelines/expert/models/rf_v1.pkl,data_model/pipelines/expert/models/xgb_v1.pkl,data_model/pipelines/expert/models/feature_order.txt -DestinationPath jit_delivery_models.zip
 
-# 全量 8 模型（大，压缩后约 153MB）
+# 全量（含评估权重，et_v1 单个 546MB）
 Compress-Archive -Path data_model/pipelines/expert/models/* -DestinationPath expert_models.zip
 ```
 
@@ -168,26 +174,37 @@ zip -r expert_models.zip data_model/pipelines/expert/models
 
 | 方式 | 适用 | 说明 |
 |---|---|---|
-| **A. 飞书群聊「想到什么取什么」** | 小文件（约 20MB 内） | 在飞书把 zip 直接拖进群；或用 CLI：`lark-cli im +messages-send --chat-id oc_838d67f14658f59672782cd7e2166f69 --file ./jit_delivery_xgb.zip --as user` |
-| **B. 分卷压缩** | 大文件（全量 830MB） | 分卷后逐卷发群 / 云盘，回传后合并：`7z a -v20m expert_models.7z data_model/pipelines/expert/models/*`（每卷 20MB），合并解压 `7z x expert_models.7z.001` |
+| **A. 飞书群聊「想到什么取什么」** | 小文件（约 20MB 内） | 在飞书把 zip 直接拖进群；或用 CLI：`lark-cli im +messages-send --chat-id oc_838d67f14658f59672782cd7e2166f69 --file ./<小包>.zip --as user` |
+| **B. 分卷压缩** | 交付三模型（281MB）/ 全量（约 830MB） | 分卷后逐卷发群 / 云盘，回传后合并：`7z a -v20m jit_delivery_models.7z data_model/pipelines/expert/models/{lr_v1,rf_v1,xgb_v1}.pkl data_model/pipelines/expert/models/feature_order.txt`（每卷 20MB），合并解压 `7z x jit_delivery_models.7z.001` |
 | **C. 网盘** | 任意大小 | 上传百度网盘 / 阿里云盘，发分享链接 |
 | **D. 局域网直传** | 同一局域网 | Windows 共享文件夹 / `scp` / `rsync` |
 
-> ⚠️ 实测：飞书云盘 `drive +upload` 单文件 153MB 会报 `file size beyond limit`（错误码 1061043）。**大文件请用分卷（B）或网盘（C）**；小交付包（`jit_delivery_xgb.zip`）可直接发群（A）。
+> ⚠️ 实测：飞书云盘 `drive +upload` 单文件 153MB 会报 `file size beyond limit`（错误码 1061043）。交付三模型压缩后约 281MB（`rf_v1` 占 279MB），**超出群聊/云盘单文件上限，请走分卷（B）或网盘（C）**；只有几十 MB 的小包才能直接发群（A）。
 
 ### 7.4 回传后校验与归位
 
 ```powershell
 # 两端 SHA256 一致即传输完整
-Get-FileHash .\jit_delivery_xgb.zip -Algorithm SHA256
+Get-FileHash .\jit_delivery_models.zip -Algorithm SHA256
 ```
 
-解压 / 合并后，把 `.pkl` 放回 **`data_model/pipelines/<line>/models/`**（后端按此路径加载 `xgb_v1.pkl`），并验证：
+解压 / 合并后，把 `.pkl` 放回 **`data_model/pipelines/expert/models/`**（`backend/app/config.py` 的 `MODEL_DIR` 默认指向这里，`load_models()` 加载该目录下全部 `*.pkl`），并逐个验证：
 
 ```bash
-python -c "import joblib; m=joblib.load('data_model/pipelines/expert/models/xgb_v1.pkl'); print(type(m))"
-# 能打印出模型类型即加载成功
+python -c "import joblib; [print(n, type(joblib.load('data_model/pipelines/expert/models/'+n+'.pkl')).__name__) for n in ('lr_v1','rf_v1','xgb_v1')]"
+# 期望：lr_v1 Pipeline / rf_v1 RandomForestClassifier / xgb_v1 XGBClassifier
 ```
+
+再确认后端确实把三个模型都注册进来（`MODEL_DIR` 无模型时返回空表，predict 只能给 50000）：
+
+```bash
+python -c "import sys; sys.path.insert(0,'backend'); from app import model_registry; model_registry.load_models(); print(sorted(model_registry._REGISTRY))"
+# 期望至少含 ['lr_v1', 'rf_v1', 'xgb_v1']（外加目录里其他能正常回读的模型）
+```
+
+> 历史遗留：目录里若还有四包拆分前旧脚本产出的 `tabnet_v1.pkl`（类定义在 `__main__`），
+> `joblib.load` 会 `AttributeError`；`load_models()` 按契约三只记日志并跳过，不影响其余模型。
+> 用当前 `pipelines/expert/train.py` 重训即可覆盖成可回读的版本。
 
 > 说明：`data/`（数据集与中间 CSV）不随 git 也不随回传包走；若换机后需要，按第 4 节整目录拷贝或重跑 01–05。
 
