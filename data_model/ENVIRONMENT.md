@@ -31,6 +31,7 @@ conda env remove -n jit-defect-prediction        # 若已存在同名环境
 conda env create -f data_model/environment.yml
 conda activate jit-defect-prediction
 python -V                                        # 必须是 3.12.x
+python -c "import torch; print(torch.__version__)"  # 必须 2.5.1；若显示 2.14.1 说明是旧环境，按上一行 remove 后重建
 ```
 
 > 若已在 `data_model/` 目录，等价命令：`conda env create -f environment.yml`。
@@ -103,7 +104,7 @@ python -m pipelines.e2e.train --batch-size 8
 ```
 
 **跑序依赖**：expert 独立；semantic 必须在 fused 之前（fused 吃 `semantic/data/semantic_embeddings.npz`）；e2e 独立（吃文本）。
-**分类器数量**以各包 `config.py` 的 `DEFAULT_MODELS` 为准（expert 8 种；semantic 12 种）。
+**分类器数量**以各包 `config.py` 的 `DEFAULT_MODELS` 为准：`expert` / `semantic` / `fused` 均为 **12 个**（`lr rf xgb lgbm et svm nb dt knn mlp mlp_deep tabnet`），由 `data_model/tests/test_model_registry_parity.py` 守护三线一致；`e2e` 为单个 CodeBERT 二分类头。三条对照线的配置与产物契约见 `pipelines/config-and-output-spec.md`。
 
 ## 6. 产物：哪些进仓库、哪些不进
 
