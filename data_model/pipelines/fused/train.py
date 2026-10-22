@@ -41,12 +41,16 @@ def main() -> int:
     test_df, X_test_k, y_test = load_split(args.test)
     emb_index, emb = load_embeddings(args.embeddings)
 
+    n_train_all, n_test_all = len(train_df), len(test_df)
     train_df, X_train, _ = fuse(train_df, X_train_k, emb_index, emb)
     test_df, X_test, _ = fuse(test_df, X_test_k, emb_index, emb)
+    coverage = {"train": 100.0 * len(train_df) / max(1, n_train_all),
+                "test": 100.0 * len(test_df) / max(1, n_test_all)}
     y_train = train_df[config.LABEL_COL].astype(int).to_numpy()
     y_test = test_df[config.LABEL_COL].astype(int).to_numpy()
-    print("[fused] 训练 %d 条 / 检验 %d 条，维度 %d"
-          % (len(X_train), len(X_test), X_train.shape[1]))
+    print("[fused] 训练 %d 条 / 检验 %d 条，维度 %d，语义覆盖 训练 %.2f%% / 检验 %.2f%%"
+          % (len(X_train), len(X_test), X_train.shape[1],
+             coverage["train"], coverage["test"]))
 
     effort_loc = load_effort(args.features_raw, test_df["commit_hash"])
     wanted = [m.strip() for m in args.models.split(",") if m.strip()]
@@ -79,7 +83,7 @@ def main() -> int:
 
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(report.render(args, results, len(X_train), len(X_test),
-                                         y_test),
+                                         y_test, coverage=coverage),
                            encoding="utf-8", newline="\n")
     print("[fused] 报告：%s" % args.report)
     if not args.no_charts:

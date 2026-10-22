@@ -66,9 +66,9 @@ def make_charts(results, probas, y, effort_loc, out_dir: Path) -> list[Path]:
     return written
 
 
-def render(args, results, n_train, n_test, y_test) -> str:
+def render(args, results, n_train, n_test, y_test, coverage=None) -> str:
     lines = [
-        "# fused 线模型评估指标（Kamei14 ⊕ 语义 768 = %d 维 → 8 分类器）\n"
+        "# fused 线模型评估指标（Kamei14 ⊕ 语义 768 = %d 维 → 12 分类器）\n"
         % config.EXPECTED_DIM,
         "> 对照线：同切分、同分类器族、同指标口径；特征 = 专家特征 + 语义向量拼接。\n",
         "## 数据与参数\n",
@@ -76,6 +76,12 @@ def render(args, results, n_train, n_test, y_test) -> str:
         "| 输入维度 | %d（Kamei 14 + 语义 768） |\n" % config.EXPECTED_DIM,
         "| 语义缓存 | `%s` |\n" % config.EMBEDDINGS_NPZ,
         "| 训练/检验 | %d / %d 条（共享切分，内连接对齐） |\n" % (n_train, n_test),
+    ]
+    if coverage:
+        lines.append(
+            "| 语义覆盖率 | 训练 %.2f%% / 检验 %.2f%%（内连接后保留比例，低于 100%% 需说明缺失原因） |\n"
+            % (coverage["train"], coverage["test"]))
+    lines += [
         "| 检验集正样本比例 | %.2f%% |\n" % (y_test.mean() * 100),
         "| 随机种子 | `%d` |\n" % args.seed,
         "| 判定阈值 | %s |\n" % config.DECISION_THRESHOLD,

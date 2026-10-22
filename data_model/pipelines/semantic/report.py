@@ -68,7 +68,7 @@ def make_charts(results, probas, y, effort_loc, out_dir: Path) -> list[Path]:
 
 def render(args, results, n_train, n_test, y_test) -> str:
     lines = [
-        "# semantic 线模型评估指标（冻结 CodeBERT 768 维 → 8 分类器）\n",
+        "# semantic 线模型评估指标（冻结 CodeBERT 768 维 → 12 分类器）\n",
         "> 对照线：与 expert 线同切分、同分类器族、同指标口径；唯一变量是特征模态。\n",
         "## 数据与参数\n",
         "| 项 | 值 |\n|---|---|\n",
