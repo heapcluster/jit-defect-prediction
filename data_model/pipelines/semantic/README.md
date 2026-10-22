@@ -1,14 +1,16 @@
 # semantic 线（冻结 CodeBERT 语义特征）
 
 > 定位：**对照线**。把「一次提交改了什么代码」用**冻结**的 CodeBERT 压成 768 维向量，
-> 再走与 expert 完全相同的 8 分类器 —— 与 baseline 的差异只归因于特征模态。
+> 再走与 expert 完全相同的 12 个分类器 —— 与 baseline 的差异只归因于特征模态。
+>
+> 配置项与产物的完整契约见 [`../config-and-output-spec.md`](../config-and-output-spec.md) §1。
 
 ## 设计思路
 
 1. **冻结 = 不训练 CodeBERT**：只做前向 mean-pool 提向量，没有反向传播——所以 GPU
    不是**硬依赖**。但 8.4 万条 × 512 token 的 Transformer 前向本身就是重活：CPU 约
    50–150ms/条（全量数小时~半天），**实际请按「需要 GPU」规划**，CPU 只够 `--limit`
-   冒烟；真正被训练的只有 8 个分类器（sklearn，CPU 秒级）。
+   冒烟；真正被训练的只有 12 个分类器（sklearn，CPU 秒级）。
 2. **同切分、同分类器族**：训练/检验行来自 `data/split_szz_{train,test}.csv` 的
    `commit_hash`；分类器超参与 expert 逐字一致 —— 跨线对比才干净。
 3. **编码缓存**：`data/semantic_embeddings.npz`（hash + 768 维 + 标签），
