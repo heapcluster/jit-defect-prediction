@@ -14,7 +14,7 @@
 | 判定阈值 | 0.5（仅用于统计正例数，不参与 AUC / P_norm 计算） | `DECISION_THRESHOLD` |
 | 分类器族 | 12 个：`lr` `rf` `xgb` `lgbm` `et` `svm` `nb` `dt` `knn` `mlp` `mlp_deep` `tabnet`；三线 `MODEL_NAMES` / `build_model` 超参必须逐字相同 | `data_model/tests/test_model_registry_parity.py` |
 | 模型命名 | 落盘文件与报告内 `model_name` 统一带线别后缀：`<name>_semantic_v1` / `<name>_fused_v1` / `codebert_e2e_v1` | 各包 `train.py` |
-| 入库规则 | `data/`、`models/` **不入库**；`reports/`（Markdown + `figs/*.png`）**入库**，作为横向对比证据 | `.gitignore` |
+| 入库规则 | **模型权重不入库**（`.gitignore` 按扩展名排除 `*.pkl` / `*.joblib` / `*.pt` / `*.pth` / `*.ckpt` / `*.onnx` / `*.h5`）；**文本清单入库**（`feature_order.txt`、`manifest.txt` —— 不被上述规则匹配，见各线产物表「是」）；`reports/*.md` 与 `figs/*.png` **入库**；`data/` 不入库。⚠ 权重目录提交前用 `git check-ignore -v <file>` 确认（`*.safetensors` / `*.bin` 未在扩展名规则内，勿随手 `git add models/`） | `.gitignore` |
 | 包间衔接 | 只通过**数据文件**衔接，禁止跨包 `import` | 各包 `data.py` |
 | 跑序 | `semantic` → `fused`；`e2e` 独立（文本由其 `build_text_dataset.py` 自建，格式与 `semantic` 互通） | — |
 
