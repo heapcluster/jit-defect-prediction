@@ -62,6 +62,16 @@ CPU 机器可跳过本步，但 semantic 会很慢、e2e 无法实际训练。
 
 **A. 从已有机器整体拷贝** `data_model/data/`（最快，含全部中间产物）。
 
+三条线实际依赖的文件见各包 `config.py`，最小可用清单只有 4 个（合计约 64MB，zip 后约 22MB，可直接飞书发送）：
+
+| 文件 | 大小 | 谁用 |
+|---|---|---|
+| `split_szz_train.csv` / `split_szz_test.csv` | 16.3 / 6.9 MB | 四条线共用（`TRAIN_CSV` / `TEST_CSV`） |
+| `commit_features_raw.csv` | 14.8 MB | Effort-aware 的 LOC 工作量代理（`la + ld`） |
+| `dataset_szz.csv` | 26.4 MB | semantic / e2e 自建 diff 文本时的标签来源（e2e 若直接给 `--repo` 可不拷） |
+
+拷贝后核对：文件大小与行数一致即 SZZ 未重跑；正样本数必须能对上第 5 节的基线表（18,662 / 22.23%）。
+
 **B. 从零重跑 01–05**（干净复现）：
 
 ```bash
@@ -218,6 +228,7 @@ python -c "import sys; sys.path.insert(0,'backend'); from app import model_regis
 | 指标与别人不一致 | 只用 `data_model/environment.yml` 装环境，禁止再造 `requirements.txt` |
 | fused 报覆盖率 < 99% 失败 | 先跑完 semantic 再跑 fused（缓存缺失） |
 | `python` 打开应用商店 | conda 未激活 → 用 Anaconda Prompt 或 `conda init` |
+| **`pypi.org` / `huggingface.co` 连不上**（国内机器常见） | 走代理或镜像装依赖，**版本必须照搬 `environment.yml`，一个版本号都不能改**：<br>代理：`$env:HTTPS_PROXY="http://127.0.0.1:7890"`（Linux/macOS 用 `export HTTPS_PROXY=...`）再执行 `conda env create -f data_model/environment.yml`；<br>镜像：`pip install -i https://pypi.tuna.tsinghua.edu.cn/simple <包名==版本>`，HF 权重设 `$env:HF_ENDPOINT="https://hf-mirror.com"`；<br>装完必须用 `python -c "import torch; print(torch.__version__)"` 核对仍为 2.5.1 |
 
 ## 9. 协作与交付备注
 
