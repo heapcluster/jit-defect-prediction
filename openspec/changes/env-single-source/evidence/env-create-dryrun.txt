@@ -1,0 +1,30 @@
+3 channel Terms of Service accepted
+Retrieving notices: - \ done
+Channels:
+ - defaults
+Platform: win-64
+Collecting package metadata (repodata.json): / - \ | / done
+Solving environment: \ done
+conda.exe :
+At C:\Users\jolly\AppData\Local\Temp\genie-ps-1792630262013-22aq90.ps1:954 char:144
++ ... | Out-Null; & "D:\workspace\env\miniconda3\Scripts\conda.exe" env cre ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+==> WARNING: A newer version of conda exists. <==
+    current version: 26.5.3
+    latest version: 26.9.3
+Please update conda by running
+    $ conda update -n base -c defaults conda
+name: jit-defect-prediction
+channels:
+  - defaults
+dependencies:
+  - defaults/win-64::ca-certificates==2026.9.25=haa95532_0
+  - defaults/noarch::tzdata==2026c=he532380_0
+  - defaults/win-64::ucrt==10.0.22621.0=haa95532_0
+  - defaults/win-64::vc14_runtime==14.44.35208=h4927774_12
+  - defaults/win-64::vc==14.3=h2df5915_12
+  - defaults/win-64::vs2015_runtime==14.44.35208=ha6b5a95_12
+  - defaults/win-64::bzip2==1.0.8=h2bbff1b_6
+  - defaults/win-64::libexpat==2.9.0=hd7fb8db_0
