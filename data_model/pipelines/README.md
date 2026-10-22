@@ -1,6 +1,9 @@
 # pipelines/ — 四条模型线（各自独立成包）
 
 > 每条线一个**独立功能包**，禁止合并为单一包；包间只通过**数据文件**衔接，不互相 import。
+>
+> 三条对照线（`semantic` / `fused` / `e2e`）的配置项、输入输出字段与断言契约，统一见
+> [`config-and-output-spec.md`](config-and-output-spec.md)。
 
 ## 统一目录结构（四包一致，命名规范一致）
 
@@ -24,8 +27,8 @@ pipelines/<line>/
 | 包 | 输入 | 模型 | 定位 | 需要 GPU |
 |---|---|---|---|---|
 | `expert/` | Kamei 14 特征（`data/split_szz_*.csv`） | 经典 ML 6 + 神经网络 2（sklearn/xgb） | **baseline** | 否 |
-| `semantic/` | commit diff 文本 → 冻结 CodeBERT 768 维向量 | 同上 8 种 | 对照线：纯语义模态 | **建议**（CPU 仅够冒烟） |
-| `fused/` | Kamei 14 ⊕ 语义 768 = 782 维 | 同上 8 种 | 对照线：特征融合 | 否（吃 semantic 缓存） |
+| `semantic/` | commit diff 文本 → 冻结 CodeBERT 768 维向量 | 同上 12 种 | 对照线：纯语义模态 | **建议**（CPU 仅够冒烟） |
+| `fused/` | Kamei 14 ⊕ 语义 768 = 782 维 | 同上 12 种 | 对照线：特征融合 | 否（吃 semantic 缓存） |
 | `e2e/` | commit diff 文本 → CodeBERT **微调** | CodeBERT + 二分类头 | 对照线：端到端 | **是**（唯一反向传播） |
 
 ## 数据流（跑序）

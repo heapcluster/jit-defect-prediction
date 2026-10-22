@@ -3,6 +3,9 @@
 > 定位：**对照线**。直接把「一次提交改了什么代码」喂给 CodeBERT **微调**（整网反向传播），
 > 与 expert（Kamei14 特征）对比。四条线里**唯一需要 GPU** 的一条（RTX 4060 即可）。
 > 默认不进交付链；是否进前端 switch 由后续契约变更决定。
+>
+> 配置项、产物与 `prediction_result.csv` 字段的完整契约见
+> [`../config-and-output-spec.md`](../config-and-output-spec.md) §3。
 
 ## 设计思路
 
