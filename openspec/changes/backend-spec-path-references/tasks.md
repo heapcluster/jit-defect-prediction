@@ -17,7 +17,7 @@
 ## 2. 静态校验（本 PR 内完成）
 
 - [x] 2.1 `openspec validate backend-spec-path-references --strict` 通过 —— 交付物：命令输出记录于本文件「测试与验证」§3
-- [x] 2.2 语义零变化比对：`git diff team/main...HEAD -- openspec/changes/backend-spec-path-references/specs/` 逐段人工过一遍，确认除路径/版本字符串外无任何措辞、阈值、判定、Scenario 期望变化 —— 交付物：§3 证据行
+- [x] 2.2 语义零变化比对：`git diff 11993e2 HEAD -- openspec/changes/backend-spec-path-references/specs/` 逐段人工过一遍，确认除路径/版本字符串外无任何措辞、阈值、判定、Scenario 期望变化 —— 交付物：§3 证据行
 - [ ] 2.3 现行规格旧引用清零扫描（**归档时执行**，现在必失败属预期）：cwd=仓库根，两条都要无输出
       ① `git grep -n "docs/contracts" -- openspec/specs/query-api openspec/specs/db-schema openspec/specs/predict-api`
       ② `git grep -n "data_model/models/" -- openspec/specs/predict-api`
@@ -43,7 +43,7 @@
 | 覆盖对象 | 无代码改动 —— 不适用（本 change 只新增/修订 markdown） |
 | 测试文件 | 不适用 |
 | 用例数与结果 | 0 条 ｜ 不适用（无行为变化；后端全套 **100 条**在 main 上保持全绿即可，见 §2 —— 本文件初版写 93 条，PR #79 合入后基线已是 100 条，按现状刷新） |
-| 复现命令 | cwd=`backend`：`python -m pytest tests/`（期望 `100 passed`，证明本 change 未波及代码路径 —— 本 change 不动 `backend/`，此项为护栏） |
+| 复现命令 | cwd=`backend`：`python -m pytest tests/`（**基线 `e46624b` 实测 `100 passed`**，证明本 change 未波及代码路径 —— 本 change 不动 `backend/`，此项为护栏；初版护栏值是 93 条，来自旧基线 `11993e2`，按审阅人不倒填历史测试结果的要求，两组数字各挂各自基线） |
 | 正向用例 | 不适用（无新逻辑） |
 | 异常 / 边界用例 | 不适用（无新逻辑） |
 
@@ -53,8 +53,8 @@
 |---|---|
 | 集成范围 | 与 `backend-time-range-semantics` 归档的落地顺序（design D3：同一规格文件的不同 requirement，排序防并发改动）；与蒋励 `path-references-alignment` 的文件集互斥性 |
 | 测试文件 | 不适用（无跨模块运行时交互） |
-| 用例数与结果 | 0 条 ｜ 静态检查代替：`git diff --name-only team/main...HEAD` 确认两 change 文件集零交集 |
-| 复现命令 | cwd=仓库根：`git diff --name-only team/main...HEAD`（期望仅 `openspec/changes/backend-spec-path-references/**`，共 7 个文件：`.openspec.yaml` + 三份 delta + proposal / design / tasks。用 `team/main` 而不是本地 `main` —— 本地引用落后时会得出几百个文件的假 diff） |
+| 用例数与结果 | 0 条 ｜ 静态检查代替：`git diff --name-only 11993e2 HEAD` 确认两 change 文件集零交集 |
+| 复现命令 | cwd=仓库根：`git diff --name-only 11993e2 HEAD`（`11993e2` = 本分支切出时的 main，**不依赖任何 remote 名**；期望仅 `openspec/changes/backend-spec-path-references/**` 共 7 个文件）。若你手上的 main 已前进，先 `git merge-base HEAD main` 取基线再替换 `11993e2`；要对着团队仓最新 main 比，需先自备 remote：`git remote add team https://github.com/heapcluster/jit-defect-prediction.git && git fetch team main`，然后可用 `team/main` |
 | 关键断言 | 归档后 `openspec/specs/query-api/spec.md` 同时含时间区间语义（#62 delta）与新路径引用（本 delta），互不覆盖 |
 
 ### 3. 验收测试（交付时，按 `specs/<cap>/spec.md` 的 Scenario 逐条走）
@@ -63,7 +63,8 @@
 |---|---|
 | 验收依据 | 本 change 三份 delta 共 6 条 requirement 的全部 Scenario —— 语义逐字未变，验收点即「引用可点开」 |
 | 用例数与结果 | 5 条静态验收 ｜ 2 过 3 待归档时执行（2.3 的 ①② 两条扫描 + 3.3 Purpose 版本号） |
-| 复现命令 / 步骤 | ① cwd=仓库根：`openspec validate backend-spec-path-references --strict`；② `openspec validate --all --strict`；③ 归档后：`git grep -n "docs/contracts" -- openspec/specs/query-api openspec/specs/db-schema openspec/specs/predict-api`（期望无输出）；④ 归档后：`git grep -n "data_model/models/" -- openspec/specs/predict-api`（期望无输出 —— 规格里的 `MODEL_DIR` 默认值与 `backend/app/config.py:16` 对齐）；⑤ 归档后：`git grep -n -E "契约(一\|三) 1\.4" -- openspec/specs/query-api openspec/specs/db-schema`（期望无输出，覆盖 Purpose 段；其中 `query-api` 首段由前置归档 PR #84 先行同步，本 PR 归档后复扫两处皆净 —— 判据写成扫两处正是为了不因两个 PR 分工而漏一处） |
+| 复现命令 / 步骤 | ① cwd=仓库根：`openspec validate backend-spec-path-references --strict`；② `openspec validate --all --strict`；③ 归档后：`git grep -n "docs/contracts" -- openspec/specs/query-api openspec/specs/db-schema openspec/specs/predict-api`（期望无输出）；④ 归档后：`git grep -n "data_model/models/" -- openspec/specs/predict-api`（期望无输出 —— 规格里的 `MODEL_DIR` 默认值与 `backend/app/config.py:16` 对齐）；⑤ 归档后两条纯字符串扫描，期望均无输出：`git grep -n "契约一 1.4" -- openspec/specs` 与 `git grep -n "契约三 1.4" -- openspec/specs`（覆盖 Purpose 段；`query-api` 首段已由前置归档 PR #84 同步，判据写成两条正是为了不因两个 PR 分工而漏一处） |
+| ⑤ 为什么不用扩展正则 | 本轮审阅（苏哲勋 `2d89a67`）指出原写法在表格单元格里必须写 `契约(一\|三)`，**从源文件复制执行时竖线被当字面量 → 零命中 = 假通过**。我实测三种备选：`-E "契约(一\|三) 1\.4"` 0 命中（坏）；`-E "契约[一三] 1[.]4"` 0 命中（也坏 —— git grep 的字符类按**字节**匹配多字节中文，同样漏）；`-E "契约. 1[.]4"` 0 命中（`.` 同理）。可用的是不带正则的两条纯字符串（上表⑤），实测命中 `db-schema:4` + `query-api:4` 两处旧标注 = 反例成立；列表项里那条无反斜杠的 `-E "契约(一|三) 1\.4"`（见 3.3）实测 2 命中、可用，但为免复制时被 Markdown 转义坑，统一改用纯字符串形式 |
 | 证据归档 | 本文件 §5 执行证据行 + 归档 PR 描述 |
 
 ### 4. 非功能验证（本 change 触及则必填）
@@ -88,3 +89,4 @@
 > 审阅后复核（2026-10-21，苏哲勋在 `6edbe88` 提出 db-schema delta 的契约一版本应为 v1.5）：改正后 cwd=仓库根重跑 `openspec validate backend-spec-path-references --strict` → `Change 'backend-spec-path-references' is valid`；`openspec validate --all --strict` → `Totals: 19 passed, 0 failed (19 items)`；版本对读命令 `grep -n "版本" docs/design/data-fields.md | head -1` → `> 状态：**已冻结** ｜ 版本 1.5 ｜ …`（`docs/design/data-fields.md:3`）。
 > 依赖推进与分工收缩（2026-10-22 00:01，Windows 11，仓库根）：前置归档 PR 已提出 = **#84**（head `cadafc6`，#75 已合入 main `07f4309`），3.1 记录其状态；`query-api` 首段版本行由 #84 认领，tasks 3.3 相应收缩为 `db-schema` 一处（判据仍扫两处）。收缩后重跑：`openspec validate backend-spec-path-references --strict` → `Change 'backend-spec-path-references' is valid`；`openspec validate --all --strict` → `Totals: 19 passed, 0 failed (19 items)`（本分支基线尚未含 #84 的归档出队，故项数与 #84 上的 17 不同，非异常）。
 > 自查扩面（2026-10-22 00:35，Windows 11，仓库根）：按苏哲勋对版本标注的意见把「同类缺陷」重扫一遍，补入第 6 处 —— `openspec/specs/predict-api/spec.md:10` 的 `MODEL_DIR` 旧默认路径（成因 = PR #77 只改代码未同步规格，`git show --stat 2d52db5` 只动了 `backend/app/config.py`）。重跑 `openspec validate backend-spec-path-references --strict` → `Change 'backend-spec-path-references' is valid`；`openspec validate --all --strict` → `Totals: 19 passed, 0 failed (19 items)`。**更正本文件初版一处计数**：`git diff --name-only team/main...HEAD` 实为 6 个文件（初版证据行写「5 个」漏算 `.openspec.yaml`），加本次 predict-api delta 后现 = **7 个文件**，以命令输出为准。归档前扫描现状（按 2.3 预期仍失败）：`git grep -c docs/contracts -- openspec/specs/query-api openspec/specs/db-schema openspec/specs/predict-api` → query-api 3、db-schema 2、predict-api 0；`git grep -n "data_model/models/" -- openspec/specs/predict-api` → 1 命中（`spec.md:10`，本次要改的就是它）。
+> 复现口径修订（2026-10-22 22:52，Windows 11，仓库根 · 应苏哲勋第二轮 `2d89a67` 的两项）：① 表格里的 `-E "契约(一\|三) 1\.4"` 换掉 —— 实测该串 0 命中（复制即字面量），备选 `-E "契约[一三] 1[.]4"` 与 `-E "契约. 1[.]4"` **同样 0 命中**（git grep 字符类/通配按字节匹配多字节中文），故改为两条无正则的纯字符串扫描，实测命中 `openspec/specs/db-schema/spec.md:4` 与 `openspec/specs/query-api/spec.md:4`（反例成立，归档后应零命中）。② 去掉对未声明 remote 的依赖：`git diff --name-only 11993e2 HEAD` → 7 个文件（`.openspec.yaml` + 三份 delta + proposal/design/tasks）；`git merge-base HEAD main` → `11993e2`，与本分支切出基线一致。③ §1 护栏命令标注基线 `e46624b`（100 passed），初版 93 条留在原句说明来自 `11993e2`，不覆盖。重跑：`openspec validate backend-spec-path-references --strict` → `Change 'backend-spec-path-references' is valid`；`openspec validate --all --strict` → `Totals: 19 passed, 0 failed (19 items)`。
