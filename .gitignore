@@ -56,3 +56,6 @@ _tmp/
 
 # ===== 本地辅助脚本（个人工具，不入库；见 tools/）=====
 tools/
+
+# ===== conda 建环境时的临时 pip 清单（conda 自动生成，勿入库）=====
+data_model/condaenv.*.requirements.txt
