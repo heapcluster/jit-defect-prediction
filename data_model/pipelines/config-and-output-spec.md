@@ -14,9 +14,13 @@
 | 判定阈值 | 0.5（仅用于统计正例数，不参与 AUC / P_norm 计算） | `DECISION_THRESHOLD` |
 | 分类器族 | 12 个：`lr` `rf` `xgb` `lgbm` `et` `svm` `nb` `dt` `knn` `mlp` `mlp_deep` `tabnet`；三线 `MODEL_NAMES` / `build_model` 超参必须逐字相同 | `data_model/tests/test_model_registry_parity.py` |
 | 模型命名 | 落盘文件与报告内 `model_name` 统一带线别后缀：`<name>_semantic_v1` / `<name>_fused_v1` / `codebert_e2e_v1` | 各包 `train.py` |
-| 入库规则 | **模型权重不入库**（`.gitignore` 按扩展名排除 `*.pkl` / `*.joblib` / `*.pt` / `*.pth` / `*.ckpt` / `*.onnx` / `*.h5`）；**文本清单入库**（`feature_order.txt`、`manifest.txt` —— 不被上述规则匹配，见各线产物表「是」）；`reports/*.md` 与 `figs/*.png` **入库**；`data/` 不入库。⚠ 权重目录提交前用 `git check-ignore -v <file>` 确认（`*.safetensors` / `*.bin` 未在扩展名规则内，勿随手 `git add models/`） | `.gitignore` |
+| 入库规则 | **模型目录默认忽略**（`data_model/pipelines/*/models/**`），仅 `feature_order.txt` 与 `manifest.txt` 两个**文本清单例外入库**（见各线产物表「是」）；权重按 `*.pkl` / `*.joblib` / `*.pt` / `*.pth` / `*.ckpt` / `*.onnx` / `*.h5` / `*.safetensors` / `*.bin` 全局忽略；`reports/*.md` 与 `figs/*.png` **入库**；`data/` 不入库 | `.gitignore` |
 | 包间衔接 | 只通过**数据文件**衔接，禁止跨包 `import` | 各包 `data.py` |
 | 跑序 | `semantic` → `fused`；`e2e` 独立（文本由其 `build_text_dataset.py` 自建，格式与 `semantic` 互通） | — |
+
+> 入库规则复核（`git check-ignore --quiet <path>`，退出码 0 = 被忽略 / 1 = 可入库）：
+> `.../models/lr_semantic_v1.pkl` → 0、`.../e2e/models/codebert_e2e_v1/model.safetensors` → 0；
+> `.../models/manifest.txt` → 1、`.../expert/models/feature_order.txt` → 1（命中 `!` 例外）。
 
 三条线都**不进交付链**，产物仅用于评估与横向对照。交付清单以 `expert/models/feature_order.txt` 的 `[models]` 为准（`lr_v1` + `rf_v1` + `xgb_v1`，与后端 `model_registry.load_models()` 对 `MODEL_DIR` 下全部 `*.pkl` 的加载范围一致），见 `data_model/ENVIRONMENT.md` §7。
 
