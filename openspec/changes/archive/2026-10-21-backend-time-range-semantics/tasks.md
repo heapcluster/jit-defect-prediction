@@ -1,7 +1,7 @@
 # backend-time-range-semantics — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/query-api/spec.md`
-> 负责人：backend 吕建江 ｜ 创建：2026-10-10 ｜ 状态：进行中
+> 负责人：backend 吕建江 ｜ 创建：2026-10-10 ｜ 状态：**已归档**（2026-10-21，`openspec archive`；余 3.2 一项跨线待办随归档留档，未伪勾）
 > 用户故事：A 组第 1 条「查看风险提交列表」＋第 5 / 6 条「缺陷趋势看板」「趋势按周/月切换」（时间范围筛选是这三条的过滤条件，映射见 `docs/repo/user-story-traceability.md`）；触发缺陷 Issue #61
 > 统一格式见 `docs/common/openspec-task-template.md`；**本文件末的「测试与验证」为强制板块，缺失视为提案不完整。**
 
@@ -26,7 +26,9 @@
 - [x] 3.1 前端月粒度 `periodToRange` 的 end 改送当月最后一日；`toEndTime` 兜底与 `docs/frontend/pages.md` 过渡句移除 —— 交付给：frontend 刘帅华；形式：PR #60 内 `frontend/src/` 代码改动
       —— 完成判据：main 上 `periodToRange` 周粒度送「周一..周日」、月粒度送「1 日..月末」，且不存在调用侧补 `T23:59:59` 的兜底。完成：**PR #60 已于 2026-10-16 07:29 合入 main**；核对 `frontend/src/views/TrendBoard.vue:253`（`periodToRange`：week → `monday..monday+6d`；month → `Date.UTC(year, month, 0)` 即当月最后一日），`git grep -n "toEndTime" main -- frontend/` **零命中**，`git grep -nE "23:59" main -- frontend/src` 零命中
 - [ ] 3.2 前端线文档的契约版本引用同步：`docs/frontend/pages.md` 第 88 行、`docs/frontend/README.md` 第 5 行仍写「契约三 v1.4」（现行版本已是 **v1.5**）—— 交付给：frontend 刘帅华；形式：**另开新 PR**（#60 已合入，按 sober-hub 2026-10-16 复审意见「不再往已合并 #60 追加」）；本 PR 不动前端线文件
-- [ ] 3.3 归档本 change：delta 落 `openspec/specs/query-api/spec.md`，并同步该文件首段「契约三 1.4」→ 1.5 —— 交付给：backend 吕建江（自己）；形式：归档 PR（`openspec archive backend-time-range-semantics`）。前置已满足：#62 于 2026-10-16 07:49 由 sober-hub 合入 main（`7844f8e`）；待本 PR（集成证据）合入后紧接着提
+      —— 归档时复核（2026-10-21，main `e46624b`，命令 `grep -rn "契约三 v1\\.4" docs/frontend/ docs/common/`）：两处仍在，行号未变（`docs/frontend/pages.md:88`、`docs/frontend/README.md:5`）；另扫出同类第三处 `docs/common/test-plan.md:5`（「依据：…（契约三 v1.4）」），属公共文档、蒋励统稿范围，一并在归档后向两位交接人点出。本条保持未勾。
+- [x] 3.3 归档本 change：delta 落 `openspec/specs/query-api/spec.md`，并同步该文件首段「契约三 1.4」→ 1.5 —— 交付给：backend 吕建江（自己）；形式：归档 PR（`openspec archive backend-time-range-semantics`）。前置已满足：#62 于 2026-10-16 07:49 由 sober-hub 合入 main（`7844f8e`）；待本 PR（集成证据）合入后紧接着提
+      —— 完成判据：归档目录 `openspec/changes/archive/2026-10-21-backend-time-range-semantics/` 存在、`openspec/specs/query-api/spec.md` 含本 change 的两条 MODIFIED requirement 与 4 条新增 Scenario、首段版本为 1.5。完成：2026-10-21 在本归档 PR 内执行（前置 #75 已由 sober-hub 合入 main `07f4309`）。cwd=仓库根 `openspec archive backend-time-range-semantics -y` 输出 `Applying changes to openspec/specs/query-api/spec.md: ~ 2 modified` + `archived as '2026-10-21-backend-time-range-semantics'`（CLI 同时提示 `Warning: 2 incomplete task(s)`，即本条 3.3 与 3.2 前端线待办，见下）。落地核对：`grep -n "契约三 1.5" openspec/specs/query-api/spec.md`（首段第 4 行，本 PR 手工同步，delta 结构承载不到 Purpose 段）；新增 Scenario 可点回 `grep -c "Scenario: 纯日期串 end 含结束日全天\\|Scenario: 周下钻纯日期串不丢结束日" openspec/specs/query-api/spec.md` → 2
 
 ## 测试与验证（强制板块）
 
@@ -94,11 +96,12 @@ Scenario → 测试定位（9 条 Scenario + 2 条 requirement 级补充测试�
 | 缺口 | 原因 | 归属 | 计划时间 |
 |---|---|---|---|
 | **三页面端到端 + 录屏未执行**（后端侧集成已于 2026-10-16 执行完毕，见 §2） | 前置已解除：**#62 于 07:49、#60 于 07:29 均已合入 main（`7844f8e`）**；本轮的 11 条断言是在 PR 分支 head `9073cea`（= 合入内容）上起真服务 + SQLite 种子做的，剩「三页面在 main 上点击走一遍 + 录屏」与前端侧 `docs/frontend/integration-log.md` 里标 ⏳ 的「日期末秒」项复核改判 | backend 吕建江 + frontend 刘帅华 + 蒋励（录屏） | 2026-10-23 前 |
-| 真 MySQL 下的联调未跑（`prediction` 唯一索引并发双插回落、`_assert_indexes` 索引自检） | 本轮集成用 SQLite 种子库；真库分支需要可起 MySQL 的集成夹具，已连同「月粒度零测试」一起立 Issue | backend 吕建江 | Issue #73（Sprint 2 W1） |
+| 真 MySQL 下的联调未跑（`prediction` 唯一索引并发双插回落） | 本轮集成用 SQLite 种子库；Issue #73 的两处零覆盖缺口**已于 2026-10-21 随 #79 合入 main（`62f6a18`）关闭**：月粒度 3 条 + 周下钻保周日 1 条（`backend/tests/test_trends_api.py::test_month_aggregation_buckets_by_calendar_month` 等）、建表索引自检 3 条（`backend/tests/test_db.py`，含 SQLite 方言坑：`get_unique_constraints()` 无 `unique` 键）；后端全套现为 **100 条**。仍缺的是可起 MySQL 的集成夹具与并发双插实测 | backend 吕建江 | Sprint 2 W1（缺口剩余部分另立，不重开 #73） |
 | 端到端验收未执行（演示脚本「时间范围筛选」正向 + 异常） | 10/23 课上验收统一演示，录屏由 SM 收口 | 蒋励（脚本/录屏）+ 吕建江（后端） | 2026-10-23 |
 | 压测未按新解析层重跑 | 改动仅在参数解析，无新增 I/O；课程只要求 p95 达标且已有真模型证据 | backend 吕建江 | Sprint 2（若 CI 门禁 PR #72 要求则提前） |
-| 行覆盖率门禁未纳入本 change | 覆盖率测量与门禁是独立工程化事项，不夹带进缺陷修复 PR；实测后端行覆盖 **84%**（本分支 600 stmts / 95 miss，main 基线 595 / 97），证据与依赖在 **PR #74**，门禁入口留给 **PR #72** 统一定 | backend 吕建江 | PR #74（已提审）；看板「覆盖率测量 pytest-cov ≥60%」行 |
-| 仓库其余「契约三 v1.4」历史引用未改（`docs/repo/catchup-ledger.md` L3 行、`docs/backend/README.md` L3 行、`docs/design/README.md` L3 行、`openspec/specs/query-api/spec.md` 首段） | 前三处是台账/看板的历史任务记录（记的是当时口径），不在缺陷修复 PR 里改写；`openspec/specs/` 的 delta 按 SDD 只在归档时落地 | 吕建江（归档时改 spec 首段）；台账行归 蒋励 | 3.3 归档 PR |
-| Issue #65 登记的失效 `docs/contracts/` 引用未在本 PR 收口 | 10-11 12:41 归属裁定：后端线只负责 `backend/README.md`（已在 2.2 完成），其余归 苏哲勋 / 蒋励 | 苏哲勋 / 蒋励（Issue #65） | 见 Issue #65 |
+| 行覆盖率门禁未纳入本 change | 覆盖率测量与门禁是独立工程化事项，不夹带进缺陷修复 PR。已入仓的测量：`backend/scripts/evidence/coverage-2026-10-16.md`（39 / 45 条 → **84%**，随 #74 合入）、`backend/scripts/evidence/coverage-2026-10-17.md`（93 条 → **85%**，随 #78 合入 `da2a366`）。#79 合入后基线已是 **100 passed / TOTAL 87%**（600 stmts / 80 miss，2026-10-21 在 main `e46624b` 实测），该数值**另出一份测量文件**，不改动上述两份历史证据；门禁入口仍在 PR #72 讨论 | backend 吕建江 | 复测文件随归档后的小 PR 入仓；看板「覆盖率测量 pytest-cov ≥60%」行 |
+| 仓库其余「契约三 v1.4」引用**分两类**：① 历史记录（`docs/repo/catchup-ledger.md` L3 行、`docs/backend/README.md:31` 的 L3 行、`docs/design/diagrams.md:15` 的提示词原文）；② 现行口径引用（`docs/frontend/pages.md:88`、`docs/frontend/README.md:5`、`docs/common/test-plan.md:5`） | ① 记的是当时口径，不在缺陷修复 PR 里改写；② 归各自线（见 3.2，归档时复核仍在）。`docs/design/README.md` 复核已无 v1.4 残留。规格首段 `openspec/specs/query-api/spec.md:4` **已随本归档 PR 同步为 1.5** | 台账/历史行归 蒋励（统稿）；②类归 刘帅华 + 蒋励 | ①无计划（保持历史原样）；②随 3.2 |
+| Issue #65 登记的失效 `docs/contracts/` 引用未在本 PR 收口 | 10-11 12:41 归属裁定：后端线只负责 `backend/README.md`（已在 2.2 完成）。归档时进度：现行规格的旧路径**已各自立 change**（后端线 `backend-spec-path-references` = PR #82 审阅中；模型线 `path-references-alignment` 已在 main），剩 `archive/` 12 份历史记录改不改仍待 PO 在 Issue #65 裁决 | 苏哲勋（#65 裁决）+ 吕建江 / 蒋励（按线执行） | 见 Issue #65；本 change 不阻塞 |
 
 > 落地结论：代码与契约同改、同 PR 落地，区间语义自 1.5 起可判定；结束日丢数据与紧凑格式二义性在**单元层闭环**（6 条新增用例 + 45/45 无回归）、在**集成层已由真服务 11 条断言闭环**（含列表 / 趋势 / 周下钻 / 月桶四口径互相对账，`backend/scripts/evidence/integration-time-range-2026-10-16.md`）；只剩**三页面端到端 + 10/23 课上验收**两个明确下游，未执行的一律留在上表，不倒填。
+> 归档记录（2026-10-21）：`openspec archive backend-time-range-semantics -y` 于本归档 PR 执行，delta 落 `openspec/specs/query-api/spec.md`（`~ 2 modified` + 4 条新增 Scenario），同 PR 手工同步首段版本号；归档时 `openspec validate --all --strict` 全绿（项数见本 PR 描述）。上表 §1–§4 的执行记录是**当时的运行事实**（被测提交 `b7ac417`、45 条基线、13 passed / 1 failed 的全量校验），按模板「不倒填」原样保留；只有 §5 缺口的**归属与现状**按 10-21 的 main 刷新（应审阅人在 #75 的非阻塞意见）。

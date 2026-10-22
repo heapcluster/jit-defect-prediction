@@ -1,6 +1,6 @@
 # 时间区间语义联调证据 2026-10-16
 
-- 目的：change `backend-time-range-semantics` 的**集成测试层**证据（`openspec/changes/backend-time-range-semantics/tasks.md`「测试与验证」§2）——真起服务、真发 HTTP 请求，**不用 TestClient**
+- 目的：change `backend-time-range-semantics` 的**集成测试层**证据（`openspec/changes/archive/2026-10-21-backend-time-range-semantics/tasks.md`「测试与验证」§2；本行路径随归档移动更新）——真起服务、真发 HTTP 请求，**不用 TestClient**
 - 被测：分支 `fix/backend/time-range-closed` head `9073cea`（PR #62），基线 main `59ad7ed`
 - 环境：Windows 11 / Python 3.12.7 / 仓库 `.venv` / uvicorn 0.53.0 / fastapi 0.141.1 / SQLAlchemy 2.0.54 + **SQLite** 种子库（本轮不起 MySQL）
 - 数据：cwd=`backend`，`python -m scripts.seed_dev_data` → 3 提交（`committed_at` = 2026-08-01 / 08-02 / 08-03 各 09:00:00）、3 特征、3 预测（`model_name=seed_v1`，`risk_score` 0.1 / 0.2 / 0.3）
