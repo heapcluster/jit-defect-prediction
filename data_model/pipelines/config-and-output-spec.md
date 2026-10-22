@@ -18,7 +18,7 @@
 | 包间衔接 | 只通过**数据文件**衔接，禁止跨包 `import` | 各包 `data.py` |
 | 跑序 | `semantic` → `fused`；`e2e` 独立（文本由其 `build_text_dataset.py` 自建，格式与 `semantic` 互通） | — |
 
-三条线都**不进交付链**（交付模型仍为 `expert` 的 `xgb_v1`），产物仅用于评估与横向对照。
+三条线都**不进交付链**，产物仅用于评估与横向对照。交付清单以 `expert/models/feature_order.txt` 的 `[models]` 为准（`lr_v1` + `rf_v1` + `xgb_v1`，与后端 `model_registry.load_models()` 对 `MODEL_DIR` 下全部 `*.pkl` 的加载范围一致），见 `data_model/ENVIRONMENT.md` §7。
 
 ---
 
@@ -97,8 +97,10 @@
 
 ### 1.5 校验与失败语义
 
-- 文本为空 → 退出码 1（`0 条有效文本`）。
-- 缓存缺失且未给 `--repo` → 退出码 2，提示先建文本。
+- 文本为空 → 退出码 1（`data.py` 打印 `0 条有效文本` 后 `SystemExit(1)`）。
+- 文本与编码缓存都缺、且未给 `--repo` → 退出码 **1**（`train.py` 用带字符串的 `SystemExit`）。
+- 缓存**文件**不存在（`data.py::load_embeddings`）→ 退出码 **2**。
+- 缓存存在但覆盖不全（`train.py` 打印缺多少条）→ 退出码 **1**。
 - 语义指标不优于 baseline 时**如实登记**（样本量、文本构造、模型容量），不得只报更好的一组。
 - 产物仅评估，不进交付链。
 
@@ -136,14 +138,14 @@
 | 指标报告 | `fused/reports/model_metrics.md` | 结构同 §1.4，差异见下 | 是 |
 | 图表 | `fused/reports/figs/{roc_curves,effort_curves_loc,metric_bars}.png` | 150 dpi | 是 |
 
-与 semantic 报告的差异：标题为 `# fused 线模型评估指标（Kamei14 ⊕ 语义 768 = 782 维 → 12 分类器）`；`## 数据与参数` 含 `输入维度 782（Kamei 14 + 语义 768）`、`语义缓存` 路径、`训练/检验条数（共享切分，内连接对齐）`。
+与 semantic 报告的差异：标题为 `# fused 线模型评估指标（Kamei14 ⊕ 语义 768 = 782 维 → 12 分类器）`；`## 数据与参数` 含 `输入维度 782（Kamei 14 + 语义 768）`、`语义缓存` 路径、`训练/检验条数（共享切分，内连接对齐）`、`语义覆盖率`（训练/检验内连接后的保留比例，由 `train.py` 计算后经 `report.render(coverage=...)` 写入）。
 
 ### 2.5 校验与失败语义
 
 | 断言 | 触发条件 | 行为 |
 |---|---|---|
 | 语义覆盖率 | 内连接后 `coverage < 99%` | 退出码 2，打印缺失条数，拒绝训练 |
-| 覆盖率不足 100% | `99% ≤ coverage < 100%` | 警告 + 丢弃缺失行，**必须在报告登记** |
+| 覆盖率不足 100% | `99% ≤ coverage < 100%` | 控制台警告 + 丢弃缺失行；训练/检验覆盖率写入报告 `## 数据与参数` 的「语义覆盖率」行 |
 | 拼接维度 | `X.shape[1] != EXPECTED_DIM` | 退出码 2 |
 | 缓存维度 | `emb.shape[1] != 768` | 退出码 2 |
 | 原始特征缺行 | `commit_features_raw.csv` 缺检验集 hash | 退出码 2 |
@@ -168,7 +170,7 @@
 | `GRAD_ACCUM_TARGET` | `32` | 目标有效批量（`batch_size × 累积步`） | 改 `BATCH_SIZE` 时保持 32 |
 | `EVAL_FRAC` | `0.1` | 共享切分缺失时的时间序尾部验证比例 | 仅在缺切分文件时生效，报告须标注 |
 | `SEED` / `DECISION_THRESHOLD` | `42` / `0.5` | 同 §0 | — |
-| `MODEL_NAME` | `codebert_e2e_v1` | 产物目录名与 `model_name` | 与后端登记一致 |
+| `MODEL_NAME` | `codebert_e2e_v1` | HF 产物目录名与预测 CSV 的 `model_name` | **后端不加载该目录**：`MODEL_DIR` 只 `glob("*.pkl")`，本编号仅作评估标识；要上线须另立契约或导出可 joblib 加载的 pkl |
 | `FEATURE_VERSION` | `codebert` | 模态标识 | 后端加载前须登记该版本 |
 | `MODEL_DIR` / `REPORT` | `e2e/models/codebert_e2e_v1` / `e2e/reports/model_metrics.md` | 产物落点 | — |
 
