@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import roc_curve
 
@@ -26,6 +23,11 @@ def _roc_ax(ax, y, probas, title):
 
 
 def make_charts(results, probas, y, effort_loc, out_dir: Path) -> list[Path]:
+    # 绘图依赖延迟导入：只出 Markdown（render）时不要求装 matplotlib
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
     out_dir.mkdir(parents=True, exist_ok=True)
     written = []
     fig, ax = plt.subplots(figsize=(6, 5))
