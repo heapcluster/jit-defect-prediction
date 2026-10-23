@@ -46,10 +46,9 @@
 
 **目标**：后端加载的权重、前端展示的分数，都能追溯到同一次训练、同一份切分。
 
-1. **权威指标由重训产出**：\model_metrics.md\ 必须来自在当前 \split_szz_*.csv\ 上的重新训练（58,760 / 25,183）；\--from-saved\ 只写 \model_metrics_from_saved.md\ 并标注「探索性」。
-2. **权重可被后端干净进程加载**：\	abnet_v1.pkl\ 依赖 \pipelines.expert.model.TabNetWithEarlyStop\，后端需把 \data_model\ 加入 \sys.path\ 并安装 \	orch\ / \pytorch_tabnet\；其余 7 个为 sklearn 对象，无额外依赖。
-3. **特征映射书面化**：给出 \commit_features.csv\ 列名 → 契约 14 列（\
-s,nd,nf,entropy,la,ld,lt,fix,ndev,age,nuc,exp,rexp,sexp\）的对照，注明 \ix\ 入库为 int、其余 float。
-4. **全量预测结果**：\prediction_result.csv\ 字段 = 契约一表三（\commit_hash / risk_score / model_name / predicted_at / feature_version\），\model_name\ 与 pkl 名一致（\xgb_v1\ 形式），可直接被 \pp.ingest predictions\ 消费。
-5. **SHAP 口径要说实话**：树模型与线性模型为实测耗时；\svm\ / \mlp_deep\ / \	abnet\ 无精确 Tree/Linear 解释器，报告中写「无精确 SHAP 解释器」，不得写「已实现」。
-6. **证据**：\eports/model_metrics.md\ + \eports/figs/\ 三张图 + \data_model/tests\ 全量通过（当前 105 条）。
+1. **权威指标由重训产出**：`model_metrics.md` 必须来自在当前 `split_szz_*.csv` 上的重新训练（58,760 / 25,183）；`--from-saved` 只写 `model_metrics_from_saved.md` 并标注「探索性」。
+2. **权重可被后端干净进程加载**：`tabnet_v1.pkl` 依赖 `pipelines.expert.model.TabNetWithEarlyStop`，后端需把 `data_model` 加入 `sys.path` 并安装 `torch` / `pytorch_tabnet`；其余 7 个为 sklearn 对象，无额外依赖。
+3. **特征映射书面化**：给出 `commit_features.csv` 列名 → 契约 14 列（`ns,nd,nf,entropy,la,ld,lt,fix,ndev,age,nuc,exp,rexp,sexp`）的对照，注明 `fix` 入库为 int、其余 float。
+4. **全量预测结果**：`prediction_result.csv` 字段 = 契约一表三（`commit_hash / risk_score / model_name / predicted_at / feature_version`），`model_name` 与 pkl 名一致（`xgb_v1` 形式），可直接被 `app.ingest predictions` 消费。
+5. **SHAP 口径要说实话**：树模型与线性模型为实测耗时；`svm` / `mlp_deep` / `tabnet` 无精确 Tree/Linear 解释器，报告中写「无精确 SHAP 解释器」，不得写「已实现」。
+6. **证据**：`reports/model_metrics.md` + `reports/figs/` 三张图 + `data_model/tests` 全量通过（当前 105 条）。
