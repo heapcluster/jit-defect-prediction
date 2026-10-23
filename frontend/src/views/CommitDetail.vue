@@ -70,6 +70,29 @@
         </el-tag>
       </div>
 
+      <!-- 重新预测 -->
+      <div class="predict-bar">
+        <el-select
+          v-model="predictModel"
+          placeholder="选择模型（默认 xgb_v1）"
+          style="width: 200px"
+        >
+          <el-option
+            v-for="m in models"
+            :key="m"
+            :label="m"
+            :value="m"
+          />
+        </el-select>
+        <el-button
+          type="primary"
+          :loading="predicting"
+          @click="predict"
+        >
+          重新预测
+        </el-button>
+      </div>
+
       <!-- 元信息 -->
       <el-descriptions
         :column="2"
@@ -144,7 +167,8 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getCommitDetail } from '../api'
+import { getCommitDetail, postPredict } from '../api'
+import { ElMessage } from 'element-plus'
 import { riskColor, riskTag, riskLabel } from '../utils/risk'
 
 const props = defineProps({
@@ -155,6 +179,11 @@ const detail = ref(null)
 const loading = ref(false)
 const error = ref('')
 const errorCode = ref(0)
+
+// 重新预测：模型下拉（实际交付的 3 个 .pkl，后端 model_registry 加载的版本名）
+const models = ['lr_v1', 'rf_v1', 'xgb_v1']
+const predictModel = ref('')
+const predicting = ref(false)
 
 // 特征五维分组（docs/pages.md 第 3 节）
 const featureGroups = [
@@ -216,6 +245,27 @@ function errText(e) {
   return e?.message || '请求失败'
 }
 
+// 重新预测：POST /api/predict，刷新 risk_score / model_name / explanation
+async function predict() {
+  if (!detail.value) return
+  predicting.value = true
+  try {
+    const data = await postPredict(detail.value.commit_hash, predictModel.value || undefined)
+    detail.value = {
+      ...detail.value,
+      risk_score: data.risk_score,
+      model_name: data.model_name,
+      explanation: data.explanation || [],
+      features: data.features || detail.value.features
+    }
+    ElMessage.success('预测完成')
+  } catch (e) {
+    ElMessage.error(errText(e))
+  } finally {
+    predicting.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -236,6 +286,12 @@ onMounted(load)
   align-items: center;
   gap: 14px;
   margin: 16px 0;
+}
+.predict-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
 }
 .big {
   font-size: 40px;

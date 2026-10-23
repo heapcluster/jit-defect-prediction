@@ -14,3 +14,11 @@ export function getCommitDetail(hash) {
 export function getTrends(params) {
   return request.get('/trends', { params })
 }
+
+// 在线预测：POST /api/predict（commit_hash 必填，model_name 可选）
+export function postPredict(commitHash, modelName) {
+  return request.post('/predict', {
+    commit_hash: commitHash,
+    model_name: modelName || undefined
+  })
+}
