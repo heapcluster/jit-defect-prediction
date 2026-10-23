@@ -50,7 +50,8 @@
 ## 5. 收尾
 
 - [x] 5.1 `data_model/tests` 全量通过（107 条，2026-10-23，Python 3.12.14，exit 0）
-- [ ] 5.2 PR #88 标题与描述更新为「重训产出权威报告」，并核对 #87（已 merged）带入的 ENVIRONMENT 改动无重复
+- [x] 5.2 PR #88 标题与描述更新为「重训产出权威报告」，并核对 #87（已 merged）带入的 ENVIRONMENT 改动无重复
+      · 验证：PR #88 页面当前标题/描述（2026-10-23T08:41Z 更新）与代码一致 —— 权威报告 = 重训（58,760/25,183）、`--from-saved` 仅写 `model_metrics_from_saved.md` + `figs_from_saved/`、默认训练口径 8；#87 已 merged，本分支仅剩 ENVIRONMENT §5 一行差异（任务 1.4），无重复带入
 - [ ] 5.3 本 change 归档（`openspec archive`），规格与实现一致性抽查
 
 ---
