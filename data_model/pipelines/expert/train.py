@@ -20,7 +20,8 @@ import numpy as np
 from . import config, report
 from .data import load_effort, load_splits, xy
 from .metrics import effort_aware_metrics, effort_unaware
-from .model import MODEL_NAMES, SHAP_LINEAR_MODELS, SHAP_TREE_MODELS, build_model
+from .model import (MODEL_NAMES, SHAP_LINEAR_MODELS, SHAP_TREE_MODELS, TabNetWithEarlyStop,
+                    build_model)
 
 
 def parse_args() -> argparse.Namespace:
@@ -60,7 +61,18 @@ def from_saved(args: argparse.Namespace, train, test, X_test: np.ndarray, y_test
             continue
         try:
             model = joblib.load(pkl)
-        except Exception as exc:  # 旧产物类定义在 __main__ 时会 AttributeError
+        except AttributeError:
+            # 旧脚本产物：包装类被 pickle 成 __main__.TabNetWithEarlyStop，注入别名后重试
+            import __main__
+            if not hasattr(__main__, TabNetWithEarlyStop.__name__):
+                setattr(__main__, TabNetWithEarlyStop.__name__, TabNetWithEarlyStop)
+            try:
+                model = joblib.load(pkl)
+                print("[expert] %s 为旧产物（类定义在 __main__），已用兼容别名回读" % pkl.name)
+            except Exception as exc:
+                print("[expert] 无法回读 %s：%s: %s" % (pkl.name, type(exc).__name__, exc))
+                continue
+        except Exception as exc:
             print("[expert] 无法回读 %s：%s: %s" % (pkl.name, type(exc).__name__, exc))
             continue
         proba = model.predict_proba(X_test)[:, 1]
