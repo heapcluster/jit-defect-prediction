@@ -54,6 +54,7 @@ import argparse
 import bisect
 import csv
 import importlib.util
+import json
 import math
 import statistics
 import subprocess
@@ -104,6 +105,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--raw", type=Path, default=DEFAULT_RAW, help=f"未变换的原值中间产物（默认 {DEFAULT_RAW}）")
     p.add_argument("--since", default=None, help="只算此日期之后的提交，如 2023-01-01；不传=全量。历史特征仍用完整历史")
     p.add_argument("--limit", type=int, default=0, help="只算前 N 条（烟雾测试用，0=不限）")
+    p.add_argument("--commit", default=None, help="单条模式：计算指定 40 位提交哈希，向 stdout 输出 JSON；不写批量产物")
     return p.parse_args()
 
 
@@ -363,6 +365,7 @@ def compute_raw(
     is_fix_commit,
     repo_dir: Path,
     progress_every: int = 500,
+    verbose: bool = True,
 ) -> list[dict]:
     """对每条目标提交算出 14 项的**原值**（尚未归一化与取对数）。"""
     # 先把所有「父提交:路径」的 spec 收集齐，一次 batch 取完行数
@@ -383,7 +386,8 @@ def compute_raw(
                 seen.add(spec)
                 specs.append(spec)
 
-    print(f"[进行] 取 {len(specs)} 个父提交时刻的文件行数（lt 用）……", flush=True)
+    if verbose:
+        print(f"[进行] 取 {len(specs)} 个父提交时刻的文件行数（lt 用）……", flush=True)
     line_counts = blob_line_counts(repo_dir, specs)
 
     entropies = entropy_series(commits, [ts for _, ts, _ in plan])
@@ -439,9 +443,51 @@ def compute_raw(
                 "sexp": index.prior_author_subsystem_count(email, subsystems, ts) if email else 0,
             }
         )
-        if progress_every and i % progress_every == 0:
+        if verbose and progress_every and i % progress_every == 0:
             print(f"    {i}/{len(plan)} 条，已用 {time.time() - t0:.0f}s", flush=True)
     return rows
+
+
+def extract_single_commit(repo_dir: Path, commit_hash: str) -> dict:
+    """复用批量 v1 口径，抽取 Git 仓库 HEAD 可达的一条非合并提交。
+
+    返回元信息、14 项落库值和有序向量；不依赖预生成 CSV，也不写文件。
+    历史扫描仍为全量，调用方须另行评估在线请求的时延。
+    """
+    if len(commit_hash) != 40 or any(c not in "0123456789abcdef" for c in commit_hash.lower()):
+        raise ValueError("commit_hash 需为 40 位十六进制")
+    commit_hash = commit_hash.lower()
+    commits = scan_history(repo_dir)
+    if commit_hash not in commits:
+        raise ValueError("目标不是当前 HEAD 可达的非合并提交")
+    meta = run_git(
+        repo_dir,
+        "show", "-s", "--format=%H%x00%ct%x00%ae%x00%an%x00%B%x00%P", commit_hash,
+    ).rstrip("\n").split("\x00")
+    if len(meta) != 6:
+        raise RuntimeError("无法读取目标提交元信息")
+    _, committed_ts, email, name, message, parents = meta
+    row = {
+        "commit_hash": commit_hash,
+        "committed_at": datetime.fromtimestamp(int(committed_ts), tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+        "message": message.strip(),
+        "parent_hash": parents.split(" ")[0] if parents else "",
+    }
+    raw = compute_raw([row], commits, HistoryIndex(commits), load_is_fix_commit(), repo_dir,
+                      progress_every=0, verbose=False)
+    values = apply_contract(raw)[0]
+    return {
+        "repo_name": repo_dir.name,
+        "author_name": name.strip(),
+        "author_email": email.strip().lower(),
+        "message": row["message"],
+        "parent_hash": row["parent_hash"],
+        "commit_hash": commit_hash,
+        "committed_at": row["committed_at"],
+        "feature_version": FEATURE_VERSION,
+        "features": {field: values[field] for field in FEATURE_FIELDS},
+        "vector": [values[field] for field in FEATURE_FIELDS],
+    }
 
 
 # ══ 契约口径变换 ══════════════════════════════════════════════════════════
@@ -569,6 +615,14 @@ def main() -> int:
     if not (args.repo / ".git").exists():
         print(f"[失败] 找不到仓库：{args.repo}（先按 docs/model/data-pipeline.md 第 2 节克隆并固定版本）", file=sys.stderr)
         return 2
+    if args.commit is not None:
+        try:
+            result = extract_single_commit(args.repo, args.commit)
+        except (RuntimeError, ValueError) as exc:
+            print(f"[失败] {exc}", file=sys.stderr)
+            return 4
+        print(json.dumps(result, ensure_ascii=False))
+        return 0
     if not args.commits.exists():
         print(f"[失败] 找不到提交清单：{args.commits}（先跑 01_extract_commits.py）", file=sys.stderr)
         return 2
