@@ -1,7 +1,7 @@
 # backend-model-load-paths — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/predict-api/spec.md`
-> 负责人：backend 吕建江 ｜ 创建：2026-10-23 ｜ 更新：2026-10-24 ｜ 状态：进行中（8/10；已 rebase 到 main `f5ca61d` 并叠加在 #96 清单加载之上，SQLite 验证完成，真实环境验收与清单范围裁定待收口）
+> 负责人：backend 吕建江 ｜ 创建：2026-10-23 ｜ 更新：2026-10-24 ｜ 状态：进行中（8/11；已 rebase 到 main `f5ca61d` 并叠加在 #96 清单加载之上，SQLite 验证完成，PR #99 head `d806e73` 待复审，真实环境验收与清单范围裁定待收口）
 > 用户故事：无（工程化）；支撑契约三 POST /api/predict 与四接口 SQLite 联调
 > 统一格式见 `docs/common/openspec-task-template.md`；本文件末的「测试与验证」为强制板块。
 
@@ -22,7 +22,8 @@
 - [x] 3.1 严格校验单 change 和全量规格，逐场景核对并提交独立 PR — 交付物：PR #99（https://github.com/heapcluster/jit-defect-prediction/pull/99）；2026-10-24 按苏哲勋 CHANGES_REQUESTED 意见 rebase 到 main `f5ca61d`，实现提交 `15164a0`，两处冲突按「在清单加载之上叠加导入路径与失败汇总」解决；仍未合入，不代表T9验收完成。
 - [ ] 3.2 向模型线蒋励说明当前 TabNet 权重的 __main__ 导出问题并核验重新导出结果 — 交付形式：PR 中的复现条件与模型交付回执；本机真实权重复验仍7/8，此项不得勾选。
 - [ ] 3.3 2026-10-24 按已授权环境补实际模型 API 与 MySQL 证据 — 交付给 backend 吕建江；包括T9逐个model_name请求、非空真实解释、幂等与性能。未执行前只报告SQLite结果。
-- [ ] 3.4 把「#96 清单只声明 3 模型 vs T9 要求 8 模型全加载」的冲突提交裁定 — 交付形式：PR #99 评论 + 飞书串给苏哲勋/蒋励，附 2026-10-24 只读实测 `loaded models: ['lr_v1', 'rf_v1', 'xgb_v1']`；裁定前不自行改清单范围，3.2/3.3 不得勾选。
+- [x] 3.4 把「#96 清单只声明 3 模型 vs T9 要求 8 模型全加载」的冲突提交裁定 — 交付物：PR #99 评论（https://github.com/heapcluster/jit-defect-prediction/pull/99#issuecomment-6370955484），附 2026-10-24 只读实测 `loaded models: ['lr_v1', 'rf_v1', 'xgb_v1']` 与 A/B 两条路；已重新请求 sober-hub + jolly326 复审。裁定前不自行改清单范围，3.2/3.3 不得勾选。
+- [ ] 3.5 飞书把同一裁定问题发给蒋励/苏哲勋 — 交付形式：吕建江本人粘贴我给的串；发出前本项不勾，不以 PR 评论代替飞书通知。
 
 ## 测试与验证（强制板块）
 
