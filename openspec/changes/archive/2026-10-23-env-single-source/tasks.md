@@ -1,7 +1,7 @@
 # env-single-source — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/environment/spec.md`
-> 负责人：model 蒋励 ｜ 创建：2026-10-21 ｜ 状态：进行中
+> 负责人：model 蒋励 ｜ 创建：2026-10-21 ｜ 状态：已完成（8/8 任务勾选，2026-10-23 归档；§3 验收 ③ Linux/WSL、④ GPU 两条**未执行**，已在 §5 已知缺口登记，不计入完成范围）
 > 用户故事：无（工程化）
 > 统一格式见 `docs/common/openspec-task-template.md`；**本文件末的「测试与验证」为强制板块，缺失视为提案不完整。**
 

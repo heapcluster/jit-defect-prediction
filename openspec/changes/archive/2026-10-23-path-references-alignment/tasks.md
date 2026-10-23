@@ -71,7 +71,7 @@
 | 验收依据 | 5 份 MODIFIED delta 的 SHALL/MUST 条目中「MUST 可入库可复现 / 报告路径」相关条目 |
 | 用例数与结果 | 5 条 ｜ **5/5 通过**（2026-10-23 于 `main` @ `3a9b7b0` 实测） |
 | 复现命令 / 步骤 | `openspec validate path-references-alignment --strict`；随后对每条修订路径执行 `Test-Path <修订后路径>`（5/5 必须为 True） |
-| 证据归档 | `openspec/changes/path-references-alignment/path-scan.md`（§1 路径存在性 6/6 True、§2 残留扫描 6 处全被 delta 覆盖、§4 校验与回归） |
+| 证据归档 | `openspec/changes/archive/2026-10-23-path-references-alignment/path-scan.md`（§1 路径存在性 6/6 True、§2 残留扫描 6 处全被 delta 覆盖、§4 校验与回归） |
 
 ### 4. 非功能验证（本 change 触及则必填，否则写「本 change 不触及」）
 
