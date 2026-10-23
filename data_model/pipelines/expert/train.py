@@ -39,7 +39,57 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--skip-shap", action="store_true")
     p.add_argument("--no-export", action="store_true", help="只出指标不导出 .pkl")
     p.add_argument("--no-charts", action="store_true")
+    p.add_argument("--from-saved", action="store_true",
+                   help="不训练：读 --model-dir 下已有的 *_v1.pkl 复算指标，重写报告并补 figures")
     return p.parse_args()
+
+
+def from_saved(args: argparse.Namespace, train, test, X_test: np.ndarray, y_test: np.ndarray,
+               effort_sets: dict, effort_loc: np.ndarray, wanted: list[str]) -> int:
+    """不重训，用已保存的 .pkl 复算指标 → 重写 Markdown 报告 + 出图。
+
+    SHAP 这一段不重算（需要 shap 与逐条前向，且旧值属于旧批次模型），
+    报告里会如实显示「未实测」。
+    """
+    results: dict[str, dict] = {}
+    probas: dict[str, np.ndarray] = {}
+    for name in wanted:
+        pkl = args.model_dir / ("%s_v1.pkl" % name)
+        if not pkl.is_file():
+            print("[expert] 缺权重，跳过：%s" % pkl.name)
+            continue
+        try:
+            model = joblib.load(pkl)
+        except Exception as exc:  # 旧产物类定义在 __main__ 时会 AttributeError
+            print("[expert] 无法回读 %s：%s: %s" % (pkl.name, type(exc).__name__, exc))
+            continue
+        proba = model.predict_proba(X_test)[:, 1]
+        probas[name] = proba
+        results[name] = {"model_name": "%s_v1" % name, "label": MODEL_NAMES.get(name, name),
+                         **effort_unaware(y_test, proba),
+                         "effort": {k: effort_aware_metrics(proba, y_test, e)
+                                    for k, e in effort_sets.items()}}
+        print("[expert] %-8s AUC=%.4f F1=%.4f（自 %s 复算）"
+              % (name, results[name]["auc"], results[name]["f1"], pkl.name))
+    if not results:
+        print("[expert] 没有可用权重，未出报告")
+        return 2
+
+    args.report.parent.mkdir(parents=True, exist_ok=True)
+    args.report.write_text(report.render(args, train, test, results),
+                           encoding="utf-8", newline="\n")
+    print("[expert] 报告：%s" % args.report)
+
+    if not args.no_charts:
+        try:
+            figs = report.make_charts(results, probas, y_test, effort_loc,
+                                      args.report.parent / report.FIG_DIR_NAME)
+        except ImportError as exc:
+            print("[expert] 出图需要 matplotlib（environment.yml 已固定 3.10.1）：%s" % exc)
+            return 3
+        for f in figs:
+            print("[expert] 图表：%s" % f)
+    return 0
 
 
 def shap_latency(name: str, model, X_test: np.ndarray, n_rows: int) -> dict:
@@ -91,6 +141,10 @@ def main() -> int:
                    "改动文件数 nf": effort_raw["effort_files"].to_numpy()}
 
     wanted = [m.strip() for m in args.models.split(",") if m.strip()]
+    if args.from_saved:
+        return from_saved(args, train, test, X_test, y_test, effort_sets,
+                          effort_raw["effort_loc"].to_numpy(), wanted)
+
     results: dict[str, dict] = {}
     probas: dict[str, np.ndarray] = {}
     for name in wanted:

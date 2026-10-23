@@ -22,7 +22,7 @@
 |---|---|
 | `config.py` | 路径、14 项特征列序、种子 42、阈值 0.5、SHAP/基线参数 —— 改口径只改这里 |
 | `data.py` | 切分加载 + 列校验 + 工作量表对齐（LOC = la+ld，文件数 = nf，取自 03 原始表） |
-| `model.py` | 8 个模型定义（`MODEL_NAMES` / `MODEL_CLASS` 是覆盖名单的唯一来源） |
+| `model.py` | 12 个模型定义（`MODEL_NAMES` / `MODEL_CLASS` 是覆盖名单的唯一来源） |
 | `metrics.py` | 两类指标（与 06 同口径：随机基线种子 0 / 200 次抽样） |
 | `train.py` | 训练入口：fit → 指标 → SHAP 实测 → 导出 .pkl + feature_order.txt → 报告 + 图表 |
 | `predict.py` | 全量推理（原 07）：`prediction_result.csv`（契约一表三）+ 三条断言 |
@@ -35,9 +35,10 @@
 
 ```bash
 cd data_model
-python -m pipelines.expert.train                    # 全部 8 个模型（[models] 仍只列 lr/rf/xgb）
+python -m pipelines.expert.train                    # 全部 12 个模型（[models] 仍只列 lr/rf/xgb）
 python -m pipelines.expert.train --delivery-models lr,rf,xgb   # 显式指定交付清单
 python -m pipelines.expert.train --no-export        # 只出指标，不覆盖 .pkl
+python -m pipelines.expert.train --from-saved --models lr,rf,xgb   # 不训练：用已有 pkl 复算指标 + 重写报告 + 出图
 python -m pipelines.expert.matrix                   # 覆盖矩阵（原 08）
 python -m pipelines.expert.predict                  # 全量推理（原 07）
 python -m pipelines.expert.calibrate                # 校准与阈值（原 09）
@@ -48,7 +49,7 @@ python -m pipelines.expert.significance             # 显著性检验（原 16�
 
 | 路径 | 内容 | 入库 |
 |---|---|---|
-| `models/*_v1.pkl` | 8 个模型（joblib） | 否（`*.pkl` 全局忽略） |
+| `models/*_v1.pkl` | 模型权重（joblib；数量以 `config.DEFAULT_MODELS` 为准，当前 12 个） | 否（`*.pkl` 全局忽略） |
 | `models/feature_order.txt` | 交付清单（契约二第三节的副本） | 是 |
 | `reports/model_metrics.md` | 两类指标 + SHAP 实测 | 是 |
 | `reports/figs/*.png` | ROC / effort 曲线 / 柱状图 | 是 |
