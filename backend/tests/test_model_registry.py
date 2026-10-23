@@ -17,6 +17,16 @@ def _fit(n_features: int = 14) -> DecisionTreeClassifier:
     return DecisionTreeClassifier(max_depth=3, random_state=7).fit(X, y)
 
 
+def _manifest(directory, *names):
+    (directory / "feature_order.txt").write_text(
+        "[models]\n" + "\n".join(f"{name}.pkl" for name in names)
+        + "\n[feature_order]\n"
+        + "\n".join(f"{i}. {name}" for i, name in enumerate(config.FEATURE_COLUMNS, 1))
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 @pytest.fixture()
 def restore_registry():
     yield
@@ -25,6 +35,7 @@ def restore_registry():
 
 def test_joblib_format_model_loads(tmp_path, monkeypatch, restore_registry):
     joblib.dump(_fit(), tmp_path / "joblib_v1.pkl")
+    _manifest(tmp_path, "joblib_v1")
     monkeypatch.setattr(config, "MODEL_DIR", tmp_path)
     model_registry.load_models()
     assert model_registry.has("joblib_v1")
@@ -33,6 +44,7 @@ def test_joblib_format_model_loads(tmp_path, monkeypatch, restore_registry):
 def test_wrong_feature_count_skipped(tmp_path, monkeypatch, restore_registry):
     joblib.dump(_fit(n_features=7), tmp_path / "bad_v1.pkl")
     joblib.dump(_fit(), tmp_path / "good_v1.pkl")
+    _manifest(tmp_path, "bad_v1", "good_v1")
     monkeypatch.setattr(config, "MODEL_DIR", tmp_path)
     model_registry.load_models()
     assert not model_registry.has("bad_v1")
@@ -41,6 +53,7 @@ def test_wrong_feature_count_skipped(tmp_path, monkeypatch, restore_registry):
 
 def _explain_of(tmp_path, monkeypatch, model, name):
     joblib.dump(model, tmp_path / f"{name}.pkl")
+    _manifest(tmp_path, name)
     monkeypatch.setattr(config, "MODEL_DIR", tmp_path)
     model_registry.load_models()
     assert model_registry.has(name)
@@ -99,6 +112,7 @@ def test_explain_linear_pipeline_shap_additivity(
         ]
     ).fit(X, y)
     joblib.dump(pipe, tmp_path / "pipe_v1.pkl")
+    _manifest(tmp_path, "pipe_v1")
     monkeypatch.setattr(config, "MODEL_DIR", tmp_path)
     model_registry.load_models()
     rows = model_registry.explain(model_registry.get_model("pipe_v1"), [0.5] * 14)
@@ -113,3 +127,24 @@ def test_explain_linear_pipeline_shap_additivity(
     )
     # explain() 对贡献 round 到 6 位并丢弃 0 项，容差 1e-4 仍远小于 /scale_ 级错误（O(1)）
     assert abs(signed - expected) < 1e-4
+
+
+def test_only_declared_delivery_models_load(tmp_path, monkeypatch, restore_registry):
+    for name in ("lr_v1", "rf_v1", "xgb_v1", "tabnet_v1"):
+        joblib.dump(_fit(), tmp_path / f"{name}.pkl")
+    _manifest(tmp_path, "lr_v1", "rf_v1", "xgb_v1")
+    monkeypatch.setattr(config, "MODEL_DIR", tmp_path)
+    model_registry.load_models()
+    assert sorted(model_registry._REGISTRY) == ["lr_v1", "rf_v1", "xgb_v1"]
+
+
+def test_manifest_missing_or_wrong_feature_order_loads_nothing(tmp_path, monkeypatch, restore_registry):
+    joblib.dump(_fit(), tmp_path / "lr_v1.pkl")
+    monkeypatch.setattr(config, "MODEL_DIR", tmp_path)
+    model_registry.load_models()
+    assert not model_registry._REGISTRY
+    _manifest(tmp_path, "lr_v1")
+    manifest = tmp_path / "feature_order.txt"
+    manifest.write_text(manifest.read_text(encoding="utf-8").replace("1. ns", "1. wrong"), encoding="utf-8")
+    model_registry.load_models()
+    assert not model_registry._REGISTRY

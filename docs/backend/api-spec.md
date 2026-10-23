@@ -54,6 +54,7 @@
 ### 4. `POST /api/predict` —— 在线预测（课程硬要求：对外在线预测服务）
 请求体：`{ "commit_hash": "40位十六进制", "model_name"?: "默认最新" }`
 响应 `data`：`commit_hash` `model_name` `risk_score` `predicted_at` `features{14项}` `explanation[]`（结构与第 2 节一致）。
+- 本次演示的在线模型以 `MODEL_DIR/feature_order.txt` 的 `[models]` 段为准（当前 `lr_v1` / `rf_v1` / `xgb_v1`）；目录内其他训练权重不进入注册表。清单缺失或 `[feature_order]` 与契约二 14 项顺序不一致时，注册表保持空并记录服务端错误；查询接口仍可用，预测返回 50000。
 - `features` 给**口径处理后的值**（除 `fix` 外取自然对数；`la/ld/lt/nuc` 先归一化）。
 - 错误：缺哈希/非 40 位 → `40001`；哈希不在 `commit` 表 → `40400`；无特征行 → `40400`；模型加载失败 → `50000`（只写日志不回显路径）。
 - **幂等**：同一 `(commit_hash, model_name)` 重复调用，库里只留最新一行，不得累积重复。
