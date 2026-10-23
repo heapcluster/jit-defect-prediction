@@ -117,4 +117,51 @@ describe('CommitDetail 重新预测（POST /api/predict 入口）', () => {
     // 失败后 detail 仍是未预测（不被污染）
     expect(wrapper.vm.detail.risk_score).toBe(null)
   })
+
+  it('40400：详情加载失败 → errorCode 40400、文案「该提交不存在」', async () => {
+    const err = new Error('该提交不存在')
+    err.code = 40400
+    getCommitDetail.mockRejectedValue(err)
+    const wrapper = mount(CommitDetail, {
+      props: { hash: HASH },
+      global: {
+        mocks: { $router: routerStub },
+        stubs: { 'el-button': true, 'el-select': true, 'el-option': true, 'el-tag': true, 'el-descriptions': true, 'el-descriptions-item': true, 'el-empty': true, 'el-alert': true }
+      }
+    })
+    await flushPromises()
+    expect(wrapper.vm.error).toBe('该提交不存在')
+    expect(wrapper.vm.errorCode).toBe(40400)
+  })
+
+  it('解释为空：有分数但 explanation 空数组 → 显示「该模型未提供特征解释」', async () => {
+    getCommitDetail.mockResolvedValue({
+      commit_hash: HASH,
+      author_name: 'dev',
+      committed_at: '2026-08-01T00:00:00Z',
+      message: 'fix',
+      risk_score: 0.54,
+      model_name: 'xgb_v1',
+      features: {},
+      explanation: []
+    })
+    const wrapper = mount(CommitDetail, {
+      props: { hash: HASH },
+      global: {
+        mocks: { $router: routerStub },
+        stubs: {
+          'el-button': true,
+          'el-select': true,
+          'el-option': true,
+          'el-tag': { template: '<span><slot/></span>' },
+          'el-descriptions': true,
+          'el-descriptions-item': true,
+          'el-empty': { template: '<div><slot/><span>{{description}}</span></div>', props: ['description'] },
+          'el-alert': true
+        }
+      }
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('该模型未提供特征解释')
+  })
 })

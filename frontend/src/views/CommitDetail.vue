@@ -87,10 +87,14 @@
         <el-button
           type="primary"
           :loading="predicting"
+          :disabled="forbidden"
           @click="predict"
         >
           重新预测
         </el-button>
+        <span class="predicted-at">
+          预测时间 {{ formatPredictedAt(detail.predicted_at) }}
+        </span>
       </div>
 
       <!-- 元信息 -->
@@ -184,6 +188,7 @@ const errorCode = ref(0)
 const models = ['lr_v1', 'rf_v1', 'xgb_v1']
 const predictModel = ref('')
 const predicting = ref(false)
+const forbidden = ref(false)
 
 // 特征五维分组（docs/pages.md 第 3 节）
 const featureGroups = [
@@ -220,6 +225,14 @@ function formatTime(iso) {
   return new Date(iso).toLocaleString('zh-CN', { hour12: false })
 }
 
+// 预测时间：YYYY-MM-DD HH:mm（predict 响应有 predicted_at，GET 详情没有，首次加载显示「—」）
+function formatPredictedAt(iso) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 async function load() {
   loading.value = true
   error.value = ''
@@ -245,7 +258,7 @@ function errText(e) {
   return e?.message || '请求失败'
 }
 
-// 重新预测：POST /api/predict，刷新 risk_score / model_name / explanation
+// 重新预测：POST /api/predict，刷新 risk_score / model_name / explanation / predicted_at
 async function predict() {
   if (!detail.value) return
   predicting.value = true
@@ -256,10 +269,13 @@ async function predict() {
       risk_score: data.risk_score,
       model_name: data.model_name,
       explanation: data.explanation || [],
-      features: data.features || detail.value.features
+      features: data.features || detail.value.features,
+      predicted_at: data.predicted_at || null
     }
     ElMessage.success('预测完成')
   } catch (e) {
+    // 40100 令牌失效：按 pages.md §5 不给重试，禁用重新预测按钮
+    if (e?.code === 40100) forbidden.value = true
     ElMessage.error(errText(e))
   } finally {
     predicting.value = false
