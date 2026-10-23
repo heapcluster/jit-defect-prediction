@@ -21,6 +21,11 @@ artifacts/
 *.pt
 *.pth
 *.ckpt
+*.safetensors
+*.bin
+*.db
+# 本地临时模型目录（联调用；正式交付在 data_model/pipelines/*/models/）
+model/
 
 # ===== Python =====
 __pycache__/
