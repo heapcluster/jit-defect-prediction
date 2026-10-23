@@ -104,6 +104,7 @@
 - 操作：`POST /api/predict`，body `{"commit_hash":"000...001"}`（默认模型）与 `{"commit_hash":"000...001","model_name":"xgb_v1"}`（指定）
 - 预期：`code=0`，返回 `risk_score` + 14 项 `features` + `explanation`（SHAP 归因）
 - 实际：`code=0`，默认模型 `xgb_v1`，`risk_score=0.54026`，features 14 项齐全，explanation 含 SHAP 归因（非空）✅
+- 模型来源：`backend/.env` 的 `MODEL_DIR=D:/Study-doc/homework/software-test/model`（本机模型目录，含 `lr_v1.pkl`/`rf_v1.pkl`/`xgb_v1.pkl` + `feature_order.txt`；非 #77 后的默认目录 `data_model/pipelines/expert/models`）
 
 响应摘录（predict）：
 ```json
