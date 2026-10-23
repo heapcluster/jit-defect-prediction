@@ -69,6 +69,23 @@
  "series":[{"period":"2026-08","commit_count":3,"avg_risk":0.2,"high_risk_count":0}]}}
 ```
 
+### API-04 在线预测（POST /api/predict）
+
+- 操作：`POST /api/predict`，body `{"commit_hash":"000...001"}`（默认模型）与 `{"commit_hash":"000...001","model_name":"xgb_v1"}`（指定）
+- 预期：`code=0`，返回 `risk_score` + 14 项 `features` + `explanation`（SHAP 归因）
+- 实际：`code=0`，默认模型 `xgb_v1`，`risk_score=0.54026`，features 14 项齐全，explanation 含 SHAP 归因（非空）✅
+- 模型来源：`backend/.env` 的 `MODEL_DIR=D:/Study-doc/homework/software-test/model`（本机模型目录，含 `lr_v1.pkl`/`rf_v1.pkl`/`xgb_v1.pkl` + `feature_order.txt`；非 #77 后的默认目录 `data_model/pipelines/expert/models`）
+
+响应摘录（predict）：
+```json
+{"code":0,"message":"ok","data":{"commit_hash":"000...001","model_name":"xgb_v1",
+ "risk_score":0.54026,"predicted_at":"2026-10-20T14:31:46.847987Z",
+ "features":{"ns":1.0986,"nd":1.6094,"nf":1.9459,"entropy":1.42,"la":-4.272,
+ "ld":-5.2753,"lt":7.1136,"fix":1,"ndev":1.3863,"age":2.5257,"nuc":0.2513,
+ "exp":5.7683,"rexp":3.8114,"sexp":2.8904},
+ "explanation":[{"feature":"ns","contribution":...,"direction":...}, ...]}}
+```
+
 ### 鉴权失败
 
 - 操作：`GET /api/commits`（不带 `X-API-Key`）
