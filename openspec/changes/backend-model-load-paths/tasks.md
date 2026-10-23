@@ -1,7 +1,7 @@
 # backend-model-load-paths — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/predict-api/spec.md`
-> 负责人：backend 吕建江 ｜ 创建：2026-10-23 ｜ 状态：进行中（实现与SQLite验证完成，PR与真实环境验收待收口）
+> 负责人：backend 吕建江 ｜ 创建：2026-10-23 ｜ 状态：进行中（7/9；实现与SQLite验证完成，PR #99已创建，真实环境验收待收口）
 > 用户故事：无（工程化）；支撑契约三 POST /api/predict 与四接口 SQLite 联调
 > 统一格式见 `docs/common/openspec-task-template.md`；本文件末的「测试与验证」为强制板块。
 
@@ -19,7 +19,7 @@
 
 ## 3. 审阅与跨线交付
 
-- [ ] 3.1 严格校验单 change 和全量规格，逐场景核对并提交独立 PR — 交付物：PR 验证输出；严格校验已通过，PR创建后回填。审阅人苏哲勋，main合入前不标交付完成。
+- [x] 3.1 严格校验单 change 和全量规格，逐场景核对并提交独立 PR — 交付物：PR #99（https://github.com/heapcluster/jit-defect-prediction/pull/99），实现提交 `c920e50`；已请求苏哲勋审阅，未合入，不代表T9验收完成。
 - [ ] 3.2 向模型线蒋励说明当前 TabNet 权重的 __main__ 导出问题并核验重新导出结果 — 交付形式：PR 中的复现条件与模型交付回执；本机真实权重复验仍7/8，此项不得勾选。
 - [ ] 3.3 2026-10-24 按已授权环境补实际模型 API 与 MySQL 证据 — 交付给 backend 吕建江；包括T9逐个model_name请求、非空真实解释、幂等与性能。未执行前只报告SQLite结果。
 
@@ -75,7 +75,7 @@
 
 | 缺口 | 原因 | 归属 | 计划 |
 |---|---|---|---|
-| PR创建与审阅 | 本文件记录时实现已验证，尚待创建PR | backend 吕建江 + 苏哲勋 | 创建后回填，不提前勾3.1 |
+| PR审阅与合入 | PR #99已创建并请求审阅，尚未合入 | backend 吕建江 + 苏哲勋 | 等待PR自身CI和非作者审阅；不把创建PR当成T9验收 |
 | T9仍未达标：当前TabNet权重仅加路径仍失败 | 权重引用__main__.TabNetWithEarlyStop；本改动不做任意主模块别名 | model 蒋励 + backend 吕建江 | 可导入重新导出后独立进程复验；不能删模型或报7/8达标 |
 | 八模型逐个POST非空解释与P95 | 路径修复不等于新增非线性SHAP支持；fixture非空不代替真权重验证 | backend 吕建江 | 后续补真正解释器及八模型证据，不返回伪造非空值 |
 | MySQL建表、灌库和幂等实测 | 本轮按要求只跑SQLite | backend 吕建江 | 2026-10-24隔离环境实跑 |
