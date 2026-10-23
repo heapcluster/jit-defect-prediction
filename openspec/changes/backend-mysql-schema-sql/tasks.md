@@ -1,7 +1,7 @@
 # backend-mysql-schema-sql — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/db-schema/spec.md`
-> 负责人：backend 吕建江 ｜ 创建：2026-10-23 ｜ 状态：进行中（4/8；SQL与静态验证完成，待创建PR，MySQL未执行）
+> 负责人：backend 吕建江 ｜ 创建：2026-10-23 ｜ 状态：进行中（5/8；SQL与静态验证完成，PR #100已创建，MySQL未执行）
 > 用户故事：无（工程化）；SQL客户端四表初始化交付，infra/schema.sql由用户明确交给后端
 > 统一格式见 `docs/common/openspec-task-template.md`；本文件末的「测试与验证」为强制板块。
 
@@ -14,7 +14,7 @@
 
 - [x] 2.1 新增四表完整生成结果比对和主键/索引断言；拒收多余数据/权限/破坏性语句 — 交付物：`backend/tests/test_schema_sql.py`；cwd=backend执行该文件通过。
 - [x] 2.2 删除预测唯一约束构造反例，验证漂移检查确实失败；运行后端回归及OpenSpec严格校验 — 交付物：测试输出追加本文件§5，不冒充MySQL执行证据。
-- [ ] 2.3 提交独立 PR，说明静态已测与MySQL未测的边界 — 交付给 infra 苏哲勋审阅；不修改工作流或其它infra文件。
+- [x] 2.3 提交独立 PR，说明静态已测与MySQL未测的边界 — 交付物：PR #100（https://github.com/heapcluster/jit-defect-prediction/pull/100），实现提交 `76cff35`；已请求infra苏哲勋审阅，未合入，MySQL仍未执行。
 
 ## 3. MySQL 后续验收
 
@@ -55,7 +55,7 @@
 | 验收依据 | `openspec/changes/backend-mysql-schema-sql/specs/db-schema/spec.md` 六个Scenario |
 | 用例数与结果 | 静态门禁已通过；6个Scenario尚无MySQL实机验收证据，不标为端到端通过 |
 | 复现命令 | cwd=backend：`python -m pytest tests/test_schema_sql.py tests/test_db.py` → 28 passed, 1 warning in 0.18s；cwd=仓库根：`openspec validate backend-mysql-schema-sql --strict` → valid；`openspec validate --all --strict` → 20 passed, 0 failed；MySQL待测按§2操作 |
-| 证据归档 | 本文件§5记录基线、命令、执行时间与真实输出；2.3和第3节全部未勾选，不把未来结果写成已通过 |
+| 证据归档 | 本文件§5记录基线、命令、执行时间与真实输出；2.3已由PR #100闭环，第3节MySQL验收仍全部未勾选 |
 
 ### 4. 非功能验证
 
@@ -71,7 +71,7 @@
 
 | 缺口 | 原因 | 归属 | 计划 |
 |---|---|---|---|
-| 独立提交/PR审阅 | 实现与验证已完成，待主助手复核后提交用户要求的第二个PR | backend 吕建江 + infra 苏哲勋 | 已有用户授权，PR创建后回填2.3 |
+| PR审阅与合入 | PR #100已创建，源码与文件清单已复核 | backend 吕建江 + infra 苏哲勋 | 等待PR自身CI及非作者审阅，不代表MySQL验收完成 |
 | MySQL空库、重跑、双路径等价性、唯一键拒重与错误schema自检 | 静态生成不能证明真实引擎行为；本轮不动库 | backend 吕建江 | 2026-10-24，先确认隔离库授权；第3节全部保持未完成 |
 | 已有错误表的迁移 | IF NOT EXISTS故意不覆盖已有表 | backend 吕建江 | 若自检失败另立迁移，不在本SQL自动修复 |
 | 真实数据灌入 | 用户明确留后续，且与schema交付独立 | backend 吕建江 + model 蒋励 | 确认四份正确CSV与备份后执行 |
@@ -94,4 +94,4 @@
 
 警告如实保留：target为FastAPI/Starlette TestClient使用httpx的弃用提示；全量另有matplotlib调用pyparsing的弃用提示，共15条。本次未通过新增依赖或修改配置消除它们。
 
-设计偏离：无。只完成1.1/1.2/2.1/2.2；PR与MySQL执行按用户边界留待后续。未在MySQL创建数据库、修改权限、建表或灌入数据；SQLite仅运行既有回归。旧`openspec/changes/env-single-source/evidence/env-create-verify-log.txt`原有换行dirty未处理，前后`git hash-object`均为`d2ef8bbb9c2fb42933c0249be97ade55d5dee8cc`。
+设计偏离：无。上述离线测量时完成1.1/1.2/2.1/2.2，之后主助手独立复跑联合测试得28 passed（0.14s），复核代码并创建PR #100，现2.3也已完成。第3节MySQL操作仍待后续：未创建数据库、修改权限、建表或灌入数据；SQLite仅运行回归。旧`openspec/changes/env-single-source/evidence/env-create-verify-log.txt`原有换行dirty未处理，前后`git hash-object`均为`d2ef8bbb9c2fb42933c0249be97ade55d5dee8cc`。
