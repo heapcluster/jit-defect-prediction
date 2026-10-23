@@ -24,6 +24,7 @@ GitHub 仓库配置、分支规范与分支保护、PR / Issue 模板、CI 流�
 
 `.github/workflows/pr-auto-review-prototype.yml` 在 PR 打开、更新、重开或退出草稿时触发，
 只检出可信的目标分支代码；工作流没有模型凭据，也没有提交审阅的权限。
+工作流须先合入默认分支，之后的新 PR/更新才会触发；不能把本 PR 自己未发生的 Actions 运行写成验收证据。
 当前 `infra/pr_review_config.json` 设置 `provider: none`、`publish: false`，因此线上只会检查
 PR 差异是否可完整获取，并输出 `SKIP: no model decision`，**不会自动批准或打回**。
 
