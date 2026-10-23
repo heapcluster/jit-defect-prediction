@@ -43,6 +43,7 @@
 - `features` 键名必须与 `feature-columns.md` 一致。
 - **不返回真实标签**（predict 表无真实标签字段）。
 - 提交存在但 `prediction` 无行：`code=0`，`risk_score`/`model_name` 为 `null`、`explanation` 为 `[]`（不是错误，前端渲染「尚未预测」），**不得返回 40400、不得用 0.0 冒充**。
+- 若表内全局默认模型对该提交无预测，但该提交有其他在线模型预测，详情按该提交已有模型的版本序取最新一条，不得误报「尚未预测」。
 - 提交存在但 `commit_feature` 无行：`code=0`，`features` 为 `null`（不得 40400、不得以 0 填充）。
 
 ### 3. `GET /api/trends` —— 缺陷引入趋势
@@ -56,7 +57,8 @@
 响应 `data`：`commit_hash` `model_name` `risk_score` `predicted_at` `features{14项}` `explanation[]`（结构与第 2 节一致）。
 - 本次演示的在线模型以 `MODEL_DIR/feature_order.txt` 的 `[models]` 段为准（当前 `lr_v1` / `rf_v1` / `xgb_v1`）；目录内其他训练权重不进入注册表。清单缺失或 `[feature_order]` 与契约二 14 项顺序不一致时，注册表保持空并记录服务端错误；查询接口仍可用，预测返回 50000。
 - `features` 给**口径处理后的值**（除 `fix` 外取自然对数；`la/ld/lt/nuc` 先归一化）。
-- 错误：缺哈希/非 40 位 → `40001`；哈希不在 `commit` 表 → `40400`；无特征行 → `40400`；模型加载失败 → `50000`（只写日志不回显路径）。
+- 可配置 `SOURCE_REPO` 指向本地 Git 仓库副本（路径由服务端 `.env` 设置，不接受请求方传入）。提交或特征行缺失时，后端调用 `data_model/preparation/03_extract_features.py` 的单条 v1 入口，现算 14 项、落 `commit`/`commit_feature` 后实时推理；仓库 HEAD 必须包含目标非合并提交。未配置来源时保留原有只查库行为。
+- 错误：缺哈希/非 40 位 → `40001`；未配置来源且哈希不在 `commit` 表，或已配置来源但目标不可达 → `40400`；仓库路径失效/抽取内部失败、模型加载失败 → `50000`（只写日志不回显路径）。
 - **幂等**：同一 `(commit_hash, model_name)` 重复调用，库里只留最新一行，不得累积重复。
 - 性能靶子：压测针对本接口，不拿查询接口代替。
 

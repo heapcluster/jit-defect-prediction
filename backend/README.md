@@ -77,6 +77,8 @@ python -m app.ingest predictions <prediction_result.csv>
 
 **A（后端加载模型文件）**：后端启动时从 `data_model/pipelines/expert/models/` 加载 `.pkl` 文件，供 `POST /api/predict` 实时推理。
 
+新提交现算特征需在 `backend/.env` 设置 `SOURCE_REPO=<本地 Apache Camel Git 仓库绝对路径>`，并确保目标提交已被该仓库 HEAD 包含；未设置时接口只使用已灌库的特征。首次现算要扫描 Git 历史，不能把功能测试通过当作 500ms 性能验收，须在真实 Camel 副本上另测。
+
 - 模型文件路径与特征顺序由契约约定，见 `docs/design/sprint0-scope.md` 第 4 节「跨线接口已定」。
 - **特征顺序以 `docs/model/feature-columns.md` 为准**，不要按 `dict` 的插入顺序自己猜 —— 顺序错了模型不报错，只会给出错误答案。
 

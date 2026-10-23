@@ -14,6 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 API_TOKEN = os.getenv("API_TOKEN", "")
 MODEL_DIR = Path(os.getenv("MODEL_DIR", "") or (REPO_ROOT / "data_model" / "pipelines" / "expert" / "models"))
+SOURCE_REPO = Path(os.environ["SOURCE_REPO"]) if os.getenv("SOURCE_REPO") else None
 
 # 契约二 §3 的 14 项特征列顺序：模型输入向量按此顺序组装，不按 dict 插入顺序猜
 FEATURE_COLUMNS = (

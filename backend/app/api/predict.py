@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
@@ -9,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from app import config, model_registry, schemas
+from app import config, feature_source, model_registry, schemas
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import INTERNAL_ERROR_MESSAGE, AppError
@@ -18,6 +19,7 @@ from app.models import Commit, CommitFeature, Prediction
 router = APIRouter(dependencies=[Depends(require_api_key)])
 
 HASH_HEX = "0123456789abcdef"
+logger = logging.getLogger("backend.predict")
 
 
 class PredictRequest(BaseModel):
@@ -31,16 +33,55 @@ def predict(body: PredictRequest) -> dict:
         c not in HASH_HEX for c in body.commit_hash.lower()
     ):
         raise AppError(40001, "参数非法：commit_hash 需为 40 位十六进制")
+    commit_hash = body.commit_hash.lower()
 
     with SessionLocal() as session:
-        commit = session.execute(select(Commit).where(Commit.commit_hash == body.commit_hash)).scalar_one_or_none()
-        if commit is None:
-            raise AppError(40400, "commit not found")
+        commit = session.execute(select(Commit).where(Commit.commit_hash == commit_hash)).scalar_one_or_none()
         feature = session.execute(
-            select(CommitFeature).where(CommitFeature.commit_hash == body.commit_hash)
+            select(CommitFeature).where(CommitFeature.commit_hash == commit_hash)
         ).scalar_one_or_none()
-        if feature is None:
-            raise AppError(40400, "features not found for this commit")
+        if commit is None or feature is None:
+            missing_message = "commit not found" if commit is None else "features not found for this commit"
+            if config.SOURCE_REPO is None:
+                raise AppError(40400, missing_message)
+            try:
+                extracted = feature_source.extract(commit_hash)
+            except ValueError as exc:
+                raise AppError(40400, missing_message) from exc
+            except Exception as exc:
+                logger.exception("single-commit feature extraction failed")
+                raise AppError(50000, INTERNAL_ERROR_MESSAGE) from exc
+
+            committed_at = datetime.fromisoformat(extracted["committed_at"])
+            if commit is None:
+                commit = Commit(
+                    commit_hash=commit_hash,
+                    repo_name=extracted["repo_name"],
+                    author_name=extracted["author_name"],
+                    author_email=extracted["author_email"],
+                    committed_at=committed_at,
+                    message=extracted["message"],
+                    parent_hash=extracted["parent_hash"] or None,
+                )
+                session.add(commit)
+            if feature is None:
+                feature = CommitFeature(
+                    commit_hash=commit_hash,
+                    committed_at=committed_at,
+                    feature_version=extracted["feature_version"],
+                    **extracted["features"],
+                )
+                session.add(feature)
+            try:
+                session.flush()
+            except IntegrityError:
+                session.rollback()
+                commit = session.execute(select(Commit).where(Commit.commit_hash == commit_hash)).scalar_one_or_none()
+                feature = session.execute(
+                    select(CommitFeature).where(CommitFeature.commit_hash == commit_hash)
+                ).scalar_one_or_none()
+                if commit is None or feature is None:
+                    raise AppError(50000, INTERNAL_ERROR_MESSAGE) from None
 
         if body.model_name is not None and not model_registry.has(body.model_name):
             # 契约三错误码表：枚举值不存在 → 40001；注册表整体为空才是 50000
@@ -57,10 +98,10 @@ def predict(body: PredictRequest) -> dict:
         # design D7：聊天第三条「A 与 C 写同一张 prediction 表」+ 契约三「只保留最新一行」
         row = session.execute(
             select(Prediction)
-            .where(Prediction.commit_hash == body.commit_hash, Prediction.model_name == entry.name)
+            .where(Prediction.commit_hash == commit_hash, Prediction.model_name == entry.name)
         ).scalar_one_or_none()
         if row is None:
-            row = Prediction(commit_hash=body.commit_hash, model_name=entry.name)
+            row = Prediction(commit_hash=commit_hash, model_name=entry.name)
             session.add(row)
         row.risk_score = risk
         row.predicted_at = predicted_at
@@ -72,7 +113,7 @@ def predict(body: PredictRequest) -> dict:
             session.rollback()
             row = session.execute(
                 select(Prediction)
-                .where(Prediction.commit_hash == body.commit_hash, Prediction.model_name == entry.name)
+                .where(Prediction.commit_hash == commit_hash, Prediction.model_name == entry.name)
             ).scalar_one()
             row.risk_score = risk
             row.predicted_at = predicted_at
@@ -87,7 +128,7 @@ def predict(body: PredictRequest) -> dict:
         "code": 0,
         "message": "ok",
         "data": {
-            "commit_hash": body.commit_hash,
+            "commit_hash": commit_hash,
             "model_name": entry.name,
             "risk_score": round(risk, 5),
             "predicted_at": predicted_at.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z"),
