@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -75,24 +76,30 @@ def _delivery_models(model_dir: Path) -> list[str] | None:
 
 
 def load_models() -> None:
+    model_code_dir = str((config.REPO_ROOT / "data_model").resolve())
+    if model_code_dir not in sys.path:
+        sys.path.insert(0, model_code_dir)
     _REGISTRY.clear()
     model_dir = config.MODEL_DIR
     if not model_dir.is_dir():
         logger.warning("model dir not found, predict will return 50000 until models are delivered")
         return
+    failed: list[str] = []
     names = _delivery_models(model_dir)
     if names is None:
         return
     for name in names:
         path = model_dir / name
         if not path.is_file():
-            logger.error("declared delivery model missing")
+            logger.error("declared delivery model missing: %s", path.stem)
+            failed.append(path.stem)
             continue
         try:
             model = joblib.load(path)
         except Exception:
             # 契约三：加载失败只写服务端日志，不回显文件路径
-            logger.exception("model load failed")
+            logger.exception("model load failed: %s", path.stem)
+            failed.append(path.stem)
             continue
         n_features = _feature_count(model)
         if n_features is not None and n_features != len(config.FEATURE_COLUMNS):
@@ -102,9 +109,12 @@ def load_models() -> None:
                 n_features,
                 len(config.FEATURE_COLUMNS),
             )
+            failed.append(path.stem)
             continue
         _REGISTRY[path.stem] = ModelEntry(path.stem, path, path.stat().st_mtime, model)
     logger.info("loaded models: %s", sorted(_REGISTRY))
+    if failed:
+        logger.error("failed models: %s", failed)
 
 
 def _feature_count(model: Any) -> int | None:

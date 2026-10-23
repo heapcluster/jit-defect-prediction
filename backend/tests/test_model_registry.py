@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+import logging
+import os
+import subprocess
+import sys
+from pathlib import Path
+
 import joblib
 import numpy as np
 import pytest
@@ -146,5 +152,128 @@ def test_manifest_missing_or_wrong_feature_order_loads_nothing(tmp_path, monkeyp
     _manifest(tmp_path, "lr_v1")
     manifest = tmp_path / "feature_order.txt"
     manifest.write_text(manifest.read_text(encoding="utf-8").replace("1. ns", "1. wrong"), encoding="utf-8")
+    model_registry.load_models()
+    assert not model_registry._REGISTRY
+
+
+def test_repository_model_module_loads_in_clean_process(tmp_path):
+    code_dir = tmp_path / "data_model"
+    package = code_dir / "pipelines"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    (package / "delivery_fixture.py").write_text(
+        "class DeliveryModel:\n    n_features_in_ = 14\n", encoding="utf-8"
+    )
+    weights = tmp_path / "weights"
+    weights.mkdir()
+    _manifest(weights, "custom_v1")
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
+    producer = subprocess.run(
+        [sys.executable, "-c",
+         ("import sys, joblib; sys.path.insert(0, sys.argv[1]); "
+          "import pipelines.delivery_fixture as delivery; "
+          "joblib.dump(delivery.DeliveryModel(), sys.argv[2])"),
+         str(code_dir), str(weights / "custom_v1.pkl")],
+        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=60, check=False,
+    )
+    assert producer.returncode == 0, producer.stderr
+    consumer = subprocess.run(
+        [sys.executable, "-c",
+         ("import sys, importlib.util; from pathlib import Path; "
+          "from app import config, model_registry; "
+          "assert importlib.util.find_spec('pipelines') is None; "
+          "config.REPO_ROOT = Path(sys.argv[1]); "
+          "config.MODEL_DIR = Path(sys.argv[2]); "
+          "model_registry.load_models(); "
+          "assert model_registry.has('custom_v1'); "
+          "assert model_registry.get_model('custom_v1').model.n_features_in_ == 14; "
+          "model_registry.load_models(); "
+          "assert sys.path.count(str((config.REPO_ROOT / 'data_model').resolve())) == 1"),
+         str(tmp_path), str(weights)],
+        cwd=Path(__file__).resolve().parents[1], env=env,
+        capture_output=True, text=True, timeout=60, check=False,
+    )
+    assert consumer.returncode == 0, consumer.stderr
+
+
+def test_import_path_comes_from_repo_not_weights(tmp_path, monkeypatch, restore_registry):
+    repo = tmp_path / "repo"
+    weights = tmp_path / "external-weights"
+    weights.mkdir()
+    monkeypatch.setattr(sys, "path", sys.path.copy())
+    monkeypatch.setattr(config, "REPO_ROOT", repo)
+    monkeypatch.setattr(config, "MODEL_DIR", weights)
+    model_registry.load_models()
+    model_registry.load_models()
+    assert sys.path.count(str((repo / "data_model").resolve())) == 1
+    assert str(weights) not in sys.path
+
+
+def test_failed_models_summary_includes_corrupt_and_wrong_width(
+    tmp_path, monkeypatch, caplog, restore_registry
+):
+    (tmp_path / "broken_v1.pkl").write_bytes(b"not a pickle")
+    joblib.dump(_fit(), tmp_path / "good_v1.pkl")
+    joblib.dump(_fit(7), tmp_path / "wide_v1.pkl")
+    _manifest(tmp_path, "broken_v1", "good_v1", "wide_v1")
+    monkeypatch.setattr(config, "MODEL_DIR", tmp_path)
+    with caplog.at_level(logging.INFO, logger="backend.model_registry"):
+        model_registry.load_models()
+    assert sorted(model_registry._REGISTRY) == ["good_v1"]
+    summaries = [r for r in caplog.records if r.message.startswith("failed models:")]
+    assert len(summaries) == 1
+    assert summaries[0].levelno == logging.ERROR
+    assert summaries[0].message == "failed models: ['broken_v1', 'wide_v1']"
+    assert "loaded models: ['good_v1']" in caplog.text
+    assert any(r.exc_info for r in caplog.records)
+
+
+def test_failed_summary_does_not_persist_after_success(
+    tmp_path, monkeypatch, caplog, restore_registry
+):
+    path = tmp_path / "recover_v1.pkl"
+    path.write_bytes(b"not a pickle")
+    _manifest(tmp_path, "recover_v1")
+    monkeypatch.setattr(config, "MODEL_DIR", tmp_path)
+    model_registry.load_models()
+    assert not model_registry.has("recover_v1")
+    caplog.clear()
+    joblib.dump(_fit(), path)
+    with caplog.at_level(logging.INFO, logger="backend.model_registry"):
+        model_registry.load_models()
+    assert model_registry.has("recover_v1")
+    assert not any(r.levelno >= logging.ERROR for r in caplog.records)
+
+
+def test_main_module_model_is_reported_without_alias(
+    tmp_path, monkeypatch, caplog, restore_registry
+):
+    producer = subprocess.run(
+        [sys.executable, "-c",
+         ("import sys, joblib\n"
+          "class TabNetWithEarlyStop:\n    n_features_in_ = 14\n"
+          "joblib.dump(TabNetWithEarlyStop(), sys.argv[1])\n"),
+         str(tmp_path / "tabnet_v1.pkl")],
+        capture_output=True, text=True, timeout=60, check=False,
+    )
+    assert producer.returncode == 0, producer.stderr
+    _manifest(tmp_path, "tabnet_v1")
+    monkeypatch.delattr(sys.modules["__main__"], "TabNetWithEarlyStop", raising=False)
+    monkeypatch.setattr(config, "MODEL_DIR", tmp_path)
+    with caplog.at_level(logging.ERROR, logger="backend.model_registry"):
+        model_registry.load_models()
+    assert not model_registry.has("tabnet_v1")
+    assert "failed models: ['tabnet_v1']" in caplog.text
+    assert not hasattr(sys.modules["__main__"], "TabNetWithEarlyStop")
+
+
+def test_missing_model_directory_clears_registry(tmp_path, monkeypatch, restore_registry):
+    monkeypatch.setattr(config, "MODEL_DIR", tmp_path)
+    joblib.dump(_fit(), tmp_path / "valid_v1.pkl")
+    _manifest(tmp_path, "valid_v1")
+    model_registry.load_models()
+    assert model_registry.has("valid_v1")
+    monkeypatch.setattr(config, "MODEL_DIR", tmp_path / "missing")
     model_registry.load_models()
     assert not model_registry._REGISTRY
