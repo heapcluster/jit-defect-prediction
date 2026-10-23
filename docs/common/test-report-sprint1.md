@@ -11,7 +11,7 @@
 | pytest | 9.1.1 |
 | 数据库 | SQLite 内存库（`backend/tests/conftest.py` 按 `api-spec.md` §5 variant 口径） |
 | 模型 | fixture 决策树（`fixture_v1`/`fixture_v2`），不依赖真实 `.pkl`，离线可跑 |
-| 前端 | **未执行** —— `frontend/node_modules` 未安装（需 `npm ci`），见 §4 |
+| 前端 | **已执行** —— Node v24.14.0 + npm 11.9.0；`npm install` 装齐 181 包后实跑（`npm ci` 因 dev server 占用 node_modules 未能完成，等价改用 install） |
 
 ## 2. 执行结果
 
@@ -19,7 +19,7 @@
 |---|---|---|---|---|---|
 | 单元 · 后端 | `cd backend && python -m pytest -q` | **87** | 87 | 0 | 原 39 条 + 2026-10-13 新增 48 条安全/边界用例 |
 | 单元 · 模型 | `cd data_model && python -m pytest -q` | **8** | 8 | 0 | 契约一致性（14 项列名/顺序/交付清单/`feature_version`） |
-| 单元 · 前端 | `cd frontend && npm run test:unit` | 已写未跑 | — | — | vitest 用例 `src/__tests__/contract.test.js` 覆盖 T-FE-01~03 |
+| 单元 · 前端 | `cd frontend && npm run test:unit` | **4** | 4 | 0 | vitest 用例 `tests/risk.spec.js` 覆盖 D-10 阈值口径（0.5/0.3 边界） |
 | 集成 | — | 0 | — | — | 无正式方案（`test-plan.md` §4.2 已列 T-IT-01~03，Sprint 2 执行） |
 | 系统 | — | 0 | — | — | 仅 `repo/demo-script-sprint1.md` 手工脚本，待联调后跑 |
 | 非功能 | — | 0 | — | — | 性能分位数与安全截图 Sprint 3 出（`nfr-evidence-scripts`） |
@@ -47,7 +47,7 @@
 
 | # | 事项 | 阻塞原因 | 归属 |
 |---|---|---|---|
-| 1 | 前端单测与 `npm run lint` / `npm run build` | `frontend/node_modules` 未安装（需 `npm ci`，联网） | 刘帅华 |
+| 1 | ~~前端单测与 `npm run lint` / `npm run build`~~ **已完成** | `npm install` 装齐依赖后实跑：test:unit 4 passed / lint 0 error / build ✓ | 刘帅华 ✅ |
 | 2 | 前后端联调（T-IT-01~03） | 需先后端 `:8000` + 前端 dev + 真实数据（跑数据线 01–04） | 刘帅华 + 吕建江 |
 | 3 | 系统测试（T-ST-01~05） | 依赖 2；演示录屏同此 | 蒋励 |
 | 4 | 性能分位数（T-NF-01） | 压测脚本在 `nfr-evidence-scripts`，Sprint 3 出证 | 吕建江 |
