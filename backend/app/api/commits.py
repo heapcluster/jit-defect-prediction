@@ -133,6 +133,12 @@ def commit_detail(commit_hash: str) -> dict:
                 Prediction.model_name == default_model_in_table(session),
             )
         ).scalar_one_or_none()
+        if prediction is None:
+            # 新提交可能只由在线模型预测，而历史表默认模型不同；详情不能因此假装未预测。
+            available = session.execute(
+                select(Prediction).where(Prediction.commit_hash == commit_hash)
+            ).scalars().all()
+            prediction = max(available, key=lambda row: model_registry.version_key(row.model_name)) if available else None
         # design D3：提交存在但无预测记录 → code=0 + null 字段（契约三待补记口径）
         data = {
             "commit_hash": commit.commit_hash,

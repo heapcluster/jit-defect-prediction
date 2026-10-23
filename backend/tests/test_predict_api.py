@@ -1,6 +1,9 @@
-from app import model_registry
+import os
+import subprocess
+
+from app import config, model_registry
 from app.db import SessionLocal
-from app.models import Prediction
+from app.models import Commit, CommitFeature, Prediction
 from tests.conftest import C1, C3, FEATURE_VALUES, HEADERS, UNKNOWN
 
 
@@ -75,3 +78,55 @@ def test_predict_without_models_is_50000_without_path(client, monkeypatch):
     assert body["code"] == 50000
     assert body["message"] == "internal error"
     assert ".pkl" not in body["message"]
+
+
+def test_predict_new_git_commit_extracts_and_persists_features(client, tmp_path, monkeypatch):
+    repo = tmp_path / "camel"
+    repo.mkdir()
+    subprocess.run(["git", "-C", str(repo), "init"], check=True, capture_output=True)
+    source = repo / "src" / "A.java"
+    source.parent.mkdir()
+    source.write_text("class A {}\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "."], check=True, capture_output=True)
+    env = os.environ.copy()
+    env.update(GIT_AUTHOR_DATE="2026-01-01T12:00:00+0000", GIT_COMMITTER_DATE="2026-01-01T12:00:00+0000")
+    subprocess.run(
+        ["git", "-C", str(repo), "-c", "user.name=Example", "-c", "user.email=test@example.org",
+         "commit", "-m", "CAMEL-123 fix test"],
+        check=True, capture_output=True, env=env,
+    )
+    commit_hash = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        check=True, capture_output=True, text=True,
+    ).stdout.strip()
+    monkeypatch.setattr(config, "SOURCE_REPO", repo)
+
+    first = client.post("/api/predict", json={"commit_hash": commit_hash}, headers=HEADERS)
+    assert first.status_code == 200
+    assert first.json()["data"]["features"]["fix"] == 1
+    assert set(first.json()["data"]["features"]) == set(FEATURE_VALUES)
+    second = client.post("/api/predict", json={"commit_hash": commit_hash}, headers=HEADERS)
+    assert second.status_code == 200
+    assert _rows_for(commit_hash, "fixture_v2") == 1
+    with SessionLocal() as session:
+        assert session.query(Commit).filter_by(commit_hash=commit_hash).count() == 1
+        assert session.query(CommitFeature).filter_by(commit_hash=commit_hash).count() == 1
+    detail = client.get(f"/api/commits/{commit_hash}", headers=HEADERS)
+    assert detail.status_code == 200
+    assert detail.json()["data"]["risk_score"] is not None
+    listed = client.get("/api/commits", params={"model_name": "fixture_v2"}, headers=HEADERS).json()
+    assert commit_hash in {item["commit_hash"] for item in listed["data"]["items"]}
+
+
+def test_predict_source_unavailable_is_sanitized_50000(client, tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "SOURCE_REPO", tmp_path / "missing")
+    resp = client.post("/api/predict", json={"commit_hash": C3}, headers=HEADERS)
+    assert resp.status_code == 500
+    assert resp.json()["code"] == 50000
+    assert str(tmp_path) not in resp.json()["message"]
+
+
+def test_predict_uppercase_hash_uses_normalized_key(client):
+    resp = client.post("/api/predict", json={"commit_hash": C1.upper()}, headers=HEADERS)
+    assert resp.status_code == 200
+    assert resp.json()["data"]["commit_hash"] == C1
