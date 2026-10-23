@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import CommitDetail from '../src/views/CommitDetail.vue'
+import { ElMessage } from 'element-plus'
 
 const getCommitDetail = vi.fn()
 const postPredict = vi.fn()
@@ -116,6 +117,8 @@ describe('CommitDetail 重新预测（POST /api/predict 入口）', () => {
 
     // 失败后 detail 仍是未预测（不被污染）
     expect(wrapper.vm.detail.risk_score).toBe(null)
+    // 断言错误提示文案（防提示语回归）
+    expect(ElMessage.error).toHaveBeenCalledWith('参数有误：commit_hash 需为 40 位十六进制')
   })
 
   it('40400：详情加载失败 → errorCode 40400、文案「该提交不存在」', async () => {
