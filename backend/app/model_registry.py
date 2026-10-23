@@ -37,13 +37,57 @@ class ModelEntry:
 _REGISTRY: dict[str, ModelEntry] = {}
 
 
+def _delivery_models(model_dir: Path) -> list[str] | None:
+    """交付清单是在线模型与特征列序的唯一来源；缺失或漂移时拒绝加载。"""
+    manifest = model_dir / "feature_order.txt"
+    try:
+        lines = manifest.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        logger.error("model delivery manifest unavailable")
+        return None
+
+    section = ""
+    names: list[str] = []
+    columns: list[str] = []
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            section = line[1:-1]
+            continue
+        if section == "models":
+            name = line.split()[0]
+            if re.fullmatch(r"[A-Za-z0-9_]+\.pkl", name) is None or name in names:
+                logger.error("model delivery manifest has invalid model entry")
+                return None
+            names.append(name)
+        elif section == "feature_order":
+            match = re.fullmatch(r"\d+\.\s*([a-z_]+)", line)
+            if match is None:
+                logger.error("model delivery manifest has invalid feature order")
+                return None
+            columns.append(match.group(1))
+    if not names or tuple(columns) != config.FEATURE_COLUMNS:
+        logger.error("model delivery manifest does not match feature contract")
+        return None
+    return names
+
+
 def load_models() -> None:
     _REGISTRY.clear()
     model_dir = config.MODEL_DIR
     if not model_dir.is_dir():
         logger.warning("model dir not found, predict will return 50000 until models are delivered")
         return
-    for path in sorted(model_dir.glob("*.pkl")):
+    names = _delivery_models(model_dir)
+    if names is None:
+        return
+    for name in names:
+        path = model_dir / name
+        if not path.is_file():
+            logger.error("declared delivery model missing")
+            continue
         try:
             model = joblib.load(path)
         except Exception:

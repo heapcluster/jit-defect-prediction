@@ -53,6 +53,11 @@ def _make_pickle(name: str) -> None:
 
 _make_pickle("fixture_v1")
 _make_pickle("fixture_v2")
+(MODEL_DIR / "feature_order.txt").write_text(
+    "[models]\nfixture_v1.pkl\nfixture_v2.pkl\n[feature_order]\n"
+    + "\n".join(f"{i}. {name}" for i, name in enumerate(FEATURE_VALUES, 1)) + "\n",
+    encoding="utf-8",
+)
 # 钉死 mtime 顺序：「默认最新模型」必须确定为 fixture_v2，不依赖文件系统时间精度
 os.utime(MODEL_DIR / "fixture_v1.pkl", (1_000_000, 1_000_000))
 os.utime(MODEL_DIR / "fixture_v2.pkl", (2_000_000, 2_000_000))
