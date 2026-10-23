@@ -8,6 +8,13 @@ const ERROR_MESSAGES = {
   50000: '服务异常，请稍后重试'
 }
 
+function apiError(res) {
+  const err = new Error(ERROR_MESSAGES[res.code] || res.message || '请求失败')
+  err.code = res.code
+  err.detail = res.message
+  return err
+}
+
 // 统一请求实例：baseURL 走 vite 代理的 /api
 const request = axios.create({
   baseURL: '/api',
@@ -30,12 +37,16 @@ request.interceptors.response.use(
     if (res.code === 0) {
       return res.data
     }
-    const err = new Error(ERROR_MESSAGES[res.code] || res.message || '请求失败')
-    err.code = res.code
-    err.detail = res.message
-    return Promise.reject(err)
+    return Promise.reject(apiError(res))
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    // 后端错误统一使用非 2xx HTTP 状态，Axios 会直接进入此分支。
+    const res = error.response?.data
+    if (res && typeof res.code === 'number') {
+      return Promise.reject(apiError(res))
+    }
+    return Promise.reject(error)
+  }
 )
 
 export default request
