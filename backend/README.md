@@ -58,17 +58,49 @@ uvicorn app.main:app --reload --port 8000
 
 **迁移方式自行决定**（Alembic 或建表 SQL 脚本都行），但要满足 —— 别人 clone 后一条命令能把库建好。这属于完成定义第 1 条「能在别人机器上跑起来」。
 
-## 建库与灌入（一条命令）
+## 建表与灌入
+
+### 建表：SQL 或 Python 二选一
+
+前提：目标 **MySQL 8 数据库已创建**，账号已有连接与建表权限。以下入口只建四张表，不创建数据库/用户、不授权、不灌数据；连接或权限错误需由管理员处理，不自动提权。
+
+**mysql 客户端入口（cwd=仓库根，Git Bash / Bash）：**
 
 ```bash
-# 建四张表（先按 .env.example 配好 .env 的 DATABASE_URL）
-python -m app.db init
+# 替换为已有账号和数据库名；-p 交互输入密码，不把密码写进命令
+MYSQL_USER=your_user
+MYSQL_DATABASE=your_existing_database
+mysql -u "$MYSQL_USER" -p "$MYSQL_DATABASE" < infra/schema.sql
+```
 
-# 灌入数据线产物（前提：先跑 data_model 01–04；prediction_result.csv 来自方案 C 离线预测，不来自 01–04）
-python -m app.ingest commits     <提交清单.csv>
-python -m app.ingest labels      <标签表.csv>
-python -m app.ingest features    <特征表.csv>
-python -m app.ingest predictions <prediction_result.csv>
+即 `mysql -u<user> -p <database> < infra/schema.sql`；远端连接按实际环境补 `-h` / `-P`。`infra/schema.sql` 是 `Base.metadata` 经 SQLAlchemy MySQL dialect 编译的快照，保留全部列、主键、唯一约束和普通索引。四表均为 `CREATE TABLE IF NOT EXISTS`，索引内联，不另执行 `CREATE INDEX`；模型变更时须同步更新快照并通过 `tests/test_schema_sql.py` 的静态比对。
+
+**Python 入口（cwd=backend）：**
+
+```bash
+# 按 backend/.env.example 配好 backend/.env 的 DATABASE_URL，指向已有目标库
+python -m app.db init
+```
+
+`IF NOT EXISTS` 只跳过已有表，**不会校验或修复已有错误 schema，不是迁移工具**。SQL 路线建表后，将 `backend/.env` 的 `DATABASE_URL` 配成同一目标库，在 backend 运行现有只读索引自检：
+
+```bash
+python -c "from app.db import get_engine, _assert_indexes; _assert_indexes(get_engine())"
+```
+
+Python 建表入口已自动执行该自检；它只覆盖 `INDEX_ASSERTIONS` 的核心索引，不是完整列/键对照。若自检失败，应另走经授权的正式迁移，不因 SQL 执行成功便视为结构已修复。静态测试仅证明 SQL 与元数据一致，不能代替 MySQL 空库执行、重复执行及两条建表路径的实测。
+
+### 灌入：统一使用 app.ingest
+
+SQL **只建表**；业务数据仍由现有 ingest 按同一份 `DATABASE_URL` 灌入，无独立 SQL INSERT/upsert 路径。先核对数据线产物；对已有业务库灌数前需授权并备份。
+
+```bash
+# cwd=backend；替换为实际 CSV 路径
+# 前提：先跑 data_model 01–04；prediction_result.csv 来自方案 C 离线预测，不来自 01–04
+python -m app.ingest commits     "提交清单.csv"
+python -m app.ingest labels      "标签表.csv"
+python -m app.ingest features    "特征表.csv"
+python -m app.ingest predictions "prediction_result.csv"
 ```
 
 灌入幂等：同一文件重跑不增行；按表幂等键 upsert（commit=commit_hash、label=(commit_hash, label_method)、feature=commit_hash、prediction=(commit_hash, model_name)，见 change `backend-db-and-query-api` design D4）。缺主键字段的行整批回滚并报行号。
