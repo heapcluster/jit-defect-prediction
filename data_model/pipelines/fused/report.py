@@ -5,6 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+
+# numpy>=2.4 移除了 np.trapz，改用 np.trapezoid；老版本回退
+try:
+    _trapz = np.trapezoid
+except AttributeError:  # numpy < 2.0
+    _trapz = np.trapz
 from sklearn.metrics import roc_curve
 
 from .. import text_source
@@ -17,7 +23,7 @@ FIG_DIR_NAME = "figs"
 def _roc_ax(ax, y, probas, title):
     for name, proba in probas.items():
         fpr, tpr, _ = roc_curve(y, proba)
-        ax.plot(fpr, tpr, label=f"{name} (AUC={float(np.trapz(tpr, fpr)):.3f})")
+        ax.plot(fpr, tpr, label="%s (AUC=%.3f)" % (name, float(_trapz(tpr, fpr))))
     ax.plot([0, 1], [0, 1], "k--", lw=0.8)
     ax.set_xlabel("False Positive Rate"); ax.set_ylabel("True Positive Rate")
     ax.set_title(title); ax.legend(fontsize=8); ax.grid(alpha=0.3)

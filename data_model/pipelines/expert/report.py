@@ -11,11 +11,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import matplotlib
-
-matplotlib.use("Agg")          # 无显示环境也能出图
-import matplotlib.pyplot as plt
 import numpy as np
+
+# numpy>=2.4 移除了 np.trapz，改用 np.trapezoid；老版本回退
+try:
+    _trapz = np.trapezoid
+except AttributeError:  # numpy < 2.0
+    _trapz = np.trapz
 from sklearn.metrics import roc_curve
 
 from . import config
@@ -27,7 +29,7 @@ FIG_DIR_NAME = "figs"
 def _roc_ax(ax, y, probas: dict, title):
     for name, proba in probas.items():
         fpr, tpr, _ = roc_curve(y, proba)
-        ax.plot(fpr, tpr, label=f"{name} (AUC={float(np.trapz(tpr, fpr)):.3f})")
+        ax.plot(fpr, tpr, label="%s (AUC=%.3f)" % (name, float(_trapz(tpr, fpr))))
     ax.plot([0, 1], [0, 1], "k--", lw=0.8)
     ax.set_xlabel("False Positive Rate"); ax.set_ylabel("True Positive Rate")
     ax.set_title(title); ax.legend(fontsize=8); ax.grid(alpha=0.3)
@@ -35,6 +37,11 @@ def _roc_ax(ax, y, probas: dict, title):
 
 def make_charts(results: dict, probas: dict, y: np.ndarray,
                 effort_loc: np.ndarray, out_dir: Path) -> list[Path]:
+    # 绘图依赖延迟导入：只出 Markdown（render）时不要求装 matplotlib
+    import matplotlib
+    matplotlib.use("Agg")      # 无显示环境也能出图
+    import matplotlib.pyplot as plt  # noqa: F401  (供本函数内使用)
+
     out_dir.mkdir(parents=True, exist_ok=True)
     written = []
 
@@ -92,6 +99,12 @@ def render(args, train, test, results) -> str:
         "# expert 线模型评估指标（pipelines/expert/train.py 产出）\n",
         ("> baseline（Kamei 14 特征）。指标口径与 `data_model/06_train_model.py` 逐字一致；\n"
          "> 本文件与同目录 `figs/` 图表可入库，供四线横向对比。\n"),
+    ]
+    if getattr(args, "from_saved", False):
+        lines.append("> 本次由 `--from-saved` 读取 `models/*.pkl` 复算重生成（未重训、未重算 SHAP，"
+                     "故第三节显示「未实测」）；\n"
+                     "> 切分为当前 `split_szz_*.csv`，与 06 时代的 7,625 / 3,268 切分不可直接比较。\n")
+    lines += [
         "## 数据与参数\n",
         "| 项 | 值 |\n|---|---|\n",
         f"| 训练集 | `{args.train.name}` —— {len(train)} 条 |\n",
