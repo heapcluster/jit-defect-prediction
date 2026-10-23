@@ -14,7 +14,7 @@
 ## 2. GitHub 门禁
 
 - [x] 2.1 创建独立 PR 并观察首次运行 — PR #72、首轮 run 和失败原因已归档到 [验证记录](../../../infra/ci-validation.md)，未称全绿。
-- [ ] 2.2 正式启用 main 必需检查 — 提前启用已按用户确认暂撤；须 #72 全绿合入 main、活动 PR 同步工作流后，再增加 Actions `CI` 并 GET 回读，原保护不变；见 [验证记录](../../../infra/ci-validation.md)。
+- [ ] 2.2 正式启用 main 必需检查 — #72 工作流已在 main，但依赖安装失配；须本次修复 PR 及后续 CI 全绿、非作者审阅合入 main、活动 PR 同步后，再增加 Actions `CI` 并 GET 回读，原保护不变；见 [验证记录](../../../infra/ci-validation.md)。
 
 ## 3. 测试与验证
 
@@ -32,7 +32,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 范围 | GitHub runner + lock/requirements + 现有 lint/pytest/build |
+| 范围 | GitHub runner + 前端 lock / `data_model/environment.yml` + 现有 lint/pytest/build |
 | 命令 | `gh pr checks <本 PR 编号> --repo heapcluster/jit-defect-prediction`；`gh run view <run-id> --log-failed` |
 | 关键断言 | spec「正常运行」「任一步失败」「已有套件」；失败阶段非零、后续阶段不执行 |
 | 用例数与结果 | 首次 PR run failure，lint 失败传播成立；业务测试/build 未执行，不称全链路通过 |
@@ -51,7 +51,7 @@
 
 | 维度 | 是否触及 | 命令 / 证据 |
 |---|---|---|
-| 性能 | 是 | 检查 ci.yml 的 npm/pip 下载缓存和 30 分钟超时；首轮耗时见验证记录，不伪造提速数据 |
+| 性能 | 是 | 前端 npm 缓存、完整 conda 环境与 60 分钟超时；实际耗时待新 run 验证，不伪造提速数据 |
 | 安全 | 是 | 上述 unittest 检查只读权限、无业务 secrets、禁持久凭据与 action SHA；见验证记录 |
 | 可靠 | 是 | unittest + 首轮真实失败传播；中止/未上报应由必需检查阻断 |
 | 易用 | 是 | `gh pr checks <PR>` 可定位阶段；复现步骤见 [infra/ci.md](../../../infra/ci.md) |
@@ -66,4 +66,4 @@
 | 模型线存量 126 项 lint | 已在首轮暴露并本地同版本复现，不跨线代改、不忽略失败 | model 蒋励 | CI PR 合入前修复；具体排期由该线确认 |
 | 浏览器 E2E 与真实数据训练未执行 | 不属于本 CI 工程化范围，不等于业务验收完成 | 各业务线 | 后续里程碑 |
 
-结论：CI 工作流已提交 PR，失败传播已实测；提前启用的 main CI 必需项已暂撤，原保护保留。仍为进行中，待业务 lint 修复、全绿合入 main 和活动 PR 同步后正式启用，不回头重排其他存量 change。
+结论：#72 的 CI 工作流已进入 main；2026-10-23 发现依赖清单失配并着手修复，GitHub 完整运行结果待新 PR 验证。main CI 必需项仍未重新启用；待业务 lint 修复、全绿合入 main 和活动 PR 同步后正式启用，不回头重排其他存量 change。

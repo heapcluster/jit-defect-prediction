@@ -9,7 +9,7 @@ main 已有前端 lint/build 与后端 pytest，测试入口在其他分支上�
 ## Decisions
 
 - 单 job 而非依赖链：上游失败会令 job 失败，避免下游 skipped 被必需检查视为成功。
-- Node 24、Python 3.12、Ubuntu 24.04；使用仓库 lock/requirements，缓存下载而非共享工作目录。
+- Node 24、Python 3.12、Ubuntu 24.04；前端使用 lock，Python 使用 `data_model/environment.yml` 唯一环境清单。`setup-miniconda` 激活同名环境，Ruff 单独安装但版本仍从该清单提取；完整模型环境安装较重，job 上限 60 分钟，实际耗时以 run 为准。
 - 所有 action 钉完整 SHA；只读 token、不保留 checkout 凭据、不用 `pull_request_target` 或业务密钥。
 - 不加 PR 路径过滤；支持 merge_group。前端/模型业务测试仅在配置或用例存在时执行，后端和工程化测试始终执行；存在但缺脚本/依赖则失败。
 - 活规格严格校验与 PR 人工十项检查分开，不重排已补齐的存量 tasks。

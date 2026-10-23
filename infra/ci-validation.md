@@ -1,5 +1,9 @@
 # ci-quality-gate 验证记录
 
+## 2026-10-23 · main 依赖清单失配修复
+
+main `95f572b` 已删除 `backend/requirements.txt` 与 `data_model/requirements.txt`，旧 CI 安装命令因此在 lint 前失败。本次修复将安装入口改为 `data_model/environment.yml`，独立 Ruff 步骤从同一清单提取版本，并补防回退测试验证依赖路径真实存在。先在旧工作流上运行新增测试，两个已删除文件各触发一次失败；修改后工程化 unittest 8/8 通过，actionlint 1.7.12 无诊断，Ruff 0.16.8 检查 `infra` 通过。`ruff check backend data_model infra --statistics` 当前仍报 296 项，`backend infra` 为 0，均在模型线。以上是本地静态验证，尚不代表 GitHub runner 安装成功或完整 CI 全绿；模型线 lint 仍需单独处理。下文 2026-10-16 的 #72 记录仅为历史，不代表当前 main 状态。
+
 日期：2026-10-16。基线：`59ad7ed8c6caf35e257a7cf66395c13357beb83a`。本记录区分本地静态测试、真实 Actions 执行和服务端规则，不将未执行写成通过。
 
 | 检查 | 结果 | 证据 / 复现 |
