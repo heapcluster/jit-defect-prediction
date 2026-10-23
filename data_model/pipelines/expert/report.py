@@ -21,7 +21,7 @@ except AttributeError:  # numpy < 2.0
 from sklearn.metrics import roc_curve
 
 from . import config
-from .metrics import cumulative_curve
+from .metrics import budget_order, cumulative_curve
 
 FIG_DIR_NAME = "figs"
 
@@ -55,9 +55,13 @@ def make_charts(results: dict, probas: dict, y: np.ndarray,
     #    为什么不全画在一张：8 条线的 model 排序几乎重合，混在一起看不出差别；
     #    分格后每格都能读到「risk_score 降序 vs 风险密度降序」两条曲线的落差。
     effort = np.maximum(np.asarray(effort_loc, dtype=float), 1.0)
-    style = {"model": "-", "density": "--", "optimal": ":", "random": "-."}
-    label = {"model": "model (risk_score desc)", "density": "density (score/effort)",
+    style = {"model": "-", "budget": "--", "density": "-.", "optimal": ":", "random": (0, (1, 2))}
+    label = {"model": "model (risk_score desc)",
+             "budget": "budget-aware (LOC>=%d, density)" % config.MIN_REVIEW_LOC,
+             "density": "density (score/effort, no floor)",
              "optimal": "optimal (oracle)", "random": "random baseline"}
+    color = {"model": "#1f77b4", "budget": "#9467bd", "density": "#ff7f0e",
+             "optimal": "#2ca02c", "random": "#d62728"}
     names = list(results)
     ncol = 4
     nrow = max(1, -(-len(names) // ncol))
@@ -70,14 +74,18 @@ def make_charts(results: dict, probas: dict, y: np.ndarray,
         ax = axes[i // ncol][i % ncol]
         eff = results[name]["effort"]["LOC（改动行数 la+ld）"]
         for key, order in (("model", np.argsort(-probas[name], kind="stable")),
+                           ("budget", budget_order(probas[name], effort)),
                            ("density", np.argsort(-(probas[name] / effort), kind="stable"))):
             xs, ys = cumulative_curve(order, effort, y)
-            ax.plot(xs, ys, style[key], label=label[key],
-                    color="#1f77b4" if key == "model" else "#ff7f0e")
-        ax.plot(rand_xs, rand_ys, style["random"], label=label["random"], color="#d62728", lw=0.9)
-        ax.plot(opt_xs, opt_ys, style["optimal"], label=label["optimal"], color="#2ca02c", lw=0.9)
-        ax.set_title("%s  P_norm  %.2f / %.2f" % (name, eff["model"]["p_norm"],
-                                                  eff["density"]["p_norm"]), fontsize=9)
+            ax.plot(xs, ys, linestyle=style[key], label=label[key], color=color[key],
+                    lw=1.4 if key != "density" else 1.1)
+        ax.plot(rand_xs, rand_ys, linestyle=style["random"], label=label["random"],
+                color=color["random"], lw=0.9)
+        ax.plot(opt_xs, opt_ys, linestyle=style["optimal"], label=label["optimal"],
+                color=color["optimal"], lw=0.9)
+        ax.set_title("%s  P_norm  %.2f / %.2f / %.2f" % (
+            name, eff["model"]["p_norm"], eff["budget"]["p_norm"], eff["density"]["p_norm"]),
+            fontsize=9)
         ax.grid(alpha=0.3)
         ax.set_xlim(0, 1); ax.set_ylim(0, 1.02)
         if i // ncol == nrow - 1:
@@ -88,9 +96,9 @@ def make_charts(results: dict, probas: dict, y: np.ndarray,
         axes[j // ncol][j % ncol].axis("off")
     handles, labels = axes[0][0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, 0.005),
-               ncol=4, fontsize=8, frameon=False)
-    fig.suptitle("Effort-aware curves (LOC proxy, test set) — P_norm = risk desc / density",
-                 fontsize=11)
+               ncol=5, fontsize=7.5, frameon=False)
+    fig.suptitle("Effort-aware curves (LOC proxy, test set) — "
+                 "P_norm = risk desc / budget-aware / density", fontsize=10.5)
     fig.tight_layout(rect=(0, 0.07, 1, 0.96))
     p = out_dir / "effort_curves_loc.png"; fig.savefig(p, dpi=150); plt.close(fig)
     written.append(p)
@@ -152,8 +160,12 @@ def render(args, train, test, results) -> str:
         lines.append("| **模型排序**（契约三当前口径） | `%s` | %.4f | **%.4f** | %.4f | %.4f | %d |\n"
                      % (r["model_name"], m["area"], m["p_norm"], m["recall@20"], m["recall@50"],
                         m["n_commits@20"]))
+        b = r["effort"]["LOC（改动行数 la+ld）"]["budget"]
+        lines.append("| **预算感知**：LOC ≥ %d 内按 `risk_score / 工作量` 降序 | `%s` | %.4f | **%.4f** | %.4f | %.4f | %d |\n"
+                     % (config.MIN_REVIEW_LOC, r["model_name"], b["area"], b["p_norm"],
+                        b["recall@20"], b["recall@50"], b["n_commits@20"]))
         d = r["effort"]["LOC（改动行数 la+ld）"]["density"]
-        lines.append("| 对照：按 `risk_score / 工作量` 降序 | `%s` | %.4f | **%.4f** | %.4f | %.4f | %d |\n"
+        lines.append("| 对照：按 `risk_score / 工作量` 降序（无下限） | `%s` | %.4f | **%.4f** | %.4f | %.4f | %d |\n"
                      % (r["model_name"], d["area"], d["p_norm"], d["recall@20"], d["recall@50"],
                         d["n_commits@20"]))
     o = results[next(iter(results))]["effort"]["LOC（改动行数 la+ld）"]["optimal"]
@@ -167,24 +179,31 @@ def render(args, train, test, results) -> str:
     confs = [r["effort"]["LOC（改动行数 la+ld）"]["confound"]["spearman_risk_log_effort"]
              for r in results.values()]
     ms = [r["effort"]["LOC（改动行数 la+ld）"]["model"] for r in results.values()]
+    bs = [r["effort"]["LOC（改动行数 la+ld）"]["budget"] for r in results.values()]
     ds = [r["effort"]["LOC（改动行数 la+ld）"]["density"] for r in results.values()]
     lines.append(
         "\n> **为什么「模型排序」一列全是负的**：`risk_score` 与提交规模强相关"
         "（Spearman ρ 中位数 %.3f，最低 %.3f 出自 `svm` —— 它的概率被 Platt 压缩、"
         "对规模不敏感；其余模型 0.85 上下），越接近 1 越说明分数基本在预测「提交有多大」。"
         "按 `risk_score` 降序 = 先审最大的提交：20%% LOC 预算只审到 %d~%d 条，"
-        "召回 %.2f%%~%.2f%%，**低于随机基线 %.2f%%**；"
-        "同一条模型改按 `risk_score / 工作量` 降序，预算摊到 %d~%d 条，"
-        "召回升到 %.2f%%~%.2f%%。\n>\n"
-        "> 所以负 `P_norm` 是**排序口径**问题（契约三 Issue #37），不是模型判别力问题；"
-        "但反过来也别把密度口径的高召回当成「更准」—— 它审的是一大批小提交，"
-        "真实评审还需给 LOC 设下限，这一点尚未定口径。\n"
+        "召回 %.2f%%~%.2f%%，**低于随机基线 %.2f%%**。\n>\n"
+        "> **两种改法都要看成本**：预算感知（LOC ≥ %d 再按密度）审 %d~%d 条，"
+        "召回 %.2f%%~%.2f%%（P_norm %.2f~%.2f）；无下限的纯密度排序审 %d~%d 条，"
+        "召回 %.2f%%~%.2f%%（P_norm %.2f~%.2f）—— 后者指标更高，代价是把预算摊到"
+        "两万多条 8 行提交上，不是真实评审节奏。\n>\n"
+        "> 所以负 `P_norm` 是**排序口径**问题（契约三 Issue #37），不是模型判别力问题。"
+        "主口径仍按契约三保留 `risk_score` 降序；口径是否切换走提案，不在本报告里静默改。\n"
         % (float(np.median(confs)), min(confs),
            min(m["n_commits@20"] for m in ms), max(m["n_commits@20"] for m in ms),
            100 * min(m["recall@20"] for m in ms), 100 * max(m["recall@20"] for m in ms),
            100 * r_["recall@20"],
+           config.MIN_REVIEW_LOC,
+           min(b["n_commits@20"] for b in bs), max(b["n_commits@20"] for b in bs),
+           100 * min(b["recall@20"] for b in bs), 100 * max(b["recall@20"] for b in bs),
+           min(b["p_norm"] for b in bs), max(b["p_norm"] for b in bs),
            min(d["n_commits@20"] for d in ds), max(d["n_commits@20"] for d in ds),
-           100 * min(d["recall@20"] for d in ds), 100 * max(d["recall@20"] for d in ds)))
+           100 * min(d["recall@20"] for d in ds), 100 * max(d["recall@20"] for d in ds),
+           min(d["p_norm"] for d in ds), max(d["p_norm"] for d in ds)))
     lines.append("\n## 三、SHAP 单条解释耗时（实测，随机器负载波动）\n\n")
     lines.append(f"| 模型 | p50 | p95 | 最大 | 是否满足 95% < {config.LATENCY_BUDGET_MS} ms |\n|---|---|---|---|---|\n")
     for name, r in results.items():

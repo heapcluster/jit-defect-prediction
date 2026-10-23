@@ -77,7 +77,9 @@ def make_charts(results, probas, y, effort_loc, out_dir: Path) -> list[Path]:
 
 def render(args, results, n_train, n_test, y_test, coverage=None, text_stats=None) -> str:
     lines = [
-        f"# fused 线模型评估指标（Kamei14 ⊕ 语义 768 = {config.EXPECTED_DIM} 维 → 12 分类器）\n",
+        # 分类器数量按本次实际训练的模型数动态写，避免「默认 8 个、标题却写 12」的漂移
+        "# fused 线模型评估指标（Kamei14 ⊕ 语义 768 = %d 维 → %d 分类器）\n"
+        % (config.EXPECTED_DIM, len(results)),
         "> 对照线：同切分、同分类器族、同指标口径；特征 = 专家特征 + 语义向量拼接。\n",
         "## 数据与参数\n",
         "| 项 | 值 |\n|---|---|\n",

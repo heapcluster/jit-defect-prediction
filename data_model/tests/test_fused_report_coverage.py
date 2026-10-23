@@ -90,9 +90,10 @@ def test_coverage_99_5_percent_drops_missing_row_and_reports_both_splits():
     assert "低于 100% 需说明缺失原因" in text
 
 
-def test_report_title_states_12_classifiers():
+def test_report_title_states_trained_classifier_count():
+    """标题里的分类器数量必须等于本次实际训练的模型数（曾写死 12，与默认 8 漂移）。"""
     df, X, index, emb = _make_case(covered=N)
     kept_df, _, _ = fused_data.fuse(df, X, index, emb)
 
     text = _render(_coverage(len(kept_df)), len(kept_df))
-    assert "→ 12 分类器" in text, "标题须与 config.DEFAULT_MODELS 的 12 个分类器一致"
+    assert "→ %d 分类器" % len(_fake_results()) in text, "标题须与本次训练的模型数一致"
