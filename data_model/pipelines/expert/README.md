@@ -56,6 +56,8 @@ python -m pipelines.expert.significance             # 显著性检验（原 16�
 
 ## 注意事项
 
+- **不要再跑 lite 就覆盖主图**：`--report .../model_metrics_szz_lite.md` 时图表仍写进同一个
+  `reports/figs/`，会把 8 模型主图盖成 3 模型 lite 图；补 lite 报告请加 `--no-charts`。
 - **不要在包内重切分**：任何「随机切一下看看」的想法都会让四线对比失效。
 - **特征口径改不得**：`config.FEATURE_FIELDS` 是契约副本，契约升版必须同步改这里。
 - **SHAP 是实测耗时**，连跑两次会变；核对可复现时只比指标表。
