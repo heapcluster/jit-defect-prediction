@@ -48,6 +48,18 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+def fig_dir_for(args: argparse.Namespace) -> Path:
+    """图表输出目录：``--from-saved`` 恒落 ``<报告目录>/figs_from_saved/``。
+
+    旧权重复算属于探索性结果（报告已隔离到 ``model_metrics_from_saved.md``），
+    图表必须同样隔离 —— 否则重训之后跑一次 ``--from-saved``，就会用来源不明的
+    旧权重覆盖权威报告关联的 ``reports/figs/`` 三张图，造成图文口径混杂
+    （PR #88 复审阻断项 2）。回归测试：``tests/test_from_saved_isolation.py``。
+    """
+    suffix = "_from_saved" if args.from_saved else ""
+    return args.report.parent / (report.FIG_DIR_NAME + suffix)
+
+
 def from_saved(args: argparse.Namespace, train, test, X_test: np.ndarray, y_test: np.ndarray,
                effort_sets: dict, effort_loc: np.ndarray, wanted: list[str]) -> int:
     """不重训，用已保存的 .pkl 复算指标 → 重写 Markdown 报告 + 出图。
@@ -101,7 +113,7 @@ def from_saved(args: argparse.Namespace, train, test, X_test: np.ndarray, y_test
     if not args.no_charts:
         try:
             figs = report.make_charts(results, probas, y_test, effort_loc,
-                                      args.report.parent / report.FIG_DIR_NAME)
+                                      fig_dir_for(args))
         except ImportError as exc:
             print("[expert] 出图需要 matplotlib（environment.yml 已固定 3.10.1）：%s" % exc)
             return 3
@@ -207,7 +219,7 @@ def main() -> int:
     if not args.no_charts:
         figs = report.make_charts(results, probas, y_test,
                                   effort_raw["effort_loc"].to_numpy(),
-                                  args.report.parent / report.FIG_DIR_NAME)
+                                  fig_dir_for(args))
         for f in figs:
             print(f"[expert] 图表：{f}")
     return 0
