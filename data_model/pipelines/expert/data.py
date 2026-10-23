@@ -19,7 +19,7 @@ def load_splits(train_csv: Path, test_csv: Path) -> tuple[pd.DataFrame, pd.DataF
     """加载训练/检验集并校验列完整性与标签存在性。缺列直接失败，不静默补。"""
     for path in (train_csv, test_csv):
         if not path.is_file():
-            print("[expert] 找不到切分文件：%s（先跑 05_split_dataset.py）" % path,
+            print(f"[expert] 找不到切分文件：{path}（先跑 05_split_dataset.py）",
                   file=sys.stderr)
             raise SystemExit(2)
     train = pd.read_csv(train_csv)
@@ -27,10 +27,10 @@ def load_splits(train_csv: Path, test_csv: Path) -> tuple[pd.DataFrame, pd.DataF
     missing = [c for c in config.FEATURE_FIELDS + [config.LABEL_COL]
                if c not in train.columns]
     if missing:
-        print("[expert] 训练集缺列：%s" % missing, file=sys.stderr)
+        print(f"[expert] 训练集缺列：{missing}", file=sys.stderr)
         raise SystemExit(2)
     if config.LABEL_COL not in test.columns:
-        print("[expert] 检验集缺 `%s` —— 只认主标签 szz" % config.LABEL_COL,
+        print(f"[expert] 检验集缺 `{config.LABEL_COL}` —— 只认主标签 szz",
               file=sys.stderr)
         raise SystemExit(2)
     return train, test
@@ -48,14 +48,13 @@ def load_effort(path: Path, hashes: pd.Series) -> pd.DataFrame:
     样本集里的 la/ld/nf 已归一化/取对数，不能当工作量用 —— 必须回 03 的原始表。
     """
     if not path.is_file():
-        print("[expert] 找不到原始特征表：%s（先跑 03_extract_features.py）" % path,
+        print(f"[expert] 找不到原始特征表：{path}（先跑 03_extract_features.py）",
               file=sys.stderr)
         raise SystemExit(2)
     raw = pd.read_csv(path).set_index("commit_hash")
     missing = [h for h in hashes if h not in raw.index]
     if missing:
-        print("[expert] 原始特征表缺 %d 条提交（例：%s）—— 03 与 04/05 窗口不一致"
-              % (len(missing), missing[0]), file=sys.stderr)
+        print(f"[expert] 原始特征表缺 {len(missing)} 条提交（例：{missing[0]}）—— 03 与 04/05 窗口不一致", file=sys.stderr)
         raise SystemExit(2)
     sub = raw.loc[list(hashes)]
     return pd.DataFrame({

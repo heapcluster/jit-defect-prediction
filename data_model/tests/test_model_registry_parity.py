@@ -18,12 +18,18 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from data_model.pipelines.expert import model as expert_m  # noqa: E402
-from data_model.pipelines.expert.config import DEFAULT_MODELS as EXPERT_DEFAULT  # noqa: E402
-from data_model.pipelines.fused import model as fused_m      # noqa: E402
-from data_model.pipelines.fused.config import DEFAULT_MODELS as FUSED_DEFAULT  # noqa: E402
-from data_model.pipelines.semantic import model as semantic_m  # noqa: E402
-from data_model.pipelines.semantic.config import DEFAULT_MODELS as SEMANTIC_DEFAULT  # noqa: E402
+from data_model.pipelines.expert import model as expert_m
+from data_model.pipelines.expert.config import (
+    DEFAULT_MODELS as EXPERT_DEFAULT,
+)
+from data_model.pipelines.fused import model as fused_m
+from data_model.pipelines.fused.config import (
+    DEFAULT_MODELS as FUSED_DEFAULT,
+)
+from data_model.pipelines.semantic import model as semantic_m
+from data_model.pipelines.semantic.config import (
+    DEFAULT_MODELS as SEMANTIC_DEFAULT,
+)
 
 EXPECTED = {
     "lr", "rf", "xgb", "lgbm", "et", "svm",
@@ -54,7 +60,7 @@ def test_every_registered_model_builds():
         for pkg, mod in (("expert", expert_m), ("semantic", semantic_m),
                          ("fused", fused_m)):
             m = mod.build_model(name, seed=0)
-            assert m is not None, "%s.%s returned None" % (pkg, name)
+            assert m is not None, f"{pkg}.{name} returned None"
 
 
 @pytest.mark.parametrize("mod", [expert_m, semantic_m, fused_m],

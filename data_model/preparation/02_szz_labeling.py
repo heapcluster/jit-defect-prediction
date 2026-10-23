@@ -145,8 +145,7 @@ def _git(repo_dir: Path, *args: str) -> str:
     """
     proc = subprocess.run(
         [_GIT, "-C", str(repo_dir), *args],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         check=False,
     )
     if proc.returncode != 0:
@@ -262,8 +261,7 @@ def backtrack_szz(
 
 def _lines_of(ranges: list[tuple[int, int]]):
     for start, count in ranges:
-        for ln in range(start, start + count):
-            yield ln
+        yield from range(start, start + count)
 
 
 def backtrack_szz_lite(

@@ -19,8 +19,8 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from pipelines.fused import data as fused_data  # noqa: E402
-from pipelines.fused import report as fused_report  # noqa: E402
+from pipelines.fused import data as fused_data
+from pipelines.fused import report as fused_report
 
 N = 200
 DIM_KAMEI = 14
@@ -28,7 +28,7 @@ DIM_KAMEI = 14
 
 def _make_case(covered: int):
     """构造 covered/N 条带语义向量的合成切分。"""
-    hashes = ["h%03d" % i for i in range(N)]
+    hashes = [f"h{i:03d}" for i in range(N)]
     df = pd.DataFrame({
         "commit_hash": hashes,
         "is_bug_inducing": [0, 1] * (N // 2),

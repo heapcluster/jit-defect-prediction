@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
@@ -102,4 +101,4 @@ def build_model(name: str, seed: int):
             ("scaler", StandardScaler()),
             ("tabnet", TabNetWithEarlyStop(seed=seed)),
         ])
-    raise ValueError("未知模型：%s" % name)
+    raise ValueError(f"未知模型：{name}")

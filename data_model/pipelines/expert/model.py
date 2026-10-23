@@ -170,4 +170,4 @@ def build_model(name: str, seed: int):
             ("scaler", StandardScaler()),
             ("tabnet", TabNetWithEarlyStop(seed=seed)),
         ])
-    raise ValueError("未知模型：%s" % name)
+    raise ValueError(f"未知模型：{name}")

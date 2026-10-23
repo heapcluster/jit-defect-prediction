@@ -57,11 +57,10 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     if not args.dataset.is_file():
-        print("[expert-predict] 找不到样本集：%s" % args.dataset, file=sys.stderr)
+        print(f"[expert-predict] 找不到样本集：{args.dataset}", file=sys.stderr)
         return 2
     if not args.model.is_file():
-        print("[expert-predict] 找不到模型：%s（先跑 python -m pipelines.expert.train）"
-              % args.model, file=sys.stderr)
+        print(f"[expert-predict] 找不到模型：{args.model}（先跑 python -m pipelines.expert.train）", file=sys.stderr)
         return 2
 
     model_name = args.model_name or args.model.stem
@@ -69,15 +68,15 @@ def main() -> int:
     missing = [c for c in config.FEATURE_FIELDS + ["commit_hash", "feature_version"]
                if c not in dataset.columns]
     if missing:
-        print("[expert-predict] 样本集缺列：%s" % missing, file=sys.stderr)
+        print(f"[expert-predict] 样本集缺列：{missing}", file=sys.stderr)
         return 2
 
     model = joblib.load(args.model)
     n_expected = len(config.FEATURE_FIELDS)
     n_model = getattr(model, "n_features_in_", None)
     if n_model is not None and n_model != n_expected:
-        print("[expert-predict] 模型要 %d 个特征，契约二第三节是 %d 个 —— 特征顺序或版本"
-              "不一致，拒绝推理" % (n_model, n_expected), file=sys.stderr)
+        print(f"[expert-predict] 模型要 {n_model} 个特征，契约二第三节是 {n_expected} 个 —— 特征顺序或版本"
+              "不一致，拒绝推理", file=sys.stderr)
         return 2
 
     features = dataset[config.FEATURE_FIELDS].to_numpy(dtype=float)
@@ -85,8 +84,8 @@ def main() -> int:
 
     version_mismatch = sorted(set(dataset["feature_version"].astype(str)))
     if len(version_mismatch) != 1:
-        print("[expert-predict] 样本集混了多个 feature_version：%s —— 一份预测结果只能"
-              "对应一版特征" % version_mismatch, file=sys.stderr)
+        print(f"[expert-predict] 样本集混了多个 feature_version：{version_mismatch} —— 一份预测结果只能"
+              "对应一版特征", file=sys.stderr)
         return 2
     feature_version = version_mismatch[0]
 
@@ -98,7 +97,7 @@ def main() -> int:
         w = csv.writer(f)
         w.writerow(CONTRACT_FIELDS)
         for commit_hash, score in zip(dataset["commit_hash"], proba):
-            w.writerow([commit_hash, model_name, "%.5f" % float(score),
+            w.writerow([commit_hash, model_name, f"{float(score):.5f}",
                         predicted_at, feature_version])
 
     # ── 断言：字段与契约一表三逐字一致，且无契约外字段 ────────────────
@@ -107,7 +106,7 @@ def main() -> int:
     extra = [c for c in header if c not in CONTRACT_FIELDS]
     lose = [c for c in CONTRACT_FIELDS if c not in header]
     if extra or lose:
-        print("[expert-predict] 字段与契约一表三不一致：多 %s / 缺 %s" % (extra, lose),
+        print(f"[expert-predict] 字段与契约一表三不一致：多 {extra} / 缺 {lose}",
               file=sys.stderr)
         return 1
     if header != CONTRACT_FIELDS:
@@ -118,10 +117,10 @@ def main() -> int:
     # ── 断言：本脚本不直连数据库 ────────────────────────────────────
     source = Path(__file__).read_text(encoding="utf-8")
     banned = ["sqlalchemy", "pymysql", "mysql.connector", "sqlite3", "psycopg2"]
-    imported = [b for b in banned if ("import %s" % b) in source]
+    imported = [b for b in banned if (f"import {b}") in source]
     if imported:
-        print("[expert-predict] 脚本里出现了数据库驱动 import：%s —— 数据线只产出文件、"
-              "不建库表" % imported, file=sys.stderr)
+        print(f"[expert-predict] 脚本里出现了数据库驱动 import：{imported} —— 数据线只产出文件、"
+              "不建库表", file=sys.stderr)
         return 1
 
     above = int((proba >= config.DECISION_THRESHOLD).sum())
@@ -145,17 +144,13 @@ def main() -> int:
         # 与仓库既有 Markdown（LF）会整份不一致
         encoding="utf-8", newline="\n")
 
-    print("[expert-predict] 全量推理 %d 条 -> %s" % (len(dataset), args.out))
-    print("[expert-predict] model_name=%s ｜ feature_version=%s ｜ predicted_at=%s"
-          % (model_name, feature_version, predicted_at))
+    print(f"[expert-predict] 全量推理 {len(dataset)} 条 -> {args.out}")
+    print(f"[expert-predict] model_name={model_name} ｜ feature_version={feature_version} ｜ predicted_at={predicted_at}")
     print("[expert-predict] 断言通过：字段 = 契约一表三（无契约外字段）、列顺序一致、"
           "脚本无数据库驱动")
-    print("[expert-predict] 风险分数：均值 %.5f ｜ 中位数 %.5f ｜ p95 %.5f ｜ "
-          ">= %.2f 的 %d 条（%.2f%%）"
-          % (float(np.mean(proba)), float(np.median(proba)),
-             float(np.percentile(proba, 95)), config.DECISION_THRESHOLD,
-             above, above / len(dataset) * 100))
-    print("[expert-predict] 报告：%s" % args.report)
+    print(f"[expert-predict] 风险分数：均值 {float(np.mean(proba)):.5f} ｜ 中位数 {float(np.median(proba)):.5f} ｜ p95 {float(np.percentile(proba, 95)):.5f} ｜ "
+          f">= {config.DECISION_THRESHOLD:.2f} 的 {above} 条（{above / len(dataset) * 100:.2f}%）")
+    print(f"[expert-predict] 报告：{args.report}")
     return 0
 
 

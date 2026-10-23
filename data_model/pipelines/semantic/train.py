@@ -20,8 +20,15 @@ import joblib
 import numpy as np
 
 from . import config, report
-from .data import (encode_texts, load_effort, load_embeddings, load_split_hashes,
-                   load_texts, extract_texts_from_repo, save_embeddings)
+from .data import (
+    encode_texts,
+    extract_texts_from_repo,
+    load_effort,
+    load_embeddings,
+    load_split_hashes,
+    load_texts,
+    save_embeddings,
+)
 from .metrics import effort_aware_metrics, effort_unaware
 from .model import MODEL_NAMES, build_model
 
@@ -48,15 +55,14 @@ def parse_args() -> argparse.Namespace:
 def get_embeddings(args) -> tuple[list[str], np.ndarray]:
     if args.embeddings.is_file() and not args.force_encode:
         hashes, emb, _, fv = load_embeddings(args.embeddings)
-        print("[semantic] 读缓存：%s（%d 条 × %d 维，fv=%s）"
-              % (args.embeddings, len(hashes), emb.shape[1], fv))
+        print(f"[semantic] 读缓存：{args.embeddings}（{len(hashes)} 条 × {emb.shape[1]} 维，fv={fv}）")
         return hashes, emb
     df = load_texts(args.text_csv)
-    print("[semantic] 冻结编码 %d 条文本（%s）…" % (len(df), config.TEXT_MODEL))
+    print(f"[semantic] 冻结编码 {len(df)} 条文本（{config.TEXT_MODEL}）…")
     emb = encode_texts(df["text"].tolist(), config.TEXT_MODEL,
                        config.MAX_LEN, config.ENCODE_BATCH)
     save_embeddings(args.embeddings, df, emb)
-    print("[semantic] 缓存已写：%s" % args.embeddings)
+    print(f"[semantic] 缓存已写：{args.embeddings}")
     return df["commit_hash"].tolist(), emb
 
 
@@ -65,12 +71,12 @@ def main() -> int:
     if not args.train.is_file() or not args.test.is_file():
         raise SystemExit("[semantic] 缺切分文件（先跑 05）")
     if args.force_encode or not args.embeddings.is_file():
+        if not args.text_csv.is_file() and not args.repo:
+            raise SystemExit("[semantic] 文本与缓存都缺：传 --repo 自动建文本")
         if not args.text_csv.is_file():
-            if not args.repo:
-                raise SystemExit("[semantic] 文本与缓存都缺：传 --repo 自动建文本")
             out = extract_texts_from_repo(args.repo, config.DATASET_CSV,
                                           args.text_csv, config.MAX_CHARS)
-            print("[semantic] 文本已建：%s" % out)
+            print(f"[semantic] 文本已建：{out}")
 
     hashes, emb = get_embeddings(args)
     index = {h: i for i, h in enumerate(hashes)}
@@ -78,8 +84,8 @@ def main() -> int:
     test_hashes, y_test = load_split_hashes(args.test)
     miss = [h for h in train_hashes + test_hashes if h not in index]
     if miss:
-        raise SystemExit("[semantic] 编码缓存缺 %d 条切分内提交（例：%s）—— "
-                         "文本与切分窗口不一致" % (len(miss), miss[0]))
+        raise SystemExit(f"[semantic] 编码缓存缺 {len(miss)} 条切分内提交（例：{miss[0]}）—— "
+                         "文本与切分窗口不一致")
     X_train = emb[[index[h] for h in train_hashes]]
     X_test = emb[[index[h] for h in test_hashes]]
 
@@ -93,35 +99,33 @@ def main() -> int:
         proba = model.predict_proba(X_test)[:, 1]
         probas[name] = proba
         eu = effort_unaware(y_test, proba)
-        results[name] = {"model_name": "%s_semantic_v1" % name,
+        results[name] = {"model_name": f"{name}_semantic_v1",
                          "label": MODEL_NAMES.get(name, name), **eu,
                          "effort": {"LOC（改动行数 la+ld）":
                                     effort_aware_metrics(proba, y_test, effort_loc)}}
         if not args.no_export:
             args.model_dir.mkdir(parents=True, exist_ok=True)
-            joblib.dump(model, args.model_dir / ("%s_semantic_v1.pkl" % name))
-        print("[semantic] %-8s AUC=%.4f  F1=%.4f  P=%.4f  R=%.4f"
-              % (name, eu["auc"], eu["f1"], eu["precision"], eu["recall"]))
+            joblib.dump(model, args.model_dir / (f"{name}_semantic_v1.pkl"))
+        print(f"[semantic] {name:<8} AUC={eu['auc']:.4f}  F1={eu['f1']:.4f}  P={eu['precision']:.4f}  R={eu['recall']:.4f}")
 
     if not args.no_export:
         (args.model_dir / "manifest.txt").write_text(
-            "[encoder]\n%s（冻结，mean-pool，%d 维）\n\n[models]\n%s\n\n[split]\n"
-            "data/split_szz_{train,test}.csv（与 expert 同一切分）\n"
-            % (config.TEXT_MODEL, X_train.shape[1],
-               "".join("%s_semantic_v1.pkl\t%s\n" % (m, MODEL_NAMES.get(m, m))
-                       for m in wanted)),
+            f"[encoder]\n{config.TEXT_MODEL}（冻结，mean-pool，{X_train.shape[1]} 维）\n\n[models]\n"
+            + "".join(f"{m}_semantic_v1.pkl\t{MODEL_NAMES.get(m, m)}\n"
+                      for m in wanted)
+            + "\n[split]\ndata/split_szz_{train,test}.csv（与 expert 同一切分）\n",
             encoding="utf-8", newline="\n")
 
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(report.render(args, results, len(train_hashes),
                                          len(test_hashes), y_test),
                            encoding="utf-8", newline="\n")
-    print("[semantic] 报告：%s" % args.report)
+    print(f"[semantic] 报告：{args.report}")
     if not args.no_charts:
         figs = report.make_charts(results, probas, y_test, effort_loc,
                                   args.report.parent / report.FIG_DIR_NAME)
         for f in figs:
-            print("[semantic] 图表：%s" % f)
+            print(f"[semantic] 图表：{f}")
     return 0
 
 

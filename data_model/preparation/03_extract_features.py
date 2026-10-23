@@ -113,8 +113,7 @@ def parse_args() -> argparse.Namespace:
 def run_git(repo_dir: Path, *args: str) -> str:
     proc = subprocess.run(
         ["git", "-C", str(repo_dir), *args],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         check=False,
     )
     if proc.returncode != 0:
@@ -588,7 +587,7 @@ def main() -> int:
         print("[失败] 窗口过滤后没有提交可算，检查 --since 是否晚于仓库存在时间", file=sys.stderr)
         return 3
 
-    print(f"[进行] 扫描仓库完整历史明细（一次 git log --numstat）……", flush=True)
+    print("[进行] 扫描仓库完整历史明细（一次 git log --numstat）……", flush=True)
     commits = scan_history(args.repo)
     print(f"        历史索引：{len(commits)} 条非合并提交")
 

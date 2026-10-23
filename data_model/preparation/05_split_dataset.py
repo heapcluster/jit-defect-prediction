@@ -65,7 +65,8 @@ def read_rows(path: Path) -> tuple[list[dict], list[str]]:
 
 
 def parse_ts(value: str) -> datetime:
-    return datetime.strptime(value.strip(), TIMESTAMP_FORMAT)
+    # committed_at 的契约时区是 UTC；显式解析偏移，避免产生含糊的 naive datetime。
+    return datetime.strptime(value.strip() + " +0000", "%Y-%m-%d %H:%M:%S %z")
 
 
 def sort_key(row: dict) -> tuple:
@@ -87,36 +88,33 @@ def validate_split(train: list[dict], test: list[dict],
         return failures
     if len(train) + len(test) != total:
         failures.append(
-            "行数不守恒：训练 %d + 检验 %d != 样本集 %d"
-            % (len(train), len(test), total))
+            f"行数不守恒：训练 {len(train)} + 检验 {len(test)} != 样本集 {total}")
     train_max = max(parse_ts(r["committed_at"]) for r in train)
     test_min = min(parse_ts(r["committed_at"]) for r in test)
     if not test_min > train_max:
         failures.append(
-            "时间序被破坏：检验集最早 %s 不晚于训练集最晚 %s"
-            % (test_min.strftime(TIMESTAMP_FORMAT),
-               train_max.strftime(TIMESTAMP_FORMAT)))
+            f"时间序被破坏：检验集最早 {test_min.strftime(TIMESTAMP_FORMAT)} 不晚于训练集最晚 {train_max.strftime(TIMESTAMP_FORMAT)}")
     return failures
 
 
 def main() -> int:
     args = parse_args()
     if not args.dataset.is_file():
-        print("[05] 找不到样本集：%s" % args.dataset, file=sys.stderr)
+        print(f"[05] 找不到样本集：{args.dataset}", file=sys.stderr)
         return 2
 
     rows, fields = read_rows(args.dataset)
     total = len(rows)
     for col in ("commit_hash", "committed_at"):
         if col not in fields:
-            print("[05] 样本集缺列 %s —— 切分依据列不可缺（契约二第二节）" % col,
+            print(f"[05] 样本集缺列 {col} —— 切分依据列不可缺（契约二第二节）",
                   file=sys.stderr)
             return 2
 
     tag = ("_" + args.tag) if args.tag else ""
-    train_out = args.train_out or DATA_DIR / ("split%s_train.csv" % tag)
-    test_out = args.test_out or DATA_DIR / ("split%s_test.csv" % tag)
-    report = args.report or REPORTS_DIR / ("split_stats%s.md" % tag)
+    train_out = args.train_out or DATA_DIR / (f"split{tag}_train.csv")
+    test_out = args.test_out or DATA_DIR / (f"split{tag}_test.csv")
+    report = args.report or REPORTS_DIR / (f"split_stats{tag}.md")
 
     if args.selfcheck:
         # ── 边界场景：把行打乱后再切，断言必须拦下 ────────────────────────
@@ -130,7 +128,7 @@ def main() -> int:
         print("[05] --selfcheck：打乱输入后再切，应当被断言拦下")
         if failures:
             for f in failures:
-                print("      [已拦截] %s" % f)
+                print(f"      [已拦截] {f}")
             print("[05] 断言工作正常（拦住了乱序输入，未产出文件）")
             return 0
         print("[05] ⚠️ 断言没有拦住乱序输入 —— 切分保护失效", file=sys.stderr)
@@ -143,7 +141,7 @@ def main() -> int:
     failures = validate_split(train, test, total)
     if failures:
         for f in failures:
-            print("[05] ✗ %s" % f, file=sys.stderr)
+            print(f"[05] ✗ {f}", file=sys.stderr)
         print("[05] 切分未通过校验，不产出文件", file=sys.stderr)
         return 1
 
@@ -169,10 +167,8 @@ def main() -> int:
             ratio=args.train_ratio,
             n_train=len(train),
             n_test=len(test),
-            train_range="%s ~ %s" % (train_min.strftime(TIMESTAMP_FORMAT),
-                                     train_max.strftime(TIMESTAMP_FORMAT)),
-            test_range="%s ~ %s" % (test_min.strftime(TIMESTAMP_FORMAT),
-                                    test_max.strftime(TIMESTAMP_FORMAT)),
+            train_range=f"{train_min.strftime(TIMESTAMP_FORMAT)} ~ {train_max.strftime(TIMESTAMP_FORMAT)}",
+            test_range=f"{test_min.strftime(TIMESTAMP_FORMAT)} ~ {test_max.strftime(TIMESTAMP_FORMAT)}",
             pos_train=pos_train,
             rate_train="%.2f%%" % (pos_train / len(train) * 100),
             pos_test=pos_test,
@@ -188,20 +184,15 @@ def main() -> int:
         newline="\n",
     )
 
-    print("[05] 样本集 %d 条 -> 训练 %d / 检验 %d（比例 %.0f/%.0f，按时间序）"
-          % (total, len(train), len(test), args.train_ratio * 100,
-             (1 - args.train_ratio) * 100))
-    print("[05] 训练集 %s ~ %s" % (train_min.strftime(TIMESTAMP_FORMAT),
-                                  train_max.strftime(TIMESTAMP_FORMAT)))
-    print("[05] 检验集 %s ~ %s" % (test_min.strftime(TIMESTAMP_FORMAT),
-                                  test_max.strftime(TIMESTAMP_FORMAT)))
+    print(f"[05] 样本集 {total} 条 -> 训练 {len(train)} / 检验 {len(test)}（比例 {args.train_ratio * 100:.0f}/{(1 - args.train_ratio) * 100:.0f}，按时间序）")
+    print(f"[05] 训练集 {train_min.strftime(TIMESTAMP_FORMAT)} ~ {train_max.strftime(TIMESTAMP_FORMAT)}")
+    print(f"[05] 检验集 {test_min.strftime(TIMESTAMP_FORMAT)} ~ {test_max.strftime(TIMESTAMP_FORMAT)}")
     print("[05] 断言通过：检验集最早 > 训练集最晚（相隔 %.1f 天）"
           % ((test_min - train_max).total_seconds() / 86400.0))
-    print("[05] 正样本比例：训练 %.2f%% / 检验 %.2f%%"
-          % (pos_train / len(train) * 100, pos_test / len(test) * 100))
-    print("[05] 产出：%s" % train_out)
-    print("[05]       %s" % test_out)
-    print("[05] 报告：%s" % report)
+    print(f"[05] 正样本比例：训练 {pos_train / len(train) * 100:.2f}% / 检验 {pos_test / len(test) * 100:.2f}%")
+    print(f"[05] 产出：{train_out}")
+    print(f"[05]       {test_out}")
+    print(f"[05] 报告：{report}")
     return 0
 
 

@@ -1,6 +1,7 @@
 """semantic 线配置：冻结编码器、文本路径、编码超参、分类器清单。"""
 
 from __future__ import annotations
+
 from pathlib import Path
 
 PKG = Path(__file__).resolve().parent

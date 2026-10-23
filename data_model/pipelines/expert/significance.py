@@ -19,16 +19,19 @@ import argparse
 import sys
 from pathlib import Path
 
-import joblib
 import numpy as np
 import pandas as pd
 from scipy import stats
-from sklearn.metrics import (accuracy_score, f1_score, precision_score,
-                             recall_score, roc_auc_score)
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
 
 from . import config
 from .data import load_effort
-from .metrics import recall_at_effort
 from .model import MODEL_NAMES, build_model
 
 BOOTSTRAP_REPEATS = 1000
@@ -135,8 +138,7 @@ def main() -> int:
     args = parse_args()
     for path in (args.train, args.test):
         if not path.is_file():
-            print("[expert-significance] 找不到切分文件：%s（先跑 preparation/05_split_dataset.py）"
-                  % path, file=sys.stderr)
+            print(f"[expert-significance] 找不到切分文件：{path}（先跑 preparation/05_split_dataset.py）", file=sys.stderr)
             return 2
 
     train = pd.read_csv(args.train)
@@ -144,10 +146,10 @@ def main() -> int:
     missing = [c for c in config.FEATURE_FIELDS + [config.LABEL_COL]
                if c not in train.columns]
     if missing:
-        print("[expert-significance] 训练集缺列：%s" % missing, file=sys.stderr)
+        print(f"[expert-significance] 训练集缺列：{missing}", file=sys.stderr)
         return 2
     if config.LABEL_COL not in test.columns:
-        print("[expert-significance] 检验集缺 `%s`：只认主标签 szz" % config.LABEL_COL,
+        print(f"[expert-significance] 检验集缺 `{config.LABEL_COL}`：只认主标签 szz",
               file=sys.stderr)
         return 2
 
@@ -165,7 +167,7 @@ def main() -> int:
     wanted = [m.strip() for m in args.models.split(",") if m.strip()]
     unknown = [m for m in wanted if m not in MODEL_NAMES]
     if unknown:
-        print("[expert-significance] 未知模型：%s；可选 %s" % (unknown, ",".join(MODEL_NAMES)),
+        print("[expert-significance] 未知模型：{}；可选 {}".format(unknown, ",".join(MODEL_NAMES)),
               file=sys.stderr)
         return 2
 
@@ -175,7 +177,7 @@ def main() -> int:
         model = build_model(name, args.seed)
         model.fit(X_train, y_train)
         probas[name] = model.predict_proba(X_test)[:, 1]
-        print("[expert-significance] %-8s 拟合完成" % name)
+        print(f"[expert-significance] {name:<8} 拟合完成")
 
     bootstrap = {name: bootstrap_ci(y_test, p, args.bootstrap_repeats, args.seed)
                  for name, p in probas.items()}
@@ -223,7 +225,7 @@ def main() -> int:
         render(args, train, test, wanted, bootstrap, binom_rows, wilcoxon_rows,
                y_test, effort_budget, null_hits),
         encoding="utf-8", newline="\n")
-    print("[expert-significance] 显著性检验报告：%s" % args.report)
+    print(f"[expert-significance] 显著性检验报告：{args.report}")
     return 0
 
 
@@ -241,7 +243,7 @@ def render(args, train, test, wanted, bootstrap, binom_rows, wilcoxon_rows,
 |---|---|
 | 训练集 | `{args.train.name}` —— {len(train)} 条 |
 | 检验集 | `{args.test.name}` —— {len(test)} 条 |
-| 模型 | {', '.join('`%s_v1`' % m for m in wanted)} |
+| 模型 | {', '.join(f'`{m}_v1`' for m in wanted)} |
 | Bootstrap 重复次数 | {args.bootstrap_repeats}（种子 {args.seed}） |
 | Effort-aware 预算 | 检验集总 LOC 的 {args.effort_fraction:.0%}（{effort_budget:.0f} LOC） |
 | 随机基线重抽次数 | {args.null_repeats}（同一 LOC/标签/停规则的置换检验，种子 {args.seed}） |
@@ -259,8 +261,7 @@ def render(args, train, test, wanted, bootstrap, binom_rows, wilcoxon_rows,
     for name in wanted:
         for key in ("auc", "f1", "precision", "recall", "accuracy"):
             mean, lo, hi = bootstrap[name][key]
-            L.append("| `%s_v1` | %s | %.4f | [%.4f, %.4f] |\n"
-                     % (name, key, mean, lo, hi))
+            L.append(f"| `{name}_v1` | {key} | {mean:.4f} | [{lo:.4f}, {hi:.4f}] |\n")
     L.append(f"""
 > **读法**：AUC 的区间**下限**也 ≥ {AUC_TARGET:.2f} 才叫「稳」；均值过线但下限不过线，
 > 说明波动大、结论不稳。交付报告引用时写「95% CI [下限, 上限]」，别只写均值。
@@ -276,10 +277,8 @@ def render(args, train, test, wanted, bootstrap, binom_rows, wilcoxon_rows,
 """)
     for name, hit, k_pos, p_value, n_reviewed in binom_rows:
         expected = float(null_hits.mean())
-        L.append("| `%s_v1` | %d | %d | %.2f | %.2e | %s |\n"
-                 % (name, n_reviewed, hit, expected, p_value,
-                    "**拒绝 H0（显著优于随机）**" if p_value < 0.05
-                    else "不能拒绝 H0"))
+        conclusion = "**拒绝 H0（显著优于随机）**" if p_value < 0.05 else "不能拒绝 H0"
+        L.append(f"| `{name}_v1` | {n_reviewed} | {hit} | {expected:.2f} | {p_value:.2e} | {conclusion} |\n")
     L.append(f"""
 > **随机期望**取自零分布均值（{args.null_repeats} 次随机排序 = {null_hits.mean():.2f} 条缺陷），
 > **p 值** = (1 + 零分布中 ≥ 实测命中数的次数) / ({args.null_repeats} + 1)。
@@ -305,18 +304,16 @@ def render(args, train, test, wanted, bootstrap, binom_rows, wilcoxon_rows,
 """)
     for a, b, p_value, n_pos in wilcoxon_rows:
         if np.isnan(p_value):
-            L.append("| `%s_v1` | `%s_v1` | %d | — | 正标签差值样本不足（<10），不检验 |\n"
-                     % (a, b, n_pos))
+            L.append(f"| `{a}_v1` | `{b}_v1` | {n_pos} | — | 正标签差值样本不足（<10），不检验 |\n")
         else:
-            L.append("| `%s_v1` | `%s_v1` | %d | %.2e | %s |\n"
-                     % (a, b, n_pos, p_value,
-                        "**差异显著**" if p_value < 0.05 else "差异不显著"))
+            conclusion = "**差异显著**" if p_value < 0.05 else "差异不显著"
+            L.append(f"| `{a}_v1` | `{b}_v1` | {n_pos} | {p_value:.2e} | {conclusion} |\n")
     L.append("""
 > 只在**正标签**（真实缺陷）提交上比较 rank：模型的价值就在「把真缺陷排到前面」；
 > 负标签上的排序差异对业务没有意义。
 """)
 
-    L.append(f"""
+    L.append("""
 ## 四、结论与边界
 
 1. **所有指标同一检验集**：时间序 70/30 切分由 05 产出，本脚本不重切。

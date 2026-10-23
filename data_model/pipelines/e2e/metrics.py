@@ -100,9 +100,9 @@ def effort_aware_metrics(proba: np.ndarray, y: np.ndarray,
     }
 
     denom = out["optimal"]["area"] - baseline
-    for key in out:
-        out[key]["p_norm"] = (
-            (out[key]["area"] - baseline) / denom if abs(denom) > 1e-12
+    for value in out.values():
+        value["p_norm"] = (
+            (value["area"] - baseline) / denom if abs(denom) > 1e-12
             else float("nan"))
     return out
 

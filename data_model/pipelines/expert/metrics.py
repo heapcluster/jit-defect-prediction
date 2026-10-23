@@ -24,8 +24,13 @@ Effort-aware 定义（复算说明，四条线一致）：
 from __future__ import annotations
 
 import numpy as np
-from sklearn.metrics import (accuracy_score, f1_score, precision_score,
-                             recall_score, roc_auc_score)
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
 
 from . import config
 
@@ -84,14 +89,14 @@ def effort_aware_metrics(proba, y, effort) -> dict:
                      "repeats": config.RANDOM_BASELINE_REPEATS,
                      "recall@20": float("nan"), "recall@50": float("nan")}
     denom = out["optimal"]["area"] - baseline
-    for k in out:
-        out[k]["p_norm"] = ((out[k]["area"] - baseline) / denom
+    for value in out.values():
+        value["p_norm"] = ((value["area"] - baseline) / denom
                             if abs(denom) > 1e-12 else float("nan"))
         # 文献标准别名（同一数字的两种叫法，避免「自造口径」的误读）：
         #   popt = 1 − Δopt（Mende & Koschke, CSMR 2010；形式与本组 P_norm 一致）
         #   ce20 = CE@20%（20% 工作量处的缺陷召回率，20-80 原则）
-        out[k]["popt"] = out[k]["p_norm"]
-        out[k]["ce20"] = out[k]["recall@20"]
+        value["popt"] = value["p_norm"]
+        value["ce20"] = value["recall@20"]
     return out
 
 

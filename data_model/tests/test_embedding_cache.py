@@ -17,7 +17,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from data_model.pipelines.semantic.data import (  # noqa: E402
+from data_model.pipelines.semantic.data import (
     _as_str_array,
     load_embeddings,
     save_embeddings,

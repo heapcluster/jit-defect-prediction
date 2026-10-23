@@ -10,6 +10,7 @@
 - [x] 1.1 顺序质量检查 — 交付 [ci.yml](../../../.github/workflows/ci.yml)，顺序配置 lint/test/build；首轮 lint 失败即 CI failure，后续跳过，证据见 [验证记录](../../../infra/ci-validation.md)。
 - [x] 1.2 防回退验证 — 交付 [静态约束测试](../../../infra/tests/test_ci_contract.py)，8 条 unittest 通过，actionlint 无错误；结果见 [验证记录](../../../infra/ci-validation.md)。
 - [x] 1.3 跨线交付 — 向 backend/frontend/model 三线交付 PR #72 的 `CI` 日志和 [复现说明](../../../infra/ci.md)，失败定位到阶段；记录在 [验证记录](../../../infra/ci-validation.md)，不代修业务代码。
+- [x] 1.4 模型线 lint 清理 — 对 `data_model/` 存量规则逐项修复，不新增忽略项；本地 `ruff check backend data_model infra` 为 0，`python -m pytest data_model/tests infra/tests -q` 全绿（1 条既有 skip）；GitHub 全链路运行仍待本分支 PR 验证。
 
 ## 2. GitHub 门禁
 
@@ -63,7 +64,7 @@
 | 正常完整 CI / 成功放行尚未验证 | 首轮模型线 lint 阻塞 test/build；失败传播与必需检查已验证 | repo 苏哲勋 + model 线 | 模型 lint 修复后，本 PR 合入前 |
 | 正式必需门禁尚未启用 | 已撤回提前设置，避免无工作流的旧 PR 永久等待 | repo 苏哲勋 | 本 PR 全绿并合入 main、活动 PR 同步后 |
 | main 无前端/模型测试入口 | 对应测试尚在其他未合入分支，未将 skipped 说成 passed | frontend / model 各线 | 对应测试 PR 合入时自动接入 |
-| 模型线存量 126 项 lint | 已在首轮暴露并本地同版本复现，不跨线代改、不忽略失败 | model 蒋励 | CI PR 合入前修复；具体排期由该线确认 |
+| 模型线存量 lint | 本分支已本地清零，但 Linux runner 尚未验证，不把本地通过称为全链路全绿 | model 线 + repo 苏哲勋 | 本分支 PR 与 CI 修复 PR 全绿后关闭 |
 | 浏览器 E2E 与真实数据训练未执行 | 不属于本 CI 工程化范围，不等于业务验收完成 | 各业务线 | 后续里程碑 |
 
 结论：#72 的 CI 工作流已进入 main；2026-10-23 发现依赖清单失配并着手修复，GitHub 完整运行结果待新 PR 验证。main CI 必需项仍未重新启用；待业务 lint 修复、全绿合入 main 和活动 PR 同步后正式启用，不回头重排其他存量 change。

@@ -20,7 +20,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from data_model.pipelines.expert.significance import top_by_effort  # noqa: E402
+from data_model.pipelines.expert.significance import top_by_effort
 
 FRACTION = 0.20
 
@@ -42,7 +42,7 @@ def test_count_based_would_have_returned_one_commit():
     """Documents what the old (wrong) quota produced on the same input."""
     scores = np.array([5.0, 4.0, 3.0, 2.0, 1.0])
     n = len(scores)
-    old_quota = max(1, int(round(n * FRACTION)))
+    old_quota = max(1, round(n * FRACTION))
     assert old_quota == 1
     assert LABELS[:old_quota].sum() / LABELS.sum() == pytest.approx(0.0)
 
@@ -80,9 +80,9 @@ def test_effort_is_never_zero_so_budget_is_never_zero():
 # reviews both positives, while Binomial(2, 0.2) claims 0.40 and assigns 4%
 # to that impossible event.
 # ---------------------------------------------------------------------------
-import itertools  # noqa: E402
+import itertools
 
-from data_model.pipelines.expert.significance import (  # noqa: E402
+from data_model.pipelines.expert.significance import (
     effort_null_distribution,
     hits_for_order,
 )

@@ -27,6 +27,7 @@ from pathlib import Path
 
 import pandas as pd
 from git import Repo
+from git.exc import BadName, BadObject, GitCommandError
 
 BASE = Path(__file__).resolve().parent
 DATA_DIR = BASE.parent.parent / "data"          # data_model/data
@@ -52,14 +53,14 @@ def commit_diff_text(repo: Repo, commit_hash: str, max_chars: int) -> str | None
     """返回该提交引入的 diff 文本；取不到返回 None。"""
     try:
         commit = repo.commit(commit_hash)
-    except Exception:
+    except (BadName, BadObject, GitCommandError, ValueError):
         return None
     try:
         if not commit.parents:
             return None  # 根提交无 diff
         parent = commit.parents[0]
         diffs = commit.diff(parent, create_patch=True, R=True)
-    except Exception:
+    except (GitCommandError, OSError, ValueError):
         return None
 
     parts: list[str] = []
@@ -67,15 +68,12 @@ def commit_diff_text(repo: Repo, commit_hash: str, max_chars: int) -> str | None
     for d in diffs:
         a_path = d.a_path or ""
         b_path = d.b_path or a_path
-        header = "diff --git a/%s b/%s\n" % (a_path, b_path)
+        header = f"diff --git a/{a_path} b/{b_path}\n"
         parts.append(header)
         total += len(header)
         patch = d.diff
         if patch:
-            try:
-                text = patch.decode("utf-8", "replace")
-            except Exception:
-                text = str(patch)
+            text = patch.decode("utf-8", "replace") if isinstance(patch, bytes) else str(patch)
             # 单文件截断：超过 1500 字符的行级 diff 直接跳过该文件剩余
             if len(text) > 1500:
                 text = text[:1500] + "\n... [truncated]\n"
@@ -107,22 +105,21 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     if not args.dataset.is_file():
-        print("[build_text] 找不到样本集：%s（先跑 04_build_dataset.py）"
-              % args.dataset, file=sys.stderr)
+        print(f"[build_text] 找不到样本集：{args.dataset}（先跑 04_build_dataset.py）", file=sys.stderr)
         return 2
     repo_path = detect_repo(BASE.parent.parent, args.repo)
     if repo_path is None:
         print("[build_text] 找不到克隆仓库：请先按 docs/model/data-pipeline.md 克隆并固定版本，"
               "或传 --repo", file=sys.stderr)
         return 2
-    print("[build_text] 使用仓库：%s" % repo_path)
+    print(f"[build_text] 使用仓库：{repo_path}")
 
     repo = Repo(str(repo_path))
     df = pd.read_csv(args.dataset)
     need = ["commit_hash", "is_bug_inducing", "feature_version"]
     missing = [c for c in need if c not in df.columns]
     if missing:
-        print("[build_text] 样本集缺列：%s" % missing, file=sys.stderr)
+        print(f"[build_text] 样本集缺列：{missing}", file=sys.stderr)
         return 2
 
     rows = df.head(args.limit) if args.limit else df
@@ -149,9 +146,8 @@ def main() -> int:
     out_df.to_csv(args.out, index=False, quoting=__import__("csv").QUOTE_ALL)
 
     pos = int(out_df["label"].sum())
-    print("[build_text] 已写 %d 条（正样本 %d / 负样本 %d；跳过 %d 条取不到 diff）"
-          % (len(out_df), pos, len(out_df) - pos, skipped))
-    print("[build_text] -> %s" % args.out)
+    print(f"[build_text] 已写 {len(out_df)} 条（正样本 {pos} / 负样本 {len(out_df) - pos}；跳过 {skipped} 条取不到 diff）")
+    print(f"[build_text] -> {args.out}")
     return 0
 
 
