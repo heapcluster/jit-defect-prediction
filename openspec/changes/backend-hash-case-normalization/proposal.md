@@ -21,7 +21,8 @@
 
 ### Modified Capabilities
 
-- `query-api`：「提交详情查询」requirement 补一条哈希大小写归一化语义，并新增两个 Scenario（大写/混合大小写命中、归一化后仍不存在时 `40400`）。既有 Scenario 原文不改。
+- `query-api`：**ADDED** 一条独立 requirement「提交哈希大小写归一化」（4 个 Scenario：详情大写/混合大小写命中、归一化后仍不存在、非法字符仍拒收、预测接口大小写幂等），**不改任何既有 requirement 的文本**。
+  为什么用 ADDED 而不是 MODIFIED「提交详情查询」：#97（`on-demand-commit-prediction`，已合入 `4dc50aa`、change 尚未归档）已对「提交详情查询」出了 MODIFIED delta，而 OpenSpec 的 MODIFIED 是**整条覆盖** —— 两个 change 改同一条时，后归档者会把先归档者的语义整段抹掉（design D6）。ADDED 不参与覆盖，因此本 change 与 #97 的归档顺序互不影响，也不需要谁去改谁的 delta。
 
 ## Impact
 

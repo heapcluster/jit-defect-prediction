@@ -16,11 +16,15 @@
 - D4：`predict.py` 的内联校验不重构（AGENTS.md 第五节「让你修一个缺陷，不要附带调整代码风格」），只加一条大小写幂等回归测试，锁住「POST 大写与小写写同一行 `prediction`」这条既有行为，防止将来有人把 predict 的归一化删掉后两条路径再次分家。
 - D5：`docs/repo/defect-records.md` 的 D-09 行迁到 §1 已闭环，关联本 change 与 PR，证据列写测试路径 —— 缺陷记录规则要求「无证据不登记」，同理无证据不闭环。
 
+- D6：规格 delta 用 **ADDED** 独立 requirement，不用 MODIFIED 改「提交详情查询」。核查过程留痕：本 change 初版把归一化写进「提交详情查询」的 MODIFIED delta；随后按「出 delta 前先扫同名 requirement」复查（`grep -rl "^## MODIFIED Requirements" openspec/changes/*/specs/ | grep -v archive`，再逐文件列 `### Requirement:` 标题），发现 main `065c83a` 上 **#97 `on-demand-commit-prediction`（已合入 `4dc50aa`、change 尚未归档）也 MODIFIED 了同一条「提交详情查询」**，其文本已含 `docs/model/feature-columns.md` 与新的「在线模型与历史默认模型不同 → 回退到该提交已有模型中版本序最新一条」语义（对应 `backend/app/api/commits.py:136-141`）。OpenSpec 的 MODIFIED 是**整条覆盖**，两者并存时无论谁后归档都会抹掉对方：本 change 后归档 → #97 的回退语义与第三个 Scenario 丢失；#97 后归档 → 本 change 的归一化语义丢失。改成 ADDED 后两边互不覆盖，归档顺序不再有影响，也不需要谁去改谁的 delta。同一轮复查还发现 PR #82（`backend-spec-path-references`）与 #96「模型加载」、#97「提交详情查询」各撞一条，已在该 PR 内撤出对应 requirement（其 design D6 有全量撞车表）。
+
 ## Risks / Trade-offs
 
 - 复审者在 MySQL 上可能复现不到 → PR 描述与 tasks §5 都写明方言差异，权威复现路径是 SQLite 夹具测试（`cd backend && python -m pytest`）。
 - 归一化改变「什么算同一个提交」→ 只影响大小写变体。Git 哈希本身是小写十六进制，`ingest` 写入的也是小写，库内不会存在大小写混存的同义哈希；新增测试覆盖混合大小写命中同一行。
 - `_check_hash()` 返回值语义变化，未来新增调用方若忽略返回值就退回旧缺陷 → docstring 写明必须使用返回值，且 `commit_detail()` 的四处查询统一走同一个局部变量。
+
+- ADDED 独立 requirement 的代价：读 `query-api` 规格时，详情接口的行为分散在「提交详情查询」与「提交哈希大小写归一化」两段 → 缓解：新 requirement 正文点名 `GET /api/commits/{commit_hash}` 与 `POST /api/predict` 两个入口，4 个 Scenario 覆盖 GET 三种（命中/不存在/非法字符）与 POST 一种（大小写幂等）；归档后若 PO 认为该并回一段，另开 change 合并文本即可，不涉及代码改动。
 
 ## Migration Plan
 

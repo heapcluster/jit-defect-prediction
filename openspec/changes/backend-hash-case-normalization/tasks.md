@@ -1,14 +1,15 @@
 # backend-hash-case-normalization — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/query-api/spec.md`
-> 负责人：backend 吕建江 ｜ 创建：2026-10-24 ｜ 状态：实现与静态验证完成、PR #101 待复审（8/10）
+> 负责人：backend 吕建江 ｜ 创建：2026-10-24 ｜ 状态：实现与静态验证完成、PR #101 待复审（9/11；delta 已由 MODIFIED 改为 ADDED 以避开与 #97 的归档覆盖）
 > 用户故事：无（缺陷修复）；对应 `docs/repo/defect-records.md` §2 的 D-09（P3）
 > 统一格式见 `docs/common/openspec-task-template.md`；本文件末的「测试与验证」为强制板块。
 
-## 1. 代码修复
+## 1. 代码修复与规格 delta
 
 - [x] 1.1 `_check_hash()` 由只校验改为「校验并返回小写哈希」，docstring 写明调用方必须使用返回值 — 交付物：`backend/app/api/commits.py`；拒收条件（长度 40、十六进制字符集）逐字未改。
 - [x] 1.2 `commit_detail()` 用归一化后的同名局部变量查四处（`commit` / `commit_feature` / 默认模型 `prediction` / 兜底 `prediction`），响应仍回显库内 `commit.commit_hash` — 交付物：同上；采用同名覆盖而非新变量，避免漏改任一查询点。
+- [x] 1.3 规格 delta 定为 **ADDED** 独立 requirement「提交哈希大小写归一化」（4 个 Scenario：GET 大写/混合命中、归一化后仍不存在、非法字符仍拒收、POST 大小写幂等），不改任何既有 requirement 文本 — 交付物：`specs/query-api/spec.md`。理由与撞车复查见 design D6：#97（`on-demand-commit-prediction`，已合入 `4dc50aa`、change 未归档）已 MODIFIED 同一条「提交详情查询」，两份 MODIFIED 并存时后归档者会把先归档者整段抹掉；本 change 初版正是那种写法，本轮改掉。
 
 ## 2. 测试
 
@@ -52,13 +53,13 @@
 
 ### 3. 验收测试
 
-| 场景 | 测试定位 |
+| 场景（本 change ADDED 的 4 个 Scenario） | 测试定位 |
 |---|---|
-| 大写或混合大小写命中同一提交 | `backend/tests/test_security_boundaries.py::test_detail_uppercase_hash_is_normalized_to_the_stored_commit` |
+| 大写或混合大小写哈希命中同一提交 | `backend/tests/test_security_boundaries.py::test_detail_uppercase_hash_is_normalized_to_the_stored_commit` |
 | 归一化后仍不存在 → 40400 | `backend/tests/test_security_boundaries.py::test_detail_unknown_hash_stays_40400_after_normalization` |
-| 非法字符仍 40001（含大写形式） | `backend/tests/test_security_boundaries.py::test_detail_hash_boundaries_return_40001`（参数含 `g`×40 与新增 `G`×40） |
-| 哈希不存在（既有 Scenario 不回归） | `backend/tests/test_commits_api.py::test_detail_unknown_hash` 与新增 `test_detail_unknown_hash_stays_40400_after_normalization` |
-| 提交存在但尚无预测（既有 Scenario 不回归） | `backend/tests/test_commits_api.py::test_detail_without_prediction_returns_nulls`（本 change 未改动该文件） |
+| 非法字符仍 40001（含大写形式 `G`×40） | `backend/tests/test_security_boundaries.py::test_detail_hash_boundaries_return_40001` |
+| 预测接口的大小写幂等 | `backend/tests/test_predict_api.py::test_predict_uppercase_hash_uses_normalized_key` |
+| 相邻既有 requirement 不回归（「提交详情查询」的文本由 #97 的 delta 负责，本 change 不改它） | `backend/tests/test_commits_api.py::test_detail_unknown_hash`、`::test_detail_without_prediction_returns_nulls`、`::test_detail_features_and_explanation`（该文件本 change 未改动） |
 
 复现：cwd=backend `python -m pytest tests/`；cwd=仓库根 `openspec validate backend-hash-case-normalization --strict` → `Change 'backend-hash-case-normalization' is valid`；`openspec validate --all --strict` → `Totals: 24 passed, 0 failed (24 items)`。
 
@@ -90,3 +91,10 @@
 - cwd=仓库根：`python -m ruff check` 三个改动文件 → `All checks passed!`；`openspec validate backend-hash-case-normalization --strict` → valid；`openspec validate --all --strict` → `Totals: 24 passed, 0 failed (24 items)`。
 - 改动文件：`backend/app/api/commits.py`（2 处）、`backend/tests/test_security_boundaries.py`（改写 1 条 + 新增 1 条 + 参数 1 项）、`backend/tests/test_predict_api.py`（扩充 1 条）、`docs/repo/defect-records.md`（D-09 行）。未改数据库、未改契约文档、未改前端与模型线。
 - 未连 MySQL、未写库、未提交/推送前本节数字即上述实测；合入与裁定结果留待 3.2/3.3 回填。
+
+#### 2026-10-24 第二轮：delta 由 MODIFIED 改 ADDED（撞车复查）
+
+- 触发：按「出 delta 前先扫同名 requirement」复查（`grep -rl "^## MODIFIED Requirements" openspec/changes/*/specs/ | grep -v archive`，再逐文件列 `### Requirement:`），发现 main `065c83a` 上 **#97 `on-demand-commit-prediction`（已合入 `4dc50aa`、change 未归档）也 MODIFIED 了「提交详情查询」**，其文本已含 `docs/model/feature-columns.md` 与「在线模型与历史默认模型不同 → 回退到该提交已有模型中版本序最新一条」语义（对应 `backend/app/api/commits.py:136-141`）。本 change 初版对同一条出了 MODIFIED，两份并存时后归档者会把先归档者整段抹掉（design D6）。
+- 处置：delta 改为 **ADDED** 独立 requirement「提交哈希大小写归一化」，Scenario 由 3 个扩为 4 个（补 `POST /api/predict` 的大小写幂等，测试为 2.3 那条），既有 requirement 文本一律不动。改后上述 MODIFIED 扫描结果里不再有本 change，与 #97 的归档顺序互不影响。
+- 代码与测试**本轮未改**（只动 `specs/query-api/spec.md`、`proposal.md`、`design.md`、`tasks.md`），故 §1–§4 的定向 62 / 全量 132 / ruff 结果继续有效；规格重跑：`openspec validate backend-hash-case-normalization --strict` → `Change 'backend-hash-case-normalization' is valid`；`openspec validate --all --strict` → `Totals: 24 passed, 0 failed (24 items)`。
+- 同一轮复查在 PR #82 上发现两处同类撞车（与 #96「模型加载」、#97「提交详情查询」），已在该 PR 内撤出对应 requirement（head `40fd222`，其 design D6 有全量撞车表）。**这不是别人 PR 的问题、是我自己两个 PR 都犯了同一个错**，故把复查命令固化进两个 change 的归档前判据。
