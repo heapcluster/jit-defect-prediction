@@ -28,7 +28,7 @@ from sklearn.model_selection import TimeSeriesSplit
 from . import config
 from .data import load_effort
 from .metrics import recall_at_effort
-from .model import MODEL_CLASS, MODEL_NAMES, build_model
+from .model import MODEL_NAMES, build_model
 
 
 def parse_args() -> argparse.Namespace:
@@ -100,7 +100,7 @@ def effort_quota_table(y_true: np.ndarray, proba: np.ndarray,
     n = len(y_true)
     rows = []
     for frac in fractions:
-        quota = max(1, int(round(n * frac)))
+        quota = max(1, round(n * frac))
         by_proba = np.argsort(-proba, kind="stable")[:quota]
         by_density = np.argsort(-(proba / effort), kind="stable")[:quota]
         rows.append((frac, quota, len(by_proba),
@@ -113,8 +113,7 @@ def main() -> int:
     args = parse_args()
     for path in (args.train, args.test):
         if not path.is_file():
-            print("[expert-calibrate] 找不到切分文件：%s（先跑 preparation/05_split_dataset.py）"
-                  % path, file=sys.stderr)
+            print(f"[expert-calibrate] 找不到切分文件：{path}（先跑 preparation/05_split_dataset.py）", file=sys.stderr)
             return 2
 
     train = pd.read_csv(args.train)
@@ -122,10 +121,10 @@ def main() -> int:
     missing = [c for c in config.FEATURE_FIELDS + [config.LABEL_COL]
                if c not in train.columns]
     if missing:
-        print("[expert-calibrate] 训练集缺列：%s" % missing, file=sys.stderr)
+        print(f"[expert-calibrate] 训练集缺列：{missing}", file=sys.stderr)
         return 2
     if config.LABEL_COL not in test.columns:
-        print("[expert-calibrate] 检验集缺 `%s`：只认主标签 szz" % config.LABEL_COL,
+        print(f"[expert-calibrate] 检验集缺 `{config.LABEL_COL}`：只认主标签 szz",
               file=sys.stderr)
         return 2
 
@@ -141,11 +140,11 @@ def main() -> int:
     wanted = [m.strip() for m in args.models.split(",") if m.strip()]
     unknown = [m for m in wanted if m not in MODEL_NAMES]
     if unknown:
-        print("[expert-calibrate] 未知模型：%s；可选 %s" % (unknown, ",".join(MODEL_NAMES)),
+        print("[expert-calibrate] 未知模型：{}；可选 {}".format(unknown, ",".join(MODEL_NAMES)),
               file=sys.stderr)
         return 2
     if args.primary not in wanted:
-        print("[expert-calibrate] --primary=%s 不在 --models 里" % args.primary,
+        print(f"[expert-calibrate] --primary={args.primary} 不在 --models 里",
               file=sys.stderr)
         return 2
 
@@ -156,8 +155,8 @@ def main() -> int:
     for name in wanted:
         per_model[name] = calibrate_model(name, args.seed, train, y_train,
                                           X_train, X_test, args.cv_folds)
-        print("[expert-calibrate] %-8s %s" % (name, "、".join(
-            "%s: Brier=%.4f" % (m, brier_score_loss(y_test, p))
+        print("[expert-calibrate] {:<8} {}".format(name, "、".join(
+            f"{m}: Brier={brier_score_loss(y_test, p):.4f}"
             for m, p in per_model[name])))
 
     primary_rows = effort_quota_table(
@@ -168,7 +167,7 @@ def main() -> int:
         render(args, train, test, wanted, per_model, y_test, thresholds,
                primary_rows, fractions, effort_loc),
         encoding="utf-8", newline="\n")
-    print("[expert-calibrate] 校准与阈值报告：%s" % args.report)
+    print(f"[expert-calibrate] 校准与阈值报告：{args.report}")
     return 0
 
 
@@ -189,7 +188,7 @@ def render(args, train, test, wanted, per_model, y_test, thresholds,
 | 特征列 | 契约二第三节 14 项 |
 | 标签 | `szz`（主标签） |
 | 主模型 | `{args.primary}`（{MODEL_NAMES.get(args.primary, '')}） |
-| 对照模型 | {', '.join('`%s`' % m for m in wanted)} |
+| 对照模型 | {', '.join(f'`{m}`' for m in wanted)} |
 | 校准方法 | sigmoid（Platt）/ isotonic，cv = TimeSeriesSplit（块状前向，{args.cv_folds} 折） |
 | 随机种子 | `{args.seed}` |
 | 检验集正样本比例 | {y_test.mean() * 100:.2f}% |
@@ -207,9 +206,7 @@ def render(args, train, test, wanted, per_model, y_test, thresholds,
     for name in wanted:
         for method, proba in per_model[name]:
             ece, mce, _ = expected_calibration_error(y_test, proba)
-            L.append("| `%s_v1`（%s） | %s | %.4f | %.4f | %.4f |\n"
-                     % (name, MODEL_NAMES.get(name, name), method,
-                        brier_score_loss(y_test, proba), ece, mce))
+            L.append(f"| `{name}_v1`（{MODEL_NAMES.get(name, name)}） | {method} | {brier_score_loss(y_test, proba):.4f} | {ece:.4f} | {mce:.4f} |\n")
     L.append("""
 > - **Brier**：整段概率的均方误差，越低越好。
 > - **ECE / MCE**：分桶后「自报置信」与「真实频率」的平均/最大偏差。
@@ -220,10 +217,9 @@ def render(args, train, test, wanted, per_model, y_test, thresholds,
 > 神经网络行受 `matrix.md` 的收敛登记约束：同一超参，未收敛不静默。
 """)
 
-    L.append("## 二、阈值-真实缺陷率表（主模型 `%s_v1`，raw 概率）\n\n" % args.primary)
+    L.append(f"## 二、阈值-真实缺陷率表（主模型 `{args.primary}_v1`，raw 概率）\n\n")
     L.append("| 阈值 | 预测为高 | 真实缺陷率 | 覆盖到的缺陷 |\n|---|---|---|---|\n")
     _, primary_proba = per_model[args.primary][0]
-    pred_high = primary_proba >= config.DECISION_THRESHOLD
     n = len(y_test)
     for t in thresholds:
         mask = primary_proba >= t
@@ -233,21 +229,18 @@ def render(args, train, test, wanted, per_model, y_test, thresholds,
         else:
             rate, hit = float("nan"), 0
         mark = " ←**契约当前值**" if t == config.DECISION_THRESHOLD else ""
-        L.append("| %.2f%s | %d（%.2f%%） | %.4f | %d / %d |\n"
-                 % (t, mark, int(mask.sum()), mask.sum() / n * 100, rate, hit,
-                    int(y_test.sum())))
-    L.append("""
-> 契约三的判定阈值是**服务端常量 %.2f**（非请求参数）。本表按原始分数切，
+        L.append(f"| {t:.2f}{mark} | {int(mask.sum())}（{mask.sum() / n * 100:.2f}%） | {rate:.4f} | {hit} / {int(y_test.sum())} |\n")
+    L.append(f"""
+> 契约三的判定阈值是**服务端常量 {config.DECISION_THRESHOLD:.2f}**（非请求参数）。本表按原始分数切，
 > **未做任何校准** —— 数字只说明「这一刀切下去的命中率」，不承诺校准后的语义。
-""" % config.DECISION_THRESHOLD)
+""")
 
-    L.append("## 三、高风险配额对照表（主模型 `%s_v1`，raw 概率）\n\n" % args.primary)
+    L.append(f"## 三、高风险配额对照表（主模型 `{args.primary}_v1`，raw 概率）\n\n")
     L.append("两种排序口径：**按 `risk_score` 降序**（契约三当前口径）vs "
              "**按 `risk_score / 工作量` 降序**（Kamei 原文 R_d）。\n\n")
     L.append("| 配额 | 审查条数 | 按概率降序召回 | 按风险密度降序召回 |\n|---|---|---|---|\n")
     for frac, _, _, rec_p, rec_d in primary_rows:
-        L.append("| 前 %.0f%% | %d | %.4f | %.4f |\n" % (frac * 100, _,
-                                                          rec_p, rec_d))
+        L.append(f"| 前 {frac * 100:.0f}% | {_} | {rec_p:.4f} | {rec_d:.4f} |\n")
     L.append("""
 > **密度排序在配额制下的召回普遍更高**（LOC 重尾：大提交单条消耗大，概率又与大提交
 > 正相关）。这就是 Issue #37 的核心证据：同样的模型，**排序口径一改，同样预算能多抓
@@ -257,16 +250,16 @@ def render(args, train, test, wanted, per_model, y_test, thresholds,
 > 都不在本脚本范围内。
 """)
 
-    L.append("""
+    L.append(f"""
 ## 四、结论与边界
 
 1. **证据只归 #38 / #37**：本报告给出「raw 概率是否说得准」「固定阈值切下去的命中率」
    「配额制下两种排序的召回」三组实测数字。
-2. **契约不动**：判定阈值（%.2f）与排序口径（概率降序）的变更一律走提案流程；
+2. **契约不动**：判定阈值（{config.DECISION_THRESHOLD:.2f}）与排序口径（概率降序）的变更一律走提案流程；
    本脚本不输出任何「应该改成 X」的结论。
 3. **可复现**：同一命令重跑，逐项数字一致（种子已固定）。
 4. **未收敛登记**：神经网络行与 `matrix.md` 的收敛登记同约束，未收敛不静默。
-""" % config.DECISION_THRESHOLD)
+""")
     return "".join(L)
 
 

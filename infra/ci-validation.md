@@ -1,5 +1,9 @@
 # ci-quality-gate 验证记录
 
+## 2026-10-23 · main 依赖清单失配修复
+
+main `95f572b` 已删除 `backend/requirements.txt` 与 `data_model/requirements.txt`，旧 CI 安装命令因此在 lint 前失败。本次修复将安装入口改为 `data_model/environment.yml`，独立 Ruff 步骤从同一清单提取版本，并补防回退测试验证依赖路径真实存在。旧工作流上的新增测试先因两个已删除文件失败；修复后工程化 unittest 8/8 通过，actionlint 1.7.12 无诊断。首次 [#92 run 39954339538](https://github.com/heapcluster/jit-defect-prediction/actions/runs/39954339538) 已越过依赖安装，但模型线 Ruff 296 项阻断后续阶段；提交 `7a274f3` 逐项清理且不新增忽略项。本地 `ruff check backend data_model infra` 为 0，模型与工程化测试 exit 0（1 条既有 skip）。最新 [#92 run 39958442585](https://github.com/heapcluster/jit-defect-prediction/actions/runs/39958442585) 的安装、三线 lint、OpenSpec、CI 合同/后端/前端/模型测试及构建步骤均 success，CI job 总结论 success。此结果仅证明 #92 head 在 PR runner 全链路通过；尚未合入 main，也未恢复 main 必需检查。下文 2026-10-16 的 #72 记录仅为历史，不代表当前 main 状态。
+
 日期：2026-10-16。基线：`59ad7ed8c6caf35e257a7cf66395c13357beb83a`。本记录区分本地静态测试、真实 Actions 执行和服务端规则，不将未执行写成通过。
 
 | 检查 | 结果 | 证据 / 复现 |

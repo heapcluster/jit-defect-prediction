@@ -40,7 +40,7 @@ main 的服务端规则 MUST 将 GitHub Actions 的 `CI` 设为必需状态检�
 #### Scenario: 已有套件
 
 - **WHEN** 执行 CI
-- **THEN** 始终运行后端与工程化套件，前端/模型用例合入后执行其统一入口，运行失败不能忽略
+- **THEN** `ruff check backend data_model infra` 对全部现有 Python 代码执行且不得以存量忽略项放行；始终运行后端与工程化套件，前端/模型用例合入后执行其统一入口，运行失败不能忽略
 
 #### Scenario: 尚无套件
 

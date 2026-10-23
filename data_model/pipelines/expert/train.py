@@ -73,10 +73,10 @@ def write_feature_order(model_dir: Path, wanted: list[str]) -> Path:
     order_file.write_text(
         "# 模型交付清单（expert 线包内副本；唯一权威是 docs/model/feature-columns.md）\n\n"
         "[models]\n"
-        + "".join("%s_v1.pkl\t%s\n" % (m, MODEL_NAMES.get(m, m)) for m in wanted)
+        + "".join(f"{m}_v1.pkl\t{MODEL_NAMES.get(m, m)}\n" for m in wanted)
         + "\n[feature_order]\n"
-        + "".join("%2d. %s\n" % (i + 1, c) for i, c in enumerate(config.FEATURE_FIELDS))
-        + "\n[decision]\n风险阈值 %.2f（服务端常量）\n" % config.DECISION_THRESHOLD,
+        + "".join(f"{i + 1:2d}. {c}\n" for i, c in enumerate(config.FEATURE_FIELDS))
+        + f"\n[decision]\n风险阈值 {config.DECISION_THRESHOLD:.2f}（服务端常量）\n",
         encoding="utf-8", newline="\n")
     return order_file
 
@@ -99,37 +99,35 @@ def main() -> int:
         proba = model.predict_proba(X_test)[:, 1]
         probas[name] = proba
         eu = effort_unaware(y_test, proba)
-        row = {"model_name": "%s_v1" % name, "label": MODEL_NAMES.get(name, name), **eu,
+        row = {"model_name": f"{name}_v1", "label": MODEL_NAMES.get(name, name), **eu,
                "effort": {k: effort_aware_metrics(proba, y_test, e)
                           for k, e in effort_sets.items()}}
         if not args.skip_shap:
             try:
                 row["shap"] = shap_latency(name, model, X_test, args.shap_rows)
-            except Exception as exc:
-                row["shap"] = {"error": "%s: %s" % (type(exc).__name__, exc)}
+            except (ImportError, AttributeError, TypeError, ValueError, RuntimeError, OSError) as exc:
+                row["shap"] = {"error": f"{type(exc).__name__}: {exc}"}
         results[name] = row
         if not args.no_export:
             args.model_dir.mkdir(parents=True, exist_ok=True)
-            joblib.dump(model, args.model_dir / ("%s_v1.pkl" % name))
-        print("[expert] %-8s AUC=%.4f  F1=%.4f  P=%.4f  R=%.4f"
-              % (name, row["auc"], row["f1"], row["precision"], row["recall"]))
+            joblib.dump(model, args.model_dir / (f"{name}_v1.pkl"))
+        print(f"[expert] {name:<8} AUC={row['auc']:.4f}  F1={row['f1']:.4f}  P={row['precision']:.4f}  R={row['recall']:.4f}")
 
     if not args.no_export:
         delivery = [m.strip() for m in args.delivery_models.split(",") if m.strip()]
         order_file = write_feature_order(args.model_dir, delivery)
-        print("[expert] 交付清单：%s（[models] = %s；其余模型仅评估）"
-              % (order_file, ",".join(delivery)))
+        print("[expert] 交付清单：{}（[models] = {}；其余模型仅评估）".format(order_file, ",".join(delivery)))
 
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(report.render(args, train, test, results),
                            encoding="utf-8", newline="\n")
-    print("[expert] 报告：%s" % args.report)
+    print(f"[expert] 报告：{args.report}")
     if not args.no_charts:
         figs = report.make_charts(results, probas, y_test,
                                   effort_raw["effort_loc"].to_numpy(),
                                   args.report.parent / report.FIG_DIR_NAME)
         for f in figs:
-            print("[expert] 图表：%s" % f)
+            print(f"[expert] 图表：{f}")
     return 0
 
 

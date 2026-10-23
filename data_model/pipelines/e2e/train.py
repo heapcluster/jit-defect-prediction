@@ -55,7 +55,7 @@ def main() -> int:
     np.random.seed(args.seed)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print("[e2e] 设备：%s%s" % (device, "（fp16 已开启）" if torch.cuda.is_available()
+    print("[e2e] 设备：{}{}".format(device, "（fp16 已开启）" if torch.cuda.is_available()
                                 else "（CPU，微调极慢，建议 4060）"))
 
     df = load_texts(args.text_csv)
@@ -76,8 +76,7 @@ def main() -> int:
     n_val = max(1, int(len(train_df) * args.eval_frac))
     val_df = train_df.tail(n_val).reset_index(drop=True)
     train_core = train_df.head(len(train_df) - n_val).reset_index(drop=True)
-    print("[e2e] 训练 %d / 验证 %d / 检验 %d（验证集来自训练尾部时间序）"
-          % (len(train_core), len(val_df), len(test_df)))
+    print(f"[e2e] 训练 {len(train_core)} / 验证 {len(val_df)} / 检验 {len(test_df)}（验证集来自训练尾部时间序）")
 
     train_ds = TextDataset(train_core["text"].tolist(), train_core["label"].tolist(),
                            tokenizer, args.max_len)
@@ -122,19 +121,18 @@ def main() -> int:
     args.model_dir.mkdir(parents=True, exist_ok=True)
     trainer.model.save_pretrained(str(args.model_dir))
     tokenizer.save_pretrained(str(args.model_dir))
-    print("[e2e] 模型已保存：%s" % args.model_dir)
+    print(f"[e2e] 模型已保存：{args.model_dir}")
 
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(report.render(args, len(train_core), len(val_df),
                                          len(test_df), y_test, res),
                            encoding="utf-8", newline="\n")
-    print("[e2e] AUC=%.4f  F1=%.4f  P=%.4f  R=%.4f"
-          % (res["auc"], res["f1"], res["precision"], res["recall"]))
-    print("[e2e] 报告：%s" % args.report)
+    print("[e2e] AUC={:.4f}  F1={:.4f}  P={:.4f}  R={:.4f}".format(res["auc"], res["f1"], res["precision"], res["recall"]))
+    print(f"[e2e] 报告：{args.report}")
     if not args.no_charts:
         for f in report.make_charts(y_test, proba, effort_loc,
                                     args.report.parent / report.FIG_DIR_NAME):
-            print("[e2e] 图表：%s" % f)
+            print(f"[e2e] 图表：{f}")
     return 0
 
 

@@ -103,7 +103,7 @@ def ensure_text_df(args) -> pd.DataFrame:
 def main() -> int:
     args = parse_args()
     if not args.model_dir.is_dir():
-        print("[e2e-predict] 找不到模型：%s（先跑 train.py）" % args.model_dir,
+        print(f"[e2e-predict] 找不到模型：{args.model_dir}（先跑 train.py）",
               file=sys.stderr)
         return 2
 
@@ -134,7 +134,7 @@ def main() -> int:
         w = csv.writer(f)
         w.writerow(CONTRACT_FIELDS)
         for commit_hash, score in zip(df["commit_hash"], proba):
-            w.writerow([commit_hash, args.model_name, "%.5f" % float(score),
+            w.writerow([commit_hash, args.model_name, f"{float(score):.5f}",
                         predicted_at, args.feature_version])
 
     # 断言：字段与契约一表三逐字一致且无契约外字段
@@ -143,12 +143,12 @@ def main() -> int:
     extra = [c for c in header if c not in CONTRACT_FIELDS]
     lose = [c for c in CONTRACT_FIELDS if c not in header]
     if extra or lose or header != CONTRACT_FIELDS:
-        print("[e2e-predict] 字段与契约一表三不一致：多 %s / 缺 %s" % (extra, lose),
+        print(f"[e2e-predict] 字段与契约一表三不一致：多 {extra} / 缺 {lose}",
               file=sys.stderr)
         return 1
     source = Path(__file__).read_text(encoding="utf-8")
     banned = ["sqlalchemy", "pymysql", "mysql.connector", "sqlite3", "psycopg2"]
-    if any(("import %s" % b) in source for b in banned):
+    if any((f"import {b}") in source for b in banned):
         print("[e2e-predict] 脚本含数据库驱动 import", file=sys.stderr)
         return 1
 
@@ -156,30 +156,25 @@ def main() -> int:
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(
         "# e2e 全量预测结果统计（predict.py 产出）\n\n"
-        "> 字段口径见契约一表三 `prediction`。`feature_version` 本线写 `%s`。\n\n"
+        f"> 字段口径见契约一表三 `prediction`。`feature_version` 本线写 `{args.feature_version}`。\n\n"
         "## 产出\n\n"
-        "| 项 | 值 |\n|---|---|\n| 模型 | `%s` |\n"
-        "| 推理条数 | %d（全量，含检验集） |\n"
-        "| `feature_version` | `%s` |\n"
-        "| `predicted_at` | %s |\n| 输出文件 | `%s` |\n\n"
+        f"| 项 | 值 |\n|---|---|\n| 模型 | `{args.model_name}` |\n"
+        f"| 推理条数 | {len(df)}（全量，含检验集） |\n"
+        f"| `feature_version` | `{args.feature_version}` |\n"
+        f"| `predicted_at` | {predicted_at} |\n| 输出文件 | `{args.out}` |\n\n"
         "## 风险分数分布\n\n"
-        "| 统计量 | 值 |\n|---|---|\n| 均值 | %.5f |\n"
-        "| 中位数 | %.5f |\n| p95 | %.5f |\n"
-        "| `risk_score >= %.2f` 的条数 | %d（%.2f%%） |\n\n"
+        f"| 统计量 | 值 |\n|---|---|\n| 均值 | {float(np.mean(proba)):.5f} |\n"
+        f"| 中位数 | {float(np.median(proba)):.5f} |\n| p95 | {float(np.percentile(proba, 95)):.5f} |\n"
+        f"| `risk_score >= {DECISION_THRESHOLD:.2f}` 的条数 | {above}（{above / len(df) * 100:.2f}%） |\n\n"
         "## 三条断言\n\n"
         "| 检查项 | 结果 |\n|---|---|\n"
         "| 字段与契约一表三逐字一致，无契约外字段 | 通过 |\n"
         "| 列顺序与契约一表三一致 | 通过 |\n"
-        "| 脚本与依赖中无任何数据库连接 | 通过 |\n"
-        % (args.feature_version, args.model_name, len(df), args.feature_version,
-           predicted_at, args.out, float(np.mean(proba)), float(np.median(proba)),
-           float(np.percentile(proba, 95)), DECISION_THRESHOLD, above,
-           above / len(df) * 100),
+        "| 脚本与依赖中无任何数据库连接 | 通过 |\n",
         encoding="utf-8", newline="\n")
 
-    print("[e2e-predict] 全量推理 %d 条 -> %s" % (len(df), args.out))
-    print("[e2e-predict] 断言通过；risk_score 均值 %.5f ｜ >= %.2f 的 %d 条（%.2f%%）"
-          % (float(np.mean(proba)), DECISION_THRESHOLD, above, above / len(df) * 100))
+    print(f"[e2e-predict] 全量推理 {len(df)} 条 -> {args.out}")
+    print(f"[e2e-predict] 断言通过；risk_score 均值 {float(np.mean(proba)):.5f} ｜ >= {DECISION_THRESHOLD:.2f} 的 {above} 条（{above / len(df) * 100:.2f}%）")
     return 0
 
 

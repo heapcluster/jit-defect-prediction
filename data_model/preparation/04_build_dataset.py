@@ -240,7 +240,7 @@ def build_one(
         raise RuntimeError(f"样本集里混了多个 feature_version：{sorted(versions)}；口径不统一不能当一份样本集")
 
     # tasks.md 4.5：样本集不得含切分列
-    leaked = FORBIDDEN_FIELDS & {c.lower() for c in rows[0].keys()}
+    leaked = FORBIDDEN_FIELDS & {c.lower() for c in rows[0]}
     if leaked:
         raise RuntimeError(f"样本集里出现了切分列 {sorted(leaked)}；切分属下游 change，不能提前做进来")
 
@@ -296,9 +296,9 @@ def write_report(path: Path, ctx: dict, results: list[dict], labels: list[Path])
 
     L.append("\n## 对齐与断言\n")
     L.append("| 检查项 | 结果 |\n|---|---|")
-    L.append(f"| 断言 A：无「有标签却不在提交清单里」的行 | ✅ 通过（0 条） |")
-    L.append(f"| 断言 B：无「有标签却没有特征」的行 | ✅ 通过（0 条） |")
-    L.append(f"| 样本集不含切分列 | ✅ 通过 |")
+    L.append("| 断言 A：无「有标签却不在提交清单里」的行 | ✅ 通过（0 条） |")
+    L.append("| 断言 B：无「有标签却没有特征」的行 | ✅ 通过（0 条） |")
+    L.append("| 样本集不含切分列 | ✅ 通过 |")
     L.append(f"| 特征表行数（03 产出，含被 D5 排除的提交） | {ctx['n_features']} |")
     for r in results:
         excluded = ctx["n_commits"] - (r["pos"] + r["neg"])
@@ -313,7 +313,7 @@ def write_report(path: Path, ctx: dict, results: list[dict], labels: list[Path])
     L.append("- 样本集**不含任何切分列，也不产出切分文件**：按 `committed_at` 前 70%/后 30% 的时间序切分属下游 change（`AGENTS.md` 禁止随机切分）")
     L.append("- 标签来源：`docs/model/data-pipeline.md` 第 7 节判据 D4（缺陷编号 且 修复语义双命中）+ 决策 D5（回溯未命中者不入样本、不记 0）")
     L.append("- 特征口径：`docs/model/feature-columns.md` 第四节（归一化 + 自然对数变换），版本号见样本集 `feature_version` 列")
-    L.append(f"- 输入文件：" + "；".join(f"`{p.name}`" for p in labels))
+    L.append("- 输入文件：" + "；".join(f"`{p.name}`" for p in labels))
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(L) + "\n", encoding="utf-8")

@@ -1,6 +1,7 @@
 """fused 线配置：双模态输入路径、拼接维度、分类器清单。"""
 
 from __future__ import annotations
+
 from pathlib import Path
 
 PKG = Path(__file__).resolve().parent

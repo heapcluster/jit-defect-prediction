@@ -5,16 +5,17 @@
 ## 覆盖与边界
 
 - lint：前端 ESLint、backend/data_model/infra 的 Ruff、活 OpenSpec 规格严格校验。tasks 的十项格式与证据检查仍由 PR 审阅执行，不回头重排存量。
-- test：工程化 unittest 和后端完整 pytest 始终运行。main 目前没有前端/模型测试套件，其步骤按文件存在性标 skipped；用例/配置合入即执行 `npm run test:unit` / `python -m pytest -q`。有用例却缺脚本/依赖会失败，不用 `--if-present`。
+- test：工程化 unittest 和后端完整 pytest 始终运行；前端/模型步骤在对应测试文件存在时执行。用例存在但缺脚本/依赖会失败，不用 `--if-present`。
 - build：Vite 生产构建和 Python 编译；不是模型训练、真实服务联调或浏览器 E2E。
-- Ubuntu 24.04、Node 24、Python 3.12；依赖以仓库 lock 和 requirements 为准。不更改各线版本、不提交数据/模型/密钥。
+- Ubuntu 24.04、Node 24、Python 3.12；前端依赖以 `frontend/package-lock.json` 为准，Python 依赖仅以 `data_model/environment.yml` 为准。CI 用 `setup-miniconda` 激活该环境，再单独确认同一文件中钉定的 Ruff；不更改各线版本、不提交数据/模型/密钥。完整模型依赖较大，CI 超时设为 60 分钟；实际耗时须以 GitHub run 验证。
 
 ## 本地复现
 
-在仓库根目录、Python 3.12 与 Node 24 环境执行（前端子目录命令单独标出）：
+在仓库根目录、已安装 conda 与 Node 24 的环境执行（前端子目录命令单独标出）：
 
 ```sh
-python -m pip install -r backend/requirements.txt -r data_model/requirements.txt
+conda env create -f data_model/environment.yml
+conda activate jit-defect-prediction
 npm install --global @fission-ai/openspec@1.11.0 --ignore-scripts --no-audit --no-fund
 ```
 
@@ -34,7 +35,7 @@ npm install --global @fission-ai/openspec@1.11.0 --ignore-scripts --no-audit --n
 
 ## GitHub 配置与故障定位
 
-YAML 本身不阻断合入。启用顺序必须是：先修复实际 CI 失败 → CI PR 全绿并经非作者审阅合入 main → 各活动 PR 同步含工作流的 main 并触发 PR 检查 → 再在 `protect_main` ruleset 中追加必需 `CI`（来源 GitHub Actions）及严格最新基线。全程保留既有审阅/禁强推/禁删除规则和无豁免设置，需要管理员权限。
+YAML 本身不阻断合入。当前 main 的旧工作流还引用已删除的 requirements；本次改为唯一环境文件后，先在修复 PR 上核验安装、lint、test、build 的实际结果。若仍因模型线 lint 等失败，须交对应线修复，不能称全绿或提前启用门禁。修复 PR 全绿并经非作者审阅合入 main、活动 PR 同步 main 并触发检查后，再在 `protect_main` ruleset 中追加必需 `CI`（来源 GitHub Actions）及严格最新基线。全程保留既有审阅/禁强推/禁删除规则和无豁免设置，需要管理员权限。
 
 不能在工作流尚未合入、旧 PR 尚无运行入口时先强制要求 CI，否则会一直显示 Expected / Waiting for status。2026-10-16 已按用户确认暂撤提前启用的 CI 必需项；工作流文件不删除，后续按上述顺序启用。
 

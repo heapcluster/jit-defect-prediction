@@ -47,17 +47,32 @@ class CIContractTests(unittest.TestCase):
         actions = re.findall(r"uses: (\S+)", WORKFLOW)
         self.assertEqual(len(actions), 3)
         for action in actions:
-            self.assertRegex(action, r"^actions/[a-z-]+@[a-f0-9]{40}$")
+            self.assertRegex(action, r"^(?:actions|conda-incubator)/[a-z-]+@[a-f0-9]{40}$")
 
     def test_missing_future_tests_are_not_misrepresented(self):
         for step in ("Test frontend", "Test data model"):
             block = WORKFLOW.split("- name: " + step + "\n", 1)[1].split("- name:", 1)[0]
             self.assertIn("if: hashFiles(", block)
         self.assertIn("run: npm run test:unit\n", WORKFLOW)
+        self.assertIn("frontend/tests/**/*.spec.*", WORKFLOW)
 
     def test_install_uses_repository_manifests(self):
         self.assertIn("npm ci --ignore-scripts", WORKFLOW)
-        self.assertIn("-r backend/requirements.txt -r data_model/requirements.txt", WORKFLOW)
+        manifests = re.findall(r"(?:^|\s)-r\s+([^\s]+)", WORKFLOW)
+        manifests += re.findall(r"(?m)^\s+environment-file:\s+([^\s]+)", WORKFLOW)
+        self.assertTrue(manifests, "CI 必须引用仓库内的 Python 依赖清单")
+        for manifest in manifests:
+            with self.subTest(manifest=manifest):
+                self.assertTrue((ROOT / manifest).is_file(), f"依赖清单不存在：{manifest}")
+        self.assertEqual(manifests, ["data_model/environment.yml"])
+        environment = (ROOT / manifests[0]).read_text(encoding="utf-8")
+        name = re.search(r"(?m)^name:\s*(\S+)\s*$", environment)
+        self.assertIsNotNone(name)
+        self.assertIn("activate-environment: " + name.group(1), WORKFLOW)
+        self.assertIn("shell: bash -el {0}", WORKFLOW)
+        self.assertIn("- name: Install Ruff\n", WORKFLOW)
+        self.assertNotIn("backend/requirements.txt", WORKFLOW)
+        self.assertNotIn("data_model/requirements.txt", WORKFLOW)
 
 
 if __name__ == "__main__":

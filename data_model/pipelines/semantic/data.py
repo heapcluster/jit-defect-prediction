@@ -12,18 +12,16 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import config
-
 
 def load_texts(path: Path) -> pd.DataFrame:
     if not path.is_file():
-        print("[semantic] 找不到文本数据集：%s（传 --repo 自动建，或先跑 e2e 的 "
-              "build_text_dataset.py 后把 --text-csv 指过去）" % path, file=sys.stderr)
+        print(f"[semantic] 找不到文本数据集：{path}（传 --repo 自动建，或先跑 e2e 的 "
+              "build_text_dataset.py 后把 --text-csv 指过去）", file=sys.stderr)
         raise SystemExit(2)
     df = pd.read_csv(path)
     missing = [c for c in ("commit_hash", "text") if c not in df.columns]
     if missing:
-        print("[semantic] 文本数据集缺列：%s" % missing, file=sys.stderr)
+        print(f"[semantic] 文本数据集缺列：{missing}", file=sys.stderr)
         raise SystemExit(2)
     return df.dropna(subset=["text"]).reset_index(drop=True)
 
@@ -32,8 +30,9 @@ def extract_texts_from_repo(repo_path: Path, dataset_csv: Path,
                             out_csv: Path, max_chars: int) -> Path:
     """自包含的 diff 文本提取（依赖 GitPython）；格式与 e2e 包一致。"""
     from git import Repo
+    from git.exc import BadName, BadObject, GitCommandError
     if not (repo_path / ".git").exists():
-        print("[semantic] 仓库不存在：%s" % repo_path, file=sys.stderr)
+        print(f"[semantic] 仓库不存在：{repo_path}", file=sys.stderr)
         raise SystemExit(2)
     repo = Repo(str(repo_path))
     df = pd.read_csv(dataset_csv)
@@ -45,17 +44,15 @@ def extract_texts_from_repo(repo_path: Path, dataset_csv: Path,
             if not commit.parents:
                 continue
             diffs = commit.diff(commit.parents[0], create_patch=True, R=True)
-        except Exception:
+        except (BadName, BadObject, GitCommandError, OSError, ValueError) as exc:
+            print(f"[semantic] 跳过无法读取 diff 的提交 {h}: {exc}", file=sys.stderr)
             continue
         parts, total = [], 0
         for d in diffs:
-            header = "diff --git a/%s b/%s\n" % (d.a_path or "", d.b_path or d.a_path or "")
+            header = "diff --git a/{} b/{}\n".format(d.a_path or "", d.b_path or d.a_path or "")
             parts.append(header); total += len(header)
             if d.diff:
-                try:
-                    text = d.diff.decode("utf-8", "replace")
-                except Exception:
-                    text = str(d.diff)
+                text = d.diff.decode("utf-8", "replace") if isinstance(d.diff, bytes) else str(d.diff)
                 if len(text) > 1500:
                     text = text[:1500] + "\n... [truncated]\n"
                 parts.append(text); total += len(text)
@@ -81,7 +78,7 @@ def encode_texts(texts: list[str], text_model: str, max_len: int,
     import torch
     from transformers import AutoModel, AutoTokenizer
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print("[semantic] 编码设备：%s（冻结，只前向）" % device)
+    print(f"[semantic] 编码设备：{device}（冻结，只前向）")
     tokenizer = AutoTokenizer.from_pretrained(text_model)
     encoder = AutoModel.from_pretrained(text_model).to(device).eval()
     for p in encoder.parameters():
@@ -97,7 +94,7 @@ def encode_texts(texts: list[str], text_model: str, max_len: int,
             pooled = (hidden * mask).sum(1) / mask.sum(1).clamp(min=1)
             out.append(pooled.cpu().numpy().astype(np.float32))
             if (i // batch_size) % 20 == 0:
-                print("[semantic] 已编码 %d / %d" % (min(i + batch_size, len(texts)), len(texts)))
+                print(f"[semantic] 已编码 {min(i + batch_size, len(texts))} / {len(texts)}")
     return np.concatenate(out)
 
 
@@ -111,7 +108,7 @@ def _as_str_array(values) -> np.ndarray:
     arr = np.asarray([str(v) for v in values], dtype=object)
     if arr.size == 0:
         return np.empty(0, dtype="U1")
-    return arr.astype("U%d" % max(1, max(len(s) for s in arr)))
+    return arr.astype(f"U{max(1, max(len(s) for s in arr))}")
 
 
 def save_embeddings(path: Path, df: pd.DataFrame, emb: np.ndarray) -> None:
@@ -134,7 +131,7 @@ def save_embeddings(path: Path, df: pd.DataFrame, emb: np.ndarray) -> None:
 
 def load_embeddings(path: Path) -> tuple[list[str], np.ndarray, np.ndarray | None, list[str]]:
     if not path.is_file():
-        print("[semantic] 找不到编码缓存：%s（先跑本线 train.py 生成）" % path, file=sys.stderr)
+        print(f"[semantic] 找不到编码缓存：{path}（先跑本线 train.py 生成）", file=sys.stderr)
         raise SystemExit(2)
     z = np.load(path, allow_pickle=False)
     hashes = [str(h) for h in z["commit_hash"]]
@@ -145,7 +142,7 @@ def load_embeddings(path: Path) -> tuple[list[str], np.ndarray, np.ndarray | Non
 def load_split_hashes(csv_path: Path) -> tuple[list[str], np.ndarray]:
     """从 expert 共用的切分文件取 (commit_hash 序列, 标签) —— 保证同一切分。"""
     if not csv_path.is_file():
-        print("[semantic] 找不到切分文件：%s（先跑 05）" % csv_path, file=sys.stderr)
+        print(f"[semantic] 找不到切分文件：{csv_path}（先跑 05）", file=sys.stderr)
         raise SystemExit(2)
     df = pd.read_csv(csv_path)
     return df["commit_hash"].tolist(), df["is_bug_inducing"].astype(int).to_numpy()
@@ -155,7 +152,7 @@ def load_effort(path: Path, hashes: pd.Series) -> np.ndarray:
     raw = pd.read_csv(path).set_index("commit_hash")
     missing = [h for h in hashes if h not in raw.index]
     if missing:
-        print("[semantic] 原始特征表缺 %d 条（例：%s）" % (len(missing), missing[0]),
+        print(f"[semantic] 原始特征表缺 {len(missing)} 条（例：{missing[0]}）",
               file=sys.stderr)
         raise SystemExit(2)
     sub = raw.loc[list(hashes)]

@@ -34,10 +34,14 @@ import re
 import sys
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
-from sklearn.metrics import (accuracy_score, f1_score, precision_score,
-                             recall_score, roc_auc_score)
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
 
 from . import config
 from .data import load_effort
@@ -98,15 +102,14 @@ def convergence_info(model) -> dict | None:
 def compare_with_baseline(results: dict, baseline: dict) -> list[str]:
     """逐项比对既有交付模型的 Effort-unaware 指标（口径自证）。"""
     diffs: list[str] = []
-    for name, row in results.items():
+    for row in results.values():
         base = baseline.get(row["model_name"])
         if base is None:
             continue
         for key in ("auc", "f1", "precision", "recall", "accuracy"):
             a, b = round(row[key], 4), round(base[key], 4)
             if abs(a - b) > 1e-9:
-                diffs.append("%s.%s：本矩阵 %.4f vs 基线 %.4f"
-                             % (row["model_name"], key, a, b))
+                diffs.append("{}.{}：本矩阵 {:.4f} vs 基线 {:.4f}".format(row["model_name"], key, a, b))
     return diffs
 
 
@@ -124,8 +127,7 @@ def main() -> int:
     args = parse_args()
     for path in (args.train, args.test):
         if not path.is_file():
-            print("[expert-matrix] 找不到切分文件：%s（先跑 preparation/05_split_dataset.py）"
-                  % path, file=sys.stderr)
+            print(f"[expert-matrix] 找不到切分文件：{path}（先跑 preparation/05_split_dataset.py）", file=sys.stderr)
             return 2
 
     train = pd.read_csv(args.train)
@@ -133,10 +135,10 @@ def main() -> int:
     missing = [c for c in config.FEATURE_FIELDS + [config.LABEL_COL]
                if c not in train.columns]
     if missing:
-        print("[expert-matrix] 训练集缺列：%s" % missing, file=sys.stderr)
+        print(f"[expert-matrix] 训练集缺列：{missing}", file=sys.stderr)
         return 2
     if config.LABEL_COL not in test.columns:
-        print("[expert-matrix] 检验集缺 `%s`：只认主标签 szz" % config.LABEL_COL,
+        print(f"[expert-matrix] 检验集缺 `{config.LABEL_COL}`：只认主标签 szz",
               file=sys.stderr)
         return 2
 
@@ -154,7 +156,7 @@ def main() -> int:
     wanted = [m.strip() for m in args.models.split(",") if m.strip()]
     unknown = [m for m in wanted if m not in MODEL_NAMES]
     if unknown:
-        print("[expert-matrix] 未知模型：%s；可选 %s" % (unknown, ",".join(MODEL_NAMES)),
+        print("[expert-matrix] 未知模型：{}；可选 {}".format(unknown, ",".join(MODEL_NAMES)),
               file=sys.stderr)
         return 2
 
@@ -165,7 +167,7 @@ def main() -> int:
         proba = model.predict_proba(X_test)[:, 1]
         pred = (proba >= config.DECISION_THRESHOLD).astype(int)
         row = {
-            "model_name": "%s_v1" % name,
+            "model_name": f"{name}_v1",
             "cls": MODEL_CLASS.get(name, "未登记"),
             "auc": roc_auc_score(y_test, proba),
             "f1": f1_score(y_test, pred, zero_division=0),
@@ -179,12 +181,8 @@ def main() -> int:
         if conv is not None:
             row["converged"] = conv
         results[name] = row
-        print("[expert-matrix] %-8s %-12s AUC=%.4f  F1=%.4f  P=%.4f  R=%.4f%s"
-              % (name, row["cls"], row["auc"], row["f1"], row["precision"],
-                 row["recall"],
-                 "" if conv is None else
-                 "  收敛=%s（%d/%d 轮）" % (conv["converged"], conv["n_iter"],
-                                           conv["max_iter"])))
+        convergence = "" if conv is None else f"  收敛={conv['converged']}（{conv['n_iter']}/{conv['max_iter']} 轮）"
+        print(f"[expert-matrix] {name:<8} {row['cls']:<12} AUC={row['auc']:.4f}  F1={row['f1']:.4f}  P={row['precision']:.4f}  R={row['recall']:.4f}{convergence}")
     baseline = parse_baseline_metrics(args.baseline_report)
     diffs = compare_with_baseline(results, baseline)
 
@@ -192,9 +190,8 @@ def main() -> int:
     args.report.write_text(
         render(args, train, test, wanted, results, baseline, diffs),
         encoding="utf-8", newline="\n")
-    print("[expert-matrix] 覆盖矩阵报告：%s" % args.report)
-    print("[expert-matrix] 与 %s 逐项比对：差异 %d 项"
-          % (args.baseline_report.name, len(diffs)))
+    print(f"[expert-matrix] 覆盖矩阵报告：{args.report}")
+    print(f"[expert-matrix] 与 {args.baseline_report.name} 逐项比对：差异 {len(diffs)} 项")
     return 0
 
 
@@ -226,7 +223,7 @@ def render(args, train, test, wanted, results, baseline, diffs) -> str:
 """)
     for cls in classes:
         names = [r["model_name"] for r in results.values() if r["cls"] == cls]
-        L.append("| %s | %s |\n" % (cls, "、".join("`%s`" % n for n in names)))
+        L.append("| {} | {} |\n".format(cls, "、".join(f"`{n}`" for n in names)))
 
     L.append(f"""
 > **交付边界**：以上 8 个模型全部是**评估用**。后端加载的交付模型与
@@ -256,12 +253,11 @@ def render(args, train, test, wanted, results, baseline, diffs) -> str:
     if diffs:
         L.append("| 差异项 |\n|---|\n")
         for d in diffs:
-            L.append("| %s |\n" % d)
+            L.append(f"| {d} |\n")
         L.append("\n> ⚠️ 有差异说明切分、特征或种子被改动过 —— 必须先查清，再往下读。\n\n")
     else:
-        L.append("> 比对到的基线模型：%s。差异 0 项 = 「模型增多了，但既有模型的"
-                 "口径没被动手脚」。\n\n"
-                 % "、".join("`%s`" % n for n in sorted(baseline)))
+        L.append("> 比对到的基线模型：{}。差异 0 项 = 「模型增多了，但既有模型的"
+                 "口径没被动手脚」。\n\n".format("、".join(f"`{n}`" for n in sorted(baseline))))
 
     L.append("""
 ## 三、Effort-unaware 指标（检验集）
@@ -275,8 +271,7 @@ def render(args, train, test, wanted, results, baseline, diffs) -> str:
             if r["cls"] != cls:
                 continue
             mark = " ⭐" if best_auc.get(cls, ("", 0))[0] == name else ""
-            L.append("| %s | `%s`（%s）%s | %.4f | %.4f | %.4f | %.4f | %.4f |\n"
-                     % (cls, r["model_name"], MODEL_NAMES.get(name, name),
+            L.append("| {} | `{}`（{}）{} | {:.4f} | {:.4f} | {:.4f} | {:.4f} | {:.4f} |\n".format(cls, r["model_name"], MODEL_NAMES.get(name, name),
                         mark, r["auc"], r["f1"], r["precision"], r["recall"],
                         r["accuracy"]))
     L.append("\n> ⭐ = 该类别内 AUC 最优。**每类最优**是给「类别是否都有可用模型」看的，"
@@ -287,16 +282,13 @@ def render(args, train, test, wanted, results, baseline, diffs) -> str:
         L.append("\n### 神经网络收敛登记（如实记录，不静默当成已收敛）\n\n")
         L.append("| 模型 | 迭代轮数 | 迭代上限 | 是否收敛 |\n|---|---|---|---|\n")
         for n, c in conv_rows:
-            L.append("| `%s` | %d | %d | %s |\n"
-                     % (n, c["n_iter"], c["max_iter"],
-                        "✅ 收敛" if c["converged"]
-                        else "❌ 迭代上限内未达收敛判据 —— 指标按实际训练结果登记，不重跑调参"))
+            state = "✅ 收敛" if c["converged"] else "❌ 迭代上限内未达收敛判据 —— 指标按实际训练结果登记，不重跑调参"
+            L.append(f"| `{n}` | {c['n_iter']} | {c['max_iter']} | {state} |\n")
         L.append("\n> 未收敛不等于不能用，但**必须看得见**：`train.py` / `calibrate.py` 用的是"
                  "同一超参，所以两份报告里的神经网络行同样受此约束。\n")
 
     for i, label in enumerate(results[wanted[0]]["effort"]):
-        L.append("\n## %s、Effort-aware：工作量代理 = %s\n\n"
-                 % (("四", "五")[i] if i < 2 else "四.%d" % i, label))
+        L.append("\n## {}、Effort-aware：工作量代理 = {}\n\n".format(("四", "五")[i] if i < 2 else f"四.{i}", label))
         L.append("| 类别 | 模型 | 曲线下面积 | **P_norm** | Recall@20% | Recall@50% |\n")
         L.append("|---|---|---|---|---|---|\n")
         for cls in classes:
@@ -308,15 +300,12 @@ def render(args, train, test, wanted, results, baseline, diffs) -> str:
                 star = ""
                 if label.startswith("LOC") and best_pn.get(cls, ("", 0))[0] == name:
                     star = " ⭐"
-                L.append("| %s | `%s`%s | %.4f | **%.4f** | %.4f | %.4f |\n"
-                         % (cls, r["model_name"], star, m["area"], m["p_norm"],
+                L.append("| {} | `{}`{} | {:.4f} | **{:.4f}** | {:.4f} | {:.4f} |\n".format(cls, r["model_name"], star, m["area"], m["p_norm"],
                             m["recall@20"], m["recall@50"]))
         o = results[wanted[0]]["effort"][label]["optimal"]
         b = results[wanted[0]]["effort"][label]["random"]
-        L.append("| — | 上界（真实缺陷密度降序） | %.4f | %.4f | %.4f | %.4f |\n"
-                 % (o["area"], o["p_norm"], o["recall@20"], o["recall@50"]))
-        L.append("| — | 基线：随机排序（%d 次抽样均值） | %.4f ± %.4f | %.4f | — | — |\n"
-                 % (b["repeats"], b["area"], b["area_std"], b["p_norm"]))
+        L.append("| — | 上界（真实缺陷密度降序） | {:.4f} | {:.4f} | {:.4f} | {:.4f} |\n".format(o["area"], o["p_norm"], o["recall@20"], o["recall@50"]))
+        L.append(f"| — | 基线：随机排序（{b['repeats']} 次抽样均值） | {b['area']:.4f} ± {b['area_std']:.4f} | {b['p_norm']:.4f} | — | — |\n")
 
     L.append(f"""
 > 排序口径为**契约三当前口径**（`risk_score` 降序）。上界与随机基线两行与模型无关，

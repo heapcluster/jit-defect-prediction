@@ -1,6 +1,7 @@
 """e2e 线配置：微调超参、路径、模态标识集中管理。"""
 
 from __future__ import annotations
+
 from pathlib import Path
 
 PKG = Path(__file__).resolve().parent

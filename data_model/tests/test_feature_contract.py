@@ -66,21 +66,21 @@ def _section(path: Path, header: str, next_header: str) -> str:
 
 def _contract_columns() -> list[str]:
     section = _section(CONTRACT_MD, "## 三、14 项特征列", "## 四、")
-    return re.findall(r"^\|\s*`([a-z_]+)`\s*\|", section, re.M)
+    return re.findall(r"^\|\s*`([a-z_]+)`\s*\|", section, re.MULTILINE)
 
 
 def _manifest_columns() -> list[str]:
     text = FEATURE_ORDER_TXT.read_text(encoding="utf-8")
-    match = re.search(r"\[feature_order\](.*?)(?:\n\[|\Z)", text, re.S)
+    match = re.search(r"\[feature_order\](.*?)(?:\n\[|\Z)", text, re.DOTALL)
     assert match, "feature_order.txt 缺少 [feature_order] 段"
-    return re.findall(r"^\s*\d+\.\s*([A-Za-z_]+)", match.group(1), re.M)
+    return re.findall(r"^\s*\d+\.\s*([A-Za-z_]+)", match.group(1), re.MULTILINE)
 
 
 def _manifest_models() -> list[str]:
     text = FEATURE_ORDER_TXT.read_text(encoding="utf-8")
-    match = re.search(r"\[models\](.*?)(?:\n\[|\Z)", text, re.S)
+    match = re.search(r"\[models\](.*?)(?:\n\[|\Z)", text, re.DOTALL)
     assert match, "feature_order.txt 缺少 [models] 段"
-    return re.findall(r"^\s*([A-Za-z0-9_.]+\.pkl)", match.group(1), re.M)
+    return re.findall(r"^\s*([A-Za-z0-9_.]+\.pkl)", match.group(1), re.MULTILINE)
 
 
 @pytest.mark.parametrize(

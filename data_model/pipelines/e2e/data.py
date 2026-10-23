@@ -10,18 +10,16 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
-from . import config
-
 
 def load_texts(path: Path) -> pd.DataFrame:
     if not path.is_file():
-        print("[e2e] 找不到文本数据集：%s（先跑 build_text_dataset.py）" % path,
+        print(f"[e2e] 找不到文本数据集：{path}（先跑 build_text_dataset.py）",
               file=sys.stderr)
         raise SystemExit(2)
     df = pd.read_csv(path)
     missing = [c for c in ("commit_hash", "text") if c not in df.columns]
     if missing:
-        print("[e2e] 文本数据集缺列：%s" % missing, file=sys.stderr)
+        print(f"[e2e] 文本数据集缺列：{missing}", file=sys.stderr)
         raise SystemExit(2)
     return df.dropna(subset=["text"]).reset_index(drop=True)
 
@@ -40,8 +38,7 @@ def align_to_shared_split(text_df: pd.DataFrame,
         split = pd.read_csv(csv_path)
         miss = [h for h in split["commit_hash"] if h not in index]
         if miss:
-            print("[e2e] 文本缺 %d 条切分内提交（例：%s）—— 文本与切分窗口不一致"
-                  % (len(miss), miss[0]), file=sys.stderr)
+            print(f"[e2e] 文本缺 {len(miss)} 条切分内提交（例：{miss[0]}）—— 文本与切分窗口不一致", file=sys.stderr)
             raise SystemExit(2)
         part = text_df.iloc[[index[h] for h in split["commit_hash"]]].reset_index(drop=True)
         part["label"] = split["is_bug_inducing"].astype(int).to_numpy()  # 以切分文件标签为准
@@ -67,13 +64,13 @@ class TextDataset(Dataset):
 def load_effort(path: Path, hashes: pd.Series) -> np.ndarray:
     """LOC = la + ld（取自 03 原始表，同 06 口径）。"""
     if not path.is_file():
-        print("[e2e] 找不到原始特征表：%s（Effort-aware 指标将缺省）" % path,
+        print(f"[e2e] 找不到原始特征表：{path}（Effort-aware 指标将缺省）",
               file=sys.stderr)
         return None
     raw = pd.read_csv(path).set_index("commit_hash")
     missing = [h for h in hashes if h not in raw.index]
     if missing:
-        print("[e2e] 原始特征表缺 %d 条提交（例：%s）" % (len(missing), missing[0]),
+        print(f"[e2e] 原始特征表缺 {len(missing)} 条提交（例：{missing[0]}）",
               file=sys.stderr)
         return None
     sub = raw.loc[list(hashes)]

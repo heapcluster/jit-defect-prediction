@@ -16,7 +16,7 @@ FIG_DIR_NAME = "figs"
 def _roc_ax(ax, y, probas, title):
     for name, proba in probas.items():
         fpr, tpr, _ = roc_curve(y, proba)
-        ax.plot(fpr, tpr, label="%s (AUC=%.3f)" % (name, float(np.trapz(tpr, fpr))))
+        ax.plot(fpr, tpr, label=f"{name} (AUC={float(np.trapz(tpr, fpr)):.3f})")
     ax.plot([0, 1], [0, 1], "k--", lw=0.8)
     ax.set_xlabel("False Positive Rate"); ax.set_ylabel("True Positive Rate")
     ax.set_title(title); ax.legend(fontsize=8); ax.grid(alpha=0.3)
@@ -50,7 +50,7 @@ def make_charts(results, probas, y, effort_loc, out_dir: Path) -> list[Path]:
     xs, ys = cumulative_curve(rng.permutation(len(y)), effort, y)
     ax.plot(xs, ys, "-.", label="random baseline")
     ax.set_xlabel("Cumulative effort fraction"); ax.set_ylabel("Cumulative recall")
-    ax.set_title("Effort-aware curves - fused (LOC, model=%s)" % first)
+    ax.set_title(f"Effort-aware curves - fused (LOC, model={first})")
     ax.legend(fontsize=8); ax.grid(alpha=0.3)
     p = out_dir / "effort_curves_loc.png"; fig.tight_layout(); fig.savefig(p, dpi=150); plt.close(fig)
     written.append(p)
@@ -70,50 +70,44 @@ def make_charts(results, probas, y, effort_loc, out_dir: Path) -> list[Path]:
 
 def render(args, results, n_train, n_test, y_test, coverage=None) -> str:
     lines = [
-        "# fused 线模型评估指标（Kamei14 ⊕ 语义 768 = %d 维 → 12 分类器）\n"
-        % config.EXPECTED_DIM,
+        f"# fused 线模型评估指标（Kamei14 ⊕ 语义 768 = {config.EXPECTED_DIM} 维 → 12 分类器）\n",
         "> 对照线：同切分、同分类器族、同指标口径；特征 = 专家特征 + 语义向量拼接。\n",
         "## 数据与参数\n",
         "| 项 | 值 |\n|---|---|\n",
-        "| 输入维度 | %d（Kamei 14 + 语义 768） |\n" % config.EXPECTED_DIM,
-        "| 语义缓存 | `%s` |\n" % config.EMBEDDINGS_NPZ,
-        "| 训练/检验 | %d / %d 条（共享切分，内连接对齐） |\n" % (n_train, n_test),
+        f"| 输入维度 | {config.EXPECTED_DIM}（Kamei 14 + 语义 768） |\n",
+        f"| 语义缓存 | `{config.EMBEDDINGS_NPZ}` |\n",
+        f"| 训练/检验 | {n_train} / {n_test} 条（共享切分，内连接对齐） |\n",
     ]
     if coverage:
         lines.append(
-            "| 语义覆盖率 | 训练 %.2f%% / 检验 %.2f%%（内连接后保留比例，低于 100%% 需说明缺失原因） |\n"
-            % (coverage["train"], coverage["test"]))
+            "| 语义覆盖率 | 训练 {:.2f}% / 检验 {:.2f}%（内连接后保留比例，低于 100% 需说明缺失原因） |\n".format(coverage["train"], coverage["test"]))
     lines += [
         "| 检验集正样本比例 | %.2f%% |\n" % (y_test.mean() * 100),
-        "| 随机种子 | `%d` |\n" % args.seed,
-        "| 判定阈值 | %s |\n" % config.DECISION_THRESHOLD,
+        f"| 随机种子 | `{args.seed}` |\n",
+        f"| 判定阈值 | {config.DECISION_THRESHOLD} |\n",
         "\n## 一、Effort-unaware 指标（检验集）\n",
         "| 模型 | AUC | F1 | Precision | Recall | Accuracy |\n|---|---|---|---|---|---|\n",
     ]
-    for name, r in results.items():
-        lines.append("| `%s`（%s） | %.4f | %.4f | %.4f | %.4f | %.4f |\n" % (
+    for r in results.values():
+        lines.append("| `{}`（{}） | {:.4f} | {:.4f} | {:.4f} | {:.4f} | {:.4f} |\n".format(
             r["model_name"], r["label"], r["auc"], r["f1"],
             r["precision"], r["recall"], r["accuracy"]))
     lines.append("\n## 二、Effort-aware 指标（检验集，LOC 工作量代理）\n\n"
                  "| 排序方式 | 模型 | 曲线下面积 | **P_norm** | Recall@20% | Recall@50% |\n"
                  "|---|---|---|---|---|---|\n")
-    for name, r in results.items():
+    for r in results.values():
         m = r["effort"]["LOC（改动行数 la+ld）"]["model"]
         d = r["effort"]["LOC（改动行数 la+ld）"]["density"]
-        lines.append("| **模型排序** | `%s` | %.4f | **%.4f** | %.4f | %.4f |\n"
-                     % (r["model_name"], m["area"], m["p_norm"], m["recall@20"], m["recall@50"]))
-        lines.append("| 对照：密度排序 | `%s` | %.4f | **%.4f** | %.4f | %.4f |\n"
-                     % (r["model_name"], d["area"], d["p_norm"], d["recall@20"], d["recall@50"]))
+        lines.append("| **模型排序** | `{}` | {:.4f} | **{:.4f}** | {:.4f} | {:.4f} |\n".format(r["model_name"], m["area"], m["p_norm"], m["recall@20"], m["recall@50"]))
+        lines.append("| 对照：密度排序 | `{}` | {:.4f} | **{:.4f}** | {:.4f} | {:.4f} |\n".format(r["model_name"], d["area"], d["p_norm"], d["recall@20"], d["recall@50"]))
     first = results[next(iter(results))]["effort"]["LOC（改动行数 la+ld）"]
-    lines.append("| 上界：真实密度 | — | %.4f | %.4f | %.4f | %.4f |\n| 基线：随机（%d 次均值） | — | %.4f ± %.4f | %.4f | — | — |\n"
-                 % (first["optimal"]["area"], first["optimal"]["p_norm"],
-                    first["optimal"]["recall@20"], first["optimal"]["recall@50"],
-                    first["random"]["repeats"], first["random"]["area"],
-                    first["random"]["area_std"], first["random"]["p_norm"]))
+    optimal, random = first["optimal"], first["random"]
+    lines.append(f"| 上界：真实密度 | — | {optimal['area']:.4f} | {optimal['p_norm']:.4f} | {optimal['recall@20']:.4f} | {optimal['recall@50']:.4f} |\n"
+                 f"| 基线：随机（{random['repeats']} 次均值） | — | {random['area']:.4f} ± {random['area_std']:.4f} | {random['p_norm']:.4f} | — | — |\n")
     lines.append("\n## 融合对照读法\n\n")
     lines.append("> 三方并排：expert（14 维）/ semantic（768 维）/ fused（782 维）。"
                  "fused 优于两者 = 两模态互补；只与 expert 持平 = 语义无增量（如实登记）。\n")
     lines.append("\n## 图表\n\n")
     for fig in ("roc_curves", "effort_curves_loc", "metric_bars"):
-        lines.append("![%s](figs/%s.png)\n\n" % (fig, fig))
+        lines.append(f"![{fig}](figs/{fig}.png)\n\n")
     return "".join(lines)

@@ -14,7 +14,7 @@
 from __future__ import annotations
 
 import importlib.util
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 _SPLIT = Path(__file__).resolve().parents[1] / "preparation" / "05_split_dataset.py"
@@ -35,7 +35,7 @@ def _row(ts: str, hash_suffix: str = "a") -> dict:
 
 def _rows_in_order(n: int) -> list[dict]:
     """造 n 行严格按时间升序、且同秒内 hash 可区分次序的样本。"""
-    base = datetime(2026, 1, 1, 0, 0, 0)
+    base = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     out = []
     for i in range(n):
         ts = base.replace(minute=i % 60, hour=i // 60).strftime(FMT)
@@ -81,7 +81,8 @@ class TestSortKey:
     def test_排序稳定可复现(self):
         rows = _rows_in_order(50)
         once = sorted(rows, key=split.sort_key)
-        twice = sorted(list(reversed(rows)), key=split.sort_key)
+        rows.reverse()
+        twice = sorted(rows, key=split.sort_key)
         assert [r["commit_hash"] for r in once] == [r["commit_hash"] for r in twice]
 
     def test_时间戳两侧空格被容忍(self):
@@ -138,7 +139,7 @@ class TestValidateSplit:
 
 class TestParseTs:
     def test_按模块格式解析(self):
-        assert split.parse_ts("2026-09-16 08:30:00") == datetime(2026, 9, 16, 8, 30, 0)
+        assert split.parse_ts("2026-09-16 08:30:00") == datetime(2026, 9, 16, 8, 30, 0, tzinfo=timezone.utc)
 
     def test_非法格式抛错而不是静默返回(self):
         import pytest
@@ -146,4 +147,4 @@ class TestParseTs:
             split.parse_ts("2026-09-16T08:30:00Z")  # ISO 带 T 与 Z，不符合契约格式
 
     def test_前后空格被strip(self):
-        assert split.parse_ts(" 2026-09-16 08:30:00 ") == datetime(2026, 9, 16, 8, 30, 0)
+        assert split.parse_ts(" 2026-09-16 08:30:00 ") == datetime(2026, 9, 16, 8, 30, 0, tzinfo=timezone.utc)

@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -24,8 +25,7 @@ def make_charts(y: np.ndarray, proba: np.ndarray, effort_loc: np.ndarray | None,
     # ROC
     fpr, tpr, _ = roc_curve(y, proba)
     fig, ax = plt.subplots(figsize=(6, 5))
-    ax.plot(fpr, tpr, label="%s (AUC=%.3f)"
-            % (config.MODEL_NAME, float(np.trapz(tpr, fpr))))
+    ax.plot(fpr, tpr, label=f"{config.MODEL_NAME} (AUC={float(np.trapz(tpr, fpr)):.3f})")
     ax.plot([0, 1], [0, 1], "k--", lw=0.8)
     ax.set_xlabel("False Positive Rate"); ax.set_ylabel("True Positive Rate")
     ax.set_title("ROC curve - e2e (fine-tuned CodeBERT)")
@@ -63,21 +63,18 @@ def render(args, n_train, n_val, n_test, y_test, res) -> str:
         "> 对照线：与 expert 同切分、同指标口径；唯一做反向传播的一条（需 GPU）。\n",
         "## 数据与参数\n",
         "| 项 | 值 |\n|---|---|\n",
-        "| 骨干模型 | `%s` |\n" % args.text_model,
-        "| 特征版本（本线标识） | `%s` |\n" % config.FEATURE_VERSION,
-        "| 训练/验证/检验 | %d / %d / %d 条（共享切分；验证集=训练尾部时间序，仅供选模） |\n"
-        % (n_train, n_val, n_test),
-        "| 最大长度 / 轮数 / 学习率 | %d token / %d / %g |\n"
-        % (args.max_len, args.epochs, args.lr),
-        "| 有效 batch | %d（%d × 累积） |\n" % (args.batch_size * max(1, config.GRAD_ACCUM_TARGET // args.batch_size), args.batch_size),
-        "| 随机种子 | `%d` |\n" % args.seed,
-        "| 判定阈值 | %s |\n" % config.DECISION_THRESHOLD,
+        f"| 骨干模型 | `{args.text_model}` |\n",
+        f"| 特征版本（本线标识） | `{config.FEATURE_VERSION}` |\n",
+        f"| 训练/验证/检验 | {n_train} / {n_val} / {n_test} 条（共享切分；验证集=训练尾部时间序，仅供选模） |\n",
+        f"| 最大长度 / 轮数 / 学习率 | {args.max_len} token / {args.epochs} / {args.lr:g} |\n",
+        f"| 有效 batch | {args.batch_size * max(1, config.GRAD_ACCUM_TARGET // args.batch_size)}（{args.batch_size} × 累积） |\n",
+        f"| 随机种子 | `{args.seed}` |\n",
+        f"| 判定阈值 | {config.DECISION_THRESHOLD} |\n",
         "| 检验集正样本比例 | %.2f%% |\n" % (y_test.mean() * 100),
         "| 设备 | %s |\n" % ("CUDA（fp16）" if torch.cuda.is_available() else "CPU"),
         "\n## 一、Effort-unaware 指标（检验集）\n",
         "| 模型 | AUC | F1 | Precision | Recall | Accuracy |\n|---|---|---|---|---|---|\n",
-        "| `%s` | %.4f | %.4f | %.4f | %.4f | %.4f |\n"
-        % (config.MODEL_NAME, res["auc"], res["f1"], res["precision"],
+        "| `{}` | {:.4f} | {:.4f} | {:.4f} | {:.4f} | {:.4f} |\n".format(config.MODEL_NAME, res["auc"], res["f1"], res["precision"],
            res["recall"], res["accuracy"]),
     ]
     if eff:
@@ -89,19 +86,18 @@ def render(args, n_train, n_val, n_test, y_test, res) -> str:
                          ("density", "对照：按 `risk_score / 工作量` 降序"),
                          ("optimal", "上界：真实缺陷密度降序")):
             m = eff[key]
-            lines.append("| %s | %.4f | **%.4f** | %.4f | %.4f |\n"
-                         % (lbl, m["area"], m["p_norm"], m["recall@20"], m["recall@50"]))
+            lines.append("| {} | {:.4f} | **{:.4f}** | {:.4f} | {:.4f} |\n".format(lbl, m["area"], m["p_norm"], m["recall@20"], m["recall@50"]))
         r_ = eff["random"]
-        lines.append("| 基线：随机排序（%d 次均值） | %.4f ± %.4f | %.4f | — | — |\n"
-                     % (r_["repeats"], r_["area"], r_["area_std"], r_["p_norm"]))
+        lines.append("| 基线：随机排序（{} 次均值） | {:.4f} ± {:.4f} | {:.4f} | — | — |\n".format(
+            r_["repeats"], r_["area"], r_["area_std"], r_["p_norm"]))
     else:
         lines.append("\n> ⚠️ 未计算 Effort-aware：缺 `commit_features_raw.csv` 或 hash 对不上。\n")
     lines += [
         "\n## 与 baseline 对照（读法）\n\n",
-        "> 与 `pipelines/expert/reports/model_metrics.md` 并排：e2e 的 AUC/P_norm 高出"
-        " baseline 多少 = 端到端微调相对 Kamei14 手工特征的增益；不优时如实登记。\n",
+        ("> 与 `pipelines/expert/reports/model_metrics.md` 并排：e2e 的 AUC/P_norm 高出"
+         " baseline 多少 = 端到端微调相对 Kamei14 手工特征的增益；不优时如实登记。\n"),
         "\n## 图表\n\n",
     ]
     for fig in ("roc_curves", "effort_curves_loc"):
-        lines.append("![%s](figs/%s.png)\n\n" % (fig, fig))
+        lines.append(f"![{fig}](figs/{fig}.png)\n\n")
     return "".join(lines)
