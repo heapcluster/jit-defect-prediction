@@ -68,9 +68,23 @@ CPU 机器可跳过本步，但 semantic 会很慢、e2e 无法实际训练。
 |---|---|---|
 | `split_szz_train.csv` / `split_szz_test.csv` | 16.3 / 6.9 MB | 四条线共用（`TRAIN_CSV` / `TEST_CSV`） |
 | `commit_features_raw.csv` | 14.8 MB | Effort-aware 的 LOC 工作量代理（`la + ld`） |
-| `dataset_szz.csv` | 26.4 MB | semantic / e2e 自建 diff 文本时的标签来源（e2e 若直接给 `--repo` 可不拷） |
+| `dataset_szz.csv` | 26.4 MB | semantic / e2e 自建 diff 文本时的标签与提交清单；`e2e/build_text_dataset.py` 的 `--dataset`、`semantic/data.py::extract_texts_from_repo` 都**必读**，缺失直接退出码 2 |
 
-拷贝后核对：文件大小与行数一致即 SZZ 未重跑；正样本数必须能对上第 5 节的基线表（18,662 / 22.23%）。
+> 这四个 CSV 只解决**上游数据**，不等于可以开训四条线：e2e / semantic 若要自建 diff 文本，
+> 还需要 Camel 克隆（`--repo` 指向它，固定 `b2329103…`）；否则得直接复用现成的
+> `pipelines/e2e/data/commit_text.csv`（该文件同样不入库，需一并拷贝）。
+
+拷贝后按哈希核对（2026-10-23 实测快照）：
+
+| 文件 | SHA256（前 32 位） |
+|---|---|
+| `split_szz_train.csv` | `E40AF1FB1AE354CE70038352B7D2BD44` |
+| `split_szz_test.csv` | `35E7C82512E873F5D1D1DBBE5A2AF47B` |
+| `commit_features_raw.csv` | `8E4DD28AA58F9962FB1AF48C23D29EB0` |
+| `dataset_szz.csv` | `735903F1BD74412B66477E817D933A51` |
+
+> 大小与行数只能做粗略的传输检查，**不能**据此断言“SZZ 未重跑”——同样大小也可能是不同内容。
+> 哈希一致才说明是同一份数据；若你自己重跑 01–05，哈希本就会变，需在 `docs/model/data-pipeline.md` 重新登记。
 
 **B. 从零重跑 01–05**（干净复现）：
 
