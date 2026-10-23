@@ -54,7 +54,7 @@
 #### Scenario: 正常输出采集统计
 
 - **WHEN** 采集流程正常结束
-- **THEN** 提交总数与时间跨度同时出现在标准输出与 `data_model/reports/` 下
+- **THEN** 提交总数与时间跨度同时出现在标准输出与 `data_model/preparation/reports/` 下
 
 #### Scenario: 采集结果为空
 

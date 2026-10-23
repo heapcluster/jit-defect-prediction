@@ -36,7 +36,7 @@
 
 ## 7. 融合样本构建（蒋励）
 - [ ] 7.1 新增 `data_model/13_build_fused.py`：按 `commit_hash` 左连接专家特征（14 项）与语义向量，产出三类设置各自的样本集；缺失语义向量的提交**显式标注并单列数量**，不用 0 填充冒充
-- [ ] 7.2 切分沿用 `05_split_dataset.py` 的时间序切分与 `validate_split` 断言，**三套样本集用同一切分下标**
+- [ ] 7.2 切分沿用 `data_model/preparation/05_split_dataset.py` 的时间序切分与 `validate_split` 断言，**三套样本集用同一切分下标**
 
 ## 8. 三类设置对比实验（蒋励）
 - [ ] 8.1 新增 `data_model/14_compare_settings.py`：仅专家 / 仅语义 / 融合 三类各自跑同一套 8 模型，输出 Effort-unaware（AUC/F1/P/R/Acc）+ Effort-aware（`P_norm`、同预算重排召回）
