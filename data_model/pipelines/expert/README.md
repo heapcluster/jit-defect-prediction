@@ -51,10 +51,27 @@ python -m pipelines.verify_all_weights --check      # 权重交付校验：md5 +
 | 路径 | 内容 | 入库 |
 |---|---|---|
 | `models/*_v1.pkl` | 模型权重（joblib；数量以训练口径 `config.DEFAULT_MODELS` 为准，当前 8 个） | 否（`*.pkl` 全局忽略） |
-| `models/feature_order.txt` | 交付清单（契约二第三节的副本） | 是 |
+| `models/feature_order.txt` | 交付清单（契约二第三节的副本）：`[models]` 交付集 3 个、`[evaluated]` 评估集 5 个 | 是 |
 | `models/manifest.txt` | 8 个权重的 md5 / 类路径 / 特征宽度清单（`verify_all_weights --write-manifest` 生成） | 是 |
 | `reports/model_metrics.md` | 两类指标 + SHAP 实测 | 是 |
 | `reports/figs/*.png` | ROC / effort 曲线 / 柱状图 | 是 |
+
+## 权重投放与联调自检（MVP：只交付 expert 线）
+
+`.pkl` 按约定**不入库**，干净 clone 的 `models/` 里只有 `feature_order.txt`。联调/演示前按下面四步把权重摆到后端能读到的位置：
+
+1. **取权重**：由模型线把 `models/` 打包分发（本机已有 8 个，`et_v1.pkl` 546MB、`rf_v1.pkl` 279MB，走网盘/拷贝，不进 git）。
+2. **指位置**：在 `backend/.env` 设 `MODEL_DIR=<解压后的目录>`；不设则默认指向本包 `models/`（`backend/app/config.py` 的默认值）。
+3. **自检 8/8 可加载**（`tabnet_v1` 需要 `data_model` 在 `sys.path`，见下方已知待办）：
+
+   ```bash
+   cd backend && python -c "import sys; sys.path.insert(0,'.'); from app import model_registry; model_registry.load_models(); print(sorted(model_registry._REGISTRY))"
+   # 期望：['et_v1','lgbm_v1','lr_v1','mlp_deep_v1','rf_v1','svm_v1','tabnet_v1','xgb_v1']
+   ```
+
+4. **灌预测结果**：`data/prediction_result.csv`（83,943 行，`xgb_v1`，`feature_version=v1`）随包分发，后端用 `python -m app.ingest predictions <该文件>` 灌入 `prediction` 表。
+
+已知待办（不在本包改）：后端 `model_registry.load_models()` 未把 `data_model` 加入 `sys.path`，`tabnet_v1.pkl` 会报 `ModuleNotFoundError: No module named 'pipelines'` 被静默跳过；补齐该行后 8/8 全过（本地已验证）。
 
 ## 注意事项
 
