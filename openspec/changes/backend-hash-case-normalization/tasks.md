@@ -1,7 +1,7 @@
 # backend-hash-case-normalization — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/query-api/spec.md`
-> 负责人：backend 吕建江 ｜ 创建：2026-10-24 ｜ 状态：实现与静态验证完成（7/9；PR 待创建、契约补记待裁定）
+> 负责人：backend 吕建江 ｜ 创建：2026-10-24 ｜ 状态：实现与静态验证完成、PR #101 待复审（8/10）
 > 用户故事：无（缺陷修复）；对应 `docs/repo/defect-records.md` §2 的 D-09（P3）
 > 统一格式见 `docs/common/openspec-task-template.md`；本文件末的「测试与验证」为强制板块。
 
@@ -20,8 +20,9 @@
 ## 3. 缺陷记录与审阅
 
 - [x] 3.1 `docs/repo/defect-records.md` 的 D-09 行更新为「🔧 修复已实现，change/PR 待复审合入（合入后再迁入 §1）」，并修正该行原本错位的「关联提交/change」列（原来填的是测试路径）— 交付物：`docs/repo/defect-records.md`；未在合入前写成已闭环。
-- [ ] 3.2 `openspec validate --strict` 通过后提交独立 PR，交苏哲勋复审 — 交付物：PR 链接；未合入前不勾 3.3。
-- [ ] 3.3 Open Question 1（`docs/backend/api-spec.md` 第 2 节是否补大小写口径）由 PO/SM 裁定后落地 — 交付形式：PR 评论回执；裁定前不改冻结契约。
+- [x] 3.2 `openspec validate --strict` 通过后提交独立 PR，交苏哲勋复审 — 交付物：PR #101（https://github.com/heapcluster/jit-defect-prediction/pull/101），实现提交 `6a153b5`，已请求 sober-hub 复审；未合入，D-09 行仍留在 §2。
+- [ ] 3.3 Open Question 1（`docs/backend/api-spec.md` 第 2 节是否补大小写口径）由 PO/SM 裁定后落地 — 交付形式：PR #101 评论回执；裁定前不改冻结契约。
+- [ ] 3.4 PR #101 合入后把 D-09 行从 `docs/repo/defect-records.md` §2 迁入 §1 已闭环 — 交付物：单独 docs 提交；未合入前不得迁。
 
 ## 测试与验证（强制板块）
 
@@ -75,7 +76,7 @@
 
 | 缺口 | 原因 | 归属 | 计划 |
 |---|---|---|---|
-| PR 未创建/未合入 | 本轮先完成实现与静态验证 | backend 吕建江 + 苏哲勋 | 创建独立 PR 并请求复审；合入后把 D-09 行迁入 §1 已闭环 |
+| PR #101 未合入 | 已创建并请求 sober-hub 复审，等 CI 与非作者审阅 | backend 吕建江 + 苏哲勋 | 合入后执行 3.4：把 D-09 行迁入 §1 已闭环；未合入前不写「已修复闭环」 |
 | `docs/backend/api-spec.md` 是否补大小写口径 | 契约已冻结 v1.5，不自行改 | 苏哲勋（PO）+ 蒋励（SM） | 见 `design.md` Open Questions 1，PR 内请裁定 |
 | MySQL 实机复现 | `jit` 账号只有 `jit_defect`.* 权限、无 CREATE DATABASE，隔离空库未授权 | backend 吕建江 + 苏哲勋 | 与 #100 tasks 3.1/3.2 合并到同一次已授权实跑；本 change 不以 SQLite 结果冒充 |
 | `predict.py` 内联校验与 `_check_hash` 重复 | 属重构，超出缺陷修复范围（AGENTS.md 第五节） | backend 吕建江 | 如需统一另开 change，本次只加回归测试锁住一致性 |
