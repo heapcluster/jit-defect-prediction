@@ -229,6 +229,19 @@ def test_failed_models_summary_includes_corrupt_and_wrong_width(
     assert any(r.exc_info for r in caplog.records)
 
 
+def test_declared_but_missing_weight_enters_failed_summary(
+    tmp_path, monkeypatch, caplog, restore_registry
+):
+    joblib.dump(_fit(), tmp_path / "good_v1.pkl")
+    _manifest(tmp_path, "absent_v1", "good_v1")
+    monkeypatch.setattr(config, "MODEL_DIR", tmp_path)
+    with caplog.at_level(logging.INFO, logger="backend.model_registry"):
+        model_registry.load_models()
+    assert sorted(model_registry._REGISTRY) == ["good_v1"]
+    assert "declared delivery model missing: absent_v1" in caplog.text
+    assert "failed models: ['absent_v1']" in caplog.text
+
+
 def test_failed_summary_does_not_persist_after_success(
     tmp_path, monkeypatch, caplog, restore_registry
 ):
