@@ -56,8 +56,7 @@ def fig_dir_for(args: argparse.Namespace) -> Path:
     旧权重覆盖权威报告关联的 ``reports/figs/`` 三张图，造成图文口径混杂
     （PR #88 复审阻断项 2）。回归测试：``tests/test_from_saved_isolation.py``。
     """
-    suffix = "_from_saved" if args.from_saved else ""
-    return args.report.parent / (report.FIG_DIR_NAME + suffix)
+    return args.report.parent / report.fig_dir_name(args.from_saved)
 
 
 def from_saved(args: argparse.Namespace, train, test, X_test: np.ndarray, y_test: np.ndarray,

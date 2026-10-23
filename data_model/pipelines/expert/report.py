@@ -24,6 +24,18 @@ from . import config
 from .metrics import budget_order, cumulative_curve
 
 FIG_DIR_NAME = "figs"
+# --from-saved 的探索性图表另起目录：旧权重复算的图不得覆盖重训产出的权威三张图
+FIG_DIR_NAME_FROM_SAVED = FIG_DIR_NAME + "_from_saved"
+
+
+def fig_dir_name(from_saved: bool = False) -> str:
+    """图表目录名（报告正文与图片链接的唯一来源）。
+
+    ``from_saved=True`` → ``figs_from_saved``；否则 ``figs``。
+    ``train.py::fig_dir_for()`` 与 ``render()`` 都必须走这里，避免「图落 A 目录、
+    报告链接写 B 目录」导致探索性报告展示权威图或断图（评审第三轮阻断项）。
+    """
+    return FIG_DIR_NAME_FROM_SAVED if from_saved else FIG_DIR_NAME
 
 
 def _roc_ax(ax, y, probas: dict, title):
@@ -124,10 +136,13 @@ def make_charts(results: dict, probas: dict, y: np.ndarray,
 
 def render(args, train, test, results) -> str:
     y_test = test[config.LABEL_COL].astype(int).to_numpy()
+    # 图表目录跟着口径走：--from-saved 的报告只链接 figs_from_saved/，
+    # 否则探索性报告会指向重训产出的权威图（评审第三轮阻断项）
+    fig_dir = fig_dir_name(getattr(args, "from_saved", False))
     lines = [
         "# expert 线模型评估指标（pipelines/expert/train.py 产出）\n",
         ("> baseline（Kamei 14 特征）。指标口径与 `data_model/06_train_model.py` 逐字一致；\n"
-         "> 本文件与同目录 `figs/` 图表可入库，供四线横向对比。\n"),
+         f"> 本文件与同目录 `{fig_dir}/` 图表可入库，供四线横向对比。\n"),
     ]
     if getattr(args, "from_saved", False):
         lines.append("> **探索性结果（非权威指标）**：本次由 `--from-saved` 读取 `models/*.pkl` "
@@ -247,5 +262,5 @@ def render(args, train, test, results) -> str:
             lines.append("| `{}` | — | — | — | {} |\n".format(name, s.get("skipped", s.get("error", "未实测")).replace("|", "/")))
     lines.append("\n## 图表\n\n")
     for fig in ("roc_curves", "effort_curves_loc", "metric_bars"):
-        lines.append(f"![{fig}](figs/{fig}.png)\n\n")
+        lines.append(f"![{fig}]({fig_dir}/{fig}.png)\n\n")
     return "".join(lines)

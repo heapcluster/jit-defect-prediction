@@ -15,7 +15,8 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from pipelines.expert import config, train as expert_train  # noqa: E402
+from pipelines.expert import config, report as expert_report, train as expert_train  # noqa: E402
+from pipelines.expert.metrics import effort_aware_metrics  # noqa: E402
 
 LOC = "LOC（改动行数 la+ld）"
 NF = "改动文件数 nf"
@@ -72,6 +73,12 @@ def test_from_saved_charts_isolated_from_authoritative_figs(tmp_path, monkeypatc
     assert sentinel.read_bytes() == b"authoritative"
     assert report_path.is_file()
 
+    # 报告正文与图片链接必须指向隔离目录，否则 markdown 会展示权威重训图（评审第三轮阻断项）
+    md = report_path.read_text(encoding="utf-8")
+    assert "(figs_from_saved/roc_curves.png)" in md
+    assert "(figs/roc_curves.png)" not in md
+    assert "`figs_from_saved/` 图表" in md
+
 
 def test_retrain_path_keeps_authoritative_figs_dir(tmp_path):
     """正常重训（from_saved=False）仍写 ``figs/``：权威目录只属于重训产物。"""
@@ -79,3 +86,45 @@ def test_retrain_path_keeps_authoritative_figs_dir(tmp_path):
         train=Path("train.csv"), test=Path("test.csv"), seed=42,
         report=tmp_path / "reports" / "model_metrics.md", from_saved=False)
     assert expert_train.fig_dir_for(args) == args.report.parent / "figs"
+    assert expert_report.fig_dir_name(False) == "figs"
+    assert expert_report.fig_dir_name(True) == "figs_from_saved"
+
+
+def _render_markdown(from_saved: bool) -> str:
+    """用合成指标直接调 render()，只关心两种模式产出的图片链接。"""
+    n = 8
+    proba = np.linspace(0.1, 0.9, n)
+    y = np.array([0, 1, 0, 0, 1, 0, 0, 1])
+    effort = np.full(n, 20.0)
+    emu = effort_aware_metrics(proba, y, effort, review_floor=config.MIN_REVIEW_LOC)
+    results = {
+        "lr": {
+            "model_name": "lr_v1", "label": "逻辑回归",
+            "auc": 0.8, "f1": 0.4, "precision": 0.5, "recall": 0.3, "accuracy": 0.8,
+            "effort": {LOC: emu, NF: emu},
+            "shap": {"skipped": "未实测"},
+        }
+    }
+    args = SimpleNamespace(
+        train=Path("train.csv"), test=Path("test.csv"), seed=42,
+        report=Path("reports/x.md"), from_saved=from_saved)
+    train_df = pd.DataFrame({config.LABEL_COL: [0, 1],
+                             "committed_at": ["2024-01-01", "2024-01-02"]})
+    test_df = pd.DataFrame({config.LABEL_COL: [0, 1],
+                            "committed_at": ["2024-02-01", "2024-02-02"]})
+    return expert_report.render(args, train_df, test_df, results)
+
+
+def test_render_links_follow_report_mode():
+    """两种模式的报告链接必须各指各的目录（评审第三轮阻断项）。"""
+    md_saved = _render_markdown(from_saved=True)
+    assert "(figs_from_saved/roc_curves.png)" in md_saved
+    assert "(figs_from_saved/metric_bars.png)" in md_saved
+    assert "(figs/roc_curves.png)" not in md_saved
+    assert "探索性结果（非权威指标）" in md_saved
+
+    md_retrain = _render_markdown(from_saved=False)
+    assert "(figs/roc_curves.png)" in md_retrain
+    assert "(figs/effort_curves_loc.png)" in md_retrain
+    assert "figs_from_saved" not in md_retrain
+    assert "探索性结果（非权威指标）" not in md_retrain
