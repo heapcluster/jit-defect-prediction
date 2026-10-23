@@ -39,3 +39,15 @@
 
 - **效果**：L3 设计文档 v0.5 含四张图（架构/流程/predict 时序/类图，各带生成方式标注），§四 1.3→1.4、补 #44/#47、合并重复两节。
 - **证据**：文档可点开 + 四图齐全。
+
+## 三端联调 · 后端要求（2026-10-23 定稿）
+
+**目标**：前端能在浏览器里把「列表 → 详情 → 重新预测 → 趋势」跑通，中间不出现 500。
+
+1. **建表**：\infra/schema.sql\ 由每位同学在本机执行（\mysql -u<user> -p jit_defect < infra/schema.sql\）；\python -m app.db init\ 作为等价性校验，两条路径都必须通过索引自检。
+2. **数据**：依次执行 4 次 \python -m app.ingest {commits|labels|features|predictions} <csv>\，打印并留档每类入库行数。
+3. **模型**：\MODEL_DIR\ 指向 \data_model/pipelines/expert/models/\，**8 个 \.pkl\ 必须全部加载成功**（含 \	abnet_v1\：需要 \data_model\ 在 \sys.path\，且 \	orch\ / \pytorch_tabnet\ 已安装）。启动日志不得出现 \model load failed\。
+4. **接口**：4 条 200；空数据返回 \[]\/\
+ull\ 而非 404；缺 \X-API-Key\ → 40100；畸形 \commit_hash\ → 40001；同一 hash 连调两次不产生第二行 prediction（幂等）。
+5. **给前端的模型清单**：优先补 \GET /api/models\（返回已加载的模型名数组）；未实现前必须在本文档写明 8 个模型名，供前端下拉框写死。
+6. **证据**：四条接口的 curl 输出、\POST /api/predict\ 连跑 20 次的 P50/P95（<500ms）、缺令牌与畸形参数两组截图。

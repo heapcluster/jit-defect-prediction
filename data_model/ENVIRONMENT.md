@@ -127,7 +127,7 @@ python -m pipelines.e2e.train --batch-size 8
 ```
 
 **跑序依赖**：expert 独立；semantic 必须在 fused 之前（fused 吃 `semantic/data/semantic_embeddings.npz`）；e2e 独立（吃文本）。
-**分类器数量**以各包 `config.py` 的 `DEFAULT_MODELS` 为准：`expert` / `semantic` / `fused` 均为 **12 个**（`lr rf xgb lgbm et svm nb dt knn mlp mlp_deep tabnet`），由 `data_model/tests/test_model_registry_parity.py` 守护三线一致；`e2e` 为单个 CodeBERT 二分类头。
+**分类器数量**以各包 `config.py` 的 `DEFAULT_MODELS` 为准：`expert` / `semantic` / `fused` 的**训练口径为 8 个**（`lr rf xgb lgbm et svm mlp_deep tabnet`）；`model.py` 的 `MODEL_NAMES` 注册表仍是 12 个（多出 `nb dt knn mlp`，仅兼容旧产物、默认不训练），由 `data_model/tests/test_model_registry_parity.py` 守护三线一致；`e2e` 为单个 CodeBERT 二分类头。训练口径变更见 `openspec/changes/model-training-scope-8/`。
 
 ## 6. 产物：哪些进仓库、哪些不进
 
@@ -241,7 +241,6 @@ python -c "import sys; sys.path.insert(0,'backend'); from app import model_regis
 | 指标与别人不一致 | 只用 `data_model/environment.yml` 装环境，禁止再造 `requirements.txt` |
 | fused 报覆盖率 < 99% 失败 | 先跑完 semantic 再跑 fused（缓存缺失） |
 | `python` 打开应用商店 | conda 未激活 → 用 Anaconda Prompt 或 `conda init` |
-| **`pypi.org` / `huggingface.co` 连不上**（国内机器常见） | 走代理或镜像装依赖，**版本必须照搬 `environment.yml`，一个版本号都不能改**：<br>代理：`$env:HTTPS_PROXY="http://127.0.0.1:7890"`（Linux/macOS 用 `export HTTPS_PROXY=...`）再执行 `conda env create -f data_model/environment.yml`；<br>镜像：`pip install -i https://pypi.tuna.tsinghua.edu.cn/simple <包名==版本>`，HF 权重设 `$env:HF_ENDPOINT="https://hf-mirror.com"`；<br>装完必须用 `python -c "import torch; print(torch.__version__)"` 核对仍为 2.5.1 |
 
 ## 9. 协作与交付备注
 

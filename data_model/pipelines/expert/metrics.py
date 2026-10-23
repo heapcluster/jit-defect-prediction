@@ -89,14 +89,17 @@ def _spearman(a, b) -> float:
     return float(np.corrcoef(ra, rb)[0, 1])
 
 
-def budget_order(proba, effort) -> np.ndarray:
+def budget_order(proba, effort, floor) -> np.ndarray:
     """预算感知排序：先过滤掉不值得单独评审的小提交，再按风险密度降序。
 
-    低于 `config.MIN_REVIEW_LOC` 的提交排到队尾（仍可能被审到，只是优先级最低），
-    这样 20% 预算不会一次性被两万多条 8 行提交吃掉，也不至于像 `risk_score` 降序
-    那样被少数巨提交独占。
+    低于 `floor` 的提交排到队尾（仍可能被审到，只是优先级最低），这样 20% 预算
+    不会一次性被两万多条 8 行提交吃掉，也不至于像 `risk_score` 降序那样被少数巨
+    提交独占。
+
+    `floor` 的单位必须与 `effort` 一致（LOC 口径是"行"，nf 口径是"文件"），
+    由调用方按口径传入 —— 本函数不再假设"10 行"这种固定值（评审意见 #2）。
     """
-    floor = float(getattr(config, "MIN_REVIEW_LOC", 10))
+    floor = float(floor)
     eligible = np.where(effort >= floor)[0]
     tiny = np.where(effort < floor)[0]
     head = eligible[np.argsort(-(proba[eligible] / effort[eligible]), kind="stable")]
@@ -104,16 +107,20 @@ def budget_order(proba, effort) -> np.ndarray:
     return np.concatenate([head, tail])
 
 
-def effort_aware_metrics(proba, y, effort) -> dict:
+def effort_aware_metrics(proba, y, effort, review_floor=None) -> dict:
+    """`review_floor` 是该 effort 口径下的"最小可评审工作量"，None 表示不启用预算感知口径。
+
+    单位随口径走：LOC 口径传行数（`config.MIN_REVIEW_LOC`），nf 口径要传文件数
+    （`config.MIN_REVIEW_FILES`），不能拿 10 行去卡 10 个文件（评审意见 #2）。
+    """
     effort = np.maximum(np.asarray(effort, dtype=float), 1.0)  # 0 行防除零
     orders = {
         "model": np.argsort(-proba, kind="stable"),
         "density": np.argsort(-(proba / effort), kind="stable"),
-        # 预算感知：LOC 低于 MIN_REVIEW_LOC 的小提交不单独评审（它们数量占一半，
-        # 纯密度排序会把 20% 预算摊到两万多条 8 行提交上），其余仍按密度降序
-        "budget": budget_order(proba, effort),
-        "optimal": np.argsort(-(y / effort), kind="stable"),
     }
+    if review_floor is not None:
+        orders["budget"] = budget_order(proba, effort, review_floor)
+    orders["optimal"] = np.argsort(-(y / effort), kind="stable")
     out = {}
     for k, o in orders.items():
         rec20, n20 = recall_and_count_at_effort(o, effort, y, 0.20)
@@ -137,7 +144,7 @@ def effort_aware_metrics(proba, y, effort) -> dict:
     out["confound"] = {"spearman_risk_log_effort": _spearman(proba, np.log(effort)),
                        "median_effort": float(np.median(effort))}
     denom = out["optimal"]["area"] - baseline
-    for k in ("model", "budget", "density", "optimal", "random"):
+    for k in [k for k in out if "area" in out[k]]:  # 只给排序项算归一值，跳过 confound
         out[k]["p_norm"] = ((out[k]["area"] - baseline) / denom
                             if abs(denom) > 1e-12 else float("nan"))
         # 文献标准别名（同一数字的两种叫法，避免「自造口径」的误读）：

@@ -35,7 +35,10 @@ def parse_args() -> argparse.Namespace:
                         "扩展模型只进评估不进交付（specs/model-coverage R6）")
     p.add_argument("--seed", type=int, default=config.SEED)
     p.add_argument("--model-dir", type=Path, default=config.MODELS_DIR)
-    p.add_argument("--report", type=Path, default=config.REPORTS_DIR / "model_metrics.md")
+    p.add_argument("--report", type=Path, default=None,
+                   help="报告输出路径。默认 model_metrics.md（重训产出的权威指标）；"
+                        "--from-saved 时默认落到 model_metrics_from_saved.md —— 旧权重复算"
+                        "属于探索性结果，不覆盖权威报告（评审意见 #1）")
     p.add_argument("--shap-rows", type=int, default=config.SHAP_ROWS)
     p.add_argument("--skip-shap", action="store_true")
     p.add_argument("--no-export", action="store_true", help="只出指标不导出 .pkl")
@@ -79,8 +82,11 @@ def from_saved(args: argparse.Namespace, train, test, X_test: np.ndarray, y_test
         probas[name] = proba
         results[name] = {"model_name": "%s_v1" % name, "label": MODEL_NAMES.get(name, name),
                          **effort_unaware(y_test, proba),
-                         "effort": {k: effort_aware_metrics(proba, y_test, e)
-                                    for k, e in effort_sets.items()}}
+                         # 评审下限按口径各配一份（LOC→行 / nf→文件），不能共用 10
+                         "effort": {k: effort_aware_metrics(
+                             proba, y_test, e,
+                             review_floor=config.EFFORT_REVIEW_FLOORS.get(k))
+                             for k, e in effort_sets.items()}}
         print("[expert] %-8s AUC=%.4f F1=%.4f（自 %s 复算）"
               % (name, results[name]["auc"], results[name]["f1"], pkl.name))
     if not results:
@@ -145,7 +151,15 @@ def write_feature_order(model_dir: Path, wanted: list[str]) -> Path:
 
 def main() -> int:
     args = parse_args()
+    if args.report is None:
+        args.report = config.REPORTS_DIR / (
+            "model_metrics_from_saved.md" if args.from_saved else "model_metrics.md")
     train, test = load_splits(args.train, args.test)
+    overlap = set(train["commit_hash"]) & set(test["commit_hash"])
+    if overlap:
+        # 泄漏闸门：时间序切分一旦被测集复用就会把 AUC 抬高，宁可不出报告
+        print("[expert] 训练集与检验集重叠 %d 条提交，拒绝出报告（先修切分）" % len(overlap))
+        return 2
     X_train, y_train = xy(train)
     X_test, y_test = xy(test)
     effort_raw = load_effort(args.features_raw, test["commit_hash"])
@@ -166,8 +180,10 @@ def main() -> int:
         probas[name] = proba
         eu = effort_unaware(y_test, proba)
         row = {"model_name": f"{name}_v1", "label": MODEL_NAMES.get(name, name), **eu,
-               "effort": {k: effort_aware_metrics(proba, y_test, e)
-                          for k, e in effort_sets.items()}}
+               "effort": {k: effort_aware_metrics(
+                   proba, y_test, e,
+                   review_floor=config.EFFORT_REVIEW_FLOORS.get(k))
+                   for k, e in effort_sets.items()}}
         if not args.skip_shap:
             try:
                 row["shap"] = shap_latency(name, model, X_test, args.shap_rows)

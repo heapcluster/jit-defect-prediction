@@ -42,9 +42,16 @@ DEFAULT_MODELS = ["lr", "rf", "xgb", "lgbm", "et", "svm", "mlp_deep", "tabnet"]
 RANDOM_BASELINE_REPEATS = 200
 RANDOM_BASELINE_SEED = 0
 EFFORT_FRACTIONS = (0.20, 0.50)      # Recall@20% / Recall@50%
-# 预算感知排序的评审下限（LOC）：低于它的提交流程上不单独排期评审。
+# 预算感知排序的评审下限，**按口径各配一份，单位不同不能混用**（评审意见 #2）：
+#   LOC 口径 → 行数；nf 口径 → 改动文件数
 # 只影响 `budget` 这一对照口径，不改契约三的 `risk_score` 降序主口径。
 MIN_REVIEW_LOC = 10
+MIN_REVIEW_FILES = 2
+# effort 代理名 → 该口径下的评审下限（train.py / report.py 共用，禁止写死 10）
+EFFORT_REVIEW_FLOORS = {
+    "LOC（改动行数 la+ld）": MIN_REVIEW_LOC,
+    "改动文件数 nf": MIN_REVIEW_FILES,
+}
 
 # ── SHAP 实测（契约三：95% 请求 < 500ms）───────────────────────────────
 SHAP_ROWS = 100

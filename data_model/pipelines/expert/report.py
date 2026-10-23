@@ -73,9 +73,12 @@ def make_charts(results: dict, probas: dict, y: np.ndarray,
     for i, name in enumerate(names):
         ax = axes[i // ncol][i % ncol]
         eff = results[name]["effort"]["LOC（改动行数 la+ld）"]
-        for key, order in (("model", np.argsort(-probas[name], kind="stable")),
-                           ("budget", budget_order(probas[name], effort)),
-                           ("density", np.argsort(-(probas[name] / effort), kind="stable"))):
+        orders = [("model", np.argsort(-probas[name], kind="stable"))]
+        if "budget" in eff:
+            orders.append(("budget", budget_order(
+                probas[name], effort, config.EFFORT_REVIEW_FLOORS["LOC（改动行数 la+ld）"])))
+        orders.append(("density", np.argsort(-(probas[name] / effort), kind="stable")))
+        for key, order in orders:
             xs, ys = cumulative_curve(order, effort, y)
             ax.plot(xs, ys, linestyle=style[key], label=label[key], color=color[key],
                     lw=1.4 if key != "density" else 1.1)
@@ -127,9 +130,10 @@ def render(args, train, test, results) -> str:
          "> 本文件与同目录 `figs/` 图表可入库，供四线横向对比。\n"),
     ]
     if getattr(args, "from_saved", False):
-        lines.append("> 本次由 `--from-saved` 读取 `models/*.pkl` 复算重生成（未重训、未重算 SHAP，"
-                     "故第三节显示「未实测」）；\n"
-                     "> 切分为当前 `split_szz_*.csv`，与 06 时代的 7,625 / 3,268 切分不可直接比较。\n")
+        lines.append("> **探索性结果（非权威指标）**：本次由 `--from-saved` 读取 `models/*.pkl` "
+                     "复算重生成，未重训、未重算 SHAP（第三节显示「未实测」）。\n"
+                     "> 这些权重的训练数据版本未随文件记录，无法证明与当前检验集无重叠；"
+                     "**权威指标以重训产出为准**（`model_metrics.md`）。\n")
     lines += [
         "## 数据与参数\n",
         "| 项 | 值 |\n|---|---|\n",
@@ -160,10 +164,11 @@ def render(args, train, test, results) -> str:
         lines.append("| **模型排序**（契约三当前口径） | `%s` | %.4f | **%.4f** | %.4f | %.4f | %d |\n"
                      % (r["model_name"], m["area"], m["p_norm"], m["recall@20"], m["recall@50"],
                         m["n_commits@20"]))
-        b = r["effort"]["LOC（改动行数 la+ld）"]["budget"]
-        lines.append("| **预算感知**：LOC ≥ %d 内按 `risk_score / 工作量` 降序 | `%s` | %.4f | **%.4f** | %.4f | %.4f | %d |\n"
-                     % (config.MIN_REVIEW_LOC, r["model_name"], b["area"], b["p_norm"],
-                        b["recall@20"], b["recall@50"], b["n_commits@20"]))
+        b = r["effort"]["LOC（改动行数 la+ld）"].get("budget")
+        if b is not None:
+            lines.append("| **预算感知**：LOC ≥ %d 内按 `risk_score / 工作量` 降序 | `%s` | %.4f | **%.4f** | %.4f | %.4f | %d |\n"
+                         % (config.MIN_REVIEW_LOC, r["model_name"], b["area"], b["p_norm"],
+                            b["recall@20"], b["recall@50"], b["n_commits@20"]))
         d = r["effort"]["LOC（改动行数 la+ld）"]["density"]
         lines.append("| 对照：按 `risk_score / 工作量` 降序（无下限） | `%s` | %.4f | **%.4f** | %.4f | %.4f | %d |\n"
                      % (r["model_name"], d["area"], d["p_norm"], d["recall@20"], d["recall@50"],
@@ -175,35 +180,62 @@ def render(args, train, test, results) -> str:
     lines.append("| 基线：随机排序（%d 次均值） | — | %.4f ± %.4f | %.4f | %.4f | — | — |\n"
                  % (r_["repeats"], r_["area"], r_["area_std"], r_["p_norm"], r_["recall@20"]))
     lines.append("\n> 随机基线应落在 0.5 附近 —— 它是面积算法的自我校验。\n")
-    # 读法：把「P_norm 为负」归因到排序口径而不是模型判别力，给出可核验的数字
-    confs = [r["effort"]["LOC（改动行数 la+ld）"]["confound"]["spearman_risk_log_effort"]
-             for r in results.values()]
-    ms = [r["effort"]["LOC（改动行数 la+ld）"]["model"] for r in results.values()]
-    bs = [r["effort"]["LOC（改动行数 la+ld）"]["budget"] for r in results.values()]
-    ds = [r["effort"]["LOC（改动行数 la+ld）"]["density"] for r in results.values()]
-    lines.append(
-        "\n> **为什么「模型排序」一列全是负的**：`risk_score` 与提交规模强相关"
-        "（Spearman ρ 中位数 %.3f，最低 %.3f 出自 `svm` —— 它的概率被 Platt 压缩、"
-        "对规模不敏感；其余模型 0.85 上下），越接近 1 越说明分数基本在预测「提交有多大」。"
-        "按 `risk_score` 降序 = 先审最大的提交：20%% LOC 预算只审到 %d~%d 条，"
-        "召回 %.2f%%~%.2f%%，**低于随机基线 %.2f%%**。\n>\n"
-        "> **两种改法都要看成本**：预算感知（LOC ≥ %d 再按密度）审 %d~%d 条，"
-        "召回 %.2f%%~%.2f%%（P_norm %.3f~%.3f）；无下限的纯密度排序审 %d~%d 条，"
-        "召回 %.2f%%~%.2f%%（P_norm %.3f~%.3f）—— 后者指标更高，代价是把预算摊到"
-        "两万多条 8 行提交上，不是真实评审节奏。\n>\n"
-        "> 所以负 `P_norm` 是**排序口径**问题（契约三 Issue #37），不是模型判别力问题。"
-        "主口径仍按契约三保留 `risk_score` 降序；口径是否切换走提案，不在本报告里静默改。\n"
-        % (float(np.median(confs)), min(confs),
-           min(m["n_commits@20"] for m in ms), max(m["n_commits@20"] for m in ms),
-           100 * min(m["recall@20"] for m in ms), 100 * max(m["recall@20"] for m in ms),
-           100 * r_["recall@20"],
-           config.MIN_REVIEW_LOC,
-           min(b["n_commits@20"] for b in bs), max(b["n_commits@20"] for b in bs),
-           100 * min(b["recall@20"] for b in bs), 100 * max(b["recall@20"] for b in bs),
-           min(b["p_norm"] for b in bs), max(b["p_norm"] for b in bs),
-           min(d["n_commits@20"] for d in ds), max(d["n_commits@20"] for d in ds),
-           100 * min(d["recall@20"] for d in ds), 100 * max(d["recall@20"] for d in ds),
-           min(d["p_norm"] for d in ds), max(d["p_norm"] for d in ds)))
+    # 读法：结论必须由本轮结果算出来，不能写死（评审意见 #4）：
+    # `--models` 支持子集、数据也可能是别的切分，硬编码「全为负 / 最低出自 svm」会说谎。
+    LOC = "LOC（改动行数 la+ld）"
+    per_model = [(name, r) for name, r in results.items() if LOC in r.get("effort", {})]
+    if per_model:
+        pns = {name: r["effort"][LOC]["model"]["p_norm"] for name, r in per_model}
+        confs = {name: r["effort"][LOC]["confound"]["spearman_risk_log_effort"]
+                 for name, r in per_model}
+        ms = [r["effort"][LOC]["model"] for _, r in per_model]
+        bs = [r["effort"][LOC]["budget"] for _, r in per_model if "budget" in r["effort"][LOC]]
+        ds = [r["effort"][LOC]["density"] for _, r in per_model]
+        n_neg = sum(1 for v in pns.values() if v < 0)
+        worst = min(pns, key=lambda k: pns[k])
+        rho_vals = sorted(confs.values())
+        rho_med = float(np.median(rho_vals))
+        rho_lo, rho_hi = rho_vals[0], rho_vals[-1]
+        median_loc = per_model[0][1]["effort"][LOC]["confound"]["median_effort"]
+
+        head = ("\n> **模型排序一列的表现**：%d/%d 个模型的 `P_norm` 为负（%s）。"
+                % (n_neg, len(pns),
+                   "即全为负" if n_neg == len(pns) else
+                   "最低为 `%s`（%.3f）" % (worst, pns[worst])))
+        rho_txt = ("`risk_score` 与提交规模的 Spearman ρ 在 %.3f~%.3f（中位数 %.3f）"
+                   % (rho_lo, rho_hi, rho_med))
+        if n_neg:
+            head += (rho_txt + "，越接近 1 越说明分数在预测「提交有多大」；"
+                     "按 `risk_score` 降序就等于先审最大的提交：20%% LOC 预算只审到 "
+                     "%d~%d 条，召回 %.2f%%~%.2f%%，随机基线 %.2f%%。\n>\n"
+                     % (min(m["n_commits@20"] for m in ms), max(m["n_commits@20"] for m in ms),
+                        100 * min(m["recall@20"] for m in ms),
+                        100 * max(m["recall@20"] for m in ms),
+                        100 * r_["recall@20"]))
+        else:
+            head += (rho_txt + "；本轮回填的模型排序不低于随机基线，"
+                     "说明这批判分与提交规模的耦合不足以拖垮 effort-aware 指标。\n>\n")
+
+        if bs:
+            cost = ("**两种改法都要看成本**：预算感知（LOC ≥ %d 再按密度）审 %d~%d 条，"
+                    "召回 %.2f%%~%.2f%%（P_norm %.3f~%.3f）；无下限的纯密度排序审 %d~%d 条，"
+                    "召回 %.2f%%~%.2f%%（P_norm %.3f~%.3f）。后者指标更高，代价是把预算摊到"
+                    "大量小提交（本轮检验集中位 LOC = %d 行）上，不是真实评审节奏。\n>\n"
+                    % (config.MIN_REVIEW_LOC,
+                       min(b["n_commits@20"] for b in bs), max(b["n_commits@20"] for b in bs),
+                       100 * min(b["recall@20"] for b in bs),
+                       100 * max(b["recall@20"] for b in bs),
+                       min(b["p_norm"] for b in bs), max(b["p_norm"] for b in bs),
+                       min(d["n_commits@20"] for d in ds), max(d["n_commits@20"] for d in ds),
+                       100 * min(d["recall@20"] for d in ds),
+                       100 * max(d["recall@20"] for d in ds),
+                       min(d["p_norm"] for d in ds), max(d["p_norm"] for d in ds),
+                       median_loc))
+        else:
+            cost = ("**预算感知列未启用**：本次调用未给 `review_floor`，只报模型排序与纯密度两种口径。\n>\n")
+        lines.append(head + cost +
+                     "> 负 `P_norm` 属**排序口径**问题（契约三 Issue #37），不是模型判别力问题；"
+                     "主口径仍按契约三保留 `risk_score` 降序，切换口径走提案，不在本报告里静默改。\n")
     lines.append("\n## 三、SHAP 单条解释耗时（实测，随机器负载波动）\n\n")
     lines.append(f"| 模型 | p50 | p95 | 最大 | 是否满足 95% < {config.LATENCY_BUDGET_MS} ms |\n|---|---|---|---|---|\n")
     for name, r in results.items():
