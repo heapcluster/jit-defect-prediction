@@ -48,5 +48,5 @@
 2. **数据**：依次执行 4 次 `python -m app.ingest {commits|labels|features|predictions} <csv>`，打印并留档每类入库行数。
 3. **模型**：`MODEL_DIR` 指向 `data_model/pipelines/expert/models/`，**8 个 `.pkl` 必须全部加载成功**（含 `tabnet_v1`：需要 `data_model` 在 `sys.path`，且 `torch` / `pytorch_tabnet` 已安装）。启动日志不得出现 `model load failed`。
 4. **接口**：4 条 200；空数据返回 `[]`/`null` 而非 404；缺 `X-API-Key` → 40100；畸形 `commit_hash` → 40001；同一 hash 连调两次不产生第二行 prediction（幂等）。
-5. **给前端的模型清单**：优先补 `GET /api/models`（返回已加载的模型名数组）；未实现前必须在本文档写明 8 个模型名，供前端下拉框写死。
+5. **给前端的模型清单**：MVP **不新增** `GET /api/models`（`docs/frontend/pages.md` §6 已裁定由前端维护静态清单）。本文档 MUST 列出 `MODEL_DIR` 下**实际加载成功**的模型名，与第 3 条一致；某个 `.pkl` 加载失败时 MUST 在此标注「不可选」并同步告知前端，避免前端下拉出现必 40001 的假选项。
 6. **证据**：四条接口的 curl 输出、`POST /api/predict` 连跑 20 次的 P50/P95（<500ms）、缺令牌与畸形参数两组截图。

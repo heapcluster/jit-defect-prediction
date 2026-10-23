@@ -38,7 +38,7 @@
 **目标**：不刷新页面即可完成「选提交 → 看解释 → 换模型重预测」，三态齐全。
 
 1. `api/index.js` 补 `postPredict(commitHash, modelName?)` → `POST /api/predict`，body `{commit_hash, model_name?}`。
-2. 详情页加「重新预测」：模型下拉（来自后端 `/api/models`，未实现时用后端文档写死的 8 个），返回后刷新 `risk_score` / `model_name` / `predicted_at` / `explanation`。
+2. 详情页加「重新预测」：模型下拉列**后端实际加载成功的交付模型** `lr_v1` / `rf_v1` / `xgb_v1`（`pages.md` §6 已裁定 MVP 不新增 `/api/models`，清单由前端维护；下拉列 8 个会因 `MODEL_DIR` 缺 `.pkl` 直接拿到 40001）。返回后刷新 `risk_score` / `model_name` / `predicted_at` / `explanation` 四个字段；其中 `predicted_at` 仅 `POST /api/predict` 返回（`GET /api/commits/{hash}` 不含），故只在预测成功后展示，详情首次加载时显示「—」。
 3. `explanation` 渲染为横向条形图：正负贡献分色，显示特征名、数值、direction；不得直接打印 JSON。
 4. `frontend/.env.local` 写 `VITE_API_KEY`（与后端 `API_TOKEN` 一致），否则全部 40100。
 5. 三页面浏览器走查并截图：加载中 / 空数据（空态非报错）/ 接口失败（可重试）；风险阈值 0.5 与 0.3 的口径只在 `docs/frontend/pages.md` 一处定义。
