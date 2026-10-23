@@ -62,6 +62,30 @@ CPU 机器可跳过本步，但 semantic 会很慢、e2e 无法实际训练。
 
 **A. 从已有机器整体拷贝** `data_model/data/`（最快，含全部中间产物）。
 
+三条线实际依赖的文件见各包 `config.py`，最小可用清单只有 4 个（合计约 64MB，zip 后约 22MB，可直接飞书发送）：
+
+| 文件 | 大小 | 谁用 |
+|---|---|---|
+| `split_szz_train.csv` / `split_szz_test.csv` | 16.3 / 6.9 MB | 四条线共用（`TRAIN_CSV` / `TEST_CSV`） |
+| `commit_features_raw.csv` | 14.8 MB | Effort-aware 的 LOC 工作量代理（`la + ld`） |
+| `dataset_szz.csv` | 26.4 MB | semantic / e2e 自建 diff 文本时的标签与提交清单；`e2e/build_text_dataset.py` 的 `--dataset`、`semantic/data.py::extract_texts_from_repo` 都**必读**，缺失直接退出码 2 |
+
+> 这四个 CSV 只解决**上游数据**，不等于可以开训四条线：e2e / semantic 若要自建 diff 文本，
+> 还需要 Camel 克隆（`--repo` 指向它，固定 `b2329103…`）；否则得直接复用现成的
+> `pipelines/e2e/data/commit_text.csv`（该文件同样不入库，需一并拷贝）。
+
+拷贝后按哈希核对（2026-10-23 实测快照）：
+
+| 文件 | SHA256（前 32 位） |
+|---|---|
+| `split_szz_train.csv` | `E40AF1FB1AE354CE70038352B7D2BD44` |
+| `split_szz_test.csv` | `35E7C82512E873F5D1D1DBBE5A2AF47B` |
+| `commit_features_raw.csv` | `8E4DD28AA58F9962FB1AF48C23D29EB0` |
+| `dataset_szz.csv` | `735903F1BD74412B66477E817D933A51` |
+
+> 大小与行数只能做粗略的传输检查，**不能**据此断言“SZZ 未重跑”——同样大小也可能是不同内容。
+> 哈希一致才说明是同一份数据；若你自己重跑 01–05，哈希本就会变，需在 `docs/model/data-pipeline.md` 重新登记。
+
 **B. 从零重跑 01–05**（干净复现）：
 
 ```bash
@@ -218,6 +242,7 @@ python -c "import sys; sys.path.insert(0,'backend'); from app import model_regis
 | 指标与别人不一致 | 只用 `data_model/environment.yml` 装环境，禁止再造 `requirements.txt` |
 | fused 报覆盖率 < 99% 失败 | 先跑完 semantic 再跑 fused（缓存缺失） |
 | `python` 打开应用商店 | conda 未激活 → 用 Anaconda Prompt 或 `conda init` |
+| **`pypi.org` / `huggingface.co` 连不上**（国内机器常见） | 走代理或镜像装依赖，**版本必须照搬 `environment.yml`，一个版本号都不能改**：<br>代理：`$env:HTTPS_PROXY="http://127.0.0.1:7890"`（Linux/macOS 用 `export HTTPS_PROXY=...`）再执行 `conda env create -f data_model/environment.yml`；<br>镜像：`pip install -i https://pypi.tuna.tsinghua.edu.cn/simple <包名==版本>`，HF 权重设 `$env:HF_ENDPOINT="https://hf-mirror.com"`；<br>装完必须用 `python -c "import torch; print(torch.__version__)"` 核对仍为 2.5.1 |
 
 ## 9. 协作与交付备注
 
