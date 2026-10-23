@@ -15,7 +15,7 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pipelines.expert import config, report  # noqa: E402
 from pipelines.expert.metrics import budget_order, effort_aware_metrics  # noqa: E402

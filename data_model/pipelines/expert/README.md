@@ -35,7 +35,7 @@
 
 ```bash
 cd data_model
-python -m pipelines.expert.train                    # 全部 12 个模型（[models] 仍只列 lr/rf/xgb）
+python -m pipelines.expert.train                    # 训练口径 8 个模型（[models] 仍只列 lr/rf/xgb）
 python -m pipelines.expert.train --delivery-models lr,rf,xgb   # 显式指定交付清单
 python -m pipelines.expert.train --no-export        # 只出指标，不覆盖 .pkl
 python -m pipelines.expert.train --from-saved --models lr,rf,xgb   # 不训练：用已有 pkl 复算指标 + 重写报告 + 出图
@@ -49,7 +49,7 @@ python -m pipelines.expert.significance             # 显著性检验（原 16�
 
 | 路径 | 内容 | 入库 |
 |---|---|---|
-| `models/*_v1.pkl` | 模型权重（joblib；数量以 `config.DEFAULT_MODELS` 为准，当前 12 个） | 否（`*.pkl` 全局忽略） |
+| `models/*_v1.pkl` | 模型权重（joblib；数量以训练口径 `config.DEFAULT_MODELS` 为准，当前 8 个） | 否（`*.pkl` 全局忽略） |
 | `models/feature_order.txt` | 交付清单（契约二第三节的副本） | 是 |
 | `reports/model_metrics.md` | 两类指标 + SHAP 实测 | 是 |
 | `reports/figs/*.png` | ROC / effort 曲线 / 柱状图 | 是 |
