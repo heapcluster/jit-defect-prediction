@@ -1,0 +1,24 @@
+name: PR auto-review prototype
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# This workflow only runs trusted base-branch code. Never check out PR head here.
+# No model credentials and no permission to submit a GitHub review.
+permissions:
+  contents: read
+  pull-requests: read
+  checks: read
+
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Evaluate review gates without publishing
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python infra/pr_auto_review.py --event "$GITHUB_EVENT_PATH"

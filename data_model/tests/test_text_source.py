@@ -74,10 +74,16 @@ def test_real_diff_keeps_text_and_source():
 
 
 def test_parent_but_empty_diff_becomes_no_text_change():
-    for key in ("empty", "blank"):
-        text, source = commit_text(_repo(), key, 4000)
-        assert source == text_source.SOURCE_NO_TEXT_CHANGE, key
-        assert text == text_source.PLACEHOLDER[text_source.SOURCE_NO_TEXT_CHANGE]
+    text, source = commit_text(_repo(), "empty", 4000)
+    assert source == text_source.SOURCE_NO_TEXT_CHANGE
+    assert text == text_source.PLACEHOLDER[text_source.SOURCE_NO_TEXT_CHANGE]
+
+
+def test_whitespace_body_stays_diff_per_ruling():
+    """空白正文的 diff 仍记 `diff`：装配结果非空，与补丁前旧管线逐哈希一致（裁定第 ③ 条）。"""
+    text, source = commit_text(_repo(), "blank", 4000)
+    assert source == text_source.SOURCE_DIFF
+    assert text.startswith("diff --git a/src/B.java")
 
 
 def test_root_commit_is_its_own_source():
@@ -98,23 +104,23 @@ def test_unreachable_commit_returns_none_not_placeholder():
 def test_assemble_truncates_per_file_and_total():
     long_patch = b"x" * 5000
     diffs = [_FakeDiff(f"f{i}.java", long_patch) for i in range(5)]
-    text, has_content = text_source.assemble(diffs, max_chars=4000)
+    text = text_source.assemble(diffs, max_chars=4000)
     assert len(text) == 4000
     assert "... [truncated]" in text
-    assert has_content is True
-    assert text_source.assemble([], 4000) == ("", False)
+    assert text_source.assemble([], 4000) == ""
 
 
-def test_header_only_diff_counts_as_no_content():
-    """只有文件头、没有 patch 正文（模式/属性类变更）不算「有文本变更」。
+def test_header_only_diff_stays_diff_per_ruling():
+    """只有文件头、没有 patch 正文（模式/属性类变更）仍记 `diff`（蒋励 2026-10-24 裁定口径）。
 
-    文件头是装配时自己加的；若按「文本非空」判定，这类提交会被登记成 `diff`，
-    既逃过占位统计，又让模型吃到一段只含路径的伪文本。
+    占位只认「diff 为空」（零条目 → 装配结果为空串）。若把「仅文件头」也算无内容，
+    实测会把 82 条旧 `diff` 行改判占位，破坏裁定第 ③ 条「原 83,674 行逐哈希不变」。
     """
-    text, has_content = text_source.assemble([_FakeDiff("src/C.java", None)], 4000)
+    text = text_source.assemble([_FakeDiff("src/C.java", None)], 4000)
     assert text.startswith("diff --git a/src/C.java")
-    assert has_content is False
-    assert text_source.classify(True, text, has_content)[1] == text_source.SOURCE_NO_TEXT_CHANGE
+    assert text_source.classify(True, text)[1] == text_source.SOURCE_DIFF
+    assert text_source.classify(True, "")[1] == text_source.SOURCE_NO_TEXT_CHANGE
+    assert text_source.classify(False, "")[1] == text_source.SOURCE_ROOT_COMMIT
 
 
 # ────────────────────── 3. 占位串不会被 pandas 读成 NaN ──────────────────────
