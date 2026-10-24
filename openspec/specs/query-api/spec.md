@@ -69,7 +69,7 @@
 
 ### Requirement: 提交详情查询
 
-`GET /api/commits/{commit_hash}` SHALL 返回提交元信息、14 项特征值与 `explanation`；`features` SHALL 读自 `commit_feature` 表，键名与 `docs/contracts/feature-columns.md` 逐字一致；本响应 MUST NOT 返回真实标签。
+`GET /api/commits/{commit_hash}` SHALL 返回提交元信息、14 项特征值与 `explanation`；`features` SHALL 读自 `commit_feature` 表，键名与 `docs/model/feature-columns.md` 逐字一致；本响应 MUST NOT 返回真实标签。
 
 #### Scenario: 哈希不存在
 
