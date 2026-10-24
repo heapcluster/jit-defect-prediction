@@ -60,7 +60,8 @@ def test_all_registered_names_build_under_official_namespace(line):
     probe = (
         f"from pipelines.{line}.model import build_model;"
         f"from pipelines.{line}.config import DEFAULT_MODELS;"
-        "expected = 'lr,rf,xgb,lgbm,et,svm,nb,dt,knn,mlp,mlp_deep,tabnet'.split(',');"
+        # 训练口径 8 个（注册表 12 个，多出的 nb/dt/knn/mlp 不默认训练，见 spec §0.1）
+        "expected = 'lr,rf,xgb,lgbm,et,svm,mlp_deep,tabnet'.split(',');"
         "assert set(DEFAULT_MODELS) == set(expected), DEFAULT_MODELS;"
         "[build_model(n, 42) for n in DEFAULT_MODELS];"
         "print('OK', len(DEFAULT_MODELS))"
@@ -68,4 +69,4 @@ def test_all_registered_names_build_under_official_namespace(line):
     r = _run_probe(probe)
     assert r.returncode == 0, (
         f"{line}: {r.stdout}\nstderr: {r.stderr[-1200:]}")
-    assert "OK 12" in r.stdout
+    assert "OK 8" in r.stdout

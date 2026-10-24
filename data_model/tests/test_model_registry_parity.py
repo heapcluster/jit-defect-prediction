@@ -36,6 +36,10 @@ EXPECTED = {
     "nb", "dt", "knn", "mlp", "mlp_deep", "tabnet",
 }
 
+# 训练口径（config.DEFAULT_MODELS）只有 8 个：nb / dt / knn / mlp 留在注册表里
+# 兼容旧产物，但不进默认训练，也不进四线对比（见 config-and-output-spec.md §0.1）。
+TRAINED = ["lr", "rf", "xgb", "lgbm", "et", "svm", "mlp_deep", "tabnet"]
+
 
 def test_expert_registry_declares_expected_models():
     assert set(expert_m.MODEL_NAMES) == EXPECTED
@@ -49,9 +53,14 @@ def test_semantic_and_fused_match_expert_registry():
 def test_all_three_lines_share_the_same_default_model_set():
     """train.py reads each line's own config; if the defaults drift, a plain
     `python -m pipelines.<line>.train` silently compares different model sets
-    and the cross-line comparison is no longer about the feature modality."""
+    and the cross-line comparison is no longer about the feature modality.
+
+    默认清单 = 8 个（不是注册表的 12 个）：多训 4 个会让单线复现时间和四线
+    对齐成本翻倍，而课程只要求「2 类 ≥ 8 种」。
+    """
     assert list(EXPERT_DEFAULT) == list(SEMANTIC_DEFAULT) == list(FUSED_DEFAULT)
-    assert set(EXPERT_DEFAULT) == EXPECTED
+    assert list(EXPERT_DEFAULT) == TRAINED
+    assert set(TRAINED) < set(EXPECTED), "注册表应包含训练口径之外的兼容模型"
 
 
 def test_every_registered_model_builds():

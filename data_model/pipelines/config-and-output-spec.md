@@ -3,6 +3,7 @@
 > 适用范围：`pipelines/` 下**除 `expert/` 外**的三条对照线。
 > 本文是三条线的**配置契约**与**产物契约**——改 `config.py` 默认值、改产物路径或字段、
 > 改报告表结构，都必须同步本文与该包 `README.md`。单条命令的用法见各包 README。
+> §0.1 额外给出**四条线（含 expert）各自该训哪些模型**，队友照抄即可，别自行加模型。
 
 ## 0. 三线共同约定
 
@@ -12,7 +13,7 @@
 | 指标口径 | 与 `expert/` 逐字一致：Effort-unaware（AUC/F1/Precision/Recall/Accuracy）+ Effort-aware（LOC 为工作量代理，P_norm / Recall@20% / Recall@50%） | 各包 `metrics.py` |
 | 随机基线 | 200 次抽样，种子 0 | `RANDOM_BASELINE_REPEATS` / `RANDOM_BASELINE_SEED` |
 | 判定阈值 | 0.5（仅用于统计正例数，不参与 AUC / P_norm 计算） | `DECISION_THRESHOLD` |
-| 分类器族 | 12 个：`lr` `rf` `xgb` `lgbm` `et` `svm` `nb` `dt` `knn` `mlp` `mlp_deep` `tabnet`；三线 `MODEL_NAMES` / `build_model` 超参必须逐字相同 | `data_model/tests/test_model_registry_parity.py` |
+| 分类器族 | **训练口径 8 个**：`lr` `rf` `xgb` `lgbm` `et` `svm` `mlp_deep` `tabnet`（见 §0.1）；注册表 `MODEL_NAMES` 另有 `nb` `dt` `knn` `mlp` 4 个历史模型，**只兼容旧产物、默认不训**；三线 `build_model` 超参必须逐字相同 | `data_model/tests/test_model_registry_parity.py` |
 | 模型命名 | 落盘文件与报告内 `model_name` 统一带线别后缀：`<name>_semantic_v1` / `<name>_fused_v1` / `codebert_e2e_v1` | 各包 `train.py` |
 | 入库规则 | **模型目录默认忽略**（`data_model/pipelines/*/models/**`），仅 `feature_order.txt` 与 `manifest.txt` 两个**文本清单例外入库**（见各线产物表「是」）；权重按 `*.pkl` / `*.joblib` / `*.pt` / `*.pth` / `*.ckpt` / `*.onnx` / `*.h5` / `*.safetensors` / `*.bin` 全局忽略；`reports/*.md` 与 `figs/*.png` **入库**；`data/` 不入库 | `.gitignore` |
 | 包间衔接 | 只通过**数据文件**衔接，禁止跨包 `import` | 各包 `data.py` |
@@ -25,9 +26,52 @@
 
 三条线都**不进交付链**，产物仅用于评估与横向对照。交付清单以 `expert/models/feature_order.txt` 的 `[models]` 为准（`lr_v1` + `rf_v1` + `xgb_v1`，与后端 `model_registry.load_models()` 对 `MODEL_DIR` 下全部 `*.pkl` 的加载范围一致），见 `data_model/ENVIRONMENT.md` §7。
 
+## 0.1 四条线各训哪些模型（唯一口径）
+
+> 一句话：**除 e2e 线（端到端 1 个模型）外，其余三条线训同一份 8 个模型。**
+> `python -m pipelines.<line>.train` 不带 `--models` 跑的就是这张表，清单来自各线 `config.DEFAULT_MODELS`。
+
+| 线 | 模型数 | 模型（= `--models` 默认值） | 报告 | 图 |
+|---|---|---|---|---|
+| `expert` | **8** | `lr` `rf` `xgb` `lgbm` `et` `svm` `mlp_deep` `tabnet` | `expert/reports/model_metrics.md` | `expert/reports/figs/*.png` |
+| `semantic` | **8** | 同上（特征是冻结 CodeBERT 768 维） | `semantic/reports/model_metrics.md` | `semantic/reports/figs/*.png` |
+| `fused` | **8** | 同上（Kamei 14 ⊕ 语义 768 = 782 维） | `fused/reports/model_metrics.md` | `fused/reports/figs/*.png` |
+| `e2e` | **1** | `codebert_e2e_v1`（端到端微调，不套分类器族） | `e2e/reports/model_metrics.md` | `e2e/reports/figs/*.png` |
+
+类别划分（课程要求「至少 2 类、不少于 8 种」）：
+
+| 类别 | 模型 |
+|---|---|
+| 经典机器学习（6） | `lr` 逻辑回归、`rf` 随机森林、`xgb` XGBoost、`lgbm` LightGBM、`et` 极端随机树、`svm` RBF 核 SVM |
+| 神经网络（2） | `mlp_deep` 深层 MLP（3 隐藏层 + 早停）、`tabnet` TabNet |
+
+**为什么不是 12 个**：
+
+- `expert/model.py` 的 `MODEL_NAMES` 注册表有 12 个，多出来的 `nb` `dt` `knn` `mlp` 是历史/对照用，**不进四线对比**。
+- 多训 4 个的代价：单线复现时间近乎翻倍，而且四条线模型集合不一致时，横向对比就不再只差「特征模态」这一个变量。
+- 历史坑：`DEFAULT_MODELS` 曾残留 12 个，于是 `python -m pipelines.fused.train` 默认训了 12 个（报告标题也跟着写「12 分类器」）。**现已统一为 8 个**，`data_model/tests/test_model_registry_parity.py` 会拦住回退；报告标题里的「N 分类器」改为按本次实际训练的模型数动态生成。
+- 若确实要跑 12 个做消融：必须显式 `--models lr,rf,xgb,lgbm,et,svm,nb,dt,knn,mlp,mlp_deep,tabnet`，并把 `--report` 指到带 `_12models` 后缀的文件，同时在报告里注明「非四线对比口径」。
+
+**训练命令（都在 `data_model/` 目录下执行）**：
+
+```bash
+python -m pipelines.expert.train     # 8 个模型 → expert/reports/model_metrics.md + figs/
+python -m pipelines.semantic.train   # 需先编码文本（§1.3）；编码是全流程瓶颈
+python -m pipelines.fused.train      # 依赖 semantic 的编码缓存（§2.3）
+python -m pipelines.e2e.train        # 端到端微调，独立跑（CPU 很慢，建议 GPU）
+```
+
+**跑完自检**（三条分类器线）：
+
+1. 报告第一节「Effort-unaware」表格应有 **8 行模型**（`e2e` 为 1 行）；
+2. 标题里的「N 分类器」应等于你 `--models` 的个数，**显示 12 就说明用了旧配置或显式传了 12 个**；
+3. `models/manifest.txt` 的 `[models]` 段行数应等于报告模型行数。
+
+> `budget`（LOC ≥ 10 再按密度）这一对照列目前**只有 `expert` 线实现**；三条对照线报告暂时只有「模型排序 / 密度排序」两行，跨线对比请用这两行（口径一致）。后续同步时按 `expert/metrics.py::budget_order` 移植，不要另写一套公式。
+
 ---
 
-## 1. semantic 线（冻结 CodeBERT 768 维 → 12 分类器）
+## 1. semantic 线（冻结 CodeBERT 768 维 → 8 分类器）
 
 ### 1.1 配置说明（`semantic/config.py`）
 
@@ -95,7 +139,7 @@
 
 `model_metrics.md` 固定结构：
 
-1. 标题 `# semantic 线模型评估指标（冻结 CodeBERT 768 维 → 12 分类器）`
+1. 标题 `# semantic 线模型评估指标（冻结 CodeBERT 768 维 → N 分类器）`，**N = 本次实际训练的模型数**（默认 8，由 `report.render` 按 `len(results)` 写死，不要手改）
 2. `## 数据与参数`：编码器 / 向量维度 / 训练与检验条数 / 检验集正样本比例 / 随机种子 / 判定阈值
 3. `## 一、Effort-unaware 指标（检验集）`：`模型 | AUC | F1 | Precision | Recall | Accuracy`，一行一个模型，模型列写成 `` `lr_semantic_v1`（逻辑回归） ``
 4. `## 二、Effort-aware 指标（检验集，LOC 工作量代理）`：`排序方式 | 模型 | 曲线下面积 | P_norm | Recall@20% | Recall@50%`；每个模型两行（**模型排序** + 对照：密度排序），末尾追加 `上界：真实密度` 与 `基线：随机（200 次均值）`
@@ -117,7 +161,7 @@
 
 ---
 
-## 2. fused 线（Kamei 14 ⊕ 语义 768 = 782 维 → 12 分类器）
+## 2. fused 线（Kamei 14 ⊕ 语义 768 = 782 维 → 8 分类器）
 
 ### 2.1 配置说明（`fused/config.py`）
 
@@ -149,7 +193,7 @@
 | 指标报告 | `fused/reports/model_metrics.md` | 结构同 §1.4，差异见下 | 是 |
 | 图表 | `fused/reports/figs/{roc_curves,effort_curves_loc,metric_bars}.png` | 150 dpi | 是 |
 
-与 semantic 报告的差异：标题为 `# fused 线模型评估指标（Kamei14 ⊕ 语义 768 = 782 维 → 12 分类器）`；`## 数据与参数` 含 `输入维度 782（Kamei 14 + 语义 768）`、`语义缓存` 路径、`训练/检验条数（共享切分，内连接对齐）`、`语义覆盖率`（训练/检验内连接后的保留比例，由 `train.py` 计算后经 `report.render(coverage=...)` 写入）。
+与 semantic 报告的差异：标题为 `# fused 线模型评估指标（Kamei14 ⊕ 语义 768 = 782 维 → N 分类器）`（N 同 §1.4，按实际训练模型数动态写）；`## 数据与参数` 含 `输入维度 782（Kamei 14 + 语义 768）`、`语义缓存` 路径、`训练/检验条数（共享切分，内连接对齐）`、`语义覆盖率`（训练/检验内连接后的保留比例，由 `train.py` 计算后经 `report.render(coverage=...)` 写入）。
 
 ### 2.5 校验与失败语义
 

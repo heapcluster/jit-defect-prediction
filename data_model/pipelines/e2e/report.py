@@ -9,6 +9,12 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+
+# numpy>=2.4 移除了 np.trapz，改用 np.trapezoid；老版本回退
+try:
+    _trapz = np.trapezoid
+except AttributeError:  # numpy < 2.0
+    _trapz = np.trapz
 import torch
 from sklearn.metrics import roc_curve
 
@@ -26,7 +32,7 @@ def make_charts(y: np.ndarray, proba: np.ndarray, effort_loc: np.ndarray | None,
     # ROC
     fpr, tpr, _ = roc_curve(y, proba)
     fig, ax = plt.subplots(figsize=(6, 5))
-    ax.plot(fpr, tpr, label=f"{config.MODEL_NAME} (AUC={float(np.trapz(tpr, fpr)):.3f})")
+    ax.plot(fpr, tpr, label=f"{config.MODEL_NAME} (AUC={float(_trapz(tpr, fpr)):.3f})")
     ax.plot([0, 1], [0, 1], "k--", lw=0.8)
     ax.set_xlabel("False Positive Rate"); ax.set_ylabel("True Positive Rate")
     ax.set_title("ROC curve - e2e (fine-tuned CodeBERT)")
