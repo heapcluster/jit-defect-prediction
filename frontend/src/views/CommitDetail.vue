@@ -175,6 +175,7 @@ import { getCommitDetail, postPredict } from '../api'
 import { ElMessage } from 'element-plus'
 import { riskColor, riskTag, riskLabel } from '../utils/risk'
 import { MODELS } from '../utils/models'
+import { FEATURE_GROUPS } from '../utils/features'
 
 const props = defineProps({
   hash: { type: String, required: true }
@@ -191,14 +192,7 @@ const predictModel = ref('')
 const predicting = ref(false)
 const forbidden = ref(false)
 
-// 特征五维分组（docs/pages.md 第 3 节）
-const featureGroups = [
-  { title: '代码分布', fields: ['ns', 'nd', 'nf', 'entropy'] },
-  { title: '规模', fields: ['la', 'ld', 'lt'] },
-  { title: '目的', fields: ['fix'] },
-  { title: '历史', fields: ['ndev', 'age', 'nuc'] },
-  { title: '开发者经验', fields: ['exp', 'rexp', 'sexp'] }
-]
+const featureGroups = FEATURE_GROUPS
 
 const features = computed(() => detail.value?.features || {})
 // 契约三 §3：提交存在但无预测记录时 risk_score 为 null，前端按 null 渲染「尚未预测」
