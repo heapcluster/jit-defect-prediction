@@ -60,7 +60,7 @@ python -m pipelines.verify_all_weights --check      # 权重交付校验：md5 +
 
 `.pkl` 按约定**不入库**，干净 clone 的 `models/` 里只有 `feature_order.txt`。联调/演示前按下面四步把权重摆到后端能读到的位置：
 
-1. **取权重**：由模型线把 `models/` 打包分发（本机已有 8 个，`et_v1.pkl` 546MB、`rf_v1.pkl` 279MB，走网盘/拷贝，不进 git）。
+1. **取权重**：由模型线把 `models/` 打包分发（本机已有 8 个，`et_v1.pkl` 546MB、`rf_v1.pkl` 279MB，走网盘/拷贝，不进 git）。**当前有效包是 `data/expert_models_20261024.zip`**（8 个 pkl + `feature_order.txt` + `manifest.txt`）；`expert_models_20261021.zip` 已作废但保留作分叉证据 —— 包内 `tabnet_v1.pkl` 是 `__main__` 导出，加载必失败。
 2. **指位置**：在 `backend/.env` 设 `MODEL_DIR=<解压后的目录>`；不设则默认指向本包 `models/`（`backend/app/config.py` 的默认值）。
 3. **自检清单内 3/3 可加载** —— 在线模型集的唯一来源是 `feature_order.txt` 的 **`[models]` 段**（已合并的 #96 定义），当前声明 `lr_v1` / `rf_v1` / `xgb_v1`：
 
@@ -78,8 +78,9 @@ python -m pipelines.verify_all_weights --check      # 权重交付校验：md5 +
 
 已知待办（不在本包改）：
 
-- 后端 `sys.path` 那半个问题已由 **#99** 修掉（自动插入 `<repo>/data_model`）。`tabnet_v1` 还另有一个前序问题：该权重反序列化时引用 `__main__.TabNetWithEarlyStop`（旧导出脚本留下的类路径），`sys.path` 正确也照样加载失败。它当前不在 `[models]` 里，不影响上面的 3/3 自检；**待复核**「按可导入类路径重新导出」后是否恢复 —— 由模型线（蒋励）在交付范围裁定后处理并回执。
-- **交付范围待裁定**：T9 原文要求 8 个模型全部可用，而已合并的 #96 把在线集收敛为 `[models]` 声明的 3 个。裁定前按 `[models]` 验收；裁定后若要扩清单，须先按 R6 另立「模型切换」change 并升版契约三与 `docs/backend/api-spec.md`。
+- 后端 `sys.path` 那半个问题已由 **#99** 修掉（自动插入 `<repo>/data_model`）。`tabnet_v1` 的类路径问题**已核到根因并修掉（2026-10-24）**：工作目录那份内层是 `pipelines.expert.model.TabNetWithEarlyStop`（可加载，md5 `201a002b78c61a9589bec9b14496533c`），出问题的是 **10/21 打包时用的另一版导出**（`__main__.TabNetWithEarlyStop`，300,421 B）。交付包已重打为 `20261024` 版并复核包内 md5 与磁盘逐字节一致，旧包留档。教训是权重以 **md5** 对齐而非文件名对齐 —— `models/*.pkl` 不入库，同名不同版是真事。
+- **交付范围已裁定（2026-10-24）**：在线交付 **3 个**（`lr/rf/xgb`，即 `[models]` 段），8 个权重是「**评估可用**」而非「在线可切换」—— 依据 `docs/backend/acceptance.md` §三端联调第 3 条 + `specs/model-coverage` R6 + 契约三。要扩清单须另立「模型切换」change 并升版契约三与 `docs/backend/api-spec.md`；扩清单的代价是后端引入 torch/pytorch_tabnet、`mlp_deep/tabnet/svm` 无精确 SHAP 解释器（KernelSHAP 会冲击 p95<500ms）。
+- 「8 个全部可用」的**可核验**方式（不是靠「本地已验证」）：模型线离线校验脚本（随 **#88** 引入）`cd data_model && python -m pipelines.verify_all_weights --check` —— 逐个回读、记录 md5 / 顶层类 / Pipeline 内层类路径 / 特征宽度，与 `models/manifest.txt` 漂移即退出码 2。它**不进后端运行时、不改加载清单**，故不违反 R6。
 
 ## 注意事项
 
