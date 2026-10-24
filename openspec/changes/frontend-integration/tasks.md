@@ -17,7 +17,7 @@
 
 ## 4. 联调与交付
 
-- [x] 4.1 三页面对接 API-01/02/03（curl 层联调已通），留联调记录；浏览器人工冒烟待执行补截图
+- [x] 4.1 三页面对接 API-01/02/03（curl 层联调已通），留联调记录；三态截图见 PR #117（docs/frontend/screenshots/）
 - [ ] 4.2 API-04 独立联调：`POST /api/predict` 用真实 40 位 commit_hash（阻塞于真实 commit 灌库；seed 占位 `000...001` 仅证明接口通，不作为通过证据）
 - [ ] 4.3 提交 PR 并写明关联 change id `frontend-integration`，由非作者审阅合入
 - [ ] 4.4 回飞书看板更新任务状态
@@ -72,4 +72,4 @@
 
 ### 5.5 落地结论
 
-F2/F3 已落地（三页面 + 提案 + 规格）；F4 后端联调已打通（API-01~04 + 鉴权均验证，含 predict 真模型推理），三页浏览器人工冒烟待执行补截图。联调记录见 `docs/frontend/integration-log.md`。
+F2/F3 已落地（三页面 + 提案 + 规格）；F4 后端联调已打通（API-01~04 + 鉴权均验证，含 predict 真模型推理），三态截图见 PR #117。联调记录见 `docs/frontend/integration-log.md`。
