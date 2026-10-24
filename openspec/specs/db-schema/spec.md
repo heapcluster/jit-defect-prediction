@@ -1,13 +1,13 @@
 # db-schema Specification
 
 ## Purpose
-把契约一 1.4 的四张表与契约二的特征列落地为可执行建库与灌入，为查询接口、在线预测与模型线交付物（裁定 A+C）提供唯一数据落点。
+把契约一 1.5 的四张表与契约二的特征列落地为可执行建库与灌入，为查询接口、在线预测与模型线交付物（裁定 A+C）提供唯一数据落点。
 
 ## Requirements
 
 ### Requirement: 建表字段逐字对齐契约
 
-系统 SHALL 按 `docs/contracts/data-fields.md` 1.4（表一/二/三与 ER 图）与 `docs/contracts/feature-columns.md` §2/§3 建立 `commit`、`commit_label`、`commit_feature`、`prediction` 四张表：列名逐字一致、一律 snake_case、时间字段统一 UTC 且以 `_at` 结尾；`commit_hash` SHALL 建唯一索引，`committed_at` SHALL 建普通索引；四张表 SHALL 由同一份迁移脚本建立。
+系统 SHALL 按 `docs/design/data-fields.md`（契约一 v1.5，表一/二/三与 ER 图）与 `docs/model/feature-columns.md`（契约二）§2/§3 建立 `commit`、`commit_label`、`commit_feature`、`prediction` 四张表：列名逐字一致、一律 snake_case、时间字段统一 UTC 且以 `_at` 结尾；`commit_hash` SHALL 建唯一索引，`committed_at` SHALL 建普通索引；四张表 SHALL 由同一份迁移脚本建立。
 
 #### Scenario: 列名逐字对齐
 
@@ -54,7 +54,7 @@
 
 ### Requirement: 特征列名与顺序
 
-`commit_feature` 的 14 项特征列名 SHALL 与 `docs/contracts/feature-columns.md` §3 逐字一致；后端组装模型输入向量时 SHALL 按 §3 的列顺序取值，MUST NOT 依赖字典插入顺序或文件列顺序。
+`commit_feature` 的 14 项特征列名 SHALL 与 `docs/model/feature-columns.md`（契约二）§3 逐字一致；后端组装模型输入向量时 SHALL 按 §3 的列顺序取值，MUST NOT 依赖字典插入顺序或文件列顺序。
 
 #### Scenario: 特征列名对齐
 
