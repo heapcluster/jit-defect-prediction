@@ -11,7 +11,7 @@
 
 **仍缺的不是单测，是单测以上三层**：集成（T-IT-01~03）、系统（T-ST-01~05）、非功能（T-NF-01~04）都还没有 Sprint 2 口径下的正式执行记录，其中性能与安全两份旧证据已因 #97 改接口而**不可再引**（§8）。差距逐条见 §7。
 
-## 1. 执行环境（如实记录，含"没跑"的部分）
+## 1. 执行环境（如实记录，含「没跑」的部分）
 
 | 项 | 值 |
 |---|---|
@@ -38,29 +38,31 @@
 | 单元 · 模型 | `cd data_model && python -m pytest tests/ -q` | **103** | 102 | 0 | 0 | **1**（按设计） | 10.458s |
 | 单元 · 前端 | `cd frontend && npm run test:unit` | **10** | 10 | 0 | 0 | 0 | 277ms（2 文件） |
 | 静态检查 | `ruff check backend data_model infra`；`cd frontend && npm run lint` | — | 通过 | — | — | — | ruff 0 problem / eslint 0 problem |
-| 构建 | `cd frontend && npm run build`；`python -m compileall -q backend/app data_model infra` | — | 通过 | — | — | — | vite 673ms，2248 modules；有 chunk >500kB 警告（§2.5） |
+| 构建 | `cd frontend && npm run build`；`python -m compileall -q backend/app data_model infra` | — | 通过 | — | — | — | vite 673ms，2248 modules；有 chunk >500kB 警告（§2.5）。compileall 本机 rc=0（A 解释器，与 CI 第 16 步同命令） |
 | **集成** | — | **0** | — | — | — | — | T-IT-01~03 未正式执行；`test_integration_api.py` 6 条是**套件内 SQLite 级**联调，不等价（§2.2 注） |
 | **系统** | — | **0** | — | — | — | — | 仅 `repo/demo-script-sprint1.md` 手工脚本，Sprint 3 收口 |
 | **非功能** | — | **0** | — | — | — | — | 性能/安全两份旧证据已失效，需重跑（§8） |
 
-warnings：后端 1 条（`fastapi/testclient.py` 的 `StarletteDeprecationWarning: Using httpx with starlette.testclient is deprecated`，非本线代码）；模型线若干条 sklearn `FutureWarning`（`SVC(probability=True)` 在 1.9 弃用，来自 `pipelines/expert/model.py` 的既有口径，未通过改配置消除）。两者都不影响判定，也**没有**被静默过滤掉。
+warnings：后端 1 条（`fastapi/testclient.py` 的 `StarletteDeprecationWarning: Using httpx with starlette.testclient is deprecated`，非本线代码）；模型线若干条 sklearn `FutureWarning`（`SVC(probability=True)` 在 1.9 弃用、1.11 移除，来自三线 `model.py` 的既有口径：`expert/model.py:143`、`fused/model.py:62`、`semantic/model.py:72`，本轮未通过改配置或加依赖消除）。两者都不影响判定，也**没有**被静默过滤掉。
 
 ### 2.2 后端 145 条按文件（junitxml 计数）
 
 | 文件 | 条数 | 首次入 main | 现在覆盖什么 |
 |---|---|---|---|
-| `tests/test_auth_errors.py` | 3 | #30 `44ca43f` | 缺令牌 / 错令牌 / 令牌空白 → 40100，不回显内部信息（T-BE-04） |
-| `tests/test_commits_api.py` | 13 | #30 `44ca43f` | 列表分页与降序、空结果集 200、时间区间闭区间语义（#62）、详情命中与 40400、大写哈希归一化（#101）（T-BE-01/02） |
+| `tests/test_auth_errors.py` | 3 | #30 `44ca43f` | 缺令牌 → 401/40100、错令牌 → 401/40100、成功响应仍是 `{code:0,message:"ok",data}` 包络（T-BE-04；令牌空白/大小写/超长/前缀等变体在 `test_security_boundaries.py`） |
+| `tests/test_commits_api.py` | 13 | #30 `44ca43f` | 列表分页与 `risk_score` 降序、`size` 越界/上限边界、`min_risk` 空结果集非错误、详情返回 14 特征 + `explanation`、提交存在但无预测 → `risk_score`/`model_name` 为 null、未知哈希 40400、哈希格式非法 40001、默认模型取版本序最新而非最近写入、时间区间闭区间语义 4 条（#62）（T-BE-01/02） |
 | `tests/test_db.py` | 3 | #79 `62f6a18` | 建表后索引自检 `_assert_indexes()` 正例 + 反例（关闭 Issue #73 的一半） |
-| `tests/test_ingest.py` | 2 | #30 `44ca43f` | 灌库幂等 upsert 的函数级口径 |
-| `tests/test_integration_api.py` | 6 | #99 `065c83a` | 独立 SQLite engine 上「建表 → `ingest()` 四类 CSV 各两遍 → 四接口读回」；这是**套件内**集成，用夹具模型与合成 CSV，不含 MySQL、真实权重、前端 |
+| `tests/test_ingest.py` | 2 | #30 `44ca43f` | `commits` 灌库重复执行幂等（同键不产生第二行）、缺必需键时整批回滚 |
+| `tests/test_integration_api.py` | 6 | #99 `065c83a` | 独立 SQLite engine 上「建表 → `ingest()` 四类 CSV 各灌两遍验幂等 → 预测后查询、重复预测只留一行 → 周/月聚合与闭区间对得上灌入数据 → 缺预测/缺特征仍守契约形状 → 空库查询不是错误 → 鉴权失败与模型加载失败都不泄露内部信息」。这是**套件内**集成：夹具模型 + 合成 CSV + SQLite，不含 MySQL、真实权重与前端，故不能顶替 T-IT-01~03 |
 | `tests/test_mirror.py` | 8 | #30 `44ca43f` | 导出 `openapi.json` 与契约三逐字段比对（规格「Swagger 实现镜像」） |
 | `tests/test_model_registry.py` | 14 | #47 `4e72bf8` | `joblib.load` 口径、特征数自检、SHAP 解释键名 ∈ 14 特征、线性 Pipeline 加性残差归零；#96 交付清单加载 2 条、#99 导入路径与失败汇总 7 条（T-BE-06 / T-MO-02 / T-MO-03） |
 | `tests/test_predict_api.py` | 12 | #30 `44ca43f` | 在线预测正向、`model_name` 回显、幂等（同键只留一行）、#97 新提交现算 14 维特征后在线预测 3 条（T-BE-03） |
 | `tests/test_schema_sql.py` | 25 | #100 `f5ca61d` | `infra/schema.sql` 静态校验：四表列名/类型/主键/索引与契约一一致、幂等（`IF NOT EXISTS`）、禁止语句（DROP/TRUNCATE/DELETE 等 11 条参数化）、漂移负例 8 条 |
-| `tests/test_security_boundaries.py` | 50 | #71 `501dc06` | 鉴权边界 12 条、查询参数边界 19 条、详情/预测/趋势边界 16 条、信息泄露断言 4 条（响应体不含 Traceback / SELECT / sqlalchemy / `.py` / 路径 / site-packages）；#101 再 +2（大写 `G`×40 拒收、归一化后仍 40400）（T-BE-05 / T-NF-02） |
-| `tests/test_trends_api.py` | 9 | #30 `44ca43f` | 趋势周/月聚合、周下钻保周日、粒度枚举（#79 关闭 Issue #73 另一半） |
+| `tests/test_security_boundaries.py` | 50 | #71 `501dc06` | 鉴权边界 **12** 条（四接口一律需令牌、令牌须逐字相等、错误提示不透露哪一位错）、查询参数边界 **14** 条（`page`/`size`/`min_risk`/时间非法 → 40001，边界合法值不误判）、详情/预测/趋势边界 **19** 条（哈希长度与非十六进制、缺字段、模型不在清单、粒度枚举、时间格式）、信息泄露断言 **5** 条（响应体不含 Traceback / SELECT / sqlalchemy / `.py` / 路径 / site-packages；50000 文案通用化）。#101 再 +2：`G`×40 大写非十六进制同样拒收、归一化后库内没有的哈希仍 40400，并把原「钉住错误行为」的一条改写为「归一化后命中同一提交」（T-BE-05 / T-NF-02） |
+| `tests/test_trends_api.py` | 9 | #30 `44ca43f` | 周聚合、月粒度按自然月分桶、粒度枚举非法 → 40001、空区间非错误、`end` 纯日期含当天/带时间分量不变、紧凑 basic 格式拒收、周下钻周一至周日保住周日（#79 补月粒度 3 条 + 周下钻 1 条，关闭 Issue #73 的一半） |
 | **合计** | **145** | | |
+
+> 分组条数是本轮按「源文件里 `def test_` 所在小节 × junitxml 收集到的用例名」实算的，不是照抄旧报告。顺带查出一处旧口径错误：`test-report-sprint1.md` §2.1 把 `test_security_boundaries.py` 的 48 条拆成 12/19/16/4，**四项相加是 51、对不上 48**；按同一算法回推当时的正确拆分应为 12/14/17/5（=48），#101 的 +2 全落在「详情/预测/趋势边界」→ 19。Sprint 1 报告是历史文件，按「历史记录不改」保留原文，订正记在本行。
 
 ### 2.3 模型线 103 条按文件
 
@@ -125,11 +127,11 @@ Sprint 1 快照（`test-report-sprint1.md` §2）时模型线只有 `test_featur
 （`app/__init__.py`、`app/api/__init__.py` 为 0 stmts，计入 JSON 但不影响 TOTAL。）
 
 - **A 与 B 逐模块比对差异 0 处**（对比两份 coverage JSON 每个文件的 `num_statements`、`missing_lines` 整数与行号列表）。Python 3.12.7 与 3.12.15 之间没有差异，`coverage-2026-10-22.md` §5 留的「B 未复测」口子已在 10-24 那次补上，本次再次确认。
-- 口径：**行覆盖**（两份 JSON 的 `meta.branch_coverage` 均为 `false`），与历史六次一致，可直接纵向比。
+- 口径：**行覆盖**（两份 JSON 的 `meta.branch_coverage` 均为 `false`），与此前各次测量一致，可直接纵向比。
 - 目标核对：`test-plan.md` §5「后端行覆盖 Sprint 2 ≥60%」→ **92.13%，达标（余量 32.13 个百分点）**；「Sprint 3 ≥75%」→ 已提前超过，但**不作为 Sprint 3 免测理由**，Sprint 3 仍需按当时 main 复测。
 - 统计范围只有 `--cov=app`：**不含** `backend/scripts/`（压测 / 安全 / 灌库脚本，其产出由 §8 索引的 `perf-*.md` / `security-*.md` 验证）与 `backend/tests/`。
 
-### 3.2 七次基线对照（覆盖率为什么从 84% 到 92%）
+### 3.2 六次基线对照（覆盖率为什么从 84% 到 92%）
 
 | # | 基线 | 触发 PR | 测试条数 | Stmts | Miss | TOTAL | 出处 |
 |---|---|---|---|---|---|---|---|
@@ -222,11 +224,11 @@ Sprint 1 报告 §2 写的后端 **87** 条，是「当时 main 上的 39 条 + 
 | T-IT-01~03 | 真实库 + 真实模型 + 前端三页面一条链路 | ❌ 未执行 | `test_integration_api.py` 只是套件内 SQLite 级，**不能顶替** |
 | T-ST-01~05 | 端到端主链路 + 异常输入 + 模型切换 + 回归 | ❌ 未执行 | 仅手工脚本 `repo/demo-script-sprint1.md` |
 | T-NF-01 | `POST /api/predict` ×100 的 p50/p95/p99，p95<500ms | ❌ 证据已失效 | 旧 `perf-real-2026-09-20.md` 是 #97 之前的接口，不可再引（§8） |
-| T-NF-02 | 缺令牌 + 畸形参数两组，不回显堆栈/SQL/路径 | 🔶 单测层 ✅、服务层证据已失效 | 单测：`test_security_boundaries.py` 4 条信息泄露断言；服务层需重跑 `scripts/security_cases.py` 并截图 |
+| T-NF-02 | 缺令牌 + 畸形参数两组，不回显堆栈/SQL/路径 | 🔶 单测层 ✅、服务层证据已失效 | 单测：`test_security_boundaries.py` 的 5 条信息泄露断言；服务层需重跑 `scripts/security_cases.py` 并截图 |
 | T-NF-03 | 空数据 / 断连重试 | ❌ 未执行 | 待 `design/non-functional.md` D2 章节定佐证口径 |
 | T-NF-04 | 阈值只在 `frontend/pages.md` 一处定义 | ✅ | `tests/risk.spec.js` 4 条 |
 
-**方案里没有编号、但 main 上已存在的 41 条**：`test_schema_sql.py` 25、`test_mirror.py` 8、`test_db.py` 3、`test_ingest.py` 2、`test_integration_api.py` 6（有重叠计数，按文件口径合计 44，其中 `test_mirror.py` 对应规格「Swagger 实现镜像」Requirement、`test_schema_sql.py` 对应 `db-schema` 规格）。`test-plan.md` §3.2 要求「每条用例有 `T-` 编号并挂回 User Story」，这 44 条目前无编号 —— 需蒋励在 §4.1 补 T-BE-07~ 行，属方案侧欠账，不在本 PR 代改。
+**方案里没有编号、但 main 上已存在的 44 条**：`test_schema_sql.py` 25、`test_mirror.py` 8、`test_integration_api.py` 6、`test_db.py` 3、`test_ingest.py` 2。其中 `test_mirror.py` 对应规格「Swagger 实现镜像」Requirement、`test_schema_sql.py` 对应 `db-schema` 规格、`test_integration_api.py` 是 #99 的套件内联调、`test_db.py`/`test_ingest.py` 是 #30 起就有的建表与灌库用例。`test-plan.md` §3.2 要求「每条用例有 `T-` 编号并挂回 User Story」，这 44 条目前无编号 —— 需蒋励在 §4.1 补 T-BE-07~ 行，属方案侧欠账，不在本 PR 代改。
 
 ## 6. 未覆盖缺口（只登记，本报告不承诺修复）
 
@@ -284,5 +286,6 @@ Sprint 1 报告 §2 写的后端 **87** 条，是「当时 main 上的 39 条 + 
 - 在 main `0773a49` 上重测三线单测与后端覆盖率（A/B 双解释器 + CI run 交叉核对），得到 145 / 103(1 skip) / 10 与 92.13%。
 - 本机首次实装 `frontend/node_modules`（`npm ci` 223 packages）并实跑 `test:unit` / `lint` / `build`，关闭 Sprint 1 报告 §4 阻塞项 1 与 D-10 的「未过 lint/build 实跑」半条；**未改动 `frontend/` 任何入库文件**（`node_modules`、`dist` 均在 `.gitignore` 内）。
 - 查清并登记：Sprint 1 报告声称的 `frontend/src/__tests__/contract.test.js` 从未进 main（只在未合入的 `8cf3c78`），故 T-FE-01/02 现为 0 覆盖。
+- 查清并登记：Sprint 1 报告 §2.1 对 `test_security_boundaries.py` 的分组拆分（12/19/16/4）四项相加为 51、与该文件当时的 48 条不符；本轮按源码小节实算得 12/14/19/5（=50），并回推出当时应为 12/14/17/5（=48）。
 - 查清并登记：`repo/defect-records.md` 的 D-09 行状态与用例数已过期（#101 已合入），D-10 半条已关闭。
 - 未做（按 §7 逐条待办）：集成/系统/非功能三层执行、MySQL 隔离库、`test-plan.md` §4.1 的 T- 编号补行、`docs/design/non-functional.md` D2 章节。
