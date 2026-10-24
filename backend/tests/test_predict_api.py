@@ -130,3 +130,7 @@ def test_predict_uppercase_hash_uses_normalized_key(client):
     resp = client.post("/api/predict", json={"commit_hash": C1.upper()}, headers=HEADERS)
     assert resp.status_code == 200
     assert resp.json()["data"]["commit_hash"] == C1
+    # 大写与小写必须落在同一个 (commit_hash, model_name) 键上：库里只留一行、且是小写哈希
+    client.post("/api/predict", json={"commit_hash": C1}, headers=HEADERS)
+    assert _rows_for(C1, "fixture_v2") == 1
+    assert _rows_for(C1.upper(), "fixture_v2") == 0

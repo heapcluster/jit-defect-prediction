@@ -112,6 +112,7 @@ def test_commits_query_boundary_values_are_accepted(client, query):
         "a" * 39,                      # 39 位
         "a" * 41,                      # 41 位
         "g" * 40,                      # 非十六进制
+        "G" * 40,                      # 非十六进制（大写形式同样拒收，归一化不放宽校验）
         "A" * 40 + "!",                # 含符号
     ],
 )
@@ -121,19 +122,31 @@ def test_detail_hash_boundaries_return_40001(client, bad_hash):
     assert resp.json()["code"] == 40001
 
 
-def test_detail_uppercase_hash_passes_validation_but_not_found(client):
-    """已知不一致（已登记缺陷 D-2026-10-13-02，P3）：
+def test_detail_uppercase_hash_is_normalized_to_the_stored_commit(client):
+    """D-09 修复：大写/混合大小写哈希归一化后命中库内同一提交。
 
-    ``_check_hash`` 对十六进制大小写不敏感（先 ``lower()``），但详情查询按原样
-    匹配 ``commit.commit_hash``（库内为小写），于是大写哈希能过校验却查不到 →
-    返回 40400「该提交不存在」，对用户是误导性提示。
-
-    本测试**钉住当前行为**（防止被无意改坏），修复走 OpenSpec change：
-    在查询前统一 ``commit_hash.lower()``，或在校验阶段直接归一化。
+    旧行为是「过校验却 40400 commit not found」—— ``_check_hash`` 先 ``lower()``
+    放行大写，``commit_detail`` 却用原样字符串匹配库内小写哈希。
     """
-    resp = client.get(f"/api/commits/{GOOD_HASH.upper()}", headers=HEADERS)
-    assert resp.status_code == 404
-    assert resp.json()["code"] == 40400
+    baseline = client.get(f"/api/commits/{GOOD_HASH}", headers=HEADERS)
+    assert baseline.status_code == 200
+    for variant in (GOOD_HASH.upper(), GOOD_HASH.title()):
+        assert variant != GOOD_HASH
+        resp = client.get(f"/api/commits/{variant}", headers=HEADERS)
+        assert resp.status_code == 200
+        assert resp.json()["code"] == 0
+        assert resp.json()["data"] == baseline.json()["data"]
+        assert resp.json()["data"]["commit_hash"] == GOOD_HASH
+
+
+def test_detail_unknown_hash_stays_40400_after_normalization(client):
+    """归一化只改大小写：库内没有的哈希仍是 40400，不得改判 40001、不得误命中。"""
+    unknown = "d" * 40
+    for variant in (unknown, unknown.upper()):
+        resp = client.get(f"/api/commits/{variant}", headers=HEADERS)
+        assert resp.status_code == 404
+        assert resp.json()["code"] == 40400
+        assert resp.json()["message"] == "commit not found"
 
 
 @pytest.mark.parametrize(

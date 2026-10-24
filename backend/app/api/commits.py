@@ -42,9 +42,11 @@ def _parse_time(value: str, param: str, role: str = "start") -> datetime:
     return parsed
 
 
-def _check_hash(commit_hash: str) -> None:
+def _check_hash(commit_hash: str) -> str:
+    """校验并归一化 40 位十六进制哈希；调用方必须用返回值查库（D-09）。"""
     if len(commit_hash) != 40 or any(c not in HASH_HEX for c in commit_hash.lower()):
         raise AppError(40001, "参数非法：commit_hash 需为 40 位十六进制")
+    return commit_hash.lower()
 
 
 def default_model_in_table(session: Session) -> str | None:
@@ -119,7 +121,8 @@ def list_commits(
 
 @router.get("/api/commits/{commit_hash}", response_model=schemas.DetailResponse)
 def commit_detail(commit_hash: str) -> dict:
-    _check_hash(commit_hash)
+    # 库内哈希是小写：校验放行大写形式，查询就必须用归一化值，否则误报 commit not found（D-09）
+    commit_hash = _check_hash(commit_hash)
     with SessionLocal() as session:
         commit = session.execute(select(Commit).where(Commit.commit_hash == commit_hash)).scalar_one_or_none()
         if commit is None:
