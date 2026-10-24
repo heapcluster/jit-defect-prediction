@@ -56,7 +56,7 @@
 - 单测层同源断言 50 条（`test_security_boundaries.py`）在 main 上全绿，见 `docs/common/test-report-sprint2.md` §2.2。
 - 原始记录：`backend/scripts/evidence/security-2026-10-24.md`。
 
-### 5.2 性能（T-NF-01）——结论：默认路径达标；`rf_v1` 未达标（D-14，待裁定）
+### 5.2 性能（T-NF-01）——结论：默认路径达标；`rf_v1` 未达标（D-14 已裁定 ③：优化 rf，不改靶子）
 
 分位数口径：升序第 `ceil(q*n)` 位（`perf_loop.py::percentile`，design D4），**不是平均值**；靶子 `POST /api/predict` 循环 100 次，不用查询接口代替。
 
@@ -71,7 +71,8 @@
 读法与边界：
 
 - **max 一列不是失败项**：100 次里的最大值是**首个请求**的 SHAP 解释器惰性构造（`model_registry.get_explainer` 构造后缓存），其后 99 次不含该成本；判定只看 p95。
-- **`rf_v1` 的未达标是契约级冲突，不是测量误差**：契约三 §4 把 `lr_v1/rf_v1/xgb_v1` 都列为可切换 `model_name`，而 §2 性能靶子对「`POST /api/predict`」只给一个 500ms。默认路径走 `xgb_v1` 所以演示与前端不受影响，但任何显式指定 `rf_v1` 的调用都超靶子 43%。已登记 `docs/repo/defect-records.md` **D-14**，三选一待蒋励 + 苏哲勋裁定：① 在线可切换范围收窄为 lr/xgb（动契约三枚举与 `specs/model-coverage` R6，须走 change）；② 靶子按模型分别定；③ 优化 rf 在线推理。本节不预判。
+- **`rf_v1` 的未达标是契约级冲突，不是测量误差**：契约三 §4 把 `lr_v1/rf_v1/xgb_v1` 都列为可切换 `model_name`，而 §2 性能靶子对「`POST /api/predict`」只给一个 500ms。默认路径走 `xgb_v1` 所以演示与前端不受影响，但任何显式指定 `rf_v1` 的调用都超靶子 43%。已登记 `docs/repo/defect-records.md` **D-14**。
+- **D-14 已裁定（2026-10-24，蒋励/模型线；待苏哲勋共签）：选 ③ 优化 rf 在线推理，不改契约枚举、不改靶子。** 依据是根因实测 `docs/model/evidence/rf-shap-2026-10-24.md`：p95 713.8ms 中 `predict_proba` 仅 53–86ms，`shap.TreeExplainer.shap_values` 单次 782ms，explainer 已缓存，故瓶颈是模型体量（rf_v1.pkl 279.4MB / 300 棵 / 平均深 34.4 / 366 万节点）。验收口径：重训收敛 rf 规模后 **p95 < 500ms 且 AUC 下降 ≤ 0.01**；未达标则自动降级为 ①（rf 移出 `[models]`、留 `[evaluated]`，同步契约与 `specs/model-coverage` R6，走 change）。本行在此前的「未达标」事实不变，只是处置已定。
 - 旁证链：2026-10-23 的函数级探测（`on-demand-commit-2026-10-23.md`，rf_v1 五次 605–947ms）当时已提示冲突；本轮把它升级成了真 HTTP + 真库 + 100 次的正式测量。
 - 旧证据 `perf-real-2026-09-20.md`（p50 12.6 / p95 21.6 / p99 67）测的是 #97 之前的 `POST /api/predict`（不现算 14 维特征），**不可再引**；`perf-placeholder-2026-09-19.md` 是占位模型，同样不可再引。
 - 原始记录：`backend/scripts/evidence/perf-2026-10-24.md`。
