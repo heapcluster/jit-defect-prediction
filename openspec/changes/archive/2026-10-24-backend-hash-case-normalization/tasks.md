@@ -84,8 +84,8 @@
 
 #### 2026-10-24 本轮执行证据
 
-- 工作树 `D:/TeamWork/jit-backend-hash`，分支 `fix/backend/hash-normalization`，基线 main `f5ca61d`（已含 #96/#97/#100）。
-- 解释器：`C:/Users/simple/anaconda3/envs/jit-defect-prediction/python.exe`，Python 3.12.15、pytest 9.1.1、SQLAlchemy 2.0.54、FastAPI 0.141.1、ruff 0.16.8。
+- 工作树：本机 `fix/backend/hash-normalization` 分支的独立工作树（个人绝对路径按 `docs/repo/collaboration.md` §0 第 3 条不复述），基线 main `f5ca61d`（已含 #96/#97/#100）。
+- 解释器：conda 环境 `jit-defect-prediction` 的 `python`，Python 3.12.15、pytest 9.1.1、SQLAlchemy 2.0.54、FastAPI 0.141.1、ruff 0.16.8。
 - cwd=backend：`python -m pytest tests/test_security_boundaries.py tests/test_predict_api.py -q --junitxml=…` → exit 0，`tests=62 failures=0 errors=0 skipped=0 time=2.693`。
 - cwd=backend：`python -m pytest tests/ -q --junitxml=…` → exit 0，`tests=132 failures=0 errors=0 skipped=0 time=3.365`。
 - cwd=仓库根：`python -m ruff check` 三个改动文件 → `All checks passed!`；`openspec validate backend-hash-case-normalization --strict` → valid；`openspec validate --all --strict` → `Totals: 24 passed, 0 failed (24 items)`。

@@ -78,12 +78,12 @@
 
 #### 2026-10-23 本轮离线执行证据
 
-- 执行时段：2026-10-23 23:20–23:23（+08:00）。工作目录：`D:/TeamWork/jit-backend-schema`；测试cwd为其`backend`子目录。
+- 执行时段：2026-10-23 23:20–23:23（+08:00）。工作目录：本机 `chore/backend/mysql-schema-sql` 分支的独立工作树；测试cwd为其`backend`子目录。（工作树与解释器的个人绝对路径按 `docs/repo/collaboration.md` §0 第 3 条不复述，下同。）
 - 分支：`chore/backend/mysql-schema-sql`；基线/HEAD：`eea910eba80e74608c2da34e88c390879c4e0b14`，未创建提交、push或PR。
-- 所有Python命令使用 `C:/Users/simple/anaconda3/envs/jit-defect-prediction/python.exe`；实测版本Python 3.12.15、SQLAlchemy 2.0.54、pytest 9.1.1。
+- 所有Python命令使用 conda 环境 `jit-defect-prediction` 的解释器（`conda activate jit-defect-prediction` 后的 `python`）；实测版本Python 3.12.15、SQLAlchemy 2.0.54、pytest 9.1.1。
 - SQL生成：cwd=backend，使用同一解释器通过runpy加载测试纯函数`_mysql_statements(Base.metadata)`，逐表调用MySQL dialect的`CreateTable(if_not_exists=True)`与`CreateIndex`编译，移除独立索引外壳后内联；输出存为`infra/schema.sql`，仅调整排版。无运行时导出模块、无新增依赖。
 
-| cwd | 命令（python为上述绝对路径） | 真实输出摘要 | 退出码 |
+| cwd | 命令（python = 上述 conda 环境解释器） | 真实输出摘要 | 退出码 |
 |---|---|---|---|
 | backend | `python -m pytest tests/test_schema_sql.py tests/test_db.py` | `28 passed, 1 warning in 0.18s` | 0 |
 | backend | `python -m pytest tests/test_schema_sql.py` | `25 passed, 1 warning in 0.09s` | 0 |

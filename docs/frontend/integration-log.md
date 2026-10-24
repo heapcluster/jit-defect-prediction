@@ -10,7 +10,7 @@
 | 项 | 基线值 | 维护线 |
 |---|---|---|
 | 数据库 | SQLite，`backend/dev.db`；`DATABASE_URL=sqlite:///./dev.db` | 后端 |
-| 建库灌数 | `cd backend` → `PYTHONPATH=. python -m scripts.seed_dev_data` | 后端 |
+| 建库灌数 | `cd backend` → `python -m scripts.seed_dev_data`（PowerShell / bash 同一写法；`PYTHONPATH=.` 前缀在 PowerShell 下不是有效命令，不要写） | 后端 |
 | 种子内容 | 3 提交 / 3 特征 / 3 预测；`commit_hash` = `000…001` ~ `000…003` | 后端 |
 | 后端令牌 | `API_TOKEN=dev-token-20260918`，请求头 `X-Api-Key`（不是 `Authorization: Bearer`） | 后端 |
 | 前端令牌 | `frontend/.env.local` 的 `VITE_API_KEY=dev-token-20260918` | 前端 |
@@ -20,7 +20,7 @@
 
 ### 三条硬规矩
 
-1. **不写个人绝对路径。** `MODEL_DIR` 只允许留空或仓库内相对路径；个人机器路径进 `.env.local`，不进 `.env.example`、不进任何入库文档。理由：写死个人路径的人能跑，其他人必然 `50000`。
+1. **不写个人绝对路径。** `MODEL_DIR` 只允许留空或仓库内相对路径；个人机器路径**后端**写进 `backend/.env`（`backend/app/config.py` 只调用 `load_dotenv()`，读的是 `backend/.env`，**不会读 `.env.local`**），**前端**写进 `frontend/.env.local`（Vite 原生加载）。两处都不进 `.env.example`、不进任何入库文档。理由：写死个人路径的人能跑，其他人必然 `50000`；而写成后端读不到的文件名，等于没设。
 2. **不各自建库。** 联调库只有 `backend/dev.db` 一份，由 `seed_dev_data.py` 生成。要造空态/失败态，先用 query 参数（如 `min_risk`）或改 seed 脚本，**不许手工改库、不许另建一套库**。理由：各建一套后，"我这边有数据"会变成无法复现的口径。
 3. **口径变更走 PR。** 改这张表必须同一个 PR 里同步 `backend/.env.example` 与 `frontend/.env.example`，描述带 `[联调基线]` 标记。理由：口径散落是三处改一处漏的直接来源。
 
@@ -40,6 +40,7 @@
 | 环境 | Windows 11，Node 24，Python 3.12 |
 | 后端启动 | `cd backend` → `python -m scripts.seed_dev_data`（seed 3 提交 / 3 特征 / 3 预测）→ `python -m uvicorn app.main:app --host 127.0.0.1 --port 8000` |
 | 鉴权配置 | 请求头 `X-API-Key`，值 `dev-token-20260918`（开发令牌，已脱敏；真实值只进各自 `.env.local`，不入库） |
+| MODEL_DIR | 留空，回落 repo 内 `data_model/pipelines/expert/models/`（不写个人绝对路径） |
 
 ## 验证结果（预期 → 实际）
 
@@ -120,9 +121,9 @@
 
 - **浏览器实际执行**：上表为操作清单 + 预期，实际浏览器页面截图待执行后补。
 - **等待中切换 / 乱序的浏览器复现**：组件函数级回归已复验通过，真实浏览器复现待补。
-- **日期末秒端到端**：**前置阻塞 #62 未合入**，暂不能验证，不标为已通过。
-- **`POST /api/predict`**：无页面依赖，不纳入页面联调范围。
+- **日期末秒端到端**：#62 已合入（10-16），可做端到端复核（待浏览器走查时验证）。
+- **`POST /api/predict`**：已加详情页「重新预测」入口（PR #90），结果一次性展示，纳入页面联调范围。
 
 ## 落地结论
 
-三查询接口（API-01/02/03）在真实后端 + SQLite 种子数据下，curl 层均返回 `code=0` 且字段齐全，鉴权失败按契约返回 401/40100。三页浏览器人工冒烟为操作清单 + 预期（待执行补截图）。前端送纯日期、错误码三态、粒度快照、requestId 防过期等行为与契约口径一致。#62 合入后，纯日期筛选的最后一天包含行为可做端到端复核（当前为前置阻塞，未验证）。
+三查询接口（API-01/02/03）在真实后端 + SQLite 种子数据下，curl 层均返回 `code=0` 且字段齐全，鉴权失败按契约返回 401/40100；API-04 用真模型推理返回 risk_score + 非空 SHAP 归因。三页浏览器人工冒烟为操作清单 + 预期（待执行补截图）。前端送纯日期、错误码三态、粒度快照、requestId 防过期等行为与契约口径一致。#62 已合入，纯日期筛选的最后一天包含行为可做端到端复核。

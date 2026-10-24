@@ -967,6 +967,6 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST -H "X-API-Key: dev-token-202609
 ## 5. 边界与本轮不覆盖（如实登记）
 
 1. 本轮用 **SQLite 种子库**，不是真 MySQL：`prediction` 唯一索引下并发双插的 `IntegrityError` 回落分支（`backend/app/api/predict.py:70-80`）仍未覆盖，已登记 Issue #73。
-2. 未做并发/压测：`POST /api/predict` 的性能证据是 `backend/scripts/evidence/perf-real-2026-09-20.md`（p95 21.6ms，真模型 xgb_v1），本轮不重跑。
+2. 未做并发/压测：`POST /api/predict` 的性能证据现行口径见 `backend/scripts/evidence/perf-2026-10-24.md`；本文件撰写当时引用的 `perf-real-2026-09-20.md`（p95 21.6ms，真模型 xgb_v1）**已作废**——它测的是 #97 之前的接口，不得再引。本轮不重跑。
 3. 未用真实提交哈希：仓库内没有 commits / features 的全量 CSV（数据线产物不入库），故只能用种子哈希走链路；真实规模数据的端到端仍待灌库。
 4. 前端三页面对 API-04 的渲染（详情页解释区、模型切换）由前端线在 `docs/frontend/integration-log.md` 自行记录，本文件只提供后端侧预期值，不代替前端实测。

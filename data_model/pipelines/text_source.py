@@ -51,19 +51,20 @@ PER_FILE_LIMIT = 1500
 
 
 def assemble(diffs, max_chars: int,
-             per_file_limit: int = PER_FILE_LIMIT) -> tuple[str, bool]:
-    """把 GitPython 的 diff 列表装配成一段文本 → `(text, has_content)`。
+             per_file_limit: int = PER_FILE_LIMIT) -> str:
+    """把 GitPython 的 diff 列表装配成一段文本。
 
     口径：每个改动文件 = 文件头（a/b 路径）+ patch；单文件超 `per_file_limit` 截断；
     总长超 `max_chars` 截断。合并提交由调用方按第一父提交取 diff。
 
-    `has_content` 表示**是否含真实 patch 正文**：文件头是装配时自己加的，只有文件头
-    而没有任何正文（模式变更、属性类变更等）不算「有文本变更」，否则模型会拿到一段
-    只含路径的伪文本，还会被登记成 `diff` 而逃过占位统计。
+    **占位判定只看「装配结果是否为空」**（蒋励 2026-10-24 裁定口径：只有「提交存在 +
+    有 parents + diff 为空」才记 `no_text_change`）。因此只有文件头、没有 patch 正文的
+    提交（模式/属性类变更）仍记 `diff`、文本就是那段文件头 —— 与补丁前的旧管线逐哈希
+    一致，裁定第 ③ 条「原 83,674 行逐哈希不变」才成立。曾试过把「仅文件头」也算无内容，
+    实测会把 82 条旧 `diff` 行改判占位、破坏第 ③ 条，故回退。
     """
     parts: list[str] = []
     total = 0
-    has_content = False
     for d in diffs:
         a_path = d.a_path or ""
         b_path = d.b_path or a_path
@@ -73,22 +74,20 @@ def assemble(diffs, max_chars: int,
         patch = d.diff
         if patch:
             text = patch.decode("utf-8", "replace") if isinstance(patch, bytes) else str(patch)
-            if text.strip():
-                has_content = True
             if len(text) > per_file_limit:
                 text = text[:per_file_limit] + "\n... [truncated]\n"
             parts.append(text)
             total += len(text)
         if total >= max_chars:
             break
-    return "".join(parts)[:max_chars], has_content
+    return "".join(parts)[:max_chars]
 
 
-def classify(has_parents: bool, assembled: str, has_content: bool) -> tuple[str, str]:
-    """由「有没有父提交」与「有没有真实 patch 正文」定 (text, text_source)。"""
+def classify(has_parents: bool, assembled: str) -> tuple[str, str]:
+    """由「有没有父提交」与「装配文本是否为空」定 (text, text_source)。"""
     if not has_parents:
         return PLACEHOLDER[SOURCE_ROOT_COMMIT], SOURCE_ROOT_COMMIT
-    if has_content and assembled.strip():
+    if assembled.strip():
         return assembled, SOURCE_DIFF
     return PLACEHOLDER[SOURCE_NO_TEXT_CHANGE], SOURCE_NO_TEXT_CHANGE
 
