@@ -25,6 +25,21 @@ python -m app.ingest predictions ../data_model/pipelines/expert/data/prediction_
 - 权重目录：默认即 `data_model/pipelines/expert/models/`，不改 `MODEL_DIR` 也能加载（#99 自动插 `sys.path`）。
 - **`backend/.env` 的 `API_TOKEN` 必须等于 `frontend/.env.local` 的 `VITE_API_KEY`**，否则前端全部 40100。
 
+### 0.0.1 演示库 vs 联调库（2026-10-24 蒋励裁定，Issue #130 一 → A）
+
+**演示与 T-ST-01~05 一律用演示库；联调与截图取证一律用联调库。** 两份都登记在案，不要混用：
+
+| 库 | 文件 | 生成方式 | 数据规模 | 用在哪 |
+|---|---|---|---|---|
+| **联调库**（唯一） | `backend/dev.db` | `cd backend` → `python -m scripts.seed_dev_data` | 3 提交 / 3 特征 / 3 预测，hash `000…001`~`000…003`，`model_name` 全 `seed_v1`，`risk_score` = 0.1 / 0.2 / 0.3 | 日常联调、T-FE-01 三态截图取证 |
+| **演示库**（唯一） | `backend/demo.db` | `cd backend` → `python -m app.db init` → 上面 4× `python -m app.ingest` | 真实产物：commits **84,461** / labels **83,943** / features **83,943** / predictions **83,943**，其中 `risk_score ≥ 0.5` 有 **14,596** 条（17.39%） | **演示与录屏、T-ST-01~05** |
+
+- **为什么不能拿 `dev.db` 上台**：§0.3 的自检 `min_risk=0.5&size=5` 在 `dev.db` 下**必为空**（seed 三行最高 0.3），演示步骤 1 会演成空态，T-ST-01 直接判不过。上述行数与 ≥0.5 条数见 `backend/scripts/evidence/integration-2026-10-24.md`。
+- **这不是「另建一套库」**：`docs/frontend/integration-log.md` §0 硬规矩 2 防的是「每人各建一套、口径无法复现」，不是禁止一份**登记在案、生成命令可复现**的演示库。两张表的生成命令都写在本节，仍是单一出处。
+- 切库只改 `backend/.env` 的 `DATABASE_URL=sqlite:///./demo.db`，**不要手改库内容**；`*.db` 已被 `.gitignore` 排除，不入库。
+- MySQL 路径（Issue #121 授权后）与 `demo.db` 等价，属同一「演示库」槽位，届时只换 `DATABASE_URL`，本脚本的期望值不变。
+- 录屏前跑一次 `backend/scripts/demo_preflight.py`（派工中，归后端线）：它按本节口径逐项自检，任一不满足退出码 1 并打印实际值。
+
 ### 0.1 起后端（终端 A）
 
 ```bash
