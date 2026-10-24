@@ -174,6 +174,7 @@ import { ref, computed, onMounted } from 'vue'
 import { getCommitDetail, postPredict } from '../api'
 import { ElMessage } from 'element-plus'
 import { riskColor, riskTag, riskLabel } from '../utils/risk'
+import { MODELS } from '../utils/models'
 
 const props = defineProps({
   hash: { type: String, required: true }
@@ -185,7 +186,7 @@ const error = ref('')
 const errorCode = ref(0)
 
 // 重新预测：模型下拉（实际交付的 3 个 .pkl，后端 model_registry 加载的版本名）
-const models = ['lr_v1', 'rf_v1', 'xgb_v1']
+const models = MODELS
 const predictModel = ref('')
 const predicting = ref(false)
 const forbidden = ref(false)
