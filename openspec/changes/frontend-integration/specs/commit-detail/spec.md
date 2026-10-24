@@ -30,3 +30,17 @@
 
 - **WHEN** 接口返回 `explanation` 为空数组
 - **THEN** 显示「该模型未提供特征解释」，并保留特征值区域
+
+### Requirement: 重新预测
+
+详情页 MUST 提供「重新预测」入口，调用 `POST /api/predict`（`commit_hash` 必填、`model_name` 可选），返回后刷新 `risk_score`/`model_name`/`explanation`。预测结果 MUST 作为一次性展示，MUST NOT 宣称会持久化到详情页默认记录。
+
+#### Scenario: 选模型重新预测
+
+- **WHEN** 用户在详情页选 `lr_v1` 并点「重新预测」
+- **THEN** 页面刷新为该模型的结果（`risk_score`/`model_name`/`explanation`），无整页刷新
+
+#### Scenario: 预测失败反馈
+
+- **WHEN** `POST /api/predict` 返回非 2xx 业务错误（40001/40100/40400/50000）
+- **THEN** 按错误码显示契约中文提示，MUST NOT 显示原始 status text
