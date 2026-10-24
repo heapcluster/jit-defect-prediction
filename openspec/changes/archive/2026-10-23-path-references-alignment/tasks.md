@@ -1,28 +1,28 @@
 # path-references-alignment — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/commit-collection/spec.md`、`specs/labeled-dataset/spec.md`、`specs/feature-extraction/spec.md`、`specs/model-training/spec.md`、`specs/model-coverage/spec.md`
-> 负责人：model 蒋励 ｜ 创建：2026-10-16 ｜ 状态：进行中（规格路径修订完成，待严格校验与路径扫描证据）
+> 负责人：model 蒋励 ｜ 创建：2026-10-16 ｜ 状态：已完成（2026-10-23 归档，证据见 `path-scan.md`）
 > 用户故事：无（工程化）—— 纯路径字符串修订，不改变任何规格行为语义
 > 统一格式见 `docs/common/openspec-task-template.md`；**本文件末的「测试与验证」为强制板块，缺失视为提案不完整。**
 
 ## 1. 规格修订（5 个能力的 MODIFIED delta）
 
-- [ ] 1.1 `specs/commit-collection/spec.md`：「报出采集统计」的统计报告路径改为 `data_model/preparation/reports/`
-- [ ] 1.2 `specs/labeled-dataset/spec.md`：「报出七项统计」的统计表路径改为 `data_model/preparation/reports/`
-- [ ] 1.3 `specs/feature-extraction/spec.md`：「全量产物与统计报告 MUST 可入库可复现」的报告路径改为 `data_model/preparation/reports/feature_stats.md`
-- [ ] 1.4 `specs/model-training/spec.md`：「MUST 产出两类评估指标」的报告路径改为 `data_model/pipelines/expert/reports/`
-- [ ] 1.5 `specs/model-coverage/spec.md`：登记报告路径改为 `data_model/pipelines/expert/reports/`；「交付模型 MUST 保持不变」的清单路径改为 `data_model/pipelines/expert/models/feature_order.txt`，推理入口改为 `python -m pipelines.expert.predict`
+- [x] 1.1 `specs/commit-collection/spec.md`：「报出采集统计」的统计报告路径改为 `data_model/preparation/reports/`
+- [x] 1.2 `specs/labeled-dataset/spec.md`：「报出七项统计」的统计表路径改为 `data_model/preparation/reports/`
+- [x] 1.3 `specs/feature-extraction/spec.md`：「全量产物与统计报告 MUST 可入库可复现」的报告路径改为 `data_model/preparation/reports/feature_stats.md`
+- [x] 1.4 `specs/model-training/spec.md`：「MUST 产出两类评估指标」的报告路径改为 `data_model/pipelines/expert/reports/`
+- [x] 1.5 `specs/model-coverage/spec.md`：登记报告路径改为 `data_model/pipelines/expert/reports/`；「交付模型 MUST 保持不变」的清单路径改为 `data_model/pipelines/expert/models/feature_order.txt`，推理入口改为 `python -m pipelines.expert.predict`
 
 ## 2. 进行中 change 的路径引用同步
 
-- [ ] 2.1 `semantic-feature-mainline`：`tasks.md` / `design.md` 中 `data_model/reports/`、`16_statistical_test.py`、`06_train_model.py`、`08_model_matrix.py` 引用改为新路径（`data_model/pipelines/<线>/reports/`、`python -m pipelines.expert.significance` 等）
-- [ ] 2.2 `public-dataset-quality`：`tasks.md` / `proposal.md` / `specs/public-dataset/spec.md` 中 `data_model/reports/` 引用改为新归属路径
-- [ ] 2.3 `feature-addons-sprint3`：`tasks.md` / `design.md` 中旧路径引用改为新归属路径
+- [x] 2.1 `semantic-feature-mainline`：`tasks.md` / `design.md` 中 `data_model/reports/`、`16_statistical_test.py`、`06_train_model.py`、`08_model_matrix.py` 引用改为新路径（`data_model/pipelines/<线>/reports/`、`python -m pipelines.expert.significance` 等）；实际残留仅 `05_split_dataset.py` 一处，已改为 `data_model/preparation/05_split_dataset.py`（`tasks.md` §7.2、`design.md`）
+- [x] 2.2 `public-dataset-quality`：`tasks.md` / `proposal.md` / `specs/public-dataset/spec.md` 中 `data_model/reports/` 引用改为新归属路径 —— 扫描为 0 处命中，无需修订
+- [x] 2.3 `feature-addons-sprint3`：`tasks.md` / `design.md` 中旧路径引用改为新归属路径 —— 扫描为 0 处命中，无需修订
 
 ## 3. 校验
 
-- [ ] 3.1 `openspec validate --all --strict` 全绿（18 项）
-- [ ] 3.2 `git diff` 确认本 change 只动路径字符串，规格语义（阈值 / 判定 / 交付边界）逐字未改
+- [x] 3.1 `openspec validate --all --strict` 全绿（19 项）
+- [x] 3.2 `git diff` 确认本 change 只动路径字符串，规格语义（阈值 / 判定 / 交付边界）逐字未改
 
 ## 测试与验证（强制板块）
 
@@ -69,9 +69,9 @@
 | 项 | 内容 |
 |---|---|
 | 验收依据 | 5 份 MODIFIED delta 的 SHALL/MUST 条目中「MUST 可入库可复现 / 报告路径」相关条目 |
-| 用例数与结果 | 5 条 ｜ 待执行（见下方命令与证据归档） |
+| 用例数与结果 | 5 条 ｜ **5/5 通过**（2026-10-23 于 `main` @ `3a9b7b0` 实测） |
 | 复现命令 / 步骤 | `openspec validate path-references-alignment --strict`；随后对每条修订路径执行 `Test-Path <修订后路径>`（5/5 必须为 True） |
-| 证据归档 | `openspec/changes/path-references-alignment/path-scan.md`（见 §5 缺口行 1） |
+| 证据归档 | `openspec/changes/archive/2026-10-23-path-references-alignment/path-scan.md`（§1 路径存在性 6/6 True、§2 残留扫描 6 处全被 delta 覆盖、§4 校验与回归） |
 
 ### 4. 非功能验证（本 change 触及则必填，否则写「本 change 不触及」）
 
@@ -86,5 +86,5 @@
 
 | 缺口 | 原因 | 归属 | 计划时间 |
 |---|---|---|---|
-| §3 验收层的路径扫描证据文件尚未产出 | 严格校验已跑、`Test-Path` 扫描需在最终集成树上执行，合并前出证才有效 | model 蒋励 | #71 合入当日（2026-10-16～2026-10-17） |
-| §2 集成层的 `python -m pytest data_model` 需在合入后重跑 | 上表计数是**修复提交各自分支**的实测；合入 main 后环境与依赖可能变化，须以 main 的树重测另出证 | model 蒋励 | #68 合入窗口内（2026-10-17 前） |
+| ~~§3 验收层的路径扫描证据文件尚未产出~~ **已闭环（2026-10-23）** | 证据落 `path-scan.md`：6 条修订路径 `Test-Path` 全 True | model 蒋励 | 已完成 |
+| ~~§2 集成层的 `python -m pytest data_model` 需在合入后重跑~~ **已闭环（2026-10-23）** | 以 `main` @ `3a9b7b0` 重测：`100 collected ｜ 99 passed, 1 skipped, 0 failed`（26.5s） | model 蒋励 | 已完成 |

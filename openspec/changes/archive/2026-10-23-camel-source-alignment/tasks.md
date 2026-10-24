@@ -1,7 +1,7 @@
 # camel-source-alignment — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/commit-collection/spec.md`、`specs/szz-labeling/spec.md`
-> 负责人：model 蒋励 ｜ 创建：2026-10-15 ｜ 状态：进行中（实现与回归完成，待审核及全量复现）
+> 负责人：model 蒋励 ｜ 创建：2026-10-15 ｜ 状态：已完成（4/4 任务勾选，2026-10-23 归档；实现与回归证据见 PR #91 与 data_model 测试）
 > 用户故事：沿用数据采集与 SZZ 打标；无新增用户故事
 > 统一格式见 `docs/common/openspec-task-template.md`；本文件末的「测试与验证」为强制板块。
 

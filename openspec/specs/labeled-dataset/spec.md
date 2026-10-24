@@ -26,7 +26,7 @@
 #### Scenario: 统计表落盘
 
 - **WHEN** 汇总流程正常结束
-- **THEN** `data_model/reports/` 下生成统计表，且该文件可被版本库收录作为证据
+- **THEN** `data_model/preparation/reports/` 下生成统计表，且该文件可被版本库收录作为证据
 
 #### Scenario: 样本集为空
 
