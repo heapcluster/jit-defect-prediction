@@ -32,7 +32,7 @@
 - `develop`：集成分支，各 `feature/*` 汇入。
 - `feature/*`：功能开发分支。
 - `change/*`：OpenSpec change 实现分支（规格 propose→apply→tasks→代码→archive）。
-- 文档线 PR 走 `docs/README.md` §0 强制合入规则（蒋励主笔，GitHub 账号 `jolly326`，sober 无条件合入）。
+- 文档线 PR 走 `docs/README.md` §0 文档线合入规则（蒋励主笔，GitHub 账号 `jolly326`）：除 `repo/collaboration.md` §3.8 的六种必须 Request changes 情形外直接 Approve，**§3.8 优先，不是无条件合入**。
 
 ## 3. CI/CD 流水线设计
 
