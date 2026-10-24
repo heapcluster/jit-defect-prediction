@@ -21,6 +21,7 @@ from torch.utils.data import DataLoader
 from transformers import Trainer, TrainingArguments
 from transformers.trainer_utils import set_seed as hf_set_seed
 
+from .. import text_source
 from . import config, report
 from .data import TextDataset, align_to_shared_split, load_effort, load_texts
 from .metrics import effort_aware_metrics, effort_unaware
@@ -123,9 +124,13 @@ def main() -> int:
     tokenizer.save_pretrained(str(args.model_dir))
     print(f"[e2e] 模型已保存：{args.model_dir}")
 
+    text_stats = text_source.registration_from_frame(
+        df, test_df["commit_hash"].tolist(), y_test, {config.MODEL_NAME: proba},
+        effort_unaware)
+
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(report.render(args, len(train_core), len(val_df),
-                                         len(test_df), y_test, res),
+                                         len(test_df), y_test, res, text_stats=text_stats),
                            encoding="utf-8", newline="\n")
     print("[e2e] AUC={:.4f}  F1={:.4f}  P={:.4f}  R={:.4f}".format(res["auc"], res["f1"], res["precision"], res["recall"]))
     print(f"[e2e] 报告：{args.report}")

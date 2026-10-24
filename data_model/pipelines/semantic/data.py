@@ -1,7 +1,8 @@
-"""semantic 线数据：文本加载 / 自建文本（自包含）/ 冻结编码 / 缓存读写。
+"""semantic 线数据：文本加载 / 自建文本 / 冻结编码 / 缓存读写。
 
-自建文本与 e2e 包的 build_text_dataset.py 口径一致（同字段、同截断规则）——
-两边的 commit_text.csv 可以互换使用；默认各建各的，保持包自包含。
+自建文本与 e2e 包的 `build_text_dataset.py` **共用 `pipelines/text_source.py`**（同字段、
+同截断规则、同占位串与来源分类），两边的 `commit_text.csv` 可以互换使用；默认各建各的。
+口径只留一份实现，不靠「两边各抄一遍」维持一致 —— 同名两份必然分叉（见 text_source 模块头）。
 """
 
 from __future__ import annotations
@@ -11,6 +12,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+from .. import text_source
 
 
 def load_texts(path: Path) -> pd.DataFrame:
@@ -28,7 +31,7 @@ def load_texts(path: Path) -> pd.DataFrame:
 
 def extract_texts_from_repo(repo_path: Path, dataset_csv: Path,
                             out_csv: Path, max_chars: int) -> Path:
-    """自包含的 diff 文本提取（依赖 GitPython）；格式与 e2e 包一致。"""
+    """diff 文本提取（依赖 GitPython）；口径与 e2e 包共用 `pipelines/text_source.py`。"""
     from git import Repo
     from git.exc import BadName, BadObject, GitCommandError
     if not (repo_path / ".git").exists():
@@ -37,38 +40,40 @@ def extract_texts_from_repo(repo_path: Path, dataset_csv: Path,
     repo = Repo(str(repo_path))
     df = pd.read_csv(dataset_csv)
     rows = []
+    unreachable = 0
     for _, r in df.iterrows():
         h = str(r["commit_hash"])
         try:
             commit = repo.commit(h)
-            if not commit.parents:
-                continue
-            diffs = commit.diff(commit.parents[0], create_patch=True, R=True)
+            has_parents = bool(commit.parents)
+            diffs = (commit.diff(commit.parents[0], create_patch=True, R=True)
+                     if has_parents else [])
         except (BadName, BadObject, GitCommandError, OSError, ValueError) as exc:
-            print(f"[semantic] 跳过无法读取 diff 的提交 {h}: {exc}", file=sys.stderr)
+            # 取不到提交 ≠ 无文本变更：跳过并单独计数，不落占位串
+            unreachable += 1
+            print(f"[semantic] 跳过在仓库里取不到的提交 {h}: {exc}", file=sys.stderr)
             continue
-        parts, total = [], 0
-        for d in diffs:
-            header = "diff --git a/{} b/{}\n".format(d.a_path or "", d.b_path or d.a_path or "")
-            parts.append(header); total += len(header)
-            if d.diff:
-                text = d.diff.decode("utf-8", "replace") if isinstance(d.diff, bytes) else str(d.diff)
-                if len(text) > 1500:
-                    text = text[:1500] + "\n... [truncated]\n"
-                parts.append(text); total += len(text)
-            if total >= max_chars:
-                break
-        body = "".join(parts)[:max_chars]
-        if body.strip():
-            rows.append({"commit_hash": h, "text": body,
-                         "label": int(r["is_bug_inducing"]),
-                         "feature_version": str(r["feature_version"])})
+        assembled, has_content = text_source.assemble(diffs, max_chars)
+        text, source = text_source.classify(has_parents, assembled, has_content)
+        rows.append(text_source.make_row(h, text, source,
+                                         int(r["is_bug_inducing"]), r["feature_version"]))
     if not rows:
         print("[semantic] 0 条有效文本", file=sys.stderr)
         raise SystemExit(1)
-    out = pd.DataFrame(rows, columns=["commit_hash", "text", "label", "feature_version"])
+    out = pd.DataFrame(rows, columns=text_source.TEXT_COLUMNS)
     out_csv.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(out_csv, index=False, quoting=1)  # QUOTE_ALL：text 含换行逗号
+    stats = text_source.summarize(out["text_source"])
+    positives = {name: int(((out["text_source"] == name) & (out["label"] == 1)).sum())
+                 for name in text_source.SOURCES}
+    print("[semantic] 文本 {} 条；来源：{}".format(
+        len(out), "，".join(f"{k}={v}" for k, v in stats.items())))
+    print("[semantic] 占位行中的正样本：{}".format(
+        "，".join(f"{k}={positives[k]}" for k in (text_source.SOURCE_NO_TEXT_CHANGE,
+                                                  text_source.SOURCE_ROOT_COMMIT))))
+    if unreachable:
+        print(f"[semantic] ⚠ 另有 {unreachable} 条在克隆仓库里取不到（未落占位串）",
+              file=sys.stderr)
     return out_csv
 
 
@@ -101,14 +106,11 @@ def encode_texts(texts: list[str], text_model: str, max_len: int,
 def _as_str_array(values) -> np.ndarray:
     """Return a fixed-width Unicode array instead of an object array.
 
-    ``np.savez`` stores an object array as pickled data, which cannot be read
-    back with ``allow_pickle=False``. Casting to the widest ``U`` dtype keeps
-    the file pickle-free while remaining a plain sequence of ``str`` on load.
+    实现只有一份，放在 ``pipelines/text_source.py``：``np.savez`` 把 object 数组存成
+    pickle，而 semantic 与 fused 两个 loader 都用 ``allow_pickle=False`` 读，存成
+    object 就等于让缓存对消费方不可读。本函数保留为该实现的别名，既有调用点与测试不动。
     """
-    arr = np.asarray([str(v) for v in values], dtype=object)
-    if arr.size == 0:
-        return np.empty(0, dtype="U1")
-    return arr.astype(f"U{max(1, max(len(s) for s in arr))}")
+    return text_source.as_str_array(values)
 
 
 def save_embeddings(path: Path, df: pd.DataFrame, emb: np.ndarray) -> None:
@@ -120,13 +122,20 @@ def save_embeddings(path: Path, df: pd.DataFrame, emb: np.ndarray) -> None:
     ``np.load(..., allow_pickle=False)`` refuses to read. Both the semantic and
     the fused loader load with allow_pickle=False, so an object-dtype save
     makes the cache unreadable by the very loaders that consume it.
+
+    键：``commit_hash`` / ``embeddings`` / ``labels`` / ``feature_version`` /
+    ``text_source``。最后一个是本次新增（供 fused 线与报告的「文本来源与覆盖率」登记用）；
+    旧缓存没有该键，读方用 ``text_source.load_sources()`` 得到 ``None`` 时，
+    报告必须如实写「未登记」，不得按 ``diff`` 冒充。
     """
+    sources = text_source.sources_of(df)
     path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(path,
                         commit_hash=_as_str_array(df["commit_hash"]),
                         embeddings=emb,
                         labels=df["label"].to_numpy() if "label" in df.columns else np.array([]),
-                        feature_version=_as_str_array(sorted(set(df["feature_version"]))))
+                        feature_version=_as_str_array(sorted(set(df["feature_version"]))),
+                        text_source=_as_str_array(sources))
 
 
 def load_embeddings(path: Path) -> tuple[list[str], np.ndarray, np.ndarray | None, list[str]]:

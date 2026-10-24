@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import roc_curve
 
+from .. import text_source
 from . import config
 from .metrics import cumulative_curve
 
@@ -67,7 +68,7 @@ def make_charts(results, probas, y, effort_loc, out_dir: Path) -> list[Path]:
     return written
 
 
-def render(args, results, n_train, n_test, y_test) -> str:
+def render(args, results, n_train, n_test, y_test, text_stats=None) -> str:
     lines = [
         "# semantic 线模型评估指标（冻结 CodeBERT 768 维 → 12 分类器）\n",
         "> 对照线：与 expert 线同切分、同分类器族、同指标口径；唯一变量是特征模态。\n",
@@ -101,6 +102,23 @@ def render(args, results, n_train, n_test, y_test) -> str:
     lines.append("\n## 与 baseline 对照（读法）\n\n")
     lines.append("> 把本表与 `pipelines/expert/reports/model_metrics.md` 并排：AUC 高出多少 = "
                  "纯语义模态的增益；若不升反降，如实登记，不选择性只报更好的一组。\n")
+    lines.append("\n")
+    if text_stats:
+        lines.extend(text_source.registration_lines(
+            text_stats["counts"], text_stats["n_total"], text_stats.get("positives")))
+        lines.append("\n")
+        lines.extend(text_source.robustness_lines(
+            text_stats["kept"], text_stats["dropped"], text_stats.get("deltas"),
+            text_stats.get("retrained", False)))
+        test_counts = text_stats.get("test_counts") or {}
+        placeholder_test = sum(test_counts.get(n, 0) for n in
+                               (text_source.SOURCE_NO_TEXT_CHANGE, text_source.SOURCE_ROOT_COMMIT))
+        lines.append(f"- 检验集内含占位 {placeholder_test} 条（上表「剔除」即这部分）；"
+                     "训练侧占位数见全量登记。\n")
+    else:
+        lines.append("## 文本来源与覆盖率\n\n"
+                     "> **未登记**：本次读的编码缓存没有 `text_source` 键（旧版缓存），"
+                     "不按 `diff` 冒充。重跑 `train.py --force-encode`（或重建文本数据集）后本段自动出现。\n")
     lines.append("\n## 图表\n\n")
     for fig in ("roc_curves", "effort_curves_loc", "metric_bars"):
         lines.append(f"![{fig}](figs/{fig}.png)\n\n")
