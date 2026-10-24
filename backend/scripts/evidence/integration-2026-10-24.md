@@ -46,6 +46,14 @@ $ DATABASE_URL="sqlite:///<tmp>/it.db" python -m app.db init
 
 **复现性交叉校验（补记，2026-10-24 15:26 完成）**：`preparation.02_szz_labeling --method szz` 的独立重跑已结束（7,787 条修复提交全跑完，耗时 10,372.2s）：正样本 **18,662** / 负样本 65,281 / 比例 22.23% / 未命中 742，产出 `data/commit_labels_szz.csv` **83,943 行**。与本记录灌库所用派生 labels 取交集 = 83,943 行，且 `is_bug_inducing` **逐行一致 ✅** —— 派生口径与独立重跑口径零差异，本记录 §2.1 的 labels 来源成立。重跑同批复产 predictions（expert 官方入口、83,943 行、`model_name=xgb_v1`），与本记录灌库所用 predictions 同脚本同口径（`predicted_at` 时间戳不同，属元数据）。该校验是模型线复现性口径（±0）的又一实例，不改变本记录既有数字。
 
+**三线产物灌库兼容性（补记，2026-10-24 17:5x）**：会进 `app.ingest predictions` 的只有 expert 与 e2e 两条线的 `prediction_result.csv`（semantic / fused 的产物是 `*_v1.pkl` + `manifest.txt` + 报告 + 图，不产预测 CSV，见 `config-and-output-spec.md` §3.4 产物表）。expert 那份即本记录 §2 灌入的 83,943 行；**e2e 那份（10-23 重跑产出，`model_name=codebert_e2e_v1`、`feature_version=codebert`）已在新空库上实测灌入：`app.db init` → ingest commits 84,461 → ingest predictions 83,943，rc=0、列序与契约一表三逐字一致**。故 semantic/fused 重跑（占位判定口径已由 #118 修回裁定口径并合入 main `afb2fa1`）不引入新的灌库面；若将来 e2e 重训改字段，脚本自带的表头自校验（多/缺字段 → 退出码 1）会先拦下。
+
+**联调口径指针（补记）**：本记录只覆盖**后端侧**链路（建库 / 灌库 / 服务 / 四接口 / 幂等 / 压测）。前端三页面与后端的联调口径**唯一权威 = `docs/frontend/integration-log.md` §0 联调基线**（2026-10-24 蒋励定；`docs/repo/collaboration.md` §0 第 2 条「联调只认 §0」。§0 由 PR #117 入库，#117 合入前对应该文件文首「环境与启动」段）。本记录不另立口径、不代替前端实测。
+
+两处不要混淆：本记录是**后端验收跑**，库是一次性隔离空库 + 83,943 行真实数据（命令里的 `sqlite:///<tmp>/it.db`），跑完即弃；§0 的**联调库**是另一回事（只一份、由 seed 脚本生成，库文件/令牌/端口/种子行数一律见 §0 表，此处不复述）。前后端联调与截图取证一律按 §0，不要拿验收库当联调库。附一条核对结论：§0 里归后端维护的那几行我 2026-10-24 实跑核过 —— seed 命令**不带 `PYTHONPATH` 也能 rc=0**、重跑幂等、库内行数与 `commit_hash` 取值与 §0 表逐字一致。
+
+**模型目录写法（§0 硬规矩 1）**：本记录全程只用两种 `MODEL_DIR` —— 仓库内 `data_model/pipelines/expert/models/`（等价于 §0 的「留空即回落」），以及分模型压测时在临时目录里现构的单模型目录（只放一个 `.pkl` + 声明它的 `feature_order.txt`，见 `perf-2026-10-24.md` §2 第 ③ 段）。两处都不是个人绝对路径；下文命令块里写成 `<含 feature_order.txt 与 8 个 .pkl 的目录>` 这类占位，照抄即可跑，不需要改成本机路径。
+
 ## 3. 起服务：三个交付模型全部加载、无失败行
 
 ```text

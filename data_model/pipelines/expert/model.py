@@ -111,8 +111,11 @@ def build_model(name: str, seed: int):
         return Pipeline([("scaler", StandardScaler()),
                          ("lr", LogisticRegression(max_iter=1000, random_state=seed))])
     if name == "rf":
-        return RandomForestClassifier(n_estimators=300, min_samples_leaf=2,
-                                      random_state=seed, n_jobs=-1)
+        # D-14：原 min_samples_leaf=2、不限深度，长成 300 棵 / 366 万节点 / 279MB，
+        # SHAP 单次 782ms 把 p95 顶到 713.8ms。收敛到叶数上限后节点数降一个量级，
+        # 换取 SHAP 可算（验收：p95<500ms 且 AUC 降 ≤0.01，见 docs/repo/defect-records.md D-14）。
+        return RandomForestClassifier(n_estimators=300, min_samples_leaf=100,
+                                      max_depth=15, random_state=seed, n_jobs=-1)
     if name == "xgb":
         from xgboost import XGBClassifier
         return XGBClassifier(n_estimators=300, learning_rate=0.1, max_depth=6,
