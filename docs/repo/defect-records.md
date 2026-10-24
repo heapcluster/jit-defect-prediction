@@ -25,6 +25,7 @@
 | D-08（#60） | 用户故事与 OpenSpec 未逐条挂接（核心 22/27 未封口），看板「规格变更或任务」列点不回去 | 打开看板看该列 | P1 | 🔶 进行中 | `docs/repo/user-story-traceability.md`（Epic G 已拆分：G1-1/G1-2→`feature-addons-sprint3`、G1-3→`public-dataset-quality`、G1-4→`semantic-feature-mainline`） | Sprint 1 收口前置 |
 | D-10（2026-10-13 新登记） | 前端三页面已实现但**未过 lint / build 实跑**（`frontend/node_modules` 未安装），也无联调记录 | `cd frontend && npm ci && npm run lint && npm run build` | P2 | 🔶 新登记，属 Sprint 1 验收前置 | change `frontend-integration` tasks 4.1–4.3 | `openspec/changes/frontend-integration/tasks.md` |
 | D-11（#50 残留） | Issue #50 的「复现条件」「优先级」两栏补齐情况待确认（代码已修，Issue 字段未闭环） | 打开 Issue #50 | P3 | 🔶 待确认 | PR #52 | `docs/repo/catchup-ledger.md` L1 |
+| D-14（2026-10-24 新登记；D-13 已由 PR #106 占用） | **交付清单三模型「可在线切换」与性能靶子 p95<500ms 冲突**：`POST /api/predict` 显式传 `model_name=rf_v1` 时 p50=653.0 / p95=713.8 / p99=751.0 / max=1638.6 ms，**p95 超靶子 43%**；不传 `model_name` 的默认路径（版本序最新 = `xgb_v1`）p95=15.5ms、`lr_v1` p95=9.0ms 均达标。即达标与否取决于调用方选哪个模型，而契约三 §4 把三个都列为可切换枚举 | 单模型 `MODEL_DIR`（目录只含 `rf_v1.pkl` + 声明它的 `feature_order.txt`）起真 uvicorn，`python scripts/perf_loop.py --n 100` 打 `POST /api/predict`（SQLite 库、真权重、真 HTTP）；2026-10-24 实测，非函数级探测 | P1 | 🔶 待裁定：① 在线可切换范围收窄为 lr/xgb、rf 仅评估可用（动契约三枚举 + `specs/model-coverage` R6，须走 change）；② 性能靶子按模型分别定；③ 优化 rf 在线推理（SHAP 解释器构造/缓存策略）。三选一须蒋励（模型线）+ 苏哲勋（契约/infra）裁定，本行不预判 | 证据 `backend/scripts/evidence/perf-2026-10-24.md`（PR #107）；先前函数级旁证 `backend/scripts/evidence/on-demand-commit-2026-10-23.md`（rf_v1 五次 605–947ms，当时已提示冲突） | `docs/design/non-functional.md` §2 与 D2 验证章节 |
 
 ## 3. 暂不处置（有理由，不是遗漏）
 
