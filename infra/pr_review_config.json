@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "publish": false,
+  "provider": "none",
+  "required_checks": ["CI"],
+  "max_files": 80,
+  "max_patch_bytes": 200000
+}
