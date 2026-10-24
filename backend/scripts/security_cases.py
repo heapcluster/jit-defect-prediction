@@ -4,10 +4,14 @@
   组一 鉴权：缺失令牌 / 错误令牌 → HTTP 401 且 code=40100、message=missing or invalid token
   组二 畸形参数：size=101 / granularity=day / 非 40 位十六进制 hash → 400 且 code=40001
   扫描：所有用例响应体不得含 Traceback / 堆栈帧 / SQL 关键字 / 服务器文件路径
-另引用 5.3 真库自检的 50000 掩码例（模型缺失场景，见 evidence-5.3-mysql.md）。
+50000 掩码（注册表为空）为**可选实测**：传 `--mask-url` 指向一个注册表为空的服务
+（空 MODEL_DIR 起一个即可），脚本真发一次 POST /api/predict 并断言 500/50000/通用文案；
+不传则该行记「未测」。**不再引用任何外部证据文件**（旧版硬引 evidence-5.3-mysql.md，
+该文件从未入库，等于把未验证断言写进证据 —— 2026-10-24 登记并修掉）。
 
 用法：
   API_TOKEN=... python scripts/security_cases.py --base-url http://127.0.0.1:8000 --out scripts/evidence/security-2026-09-19.md
+  # 需要 50000 掩码行时再加：--mask-url http://127.0.0.1:8001
 """
 
 from __future__ import annotations
@@ -29,9 +33,30 @@ LEAK_PATTERNS = [
 ]
 
 
+def probe_mask(client, mask_url: str, good: dict) -> tuple[bool, str, str]:
+    """对注册表为空的服务实测 50000 掩码 → `(ok, detail, body)`。
+
+    放在模块级、由 `main()` 持有返回值：掩码结论不允许藏在嵌套作用域里
+    （#113 复审指出嵌套赋值极易被误读成静默失效）。先取 mask 服务库内一个真实
+    哈希再 POST，避免把「哈希不存在」的 40400 误当成掩码结论；`body` 交回调用方
+    做泄露扫描。
+    """
+    mlist = client.get(f"{mask_url}/api/commits", params={"size": 1}, headers=good)
+    mitems = (mlist.json().get("data") or {}).get("items") or [] if mlist.status_code == 200 else []
+    if not mitems:
+        return False, (f"mask 服务不可用或库中无提交（HTTP {mlist.status_code}），"
+                       "无法触发 50000；需先灌至少一行 commit+feature"), ""
+    mr = client.post(f"{mask_url}/api/predict", json={"commit_hash": mitems[0]["commit_hash"]}, headers=good)
+    mbody = mr.json()
+    ok = mr.status_code == 500 and mbody.get("code") == 50000 and mbody.get("message") == "internal error"
+    return ok, f"HTTP {mr.status_code} code={mbody.get('code')} message={mbody.get('message')}", mr.text
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
+    parser.add_argument("--mask-url", default="",
+                        help="注册表为空的服务地址；提供时实测 50000 掩码，不提供则该行记「未测」")
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
     token = os.environ.get("API_TOKEN", "")
@@ -39,6 +64,7 @@ def main() -> int:
         print("缺少环境变量 API_TOKEN", file=sys.stderr)
         return 2
     good = {"X-API-Key": token}
+    mask_result: tuple[bool, str] | None = None
 
     def check(name: str, fn: callable) -> tuple[str, bool, str]:
         try:
@@ -93,14 +119,24 @@ def main() -> int:
                 if pat.search(r.text):
                     leaks.append(f"{label} 响应命中泄露模式 {pat.pattern}")
 
-    all_ok = all(ok for _, ok, _ in results) and not leaks
+        if args.mask_url:
+            mok, mdetail, mtext = probe_mask(client, args.mask_url, good)
+            for pat in LEAK_PATTERNS:
+                if pat.search(mtext):
+                    leaks.append(f"50000 掩码响应命中泄露模式 {pat.pattern}")
+            mask_result = (mok, mdetail)
+
+    all_ok = all(ok for _, ok, _ in results) and not leaks and (mask_result is None or mask_result[0])
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     lines = [f"# 安全用例证据 {datetime.now(timezone.utc).date().isoformat()}", "", f"- 服务：{args.base_url}", f"- 命令：`API_TOKEN=*** python scripts/security_cases.py --base-url {args.base_url} --out {args.out}`", "", "| 用例 | 结果 | 实际 |", "|---|---|---|"]
     for name, ok, detail in results:
         lines.append(f"| {name} | {'PASS' if ok else 'FAIL'} | {detail} |")
     lines.append(f"| 泄露扫描（4 探针 × 4 模式） | {'PASS' if not leaks else 'FAIL'} | {'无命中' if not leaks else '; '.join(leaks)} |")
-    lines.append("| 50000 掩码（模型缺失） | 引用 | 见 evidence-5.3-mysql.md：500 响应 message=internal error，不含堆栈/SQL/路径 |")
+    if mask_result is not None:
+        lines.append(f"| 50000 掩码（注册表为空，--mask-url 实测） | {'PASS' if mask_result[0] else 'FAIL'} | {mask_result[1]} |")
+    else:
+        lines.append("| 50000 掩码（注册表为空） | 未测 | 未传 --mask-url；需实测请另起一个注册表为空的服务（空 MODEL_DIR）后传入，本行不引用外部文件 |")
     lines.append("")
     lines.append("**汇总：全部通过**" if all_ok else "**汇总：存在 FAIL，禁止作为证据提交**")
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
