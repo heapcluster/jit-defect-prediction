@@ -47,6 +47,21 @@ def cumulative_area(order: np.ndarray, effort: np.ndarray, y: np.ndarray) -> flo
     return area
 
 
+def cumulative_curve(order: np.ndarray, effort: np.ndarray,
+                     y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """按给定顺序累加，返回「累计工作量占比 ~ 累计召回率」曲线坐标。
+
+    与 `fused/metrics.py` 的 `cumulative_curve` 逐字同口径（x=累计 effort 占比、
+    y=累计缺陷占比，首点为原点、末点为 (1, 1)），供 `report.make_charts()` 画 effort 曲线。
+    """
+    total_e, total_y = float(effort.sum()), float(y.sum())
+    xs, ys, ce, cy = [0.0], [0.0], 0.0, 0.0
+    for i in order:
+        ce += float(effort[i]); cy += float(y[i])
+        xs.append(ce / total_e); ys.append(cy / total_y)
+    return np.array(xs), np.array(ys)
+
+
 def recall_at_effort(order: np.ndarray, effort: np.ndarray, y: np.ndarray,
                      frac: float) -> float:
     """按给定顺序审查，累计工作量达到 frac 时已抓到多少比例的缺陷。"""

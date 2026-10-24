@@ -13,10 +13,14 @@ e2e（CodeBERT 端到端微调）不吃 Kamei 14 特征，直接吃**一次提�
 输出：
   · `pipelines/e2e/data/commit_text.csv`
 
-── 文本构造口径（与 semantic 线一致，便于两线对照）──────────────────────────
+── 文本构造口径（与 semantic 线共用 `pipelines/text_source.py`，两线不会分叉）────────
 每个改动文件生成一段：文件头（a/b 路径）+ patch 文本；单文件超过上限按行截断，
 总文本超过 `--max-chars` 截断。合并提交（父提交数 != 1）按其第一个父提交取 diff。
-取不到 diff（根提交 / 仓库缺失）的提交跳过并登记。
+提交存在但没有可取的文本变更时写占位串并登记来源：有父提交但 diff 为空 →
+`no_text_change`（`[no-text-change]`，SVN 属性/ignore 类提交）；根提交 →
+`root_commit`（`[root-commit]`）。提交在克隆仓库里**取不到** → 仍然跳过并单独计数，
+不用占位串掩盖（那意味着切分文件与克隆版本不一致，是真缺陷）。
+产出比原来多一列 `text_source`，只做统计与报告登记，**不进特征、不进模型输入**。
 """
 
 from __future__ import annotations
@@ -28,6 +32,12 @@ from pathlib import Path
 import pandas as pd
 from git import Repo
 from git.exc import BadName, BadObject, GitCommandError
+
+try:
+    from .. import text_source
+except ImportError:  # 直接以脚本方式跑（python build_text_dataset.py）时没有包上下文
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from pipelines import text_source
 
 BASE = Path(__file__).resolve().parent
 DATA_DIR = BASE.parent.parent / "data"          # data_model/data
@@ -49,40 +59,23 @@ def detect_repo(base: Path, explicit: Path | None) -> Path | None:
     return None
 
 
-def commit_diff_text(repo: Repo, commit_hash: str, max_chars: int) -> str | None:
-    """返回该提交引入的 diff 文本；取不到返回 None。"""
+def commit_text(repo: Repo, commit_hash: str, max_chars: int) -> tuple[str, str] | None:
+    """返回 `(text, text_source)`；提交在克隆仓库里取不到时返回 None。
+
+    返回 None 只表示「这条提交读不出来」——调用方必须跳过并单独计数，不能落占位串，
+    否则会把「切分文件与克隆版本不一致」这种真缺陷伪装成「该提交无文本变更」。
+    """
     try:
         commit = repo.commit(commit_hash)
     except (BadName, BadObject, GitCommandError, ValueError):
         return None
     try:
-        if not commit.parents:
-            return None  # 根提交无 diff
-        parent = commit.parents[0]
-        diffs = commit.diff(parent, create_patch=True, R=True)
+        has_parents = bool(commit.parents)
+        diffs = commit.diff(commit.parents[0], create_patch=True, R=True) if has_parents else []
     except (GitCommandError, OSError, ValueError):
         return None
-
-    parts: list[str] = []
-    total = 0
-    for d in diffs:
-        a_path = d.a_path or ""
-        b_path = d.b_path or a_path
-        header = f"diff --git a/{a_path} b/{b_path}\n"
-        parts.append(header)
-        total += len(header)
-        patch = d.diff
-        if patch:
-            text = patch.decode("utf-8", "replace") if isinstance(patch, bytes) else str(patch)
-            # 单文件截断：超过 1500 字符的行级 diff 直接跳过该文件剩余
-            if len(text) > 1500:
-                text = text[:1500] + "\n... [truncated]\n"
-            parts.append(text)
-            total += len(text)
-        if total >= max_chars:
-            break
-    text = "".join(parts)[:max_chars]
-    return text if text.strip() else None
+    assembled = text_source.assemble(diffs, max_chars)
+    return text_source.classify(has_parents, assembled)
 
 
 def parse_args() -> argparse.Namespace:
@@ -124,29 +117,37 @@ def main() -> int:
 
     rows = df.head(args.limit) if args.limit else df
     out_rows = []
-    skipped = 0
+    unreachable = 0
     for _, r in rows.iterrows():
-        text = commit_diff_text(repo, str(r["commit_hash"]), args.max_chars)
-        if text is None:
-            skipped += 1
+        got = commit_text(repo, str(r["commit_hash"]), args.max_chars)
+        if got is None:
+            unreachable += 1
             continue
-        out_rows.append({
-            "commit_hash": str(r["commit_hash"]),
-            "text": text,
-            "label": int(r["is_bug_inducing"]),
-            "feature_version": str(r["feature_version"]),
-        })
+        text, source = got
+        out_rows.append(text_source.make_row(r["commit_hash"], text, source,
+                                             int(r["is_bug_inducing"]), r["feature_version"]))
 
     if not out_rows:
-        print("[build_text] 0 条有效文本（全部取不到 diff），未产出文件", file=sys.stderr)
+        print("[build_text] 0 条有效文本（全部取不到提交），未产出文件", file=sys.stderr)
         return 1
 
-    out_df = pd.DataFrame(out_rows, columns=["commit_hash", "text", "label", "feature_version"])
+    out_df = pd.DataFrame(out_rows, columns=text_source.TEXT_COLUMNS)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     out_df.to_csv(args.out, index=False, quoting=__import__("csv").QUOTE_ALL)
 
+    stats = text_source.summarize(out_df["text_source"])
+    positives = {name: int(((out_df["text_source"] == name) & (out_df["label"] == 1)).sum())
+                 for name in text_source.SOURCES}
     pos = int(out_df["label"].sum())
-    print(f"[build_text] 已写 {len(out_df)} 条（正样本 {pos} / 负样本 {len(out_df) - pos}；跳过 {skipped} 条取不到 diff）")
+    print(f"[build_text] 已写 {len(out_df)} 条（正样本 {pos} / 负样本 {len(out_df) - pos}）")
+    print("[build_text] 文本来源：" + "，".join(f"{k}={v}" for k, v in stats.items()))
+    print("[build_text] 占位行中的正样本：" + "，".join(
+        f"{k}={positives[k]}" for k in (text_source.SOURCE_NO_TEXT_CHANGE,
+                                        text_source.SOURCE_ROOT_COMMIT)))
+    if unreachable:
+        # 取不到的提交不等于「无文本变更」，必须显式报警：切分文件与克隆版本可能不一致
+        print(f"[build_text] ⚠ 跳过 {unreachable} 条在克隆仓库里取不到的提交（未落占位串）",
+              file=sys.stderr)
     print(f"[build_text] -> {args.out}")
     return 0
 

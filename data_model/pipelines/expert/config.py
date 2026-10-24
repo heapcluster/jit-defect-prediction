@@ -32,13 +32,26 @@ LABEL_COL = "is_bug_inducing"        # 主标签 szz，不回退 szz_lite
 # ── 训练设置 ────────────────────────────────────────────────────────────
 SEED = 42                            # 随机种子显式固定，写进报告
 DECISION_THRESHOLD = 0.5             # 契约三：服务端常量，非请求参数
-DEFAULT_MODELS = ["lr", "rf", "xgb", "lgbm", "et", "svm",
-                  "nb", "dt", "knn", "mlp", "mlp_deep", "tabnet"]
+# 训练口径 = 8 个（2 类：经典 6 + 深度 2），四条线共用同一份清单，见
+# pipelines/config-and-output-spec.md §0.1。model.py 的 MODEL_NAMES 是 12 个的
+# 注册表（多 nb/dt/knn/mlp，历史产物兼容用），但**默认不训**：多训 4 个既拖慢
+# 单线复现，又让四线对比的模型集合不一致。
+DEFAULT_MODELS = ["lr", "rf", "xgb", "lgbm", "et", "svm", "mlp_deep", "tabnet"]
 
 # ── Effort-aware 指标参数（与 06 同源，跨线可比）────────────────────────
 RANDOM_BASELINE_REPEATS = 200
 RANDOM_BASELINE_SEED = 0
 EFFORT_FRACTIONS = (0.20, 0.50)      # Recall@20% / Recall@50%
+# 预算感知排序的评审下限，**按口径各配一份，单位不同不能混用**（评审意见 #2）：
+#   LOC 口径 → 行数；nf 口径 → 改动文件数
+# 只影响 `budget` 这一对照口径，不改契约三的 `risk_score` 降序主口径。
+MIN_REVIEW_LOC = 10
+MIN_REVIEW_FILES = 2
+# effort 代理名 → 该口径下的评审下限（train.py / report.py 共用，禁止写死 10）
+EFFORT_REVIEW_FLOORS = {
+    "LOC（改动行数 la+ld）": MIN_REVIEW_LOC,
+    "改动文件数 nf": MIN_REVIEW_FILES,
+}
 
 # ── SHAP 实测（契约三：95% 请求 < 500ms）───────────────────────────────
 SHAP_ROWS = 100

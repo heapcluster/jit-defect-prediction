@@ -32,3 +32,14 @@
 
 - **效果**：三态 + 错误码 + 字段一致性有测试（课程测试实践 40 分）。
 - **证据**：测试文件 + 运行结果。
+
+## 三端联调 · 前端要求（2026-10-23 定稿）
+
+**目标**：不刷新页面即可完成「选提交 → 看解释 → 换模型重预测」，三态齐全。
+
+1. `api/index.js` 补 `postPredict(commitHash, modelName?)` → `POST /api/predict`，body `{commit_hash, model_name?}`。
+2. 详情页加「重新预测」：模型下拉按**交付清单 `data_model/pipelines/expert/models/feature_order.txt` 的 `[models]` 段**排（已合并的 #96 定义的在线模型唯一来源，当前为 `lr_v1` / `rf_v1` / `xgb_v1`）；`pages.md` §6 已裁定 MVP 不新增 `/api/models`，清单由前端维护，**必须与后端实际加载清单逐字一致** —— 目录内其余 5 个权重属 `[evaluated]`（#98，只进评估不进交付），不出现在下拉里。返回后刷新 `risk_score` / `model_name` / `predicted_at` / `explanation` 四个字段；其中 `predicted_at` 仅 `POST /api/predict` 返回（`GET /api/commits/{hash}` 不含），故只在预测成功后展示，详情首次加载时显示「—」。
+3. `explanation` 渲染为横向条形图：正负贡献分色，显示特征名、数值、direction；不得直接打印 JSON。
+4. `frontend/.env.local` 写 `VITE_API_KEY`（与后端 `API_TOKEN` 一致），否则全部 40100。
+5. 三页面浏览器走查并截图：加载中 / 空数据（空态非报错）/ 接口失败（可重试）；风险阈值 0.5 与 0.3 的口径只在 `docs/frontend/pages.md` 一处定义。
+6. 实跑 `npm run test:unit`、`npm run lint`、`npm run build`，结果与走查记录写入 `docs/frontend/frontend-integration-log.md`。

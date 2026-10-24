@@ -9,6 +9,15 @@ lr_v1.pkl	逻辑回归
 rf_v1.pkl	随机森林
 xgb_v1.pkl	XGBoost
 
+[evaluated]
+# 本轮已训练、仅进评估不进交付（specs/model-coverage R6）。如需投放，
+# 先按 expert/README.md「权重投放与联调自检」一节自检，再改 [models]。
+lgbm_v1.pkl	LightGBM
+et_v1.pkl	极端随机树（Extra Trees）
+svm_v1.pkl	RBF 核支持向量机
+mlp_deep_v1.pkl	多层感知机（3 隐藏层 + 早停）
+tabnet_v1.pkl	TabNet（深度表格）
+
 [feature_order]
  1. ns
  2. nd

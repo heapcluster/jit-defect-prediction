@@ -30,7 +30,8 @@ EXPECTED_DIM = len(FEATURE_FIELDS) + 768     # 782
 # ── 训练设置 ────────────────────────────────────────────────────────────
 SEED = 42
 DECISION_THRESHOLD = 0.5
-DEFAULT_MODELS = ["lr", "rf", "xgb", "lgbm", "et", "svm",
-                  "nb", "dt", "knn", "mlp", "mlp_deep", "tabnet"]
+# 训练口径 = 8 个（与 expert / semantic 共用，见 pipelines/config-and-output-spec.md §0.1）。
+# model.py 的 MODEL_NAMES 仍是 12 个的注册表（多 nb/dt/knn/mlp，兼容旧产物），默认不训。
+DEFAULT_MODELS = ["lr", "rf", "xgb", "lgbm", "et", "svm", "mlp_deep", "tabnet"]
 RANDOM_BASELINE_REPEATS = 200
 RANDOM_BASELINE_SEED = 0

@@ -43,7 +43,7 @@
 
 ## D5：切分与评估口径全部复用
 
-- 切分：沿用 `05_split_dataset.py` 的时间序切分（前 70% / 后 30%，禁随机）与 `validate_split` 断言。
+- 切分：沿用 `data_model/preparation/05_split_dataset.py` 的时间序切分（前 70% / 后 30%，禁随机）与 `validate_split` 断言。
 - 评估：沿用 `python -m pipelines.expert.train` / `python -m pipelines.expert.matrix` 的两类指标（Effort-unaware：AUC/F1/P/R/Acc；Effort-aware：`P_norm` 与同预算重排）。
 - 8 模型框架：专家/语义/融合三组各自跑同一套模型，**不新造模型类**（`model_registry` 插件化直接复用）。
 

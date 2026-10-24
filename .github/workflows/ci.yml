@@ -73,6 +73,12 @@ jobs:
         # 仅检查活规格，不回头重排存量 change；tasks 十项检查仍由 PR 审阅把关。
         run: openspec validate --specs --strict --no-interactive
 
+      - name: Check live documentation links
+        run: python infra/check_spec_references.py links
+
+      - name: Check OpenSpec MODIFIED collisions
+        run: python infra/check_spec_references.py deltas
+
       - name: Test CI contract
         run: python -m unittest discover -s infra/tests -p 'test_*.py' -v
 

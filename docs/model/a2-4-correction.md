@@ -13,12 +13,12 @@
 ## 2. 裁定（以 data-pipeline.md 为准）
 
 - **正确口径**：正样本比例落在 **40%–60% 之间** → 停下自查打标逻辑（判据实现 `02_szz_labeling.py` 的 `ABNORMAL_LOW,HIGH = 0.40,0.60`）。
-- 实测 `szz` **38.98%**、`szz_lite` **27.74%**，均在区间外，通过；但贴近 40% 下沿，原因已记清（一条修复可指控多个引入方、标准行级 SZZ 不做二次过滤）。
+- 当前 Camel 样本实测 `szz` **22.23%**、`szz_lite` **14.38%**，均在区间外，通过；旧版 **38.98% / 27.74%** 属 ActiveMQ 历史实验，不用于当前验收。数值见 `data_model/preparation/reports/dataset_stats.md`，判定方向见 `openspec/specs/szz-labeling/spec.md`。
 
 ## 3. 苏哲勋要做的（飞书侧）
 
 - 将 PRD A2-4 改为「落在 40%–60% **之内**就先查打标逻辑」，与 `data-pipeline.md` 对齐。
-- 同步 `dataset_stats.md` 复述处（该报告口径已是「之内」）。
+- 核对 `data_model/preparation/reports/dataset_stats.md` 复述处：当前已写「落在 40%–60% 才需自查」，两组 Camel 比例也按区间外判通过；无须反向改写。
 - Issue #59 收口。
 
 ## 4. 为什么不纠结

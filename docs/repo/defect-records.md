@@ -2,7 +2,7 @@
 
 > 权威在 **GitHub Issue**（`.github/ISSUE_TEMPLATE/bug.md` 五项字段）；本文件是**仓库侧索引**，供周报 / 结题材料快速取用，不另造第三套缺陷清单。
 > 规则见 `repo/defect-management.md`：缺陷须记**现象 / 复现条件 / 优先级 / 处理状态 / 关联提交或 change** 五项。
-> 快照：2026-10-13 ｜ 维护：蒋励（SM）｜ 每条均附**仓库内可核验证据**，无证据不登记。
+> 快照：2026-10-24 ｜ 维护：蒋励（SM）｜ 每条均附**仓库内可核验证据**，无证据不登记。
 
 ## 1. 已闭环
 
@@ -25,7 +25,9 @@
 | D-08（#60） | 用户故事与 OpenSpec 未逐条挂接（核心 22/27 未封口），看板「规格变更或任务」列点不回去 | 打开看板看该列 | P1 | 🔶 进行中 | `docs/repo/user-story-traceability.md`（Epic G 已拆分：G1-1/G1-2→`feature-addons-sprint3`、G1-3→`public-dataset-quality`、G1-4→`semantic-feature-mainline`） | Sprint 1 收口前置 |
 | D-10（2026-10-13 新登记） | 前端三页面已实现但**未过 lint / build 实跑**（`frontend/node_modules` 未安装），也无联调记录 | `cd frontend && npm ci && npm run lint && npm run build` | P2 | 🔶 新登记，属 Sprint 1 验收前置 | change `frontend-integration` tasks 4.1–4.3 | `openspec/changes/frontend-integration/tasks.md` |
 | D-11（#50 残留） | Issue #50 的「复现条件」「优先级」两栏补齐情况待确认（代码已修，Issue 字段未闭环） | 打开 Issue #50 | P3 | 🔶 待确认 | PR #52 | `docs/repo/catchup-ledger.md` L1 |
+| D-13（2026-10-24 登记，蒋励交办） | **main 上 e2e 线训练/报告入口不可运行**：`pipelines/e2e/report.py` 从 `.metrics` 导入 `cumulative_curve`，而 `pipelines/e2e/metrics.py` 没有该函数 → 训练前 ImportError，e2e 线无法出报告 | 在具备 `data_model/environment.yml` 依赖的环境中，`cd data_model && python -c "import pipelines.e2e.train"` → `ImportError: cannot import name 'cumulative_curve' from 'pipelines.e2e.metrics'`（main `0773a49` 已复现） | P1 | 🔧 修复在 PR #88 当前 head `c0649cb`，CI 已绿、审阅已通过；**分支与 main 仍有 `e2e/report.py` 冲突，合入前 main 仍有缺陷**，合入后再迁 §1 | PR #88 / change `model-training-scope-8` | `data_model/tests/test_e2e_effort_curve.py`（与 fused 逐点一致）；[PR #88](https://github.com/heapcluster/jit-defect-prediction/pull/88) |
 | D-14（2026-10-24 新登记；D-13 已由 PR #106 占用） | **交付清单三模型「可在线切换」与性能靶子 p95<500ms 冲突**：`POST /api/predict` 显式传 `model_name=rf_v1` 时 p50=653.0 / p95=713.8 / p99=751.0 / max=1638.6 ms，**p95 超靶子 43%**；不传 `model_name` 的默认路径（版本序最新 = `xgb_v1`）p95=15.5ms、`lr_v1` p95=9.0ms 均达标。即达标与否取决于调用方选哪个模型，而契约三 §4 把三个都列为可切换枚举 | 单模型 `MODEL_DIR`（目录只含 `rf_v1.pkl` + 声明它的 `feature_order.txt`）起真 uvicorn，`python scripts/perf_loop.py --n 100` 打 `POST /api/predict`（SQLite 库、真权重、真 HTTP）；2026-10-24 实测，非函数级探测 | P1 | 🔶 待裁定：① 在线可切换范围收窄为 lr/xgb、rf 仅评估可用（动契约三枚举 + `specs/model-coverage` R6，须走 change）；② 性能靶子按模型分别定；③ 优化 rf 在线推理（SHAP 解释器构造/缓存策略）。三选一须蒋励（模型线）+ 苏哲勋（契约/infra）裁定，本行不预判 | 证据 `backend/scripts/evidence/perf-2026-10-24.md`（PR #107）；先前函数级旁证 `backend/scripts/evidence/on-demand-commit-2026-10-23.md`（rf_v1 五次 605–947ms，当时已提示冲突） | `docs/design/non-functional.md` §2 与 D2 验证章节 |
+| D-15（#103，2026-10-24 登记） | **TabNet 权重跨机器分发后不可回读**：本地工作目录的 `tabnet_v1.pkl` 是 `pipelines.expert.model.TabNetWithEarlyStop`，旧交付包同名文件却指向 `__main__.TabNetWithEarlyStop`；“8/8 本地已验证”不能在收包方复现 | 从 `expert_models_20261021.zip` 解压旧权重，在干净进程中 `joblib.load`；该文件 300,421 B、内层类为 `__main__`，与新包内 300,437 B、md5 `201a002b78c61a9589bec9b14496533c` 的权重不同 | P1 | 🔧 已重打 `expert_models_20261024.zip`；校验脚本、md5 清单在 PR #88，**待 PR 合入及收包方复核后再判闭环**（Issue #103 已关闭不等于交付验收完成） | Issue #103；PR #88 `c0649cb`；PR #98（仅评估，不扩大在线三模型清单） | [Issue #103](https://github.com/heapcluster/jit-defect-prediction/issues/103)；PR #88 的 `data_model/pipelines/verify_all_weights.py`、`models/manifest.txt`、`reports/weight_manifest_2026-10-24.md`（待合入后可在 main 点开） |
 
 ## 3. 暂不处置（有理由，不是遗漏）
 

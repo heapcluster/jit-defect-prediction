@@ -5,8 +5,15 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+
+# numpy>=2.4 移除了 np.trapz，改用 np.trapezoid；老版本回退
+try:
+    _trapz = np.trapezoid
+except AttributeError:  # numpy < 2.0
+    _trapz = np.trapz
 from sklearn.metrics import roc_curve
 
+from .. import text_source
 from . import config
 from .metrics import cumulative_curve
 
@@ -16,7 +23,7 @@ FIG_DIR_NAME = "figs"
 def _roc_ax(ax, y, probas, title):
     for name, proba in probas.items():
         fpr, tpr, _ = roc_curve(y, proba)
-        ax.plot(fpr, tpr, label=f"{name} (AUC={float(np.trapz(tpr, fpr)):.3f})")
+        ax.plot(fpr, tpr, label=f"{name} (AUC={float(_trapz(tpr, fpr)):.3f})")
     ax.plot([0, 1], [0, 1], "k--", lw=0.8)
     ax.set_xlabel("False Positive Rate"); ax.set_ylabel("True Positive Rate")
     ax.set_title(title); ax.legend(fontsize=8); ax.grid(alpha=0.3)
@@ -68,9 +75,11 @@ def make_charts(results, probas, y, effort_loc, out_dir: Path) -> list[Path]:
     return written
 
 
-def render(args, results, n_train, n_test, y_test, coverage=None) -> str:
+def render(args, results, n_train, n_test, y_test, coverage=None, text_stats=None) -> str:
     lines = [
-        f"# fused 线模型评估指标（Kamei14 ⊕ 语义 768 = {config.EXPECTED_DIM} 维 → 12 分类器）\n",
+        # 分类器数量按本次实际训练的模型数动态写，避免「默认 8 个、标题却写 12」的漂移
+        (f"# fused 线模型评估指标（Kamei14 ⊕ 语义 768 = {config.EXPECTED_DIM} 维 → "
+         f"{len(results)} 分类器）\n"),
         "> 对照线：同切分、同分类器族、同指标口径；特征 = 专家特征 + 语义向量拼接。\n",
         "## 数据与参数\n",
         "| 项 | 值 |\n|---|---|\n",
@@ -107,6 +116,22 @@ def render(args, results, n_train, n_test, y_test, coverage=None) -> str:
     lines.append("\n## 融合对照读法\n\n")
     lines.append("> 三方并排：expert（14 维）/ semantic（768 维）/ fused（782 维）。"
                  "fused 优于两者 = 两模态互补；只与 expert 持平 = 语义无增量（如实登记）。\n")
+    if coverage and (coverage["train"] < 100.0 or coverage["test"] < 100.0):
+        lines.append("\n> ⚠ **样本口径警告**：本线语义覆盖率不足 100%（内连接丢了行），"
+                     "与 expert / semantic / e2e 的样本集合不同，**指标不可直接并排比较**；"
+                     "要并排请先让语义缓存覆盖全部切分内提交，再重跑本线。\n")
+    lines.append("\n")
+    if text_stats:
+        lines.extend(text_source.registration_lines(
+            text_stats["counts"], text_stats["n_total"], text_stats.get("positives")))
+        lines.append("\n")
+        lines.extend(text_source.robustness_lines(
+            text_stats["kept"], text_stats["dropped"], text_stats.get("deltas"),
+            text_stats.get("retrained", False)))
+    else:
+        lines.append("## 文本来源与覆盖率\n\n"
+                     "> **未登记**：语义缓存没有 `text_source` 键（旧版缓存），不按 `diff` 冒充。"
+                     "由 semantic 线重跑 `train.py --force-encode` 生成新缓存后本段自动出现。\n")
     lines.append("\n## 图表\n\n")
     for fig in ("roc_curves", "effort_curves_loc", "metric_bars"):
         lines.append(f"![{fig}](figs/{fig}.png)\n\n")

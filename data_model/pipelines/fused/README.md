@@ -20,7 +20,7 @@
 |---|---|
 | `config.py` | 双模态路径、EXPECTED_DIM=782、切分路径、种子 |
 | `data.py` | 切分加载 + 编码缓存读取 + 内连接拼接（覆盖率 < 99% 拒绝训练） |
-| `model.py` | 12 分类器（与 expert 同款） |
+| `model.py` | 分类器（与 expert 同款；默认训练 8 个，注册表 12 个） |
 | `metrics.py` | 两类指标（同口径） |
 | `train.py` | 入口：对齐 → 拼接 → 训练 → 指标 → 产物 |
 | `report.py` | Markdown + `figs/` 三张图 |
