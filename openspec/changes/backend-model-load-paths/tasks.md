@@ -87,12 +87,12 @@
 
 #### 2026-10-24 rebase 到 `f5ca61d` 后的执行证据（当前有效）
 
-- 工作树 `D:/TeamWork/jit-backend-model-load`，分支 `fix/backend/model-load-paths`，rebase 基线 main `f5ca61d`；实现提交 `15164a0`。两处冲突（`backend/app/model_registry.py`、`backend/tests/test_model_registry.py`）按「清单加载之上叠加」解决：保留 `_delivery_models()` 与 #96 新增的 2 条清单测试，导入路径与失败汇总只加在其后。
-- Python：`C:/Users/simple/anaconda3/envs/jit-defect-prediction/python.exe`，3.12.15；pytest 9.1.1、SQLAlchemy 2.0.54、FastAPI 0.141.1、joblib 1.6.0、ruff 0.16.8。
+- 工作树：本机 `fix/backend/model-load-paths` 分支的独立工作树（个人绝对路径按 `docs/repo/collaboration.md` §0 第 3 条不复述，下同），rebase 基线 main `f5ca61d`；实现提交 `15164a0`。两处冲突（`backend/app/model_registry.py`、`backend/tests/test_model_registry.py`）按「清单加载之上叠加」解决：保留 `_delivery_models()` 与 #96 新增的 2 条清单测试，导入路径与失败汇总只加在其后。
+- Python：conda 环境 `jit-defect-prediction` 的解释器，3.12.15；pytest 9.1.1、SQLAlchemy 2.0.54、FastAPI 0.141.1、joblib 1.6.0、ruff 0.16.8。
 - 计数取自 `--junitxml` 的 testsuite 属性，不凭终端回显：本机 CLI 会吞掉 pytest 末行汇总（`-q` 输出只剩进度点），因此以 XML 为准。
 - cwd=backend：`python -m pytest tests/test_model_registry.py tests/test_integration_api.py -q --junitxml=...` → exit 0，`tests=20 failures=0 errors=0 skipped=0 time=3.812`；`python -m pytest tests/ -q --junitxml=...` → exit 0，`tests=143 failures=0 errors=0 skipped=0 time=7.420`。
 - cwd=仓库根：`python -m ruff check backend/app/model_registry.py backend/tests/test_model_registry.py backend/tests/test_integration_api.py` → `All checks passed!`；`openspec validate backend-model-load-paths --strict` → `Change 'backend-model-load-paths' is valid`；`openspec validate --all --strict` → `Totals: 24 passed, 0 failed (24 items)`。
-- 真实权重只读验证（不连数据库、不写文件）：cwd=backend，`MODEL_DIR=D:/TeamWork/jit-defect-prediction/data_model/pipelines/expert/models`（目录含 8 个 `.pkl` 与仓库同源 `feature_order.txt`，清单只声明 `lr_v1`/`rf_v1`/`xgb_v1`）→ 日志 `loaded models: ['lr_v1', 'rf_v1', 'xgb_v1']`，`sorted(_REGISTRY)` 同值，`sys.path` 含仓库 `data_model`。其余 5 个权重（含 `tabnet_v1`）未被反序列化，故本轮不再出现 `failed models: ['tabnet_v1']`；这是清单范围造成的，不是导出缺陷已修。此结果不能作为 T9 8/8 通过证据。
+- 真实权重只读验证（不连数据库、不写文件）：cwd=backend，`MODEL_DIR=<仓库根>/data_model/pipelines/expert/models`（`<仓库根>` 为读者自己的 checkout 根目录，个人绝对路径不复述；该目录含 8 个 `.pkl` 与仓库同源 `feature_order.txt`，清单只声明 `lr_v1`/`rf_v1`/`xgb_v1`）→ 日志 `loaded models: ['lr_v1', 'rf_v1', 'xgb_v1']`，`sorted(_REGISTRY)` 同值，`sys.path` 含仓库 `data_model`。其余 5 个权重（含 `tabnet_v1`）未被反序列化，故本轮不再出现 `failed models: ['tabnet_v1']`；这是清单范围造成的，不是导出缺陷已修。此结果不能作为 T9 8/8 通过证据。
 
 #### 2026-10-23 首轮离线执行证据（rebase 前，数字已过期，仅留痕）
 
