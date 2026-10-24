@@ -39,7 +39,9 @@ npm run dev          # 开发服务，默认 5173
 
 ## 页面 ↔ 接口 ↔ 字段
 
-**唯一的对照表是 `docs/pages.md`** —— 每个页面用接口的哪些字段、三态与错误码怎么处理，都在那里。接口本身的定义以 `docs/contracts/api-format.md` 为准。
+**唯一的对照表是 `docs/frontend/pages.md`** —— 每个页面用接口的哪些字段、三态与错误码怎么处理，都在那里。接口本身的定义以 `docs/backend/api-spec.md` 为准（契约三 v1.5）。
+
+> 旧路径 `docs/pages.md` 与 `docs/contracts/api-format.md` 已随 #55 六包重组移除，指向它们的旧表述一律作废。
 
 | 页面 | 接口 | 字段映射 |
 |---|---|---|
