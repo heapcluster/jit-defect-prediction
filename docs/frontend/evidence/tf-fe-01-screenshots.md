@@ -4,13 +4,15 @@
 - 采集人：蒋励（组长代前端执行，前端同学只提供启动方式与账号）
 - 截图目录：[`docs/frontend/screenshots/`](../screenshots/)
 
-## 环境（与前端同学给的口径一致，除模型目录）
+## 环境（按 `integration-log.md` §0 联调基线执行）
+
+口径唯一出处：`docs/frontend/integration-log.md` §0。本次未偏离任何一项。
 
 | 项 | 值 |
 |---|---|
 | 库 | `DATABASE_URL=sqlite:///./dev.db`，由 `backend/scripts/seed_dev_data.py` 生成：3 提交 / 3 特征 / 3 预测，`commit_hash` 为 `000...001`~`000...003` |
 | 令牌 | `API_TOKEN=dev-token-20260918`，前端 `VITE_API_KEY` 同值 |
-| 模型目录 | **本机没有** `D:/Study-doc/homework/software-test/model`，`MODEL_DIR` 留空即回落 `<repo>/data_model/pipelines/expert/models/`（含 8 个训练口径权重 + `feature_order.txt` + `manifest.txt`） |
+| 模型目录 | `MODEL_DIR` 留空 → 回落 `<repo>/data_model/pipelines/expert/models/`（8 个训练口径权重 + `feature_order.txt` + `manifest.txt`），符合 §0 硬规矩 1「不写个人绝对路径」 |
 | 后端 | `python -m uvicorn app.main:app --host 127.0.0.1 --port 8000` |
 | 前端 | `npm run dev`，`:5173`，vite proxy `/api` → `:8000` |
 | 浏览器 | Chromium headless，视口 1280×900，整页截图 |

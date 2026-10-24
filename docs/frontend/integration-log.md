@@ -3,7 +3,36 @@
 > change `frontend-integration` ｜ 前端线 刘帅华 ｜ 记录 2026-10-13
 > 类型：本地真实后端联调（非 mock）；后端为 FastAPI + SQLite 种子数据
 
+## §0 联调基线（唯一出处，2026-10-24 蒋励定）
+
+**任何联调、截图取证、演示，只认这张表。** 前后端的 `.env` / `.env.local` 都是它的下游，不许各自定义。
+
+| 项 | 基线值 | 维护线 |
+|---|---|---|
+| 数据库 | SQLite，`backend/dev.db`；`DATABASE_URL=sqlite:///./dev.db` | 后端 |
+| 建库灌数 | `cd backend` → `PYTHONPATH=. python -m scripts.seed_dev_data` | 后端 |
+| 种子内容 | 3 提交 / 3 特征 / 3 预测；`commit_hash` = `000…001` ~ `000…003` | 后端 |
+| 后端令牌 | `API_TOKEN=dev-token-20260918`，请求头 `X-Api-Key`（不是 `Authorization: Bearer`） | 后端 |
+| 前端令牌 | `frontend/.env.local` 的 `VITE_API_KEY=dev-token-20260918` | 前端 |
+| 模型目录 | `MODEL_DIR` **留空** → 回落 `data_model/pipelines/expert/models/` | 数据线 |
+| 后端进程 | `python -m uvicorn app.main:app --host 127.0.0.1 --port 8000` | 后端 |
+| 前端进程 | `npm run dev`，`:5173`，vite proxy `/api` → `:8000` | 前端 |
+
+### 三条硬规矩
+
+1. **不写个人绝对路径。** `MODEL_DIR` 只允许留空或仓库内相对路径；个人机器路径进 `.env.local`，不进 `.env.example`、不进任何入库文档。理由：写死个人路径的人能跑，其他人必然 `50000`。
+2. **不各自建库。** 联调库只有 `backend/dev.db` 一份，由 `seed_dev_data.py` 生成。要造空态/失败态，先用 query 参数（如 `min_risk`）或改 seed 脚本，**不许手工改库、不许另建一套库**。理由：各建一套后，"我这边有数据"会变成无法复现的口径。
+3. **口径变更走 PR。** 改这张表必须同一个 PR 里同步 `backend/.env.example` 与 `frontend/.env.example`，描述带 `[联调基线]` 标记。理由：口径散落是三处改一处漏的直接来源。
+
+### 落地方式
+
+- `backend/.env.example` 与 `frontend/.env.example` 顶部各有一行指向本节；
+- 联调记录里出现与本节不一致的值，**以本节为准**，记录方负责改；
+- 本节改动需要模型线（后端/数据）与前端线各确认一次，谁改谁在 PR 里 @ 对方。
+
 ## 环境与启动
+
+> 下表是 API-01/02/03 当次记录，**口径以 §0 为准**；两者冲突时改本表，不改 §0。
 
 | 项 | 值 |
 |---|---|
