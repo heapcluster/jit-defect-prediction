@@ -44,7 +44,7 @@ $ DATABASE_URL="sqlite:///<tmp>/it.db" python -m app.db init
 | features（83,943） | 同一份 `dataset_szz.csv` 投影 `commit_hash, committed_at, feature_version` + 契约二 14 列 | 不重算特征，直接用已登记数据 |
 | predictions（83,943） | `python -m pipelines.expert.predict`（模型线官方入口，`--model` 默认 `xgb_v1.pkl`）于 14:25 实跑 | 脚本自校验「字段 = 契约一表三且顺序一致」通过；`risk_score` 范围 3e-05–0.9993，≥0.5 的 14,596 条（17.39%） |
 
-**复现性交叉校验（进行中，结果以补记行回填）**：`preparation.02_szz_labeling --method szz` 的独立重跑在后台进行（14:3x 时点 6,500/7,787 条修复提交），用于核对「02 重跑的标签 == dataset_szz 已登记标签」；该校验是模型线复现性口径（±0），**不构成本记录的前置**——本记录的 labels 直接取自已登记数据集。重跑结束后若逐行一致，在本文件 §2.1 下补一行结论；若不一致，按缺陷流程升级而不是改本文件既有数字。
+**复现性交叉校验（补记，2026-10-24 15:26 完成）**：`preparation.02_szz_labeling --method szz` 的独立重跑已结束（7,787 条修复提交全跑完，耗时 10,372.2s）：正样本 **18,662** / 负样本 65,281 / 比例 22.23% / 未命中 742，产出 `data/commit_labels_szz.csv` **83,943 行**。与本记录灌库所用派生 labels 取交集 = 83,943 行，且 `is_bug_inducing` **逐行一致 ✅** —— 派生口径与独立重跑口径零差异，本记录 §2.1 的 labels 来源成立。重跑同批复产 predictions（expert 官方入口、83,943 行、`model_name=xgb_v1`），与本记录灌库所用 predictions 同脚本同口径（`predicted_at` 时间戳不同，属元数据）。该校验是模型线复现性口径（±0）的又一实例，不改变本记录既有数字。
 
 ## 3. 起服务：三个交付模型全部加载、无失败行
 
