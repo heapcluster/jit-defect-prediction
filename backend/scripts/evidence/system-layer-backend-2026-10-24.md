@@ -1,6 +1,10 @@
-# 系统层 T-ST-01~05 的后端半边执行记录（2026-10-24，演示库 `demo.db`）
+# 系统层 T-ST-01~05 的后端半边执行记录（2026-10-24，实跑于 SQLite `demo.db`）
 
-- 依据：**Issue #130 裁定 A**（蒋励，2026-10-24）——演示库 `backend/demo.db` 与联调库 `backend/dev.db` 并列登记；演示与 T-ST-01~05 一律用 `demo.db`；T-ST-04 判据改为「清单内 3 个 200、清单外 5 个 40001 属 R6 预期」。生成命令将登记在 `docs/repo/demo-script-sprint1.md` §0.0（PR #136，合入后可点开），本文件只记**执行结果**，不另立口径。
+> **⚠ 口径变更说明（2026-10-25 补记，#141 审阅条件 1）**：本记录跑于 **SQLite `backend/demo.db`**，而 **Issue #130 的更正裁定**（蒋励，2026-10-24 追加，覆盖原裁定「一」里的 SQLite 表述）已把**演示库敲定为 MySQL `jit_demo`**（联调库仍是 SQLite `backend/dev.db` 不变，理由：#117 的 9 张三态截图已在该口径下取证并合入，改口径会让取证作废）。因此 **在建库授权（Issue #142）到位、并按同一脚本在 `jit_demo` 上复跑回填之前，本文件只作过程证据，不能作为「MySQL 演示库已验证」的依据**。数据与 43 项断言本身有效：四份 CSV 与 `integration-2026-10-24.md` §2 是同一批真实产物，断言口径（T-ST-04 清单内外分判）也是裁定 A 的原文。复跑结果按「只追加不改写」以补记形式加在本文件末尾，本段与下面的原有数字一律不动。
+>
+> **文档状态（按 `docs/README.md` §0.2 的三分类交代清楚，避免被读成「第四种状态」）**：本文件是 T-ST-01~05 **后端半边**的验收记录，对该用例仍是**唯一正文（权威）**，只是**演示库口径这一项的适用范围受限**（SQLite 实跑 ≠ MySQL 演示库已验证）。**故不标「历史，不作为现行口径」**——它没有被任何文件取代；MySQL `jit_demo` 的复跑补记**落在本文件末尾**，不另开第二份正文、不倒填原有数字（`docs/repo/collaboration.md` §0 第 4 条口径单点）。
+
+- 依据：**Issue #130 裁定 A**（蒋励，2026-10-24）——演示库与联调库并列登记；T-ST-04 判据改为「清单内 3 个 200、清单外 5 个 40001 属 R6 预期」。原文写的演示库是 `backend/demo.db`，**该处已被同日追加的更正裁定覆盖为 MySQL `jit_demo`**（见文首口径变更说明）；本文件按当时生效的口径执行，故实跑库是 `demo.db`。生成命令将登记在 `docs/repo/demo-script-sprint1.md` §0.0/§0.0.1（PR #136，合入后可点开），本文件只记**执行结果**，不另立口径。
 - 范围：**后端能断言的部分**。页面三态与文案（T-ST-02 的"提示重新登录不给重试"、T-ST-03 的"空态而非崩溃"）、下拉渲染（T-ST-04 的前端半边）、录屏（T-ST-01~05 全链路）属前端线与三方同场，**本文件不冒充**。
 - 结果：**43 项断言全过，退出码 0**（2026-10-24 23:48 实跑）。
 
@@ -16,6 +20,8 @@ DATABASE_URL=… python -m app.ingest predictions <predictions.csv>   # 83,943 �
 ```
 
 四份 CSV 与 `integration-2026-10-24.md` §2 用的是同一批真实产物（commits = `preparation/01_extract_commits` 重跑；labels = 已登记 `dataset_szz.csv` 投影且与 02 独立重跑逐行一致；features/predictions 同左），不现场造数。
+
+**MySQL `jit_demo` 到位后（Issue #142）怎么复跑**：上面五条命令一条不改，只把 `DATABASE_URL` 从 `sqlite:///<repo>/backend/demo.db` 换成 `mysql+pymysql://<user>:<pwd>@127.0.0.1:3306/jit_demo`（口令走 `backend/.env`，不写进本文件、不写进任何入库文档，`docs/repo/collaboration.md` §0 第 3 条），期望值也不变（84,461 / 83,943×3、`risk_score ≥ 0.5` 14,596 条、列表 `total` 83,943、启动日志三模型全加载）。复跑用 Issue #138 的 `backend/scripts/demo_preflight.py`（本记录那 43 项断言的驱动脚本会并进它），一条命令跑完、任一步不符即退出码 1 并打印实际值。
 
 | 核对项 | 实测 | 期望（裁定/留档） |
 |---|---|---|
@@ -49,10 +55,10 @@ T-ST-04 的 `explanation` 条数实测：`lr_v1` **10/14**、`rf_v1` 14/14、`xg
 - **页面半边**：T-ST-02 的页面提示与"不给重试"、T-ST-03 的空态渲染、T-ST-04 的下拉 8 项与 `[models]` 同步 —— 前端线（刘帅华），需起 `npm run dev` 后取证。
 - **录屏**：T-ST-01~05 全链路录屏需前端 + 后端 + 模型三线同场（组长排期，下次课前一晚）。
 - **T-ST-05 的"新增模型不破坏既有四接口"**：当前以「`openapi.json` 路径仍 4 条 + 错误码集合不变 + 幂等不变」作回归判据；真正的"新增模型进清单后回归"要等 change `online-eight-model-selection` 的 1.1 裁决（我在 #134 的实测意见：`et_v1` 稳态 SHAP ~1.78s 会破 500ms 靶子、`lgbm_v1` 的空归因是 `_is_tree_family` 不认 lightgbm 的一行缺陷）。
-- **MySQL 侧**：本记录全程 SQLite；真库验收仍等 Issue #121 授权（`acceptance.md` 第 1/6 条）。
+- **MySQL 侧**：本记录全程 SQLite。两条授权 Issue **并列、别混**（原文这里只写了 #121，是错号，按 #141 审阅条件 3 订正）：**演示库** `jit_demo` 的建库与授权在 **Issue #142**（sober-hub）—— 本记录要在 MySQL 上复跑回填，等的是这条；**#121** 是后端**真库验收**用的两个探针库 `jit_schema_probe` / `jit_orm_probe`（`acceptance.md` 第 1/6 条），照 #121 执行**不会产生演示库**。另：`jit_defect` 里现存的 2 提交 / 4 预测是占位脏数据（假哈希、`repo_name=activemq`、`smoke_v1`/`tree_placeholder_v0`），按演示脚本 §5 第 4 条不能上台，其存量处置归 infra，本线不动别人的库。
 
 ## 5. 复现
 
-- 驱动脚本（建库 + 核对 + 起服务 + 43 项断言，任一步不符即退出码 1 并打印实际值）在本机临时目录，未入库；需要的话我可以按 `security_cases.py`/`perf_loop.py` 的先例把它落为 `backend/scripts/system_cases.py`（含测试），一句话就开工。
+- 驱动脚本（建库 + 核对 + 起服务 + 43 项断言，任一步不符即退出码 1 并打印实际值）目前在本机临时目录，**不会留在那里**：按 #141 审阅条件 2 与 Issue #130 三，它并进 **Issue #138 的 `backend/scripts/demo_preflight.py`**（同一件事：录屏前一条命令自检、不静默通过、不拿跳过当绿，口径同 `security_cases.py`），含测试另开 PR。原文我提的 `system_cases.py` 这个文件名作废，以 #138 为准。
 - 关键命令见 §1 与 §2 表格；服务起法 `cd backend && DATABASE_URL=sqlite:///…/demo.db API_TOKEN=*** MODEL_DIR=<交付包目录> python -m uvicorn app.main:app --port 8044`。
 - 原始日志：本机 `driver.log` / `uvicorn.log`（含 43 行 PASS 与每模型的 `explanation` 条数），不入库。
