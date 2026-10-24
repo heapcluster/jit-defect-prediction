@@ -16,6 +16,7 @@
 | 模型命名 | 落盘文件与报告内 `model_name` 统一带线别后缀：`<name>_semantic_v1` / `<name>_fused_v1` / `codebert_e2e_v1` | 各包 `train.py` |
 | 入库规则 | **模型目录默认忽略**（`data_model/pipelines/*/models/**`），仅 `feature_order.txt` 与 `manifest.txt` 两个**文本清单例外入库**（见各线产物表「是」）；权重按 `*.pkl` / `*.joblib` / `*.pt` / `*.pth` / `*.ckpt` / `*.onnx` / `*.h5` / `*.safetensors` / `*.bin` 全局忽略；`reports/*.md` 与 `figs/*.png` **入库**；`data/` 不入库 | `.gitignore` |
 | 包间衔接 | 只通过**数据文件**衔接，禁止跨包 `import` | 各包 `data.py` |
+| 文本来源口径 | 三线共用 `pipelines/text_source.py`：`text_source` 列的三值分类（`diff` / `no_text_change` / `root_commit`）、占位文案、报告「文本来源与覆盖率」登记段与稳健性附注的**唯一实现**；三线各自的 `data.py` / `report.py` / `train.py` 只调用、不复制第二份实现 | `data_model/tests/test_text_source.py` |
 | 跑序 | `semantic` → `fused`；`e2e` 独立（文本由其 `build_text_dataset.py` 自建，格式与 `semantic` 互通） | — |
 
 > 入库规则复核（`git check-ignore --quiet <path>`，退出码 0 = 被忽略 / 1 = 可入库）：
@@ -65,9 +66,10 @@
 | 列 | 类型 | 说明 |
 |---|---|---|
 | `commit_hash` | str | 与共享切分的 `commit_hash` 对齐键 |
-| `text` | str | 提交 diff 文本，≤ `MAX_CHARS` |
+| `text` | str | 提交 diff 文本，≤ `MAX_CHARS`；无 diff 或根提交时为占位串（见下） |
 | `label` | 0/1 | `is_bug_inducing` |
 | `feature_version` | str | 文本构造口径标识 |
+| `text_source` | str | 文本来源三值：`diff`（有非空 diff）/ `no_text_change`（提交存在、有 parents、diff 为空 → 占位 `[no-text-change]`）/ `root_commit`（无 parents → 占位 `[root-commit]`）。**不进特征、不进模型**，只用于登记与稳健性附注；旧文件缺该列时按 `diff` 读并在报告写「未登记」，不按 `diff` 冒充 |
 
 写盘用 `QUOTE_ALL`（`text` 含换行/逗号）。
 
@@ -79,6 +81,7 @@
 | `embeddings` | `(N, 768)` `float32` | 冻结编码结果 |
 | `labels` | `(N,)` int | 标签副本 |
 | `feature_version` | `U*` 去重集合 | 口径标识 |
+| `text_source` | `U*` 定宽字符串 | 与 `commit_hash` 同序的来源三值（见 §1.3 文本 CSV）；旧缓存无此键时 `load_sources()` 返回 `None`，报告写「未登记」 |
 
 ### 1.4 输出规范
 
@@ -97,7 +100,8 @@
 3. `## 一、Effort-unaware 指标（检验集）`：`模型 | AUC | F1 | Precision | Recall | Accuracy`，一行一个模型，模型列写成 `` `lr_semantic_v1`（逻辑回归） ``
 4. `## 二、Effort-aware 指标（检验集，LOC 工作量代理）`：`排序方式 | 模型 | 曲线下面积 | P_norm | Recall@20% | Recall@50%`；每个模型两行（**模型排序** + 对照：密度排序），末尾追加 `上界：真实密度` 与 `基线：随机（200 次均值）`
 5. `## 与 baseline 对照（读法）`：与 `pipelines/expert/reports/model_metrics.md` 并排解读
-6. `## 图表`：引用 `figs/*.png`
+6. `## 文本来源与覆盖率`：`来源 | 条数 | 占全量 | 其中正样本 | 正样本占该来源` 三行（`diff` / `no_text_change` / `root_commit`）+ 合计行 + 占位合计占比；其下 `### 稳健性附注（剔除占位样本）`：检验集保留/剔除条数、**模型未重训**的显式声明（或「已按剔除后样本重训」）、剔除后各指标最大绝对变化；缓存无 `text_source` 键时本段写「未登记」并给出重跑命令，不得省略本段
+7. `## 图表`：引用 `figs/*.png`
 
 ### 1.5 校验与失败语义
 
@@ -105,6 +109,9 @@
 - 文本与编码缓存都缺、且未给 `--repo` → 退出码 **1**（`train.py` 用带字符串的 `SystemExit`）。
 - 缓存**文件**不存在（`data.py::load_embeddings`）→ 退出码 **2**。
 - 缓存存在但覆盖不全（`train.py` 打印缺多少条）→ 退出码 **1**。
+- 占位分类只认一种情形：「提交在仓库里存在、有 parents、diff 为空」→ `no_text_change`；无 parents → `root_commit`。二者都**不跳过**，进文本数据集与编码缓存，但在报告里单独登记、不得混进 `diff` 的统计。
+- 仓库不可达 / 提交取不到（既非上述两种占位情形）→ **仍跳过并单独计数**，控制台打 ⚠ 警告；跳过条数与占位条数分开报，不得合并成「覆盖率 100%」。
+- 只有空白或仅文件头的 diff 视为无内容，按 `no_text_change` 处理（`assemble()` 返回 `has_content=False`），不按 `diff` 计。
 - 语义指标不优于 baseline 时**如实登记**（样本量、文本构造、模型容量），不得只报更好的一组。
 - 产物仅评估，不进交付链。
 
@@ -155,6 +162,7 @@
 | 原始特征缺行 | `commit_features_raw.csv` 缺检验集 hash | 退出码 2 |
 
 - 782 维中 768 维来自冻结编码器，量纲与 Kamei 特征不同：`lr` / `knn` 的 `StandardScaler` 必须保留。
+- fused 报告与 semantic 同构地出 `## 文本来源与覆盖率` 段（读 semantic 的编码缓存 `text_source` 键）；当语义覆盖率 < 100% 时额外打 ⚠ **样本口径警告**：训练/检验行被内连接丢弃过，本线与 expert / semantic 的指标**不可直接并排比较**，不得只写「影响可忽略」。
 - fused 不优于 expert 时如实登记（语义无增量）并讨论原因。
 
 ---
@@ -203,7 +211,7 @@
 | 全量预测 | `e2e/data/prediction_result.csv` | 契约一表三，字段顺序固定 | 否 |
 | 预测统计 | `e2e/reports/prediction_stats.md` | Markdown | 是 |
 
-`model_metrics.md` 固定结构：`## 数据与参数`（骨干 / `feature_version` / 训练-验证-检验条数 / 最大长度-轮数-学习率 / 有效 batch / 种子 / 阈值 / 正样本比例 / 设备）→ `## 一、Effort-unaware`（单模型一行）→ `## 二、Effort-aware`（模型排序 / 密度排序 / 真实密度上界 / 随机基线；缺 `commit_features_raw.csv` 时整节替换为告警）→ `## 与 baseline 对照（读法）` → `## 图表`。
+`model_metrics.md` 固定结构：`## 数据与参数`（骨干 / `feature_version` / 训练-验证-检验条数 / 最大长度-轮数-学习率 / 有效 batch / 种子 / 阈值 / 正样本比例 / 设备）→ `## 一、Effort-unaware`（单模型一行）→ `## 二、Effort-aware`（模型排序 / 密度排序 / 真实密度上界 / 随机基线；缺 `commit_features_raw.csv` 时整节替换为告警）→ `## 与 baseline 对照（读法）` → `## 文本来源与覆盖率`（与 semantic 同构；e2e **不因占位重训**，只登记来源条数与占比，并在稳健性附注写明「模型未重训」）→ `## 图表`。
 
 **`prediction_result.csv` 字段规范（与 `data_model/07_predict_all.py` 逐字一致，不多不少、顺序固定）**
 
@@ -217,12 +225,13 @@
 
 写出后脚本会自校验：表头必须与上述 5 字段顺序完全一致（多/缺字段 → 退出码 1）；同时扫描自身源码，命中数据库驱动 import（`sqlalchemy` / `pymysql` / `mysql.connector` / `sqlite3` / `psycopg2`）→ 退出码 1。
 
-`prediction_stats.md` 记录：模型、推理条数（全量，含检验集）、`feature_version`、`predicted_at`、输出文件名、以及 `risk_score ≥ 0.5` 的条数。
+`prediction_stats.md` 记录：模型、推理条数（全量，含检验集）、`feature_version`、`predicted_at`、输出文件名、以及 `risk_score ≥ 0.5` 的条数；另含**按 `text_source` 分组的推理统计表**（每来源一行：推理条数 / `risk_score` 均值 / p95 / ≥阈值条数 / 其中正样本条数），用于回答「占位那 N 条的分数是空串推理还是占位推理」；文本数据集缺 `text_source` 列时该表写「未登记」，不得按 `diff` 冒充。
 
 ### 3.5 校验与失败语义
 
 - 模型目录不存在 → 退出码 2（提示先跑 `train.py`）。
 - 文本为空 → 退出码 1，不产出 CSV。
+- 占位与跳过口径与 §1.5 相同（`no_text_change` / `root_commit` 进数据集并登记；仓库不可达的提交**跳过并单独计数**，控制台 ⚠，不与占位合并）；`build_text_dataset.py` 结束时打印来源分布与占位中的正样本条数。
 - 显存不足：先降 `--batch-size`（有效批量由 `GRAD_ACCUM_TARGET` 补足），不要改有效批量。
 - GPU 非确定性算子会带来极小抖动，报告须登记设备与耗时。
 

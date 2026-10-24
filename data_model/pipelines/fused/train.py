@@ -14,10 +14,17 @@ from pathlib import Path
 import joblib
 import numpy as np
 
+from .. import text_source
 from . import config, report
 from .data import fuse, load_effort, load_embeddings, load_split
 from .metrics import effort_aware_metrics, effort_unaware
 from .model import MODEL_NAMES, build_model
+
+
+def text_registration(args, test_hashes, y_test, probas) -> dict | None:
+    """文本来源登记（来源取自 semantic 的编码缓存）；旧缓存无该键 → None，报告写「未登记」。"""
+    return text_source.registration_from_cache(args.embeddings, test_hashes, y_test,
+                                               probas, effort_unaware)
 
 
 def parse_args() -> argparse.Namespace:
@@ -79,7 +86,10 @@ def main() -> int:
 
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(report.render(args, results, len(X_train), len(X_test),
-                                         y_test, coverage=coverage),
+                                         y_test, coverage=coverage,
+                                         text_stats=text_registration(
+                                             args, test_df["commit_hash"].tolist(),
+                                             y_test, probas)),
                            encoding="utf-8", newline="\n")
     print(f"[fused] 报告：{args.report}")
     if not args.no_charts:

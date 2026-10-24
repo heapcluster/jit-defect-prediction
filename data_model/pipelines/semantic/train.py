@@ -19,6 +19,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 
+from .. import text_source
 from . import config, report
 from .data import (
     encode_texts,
@@ -64,6 +65,16 @@ def get_embeddings(args) -> tuple[list[str], np.ndarray]:
     save_embeddings(args.embeddings, df, emb)
     print(f"[semantic] 缓存已写：{args.embeddings}")
     return df["commit_hash"].tolist(), emb
+
+
+def text_registration(args, test_hashes, y_test, probas) -> dict | None:
+    """文本来源登记 + 剔除占位行的敏感性检查（模型不重训）。
+
+    来源取自编码缓存的 `text_source` 键；旧缓存没有该键时返回 None，报告会如实写
+    「未登记」，不按 `diff` 冒充。计算实现在 `pipelines/text_source.py`，三线共用。
+    """
+    return text_source.registration_from_cache(args.embeddings, test_hashes, y_test,
+                                               probas, effort_unaware)
 
 
 def main() -> int:
@@ -118,7 +129,9 @@ def main() -> int:
 
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(report.render(args, results, len(train_hashes),
-                                         len(test_hashes), y_test),
+                                         len(test_hashes), y_test,
+                                         text_stats=text_registration(args, test_hashes,
+                                                                      y_test, probas)),
                            encoding="utf-8", newline="\n")
     print(f"[semantic] 报告：{args.report}")
     if not args.no_charts:

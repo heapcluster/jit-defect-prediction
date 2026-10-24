@@ -27,9 +27,12 @@ from torch.utils.data import DataLoader, Dataset
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 try:
-    from .build_text_dataset import commit_diff_text, detect_repo
+    from .. import text_source
+    from .build_text_dataset import commit_text, detect_repo
 except ImportError:
-    from build_text_dataset import commit_diff_text, detect_repo
+    from build_text_dataset import commit_text, detect_repo
+
+    from pipelines import text_source
 
 BASE = Path(__file__).resolve().parent
 DATA_DIR = BASE.parent.parent / "data"
@@ -44,6 +47,32 @@ FEATURE_VERSION = "codebert"
 
 CONTRACT_FIELDS = ["commit_hash", "model_name", "risk_score",
                    "predicted_at", "feature_version"]
+
+
+def source_table(df, proba) -> str:
+    """按 `text_source` 分组登记推理条数与分数分布 —— 占位样本的分数来源必须可核。"""
+    sources = text_source.sources_of(df).to_numpy()
+    proba = np.asarray(proba, dtype=float)
+    labels = df["label"].to_numpy() if "label" in df.columns else None
+    lines = ["| 来源 | 推理条数 | 平均 risk_score | p95 | ≥阈值条数 | 其中正样本 |\n",
+             "|---|---|---|---|---|---|\n"]
+    for name in text_source.SOURCES:
+        mask = sources == name
+        count = int(mask.sum())
+        if not count:
+            lines.append(f"| `{name}` | 0 | — | — | — | — |\n")
+            continue
+        sub = proba[mask]
+        pos = str(int((np.asarray(labels)[mask] == 1).sum())) if labels is not None else "—"
+        lines.append(f"| `{name}` | {count} | {float(sub.mean()):.5f} | {float(np.percentile(sub, 95)):.5f} | {int((sub >= DECISION_THRESHOLD).sum())} | {pos} |\n")
+    lines.append(
+        "\n> 占位来源（`no_text_change` / `root_commit`）的分数是**把占位串本身喂进模型**推理得到的，"
+        "不是空串推理、也不是补 0 或补均值。这些提交是否属训练覆盖内输入，取决于训练用的是不是"
+        "同一份带 `text_source` 的文本数据集 —— 以 `reports/model_metrics.md` 的"
+        "「文本来源与覆盖率」段为准；两处来源分布一致即为覆盖内，不一致就是外推，必须在三线对照里标注。\n"
+        "> 若文本数据集没有 `text_source` 列（旧版 CSV），本表会一律记成 `diff`，"
+        "此时「全量覆盖」不可信：须用带占位口径的 `build_text_dataset.py` 重建文本后重跑。\n")
+    return "".join(lines)
 
 
 class TextDataset(Dataset):
@@ -93,9 +122,12 @@ def ensure_text_df(args) -> pd.DataFrame:
     df = pd.read_csv(args.dataset)
     rows = []
     for _, r in df.iterrows():
-        t = commit_diff_text(repo, str(r["commit_hash"]), 4000)
-        if t:
-            rows.append({"commit_hash": str(r["commit_hash"]), "text": t})
+        got = commit_text(repo, str(r["commit_hash"]), 4000)
+        if got is None:
+            continue          # 仓库里取不到：跳过并让下游的条数差暴露问题，不落占位串
+        text, source = got
+        rows.append({"commit_hash": str(r["commit_hash"]), "text": text,
+                     "text_source": source})
     return pd.DataFrame(rows)
 
 
@@ -166,6 +198,8 @@ def main() -> int:
         f"| 统计量 | 值 |\n|---|---|\n| 均值 | {float(np.mean(proba)):.5f} |\n"
         f"| 中位数 | {float(np.median(proba)):.5f} |\n| p95 | {float(np.percentile(proba, 95)):.5f} |\n"
         f"| `risk_score >= {DECISION_THRESHOLD:.2f}` 的条数 | {above}（{above / len(df) * 100:.2f}%） |\n\n"
+        "## 文本来源登记（占位样本的分数从哪来）\n\n"
+        + source_table(df, proba) + "\n"
         "## 三条断言\n\n"
         "| 检查项 | 结果 |\n|---|---|\n"
         "| 字段与契约一表三逐字一致，无契约外字段 | 通过 |\n"

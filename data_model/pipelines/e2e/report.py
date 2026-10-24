@@ -12,6 +12,7 @@ import numpy as np
 import torch
 from sklearn.metrics import roc_curve
 
+from .. import text_source
 from . import config
 from .metrics import cumulative_curve
 
@@ -56,7 +57,7 @@ def make_charts(y: np.ndarray, proba: np.ndarray, effort_loc: np.ndarray | None,
     return written
 
 
-def render(args, n_train, n_val, n_test, y_test, res) -> str:
+def render(args, n_train, n_val, n_test, y_test, res, text_stats=None) -> str:
     eff = res.get("effort") or {}
     lines = [
         "# e2e 线模型评估指标（CodeBERT 端到端微调）\n",
@@ -96,8 +97,23 @@ def render(args, n_train, n_val, n_test, y_test, res) -> str:
         "\n## 与 baseline 对照（读法）\n\n",
         ("> 与 `pipelines/expert/reports/model_metrics.md` 并排：e2e 的 AUC/P_norm 高出"
          " baseline 多少 = 端到端微调相对 Kamei14 手工特征的增益；不优时如实登记。\n"),
-        "\n## 图表\n\n",
     ]
+    lines.append("\n")
+    if text_stats:
+        lines.extend(text_source.registration_lines(
+            text_stats["counts"], text_stats["n_total"], text_stats.get("positives")))
+        lines.append("\n")
+        lines.extend(text_source.robustness_lines(
+            text_stats["kept"], text_stats["dropped"], text_stats.get("deltas"),
+            text_stats.get("retrained", False)))
+        lines.append("- 占位样本**参与了微调**（它们是有标签的真实提交，输入是显式占位串，"
+                     "不是空串也不是伪造 diff）；本次未按剔除后样本重训，所以上面的剔除"
+                     "只是检验集口径的敏感性检查。\n")
+    else:
+        lines.append("## 文本来源与覆盖率\n\n"
+                     "> **未登记**：文本数据集没有 `text_source` 列（旧版 `commit_text.csv`），"
+                     "不按 `diff` 冒充；用打过补丁的 `build_text_dataset.py` 重建文本后本段自动出现。\n")
+    lines.append("\n## 图表\n\n")
     for fig in ("roc_curves", "effort_curves_loc"):
         lines.append(f"![{fig}](figs/{fig}.png)\n\n")
     return "".join(lines)
