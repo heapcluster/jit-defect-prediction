@@ -18,6 +18,7 @@ class CIContractTests(unittest.TestCase):
 
     def test_stages_run_in_order(self):
         stages = ["Lint frontend", "Lint Python", "Lint specifications",
+                  "Check live documentation links", "Check OpenSpec MODIFIED collisions",
                   "Test CI contract", "Test backend", "Test frontend",
                   "Test data model", "Build frontend", "Build Python"]
         positions = [WORKFLOW.index("- name: " + stage + "\n") for stage in stages]
@@ -37,6 +38,10 @@ class CIContractTests(unittest.TestCase):
         self.assertIn("  merge_group:\n", WORKFLOW)
         self.assertNotIn("pull_request_target", WORKFLOW)
         self.assertNotRegex(WORKFLOW, r"(?m)^\s+paths(?:-ignore)?:")
+
+    def test_spec_guards_run_before_tests(self):
+        self.assertIn("run: python infra/check_spec_references.py links", WORKFLOW)
+        self.assertIn("run: python infra/check_spec_references.py deltas", WORKFLOW)
 
     def test_token_is_read_only_and_not_persisted(self):
         self.assertIn("permissions:\n  contents: read\n", WORKFLOW)
