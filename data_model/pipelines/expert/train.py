@@ -20,8 +20,13 @@ import numpy as np
 from . import config, report
 from .data import load_effort, load_splits, xy
 from .metrics import effort_aware_metrics, effort_unaware
-from .model import (MODEL_NAMES, SHAP_LINEAR_MODELS, SHAP_TREE_MODELS, TabNetWithEarlyStop,
-                    build_model)
+from .model import (
+    MODEL_NAMES,
+    SHAP_LINEAR_MODELS,
+    SHAP_TREE_MODELS,
+    TabNetWithEarlyStop,
+    build_model,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -69,9 +74,9 @@ def from_saved(args: argparse.Namespace, train, test, X_test: np.ndarray, y_test
     results: dict[str, dict] = {}
     probas: dict[str, np.ndarray] = {}
     for name in wanted:
-        pkl = args.model_dir / ("%s_v1.pkl" % name)
+        pkl = args.model_dir / (f"{name}_v1.pkl")
         if not pkl.is_file():
-            print("[expert] 缺权重，跳过：%s" % pkl.name)
+            print(f"[expert] 缺权重，跳过：{pkl.name}")
             continue
         try:
             model = joblib.load(pkl)
@@ -82,24 +87,24 @@ def from_saved(args: argparse.Namespace, train, test, X_test: np.ndarray, y_test
                 setattr(__main__, TabNetWithEarlyStop.__name__, TabNetWithEarlyStop)
             try:
                 model = joblib.load(pkl)
-                print("[expert] %s 为旧产物（类定义在 __main__），已用兼容别名回读" % pkl.name)
-            except Exception as exc:
-                print("[expert] 无法回读 %s：%s: %s" % (pkl.name, type(exc).__name__, exc))
+                print(f"[expert] {pkl.name} 为旧产物（类定义在 __main__），已用兼容别名回读")
+            except Exception as exc:  # noqa: BLE001 —— 旧 pickle 反序列化可能抛任意异常
+                print(f"[expert] 无法回读 {pkl.name}：{type(exc).__name__}: {exc}")
                 continue
-        except Exception as exc:
-            print("[expert] 无法回读 %s：%s: %s" % (pkl.name, type(exc).__name__, exc))
+        except Exception as exc:  # noqa: BLE001 —— pkl 反序列化可能抛任意异常
+            print(f"[expert] 无法回读 {pkl.name}：{type(exc).__name__}: {exc}")
             continue
         proba = model.predict_proba(X_test)[:, 1]
         probas[name] = proba
-        results[name] = {"model_name": "%s_v1" % name, "label": MODEL_NAMES.get(name, name),
+        results[name] = {"model_name": f"{name}_v1", "label": MODEL_NAMES.get(name, name),
                          **effort_unaware(y_test, proba),
                          # 评审下限按口径各配一份（LOC→行 / nf→文件），不能共用 10
                          "effort": {k: effort_aware_metrics(
                              proba, y_test, e,
                              review_floor=config.EFFORT_REVIEW_FLOORS.get(k))
                              for k, e in effort_sets.items()}}
-        print("[expert] %-8s AUC=%.4f F1=%.4f（自 %s 复算）"
-              % (name, results[name]["auc"], results[name]["f1"], pkl.name))
+        print(f"[expert] {name:<8} AUC={results[name]['auc']:.4f} "
+              f"F1={results[name]['f1']:.4f}（自 {pkl.name} 复算）")
     if not results:
         print("[expert] 没有可用权重，未出报告")
         return 2
@@ -107,17 +112,17 @@ def from_saved(args: argparse.Namespace, train, test, X_test: np.ndarray, y_test
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(report.render(args, train, test, results),
                            encoding="utf-8", newline="\n")
-    print("[expert] 报告：%s" % args.report)
+    print(f"[expert] 报告：{args.report}")
 
     if not args.no_charts:
         try:
             figs = report.make_charts(results, probas, y_test, effort_loc,
                                       fig_dir_for(args))
         except ImportError as exc:
-            print("[expert] 出图需要 matplotlib（environment.yml 已固定 3.10.1）：%s" % exc)
+            print(f"[expert] 出图需要 matplotlib（environment.yml 已固定 3.10.1）：{exc}")
             return 3
         for f in figs:
-            print("[expert] 图表：%s" % f)
+            print(f"[expert] 图表：{f}")
     return 0
 
 
@@ -169,7 +174,7 @@ def main() -> int:
     overlap = set(train["commit_hash"]) & set(test["commit_hash"])
     if overlap:
         # 泄漏闸门：时间序切分一旦被测集复用就会把 AUC 抬高，宁可不出报告
-        print("[expert] 训练集与检验集重叠 %d 条提交，拒绝出报告（先修切分）" % len(overlap))
+        print(f"[expert] 训练集与检验集重叠 {len(overlap)} 条提交，拒绝出报告（先修切分）")
         return 2
     X_train, y_train = xy(train)
     X_test, y_test = xy(test)

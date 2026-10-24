@@ -15,8 +15,10 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from pipelines.expert import config, report as expert_report, train as expert_train  # noqa: E402
-from pipelines.expert.metrics import effort_aware_metrics  # noqa: E402
+from pipelines.expert import config
+from pipelines.expert import report as expert_report
+from pipelines.expert import train as expert_train
+from pipelines.expert.metrics import effort_aware_metrics
 
 LOC = "LOC（改动行数 la+ld）"
 NF = "改动文件数 nf"

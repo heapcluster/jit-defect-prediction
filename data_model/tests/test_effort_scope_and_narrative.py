@@ -17,8 +17,8 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from pipelines.expert import config, report  # noqa: E402
-from pipelines.expert.metrics import budget_order, effort_aware_metrics  # noqa: E402
+from pipelines.expert import config, report
+from pipelines.expert.metrics import budget_order, effort_aware_metrics
 
 LOC = "LOC（改动行数 la+ld）"
 NF = "改动文件数 nf"
@@ -65,7 +65,7 @@ def _results(p_norm_by_model: dict, with_budget: bool = True) -> dict:
         block = _effort_block(pn, 100, 0.2)
         if with_budget:
             block["budget"] = dict(block["model"])
-        out[name] = {"model_name": "%s_v1" % name, "label": name,
+        out[name] = {"model_name": f"{name}_v1", "label": name,
                      "auc": 0.8, "f1": 0.4, "precision": 0.4, "recall": 0.4,
                      "accuracy": 0.8, "effort": {LOC: block}}
     return out
@@ -103,4 +103,4 @@ def test_report_without_budget_column_still_renders():
     text = report.render(_args(), _frame(10), _frame(10),
                          _results({"lr": -0.2}, with_budget=False))
     assert "预算感知" not in text.split("## 三")[0] or "未启用" in text
-    assert "| 模型排序" not in text or True  # 表头存在与否不作断言，只要不抛异常
+    assert True  # 表头存在与否不作断言，只要不抛异常

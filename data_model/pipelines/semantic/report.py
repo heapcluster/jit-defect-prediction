@@ -27,7 +27,7 @@ FIG_DIR_NAME = "figs"
 def _roc_ax(ax, y, probas, title):
     for name, proba in probas.items():
         fpr, tpr, _ = roc_curve(y, proba)
-        ax.plot(fpr, tpr, label="%s (AUC=%.3f)" % (name, float(_trapz(tpr, fpr))))
+        ax.plot(fpr, tpr, label=f"{name} (AUC={float(_trapz(tpr, fpr)):.3f})")
     ax.plot([0, 1], [0, 1], "k--", lw=0.8)
     ax.set_xlabel("False Positive Rate"); ax.set_ylabel("True Positive Rate")
     ax.set_title(title); ax.legend(fontsize=8); ax.grid(alpha=0.3)
@@ -77,7 +77,7 @@ def make_charts(results, probas, y, effort_loc, out_dir: Path) -> list[Path]:
 def render(args, results, n_train, n_test, y_test, text_stats=None) -> str:
     lines = [
         # 分类器数量按本次实际训练的模型数动态写，避免「默认 8 个、标题却写 12」的漂移
-        "# semantic 线模型评估指标（冻结 CodeBERT 768 维 → %d 分类器）\n" % len(results),
+        f"# semantic 线模型评估指标（冻结 CodeBERT 768 维 → {len(results)} 分类器）\n",
         "> 对照线：与 expert 线同切分、同分类器族、同指标口径；唯一变量是特征模态。\n",
         "## 数据与参数\n",
         "| 项 | 值 |\n|---|---|\n",

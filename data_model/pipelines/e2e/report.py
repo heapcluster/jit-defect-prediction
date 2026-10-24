@@ -32,8 +32,7 @@ def make_charts(y: np.ndarray, proba: np.ndarray, effort_loc: np.ndarray | None,
     # ROC
     fpr, tpr, _ = roc_curve(y, proba)
     fig, ax = plt.subplots(figsize=(6, 5))
-    ax.plot(fpr, tpr, label="%s (AUC=%.3f)"
-            % (config.MODEL_NAME, float(_trapz(tpr, fpr))))
+    ax.plot(fpr, tpr, label=f"{config.MODEL_NAME} (AUC={float(_trapz(tpr, fpr)):.3f})")
     ax.plot([0, 1], [0, 1], "k--", lw=0.8)
     ax.set_xlabel("False Positive Rate"); ax.set_ylabel("True Positive Rate")
     ax.set_title("ROC curve - e2e (fine-tuned CodeBERT)")

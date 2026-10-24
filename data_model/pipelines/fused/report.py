@@ -23,7 +23,7 @@ FIG_DIR_NAME = "figs"
 def _roc_ax(ax, y, probas, title):
     for name, proba in probas.items():
         fpr, tpr, _ = roc_curve(y, proba)
-        ax.plot(fpr, tpr, label="%s (AUC=%.3f)" % (name, float(_trapz(tpr, fpr))))
+        ax.plot(fpr, tpr, label=f"{name} (AUC={float(_trapz(tpr, fpr)):.3f})")
     ax.plot([0, 1], [0, 1], "k--", lw=0.8)
     ax.set_xlabel("False Positive Rate"); ax.set_ylabel("True Positive Rate")
     ax.set_title(title); ax.legend(fontsize=8); ax.grid(alpha=0.3)
@@ -78,8 +78,8 @@ def make_charts(results, probas, y, effort_loc, out_dir: Path) -> list[Path]:
 def render(args, results, n_train, n_test, y_test, coverage=None, text_stats=None) -> str:
     lines = [
         # 分类器数量按本次实际训练的模型数动态写，避免「默认 8 个、标题却写 12」的漂移
-        "# fused 线模型评估指标（Kamei14 ⊕ 语义 768 = %d 维 → %d 分类器）\n"
-        % (config.EXPECTED_DIM, len(results)),
+        (f"# fused 线模型评估指标（Kamei14 ⊕ 语义 768 = {config.EXPECTED_DIM} 维 → "
+         f"{len(results)} 分类器）\n"),
         "> 对照线：同切分、同分类器族、同指标口径；特征 = 专家特征 + 语义向量拼接。\n",
         "## 数据与参数\n",
         "| 项 | 值 |\n|---|---|\n",

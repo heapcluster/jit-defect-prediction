@@ -41,7 +41,7 @@ def fig_dir_name(from_saved: bool = False) -> str:
 def _roc_ax(ax, y, probas: dict, title):
     for name, proba in probas.items():
         fpr, tpr, _ = roc_curve(y, proba)
-        ax.plot(fpr, tpr, label="%s (AUC=%.3f)" % (name, float(_trapz(tpr, fpr))))
+        ax.plot(fpr, tpr, label=f"{name} (AUC={float(_trapz(tpr, fpr)):.3f})")
     ax.plot([0, 1], [0, 1], "k--", lw=0.8)
     ax.set_xlabel("False Positive Rate"); ax.set_ylabel("True Positive Rate")
     ax.set_title(title); ax.legend(fontsize=8); ax.grid(alpha=0.3)
@@ -52,7 +52,7 @@ def make_charts(results: dict, probas: dict, y: np.ndarray,
     # 绘图依赖延迟导入：只出 Markdown（render）时不要求装 matplotlib
     import matplotlib
     matplotlib.use("Agg")      # 无显示环境也能出图
-    import matplotlib.pyplot as plt  # noqa: F401  (供本函数内使用)
+    import matplotlib.pyplot as plt
 
     out_dir.mkdir(parents=True, exist_ok=True)
     written = []
@@ -69,7 +69,7 @@ def make_charts(results: dict, probas: dict, y: np.ndarray,
     effort = np.maximum(np.asarray(effort_loc, dtype=float), 1.0)
     style = {"model": "-", "budget": "--", "density": "-.", "optimal": ":", "random": (0, (1, 2))}
     label = {"model": "model (risk_score desc)",
-             "budget": "budget-aware (LOC>=%d, density)" % config.MIN_REVIEW_LOC,
+             "budget": f"budget-aware (LOC>={config.MIN_REVIEW_LOC}, density)",
              "density": "density (score/effort, no floor)",
              "optimal": "optimal (oracle)", "random": "random baseline"}
     color = {"model": "#1f77b4", "budget": "#9467bd", "density": "#ff7f0e",
@@ -98,7 +98,7 @@ def make_charts(results: dict, probas: dict, y: np.ndarray,
                 color=color["random"], lw=0.9)
         ax.plot(opt_xs, opt_ys, linestyle=style["optimal"], label=label["optimal"],
                 color=color["optimal"], lw=0.9)
-        ax.set_title("%s  P_norm  %.2f / %.2f / %.2f" % (
+        ax.set_title("{}  P_norm  {:.2f} / {:.2f} / {:.2f}".format(
             name, eff["model"]["p_norm"], eff["budget"]["p_norm"], eff["density"]["p_norm"]),
             fontsize=9)
         ax.grid(alpha=0.3)
@@ -176,24 +176,25 @@ def render(args, train, test, results) -> str:
                  "|---|---|---|---|---|---|---|\n")
     for name, r in results.items():
         m = r["effort"]["LOC（改动行数 la+ld）"]["model"]
-        lines.append("| **模型排序**（契约三当前口径） | `%s` | %.4f | **%.4f** | %.4f | %.4f | %d |\n"
-                     % (r["model_name"], m["area"], m["p_norm"], m["recall@20"], m["recall@50"],
-                        m["n_commits@20"]))
+        lines.append(f"| **模型排序**（契约三当前口径） | `{r['model_name']}` | {m['area']:.4f} | "
+                     f"**{m['p_norm']:.4f}** | {m['recall@20']:.4f} | {m['recall@50']:.4f} | "
+                     f"{m['n_commits@20']} |\n")
         b = r["effort"]["LOC（改动行数 la+ld）"].get("budget")
         if b is not None:
-            lines.append("| **预算感知**：LOC ≥ %d 内按 `risk_score / 工作量` 降序 | `%s` | %.4f | **%.4f** | %.4f | %.4f | %d |\n"
-                         % (config.MIN_REVIEW_LOC, r["model_name"], b["area"], b["p_norm"],
-                            b["recall@20"], b["recall@50"], b["n_commits@20"]))
+            lines.append(f"| **预算感知**：LOC ≥ {config.MIN_REVIEW_LOC} 内按 "
+                         f"`risk_score / 工作量` 降序 | `{r['model_name']}` | {b['area']:.4f} | "
+                         f"**{b['p_norm']:.4f}** | {b['recall@20']:.4f} | {b['recall@50']:.4f} | "
+                         f"{b['n_commits@20']} |\n")
         d = r["effort"]["LOC（改动行数 la+ld）"]["density"]
-        lines.append("| 对照：按 `risk_score / 工作量` 降序（无下限） | `%s` | %.4f | **%.4f** | %.4f | %.4f | %d |\n"
-                     % (r["model_name"], d["area"], d["p_norm"], d["recall@20"], d["recall@50"],
-                        d["n_commits@20"]))
+        lines.append(f"| 对照：按 `risk_score / 工作量` 降序（无下限） | `{r['model_name']}` | "
+                     f"{d['area']:.4f} | **{d['p_norm']:.4f}** | {d['recall@20']:.4f} | "
+                     f"{d['recall@50']:.4f} | {d['n_commits@20']} |\n")
     o = results[next(iter(results))]["effort"]["LOC（改动行数 la+ld）"]["optimal"]
     r_ = results[next(iter(results))]["effort"]["LOC（改动行数 la+ld）"]["random"]
-    lines.append("| 上界：真实缺陷密度降序 | — | %.4f | %.4f | %.4f | %.4f | %d |\n"
-                 % (o["area"], o["p_norm"], o["recall@20"], o["recall@50"], o["n_commits@20"]))
-    lines.append("| 基线：随机排序（%d 次均值） | — | %.4f ± %.4f | %.4f | %.4f | — | — |\n"
-                 % (r_["repeats"], r_["area"], r_["area_std"], r_["p_norm"], r_["recall@20"]))
+    lines.append(f"| 上界：真实缺陷密度降序 | — | {o['area']:.4f} | {o['p_norm']:.4f} | "
+                 f"{o['recall@20']:.4f} | {o['recall@50']:.4f} | {o['n_commits@20']} |\n")
+    lines.append(f"| 基线：随机排序（{r_['repeats']} 次均值） | — | {r_['area']:.4f} ± "
+                 f"{r_['area_std']:.4f} | {r_['p_norm']:.4f} | {r_['recall@20']:.4f} | — | — |\n")
     lines.append("\n> 随机基线应落在 0.5 附近 —— 它是面积算法的自我校验。\n")
     # 读法：结论必须由本轮结果算出来，不能写死（评审意见 #4）：
     # `--models` 支持子集、数据也可能是别的切分，硬编码「全为负 / 最低出自 svm」会说谎。
@@ -213,39 +214,38 @@ def render(args, train, test, results) -> str:
         rho_lo, rho_hi = rho_vals[0], rho_vals[-1]
         median_loc = per_model[0][1]["effort"][LOC]["confound"]["median_effort"]
 
-        head = ("\n> **模型排序一列的表现**：%d/%d 个模型的 `P_norm` 为负（%s）。"
-                % (n_neg, len(pns),
-                   "即全为负" if n_neg == len(pns) else
-                   "最低为 `%s`（%.3f）" % (worst, pns[worst])))
-        rho_txt = ("`risk_score` 与提交规模的 Spearman ρ 在 %.3f~%.3f（中位数 %.3f）"
-                   % (rho_lo, rho_hi, rho_med))
+        worst_txt = "即全为负" if n_neg == len(pns) else f"最低为 `{worst}`（{pns[worst]:.3f}）"
+        head = (f"\n> **模型排序一列的表现**：{n_neg}/{len(pns)} 个模型的 `P_norm` 为负"
+                f"（{worst_txt}）。")
+        rho_txt = (f"`risk_score` 与提交规模的 Spearman ρ 在 {rho_lo:.3f}~{rho_hi:.3f}（中位数 {rho_med:.3f}）")
         if n_neg:
+            n_lo, n_hi = (min(m["n_commits@20"] for m in ms),
+                          max(m["n_commits@20"] for m in ms))
+            rec_lo, rec_hi = (100 * min(m["recall@20"] for m in ms),
+                              100 * max(m["recall@20"] for m in ms))
             head += (rho_txt + "，越接近 1 越说明分数在预测「提交有多大」；"
-                     "按 `risk_score` 降序就等于先审最大的提交：20%% LOC 预算只审到 "
-                     "%d~%d 条，召回 %.2f%%~%.2f%%，随机基线 %.2f%%。\n>\n"
-                     % (min(m["n_commits@20"] for m in ms), max(m["n_commits@20"] for m in ms),
-                        100 * min(m["recall@20"] for m in ms),
-                        100 * max(m["recall@20"] for m in ms),
-                        100 * r_["recall@20"]))
+                     f"按 `risk_score` 降序就等于先审最大的提交：20% LOC 预算只审到 "
+                     f"{n_lo}~{n_hi} 条，召回 {rec_lo:.2f}%~{rec_hi:.2f}%，"
+                     f"随机基线 {100 * r_['recall@20']:.2f}%。\n>\n")
         else:
             head += (rho_txt + "；本轮回填的模型排序不低于随机基线，"
                      "说明这批判分与提交规模的耦合不足以拖垮 effort-aware 指标。\n>\n")
 
         if bs:
-            cost = ("**两种改法都要看成本**：预算感知（LOC ≥ %d 再按密度）审 %d~%d 条，"
-                    "召回 %.2f%%~%.2f%%（P_norm %.3f~%.3f）；无下限的纯密度排序审 %d~%d 条，"
-                    "召回 %.2f%%~%.2f%%（P_norm %.3f~%.3f）。后者指标更高，代价是把预算摊到"
-                    "大量小提交（本轮检验集中位 LOC = %d 行）上，不是真实评审节奏。\n>\n"
-                    % (config.MIN_REVIEW_LOC,
-                       min(b["n_commits@20"] for b in bs), max(b["n_commits@20"] for b in bs),
-                       100 * min(b["recall@20"] for b in bs),
-                       100 * max(b["recall@20"] for b in bs),
-                       min(b["p_norm"] for b in bs), max(b["p_norm"] for b in bs),
-                       min(d["n_commits@20"] for d in ds), max(d["n_commits@20"] for d in ds),
-                       100 * min(d["recall@20"] for d in ds),
-                       100 * max(d["recall@20"] for d in ds),
-                       min(d["p_norm"] for d in ds), max(d["p_norm"] for d in ds),
-                       median_loc))
+            b_lo, b_hi = (min(b["n_commits@20"] for b in bs), max(b["n_commits@20"] for b in bs))
+            br_lo = 100 * min(b["recall@20"] for b in bs)
+            br_hi = 100 * max(b["recall@20"] for b in bs)
+            bp_lo, bp_hi = (min(b["p_norm"] for b in bs), max(b["p_norm"] for b in bs))
+            d_lo, d_hi = (min(d["n_commits@20"] for d in ds), max(d["n_commits@20"] for d in ds))
+            dr_lo = 100 * min(d["recall@20"] for d in ds)
+            dr_hi = 100 * max(d["recall@20"] for d in ds)
+            dp_lo, dp_hi = (min(d["p_norm"] for d in ds), max(d["p_norm"] for d in ds))
+            cost = (f"**两种改法都要看成本**：预算感知（LOC ≥ {config.MIN_REVIEW_LOC} 再按密度）"
+                    f"审 {b_lo}~{b_hi} 条，召回 {br_lo:.2f}%~{br_hi:.2f}%"
+                    f"（P_norm {bp_lo:.3f}~{bp_hi:.3f}）；无下限的纯密度排序审 {d_lo}~{d_hi} 条，"
+                    f"召回 {dr_lo:.2f}%~{dr_hi:.2f}%（P_norm {dp_lo:.3f}~{dp_hi:.3f}）。"
+                    f"后者指标更高，代价是把预算摊到大量小提交"
+                    f"（本轮检验集中位 LOC = {median_loc} 行）上，不是真实评审节奏。\n>\n")
         else:
             cost = ("**预算感知列未启用**：本次调用未给 `review_floor`，只报模型排序与纯密度两种口径。\n>\n")
         lines.append(head + cost +

@@ -138,7 +138,7 @@ def effort_aware_metrics(proba, y, effort, review_floor=None) -> dict:
                      "repeats": config.RANDOM_BASELINE_REPEATS,
                      "recall@20": float(np.mean(rec20s)),
                      "recall@50": float("nan"),
-                     "n_commits@20": int(round(len(y) * 0.20))}
+                     "n_commits@20": round(len(y) * 0.20)}
     # 规模混杂诊断：risk_score 与「提交规模」的秩相关。
     # 高相关意味着按 risk_score 降序 ≈ 先审最大的提交，effort-aware 指标必然被拖累。
     out["confound"] = {"spearman_risk_log_effort": _spearman(proba, np.log(effort)),

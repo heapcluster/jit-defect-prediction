@@ -96,4 +96,4 @@ def test_report_title_states_trained_classifier_count():
     kept_df, _, _ = fused_data.fuse(df, X, index, emb)
 
     text = _render(_coverage(len(kept_df)), len(kept_df))
-    assert "→ %d 分类器" % len(_fake_results()) in text, "标题须与本次训练的模型数一致"
+    assert f"→ {len(_fake_results())} 分类器" in text, "标题须与本次训练的模型数一致"
