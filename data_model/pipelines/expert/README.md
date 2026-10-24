@@ -43,6 +43,7 @@ python -m pipelines.expert.matrix                   # 覆盖矩阵（原 08）
 python -m pipelines.expert.predict                  # 全量推理（原 07）
 python -m pipelines.expert.calibrate                # 校准与阈值（原 09）
 python -m pipelines.expert.significance             # 显著性检验（原 16）
+python -m pipelines.verify_all_weights --check      # 权重交付校验：md5 + 类路径 + 特征宽度
 ```
 
 ## 产物
@@ -51,6 +52,7 @@ python -m pipelines.expert.significance             # 显著性检验（原 16�
 |---|---|---|
 | `models/*_v1.pkl` | 模型权重（joblib；数量以训练口径 `config.DEFAULT_MODELS` 为准，当前 8 个） | 否（`*.pkl` 全局忽略） |
 | `models/feature_order.txt` | 交付清单（契约二第三节的副本） | 是 |
+| `models/manifest.txt` | 8 个权重的 md5 / 类路径 / 特征宽度清单（`verify_all_weights --write-manifest` 生成） | 是 |
 | `reports/model_metrics.md` | 两类指标 + SHAP 实测 | 是 |
 | `reports/figs/*.png` | ROC / effort 曲线 / 柱状图 | 是 |
 
@@ -62,4 +64,10 @@ python -m pipelines.expert.significance             # 显著性检验（原 16�
 - **特征口径改不得**：`config.FEATURE_FIELDS` 是契约副本，契约升版必须同步改这里。
 - **SHAP 是实测耗时**，连跑两次会变；核对可复现时只比指标表。
 - **交付模型仍是 `lr/rf/xgb`**（`feature_order.txt` 的 `[models]` 段），扩展模型只进评估。
+- **权重以 md5 对齐，不以文件名对齐**：`models/*.pkl` 不入库、只靠打包含转发，同名不同版是真事
+  （2026-10-24 两份 `tabnet_v1.pkl` 分叉在类路径：`pipelines.expert.model` vs `__main__`）。
+  收包先跑 `python -m pipelines.verify_all_weights --check`，清单不一致就是另一版导出。
+- **`tabnet` 必须模块化训练后再存盘**：以 `python -m pipelines.expert.train` 运行，类路径才是
+  `pipelines.expert.model.TabNetWithEarlyStop`；直接 `python 06_train_model.py` 会落成
+  `__main__.*`，`sys.path` 再对也加载不了。`--check` 会当场报出来。
 - 训练/检验正样本比例差（约 25% vs 14%）是时间序切分的固有现象，不是 bug。
