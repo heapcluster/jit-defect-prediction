@@ -64,10 +64,12 @@ conda activate jit-defect-prediction
 
 | 包 | 线名 | 训练入口 | 状态 |
 |---|---|---|---|
-| `pipelines/expert/` | `expert` | `python -m pipelines.expert.train` | ✅ 可跑（Camel 数据待重跑） |
-| `pipelines/semantic/` | `semantic` | 待 `semantic-feature-mainline` 落地 | ⬜ 计划态 |
-| `pipelines/fused/` | `fused` | 待 `semantic-feature-mainline` 落地 | ⬜ 计划态 |
-| `pipelines/e2e/` | `e2e` | 待立项（须先有 openspec change） | ⬜ 计划态 |
+| `pipelines/expert/` | `expert` | `python -m pipelines.expert.train` | ✅ 可跑（8 模型已训、报告/图/全量预测齐；`--from-saved` 探索性产物已隔离） |
+| `pipelines/semantic/` | `semantic` | `python -m pipelines.semantic.train` | ⏸ 代码就绪、产物未出 —— 全量编码需 GPU（CPU 6–15h），顺延至游戏本到位 |
+| `pipelines/fused/` | `fused` | `python -m pipelines.fused.train` | ⏸ 代码就绪、产物未出 —— 前置是 semantic 的 `semantic_embeddings.npz`，同上顺延 |
+| `pipelines/e2e/` | `e2e` | `python -m pipelines.e2e.train` + `predict` | ⏸ 代码就绪、产物未出 —— 微调需 GPU；无 GPU 时按 `--limit` 抽样降级并如实登记 |
+
+> 10/23 口径：**MVP 只交付 expert 线**（模型 + 报告 + 全量预测结果）；semantic / fused / e2e 等 GPU（后端同学的游戏本）到位后按 1023 周报本周计划第 13–15 行补齐。三线**不进后端热加载**，结果走 `app.ingest predictions` 灌库。
 
 **为什么分包**：原先四类共用 `models/` 与 `reports/`，产物同名即互相覆盖（`06` 的报告名固定，四条线各跑一遍就互相盖掉），且看不出某个 `.pkl` 属于哪条线。分包后产出归属一目了然，`git status` 也能按线审阅。
 

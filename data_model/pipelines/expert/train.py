@@ -153,15 +153,46 @@ def shap_latency(name: str, model, X_test: np.ndarray, n_rows: int) -> dict:
 
 
 def write_feature_order(model_dir: Path, wanted: list[str]) -> Path:
+    """写交付清单副本（契约二第三节的副本，不是权威）。
+
+    ``[models]`` = 契约交付集（``--delivery-models``，默认 lr/rf/xgb）；
+    ``[evaluated]`` = **目录里真实存在的** ``*_v1.pkl`` 减交付集
+    （specs/model-coverage R6：只进评估）。两段都写，是为了让「目录里有 8 个
+    .pkl、清单里只有 3 个」不被读成漏交付；取磁盘而不是取
+    ``config.DEFAULT_MODELS``，是因为训练口径会变，写死的清单只会漂移。
+
+    注意：仓库里 ``feature_order.txt`` 还带 ``[contract]`` / ``[how_to_load]`` /
+    ``[dependencies]`` 三段手工维护内容，本函数**不生成**这三段 —— 重训会用本函数
+    的输出覆盖整个文件，那三段会丢（既有问题，非本次引入）。要保住它们，得先把
+    本函数改成「读原文件、保留未知段」再重写。
+    """
     order_file = model_dir / "feature_order.txt"
-    order_file.write_text(
+    delivered = {f"{m}_v1" for m in wanted}
+    on_disk = sorted(p.stem for p in model_dir.glob("*_v1.pkl"))
+    evaluated = [m for m in on_disk if m not in delivered]
+
+    def _label(stem: str) -> str:
+        base = stem.removesuffix("_v1")
+        return MODEL_NAMES.get(base, base)
+
+    text = (
         "# 模型交付清单（expert 线包内副本；唯一权威是 docs/model/feature-columns.md）\n\n"
         "[models]\n"
         + "".join(f"{m}_v1.pkl\t{MODEL_NAMES.get(m, m)}\n" for m in wanted)
-        + "\n[feature_order]\n"
+    )
+    if evaluated:
+        text += (
+            "\n[evaluated]\n"
+            "# 本轮已训练、仅进评估不进交付（specs/model-coverage R6）。如需投放，\n"
+            "# 先按 expert/README.md「权重投放与联调自检」一节自检，再改 [models]。\n"
+            + "".join(f"{m}.pkl\t{_label(m)}\n" for m in evaluated)
+        )
+    text += (
+        "\n[feature_order]\n"
         + "".join(f"{i + 1:2d}. {c}\n" for i, c in enumerate(config.FEATURE_FIELDS))
-        + f"\n[decision]\n风险阈值 {config.DECISION_THRESHOLD:.2f}（服务端常量）\n",
-        encoding="utf-8", newline="\n")
+        + f"\n[decision]\n风险阈值 {config.DECISION_THRESHOLD:.2f}（服务端常量）\n"
+    )
+    order_file.write_text(text, encoding="utf-8", newline="\n")
     return order_file
 
 
@@ -214,7 +245,7 @@ def main() -> int:
     if not args.no_export:
         delivery = [m.strip() for m in args.delivery_models.split(",") if m.strip()]
         order_file = write_feature_order(args.model_dir, delivery)
-        print("[expert] 交付清单：{}（[models] = {}；其余模型仅评估）".format(order_file, ",".join(delivery)))
+        print("[expert] 交付清单：{}（[models] = {}）".format(order_file, ",".join(delivery)))
 
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(report.render(args, train, test, results),
