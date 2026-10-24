@@ -44,7 +44,7 @@ def list_pages(path: str, token: str, max_pages: int = 31) -> list[dict]:
         separator = "&" if "?" in path else "?"
         batch = api_request(f"{path}{separator}per_page=100&page={page}", token)
         if not isinstance(batch, list):
-            raise ValueError("GitHub API did not return a list")
+            raise TypeError("GitHub API did not return a list")
         rows.extend(batch)
         if len(batch) < 100:
             return rows
@@ -191,7 +191,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         return run(args)
-    except (OSError, ValueError, KeyError, urllib.error.HTTPError) as exc:
+    except (OSError, TypeError, ValueError, KeyError, urllib.error.HTTPError) as exc:
         print(f"SKIP: review failed closed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 2
 
