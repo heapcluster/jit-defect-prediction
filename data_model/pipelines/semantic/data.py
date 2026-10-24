@@ -53,8 +53,8 @@ def extract_texts_from_repo(repo_path: Path, dataset_csv: Path,
             unreachable += 1
             print(f"[semantic] 跳过在仓库里取不到的提交 {h}: {exc}", file=sys.stderr)
             continue
-        assembled, has_content = text_source.assemble(diffs, max_chars)
-        text, source = text_source.classify(has_parents, assembled, has_content)
+        assembled = text_source.assemble(diffs, max_chars)
+        text, source = text_source.classify(has_parents, assembled)
         rows.append(text_source.make_row(h, text, source,
                                          int(r["is_bug_inducing"]), r["feature_version"]))
     if not rows:

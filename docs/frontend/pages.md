@@ -45,6 +45,7 @@
 - 解释条只说「推高/降低」，不解释数值含义。
 - `features` 键名必须与 `feature-columns.md` 一致，否则解释条取不到值、静默空白。
 - 特征值为 0 照常显示；字段缺失显示 `—`（链路出问题信号，要让它可见）。
+- **重新预测**：`POST /api/predict`，传 `commit_hash`（可选 `model_name`），返回后刷新 `risk_score`/`model_name`/`explanation`；模型下拉列实际交付模型（`lr_v1`/`rf_v1`/`xgb_v1`）。**预测结果是一次性展示**：刷新页面（重新 GET 详情）后回到 `prediction` 表默认模型记录，不持久化所选模型。
 
 ## 4. 页面三：缺陷引入趋势看板
 

@@ -74,8 +74,8 @@ def commit_text(repo: Repo, commit_hash: str, max_chars: int) -> tuple[str, str]
         diffs = commit.diff(commit.parents[0], create_patch=True, R=True) if has_parents else []
     except (GitCommandError, OSError, ValueError):
         return None
-    assembled, has_content = text_source.assemble(diffs, max_chars)
-    return text_source.classify(has_parents, assembled, has_content)
+    assembled = text_source.assemble(diffs, max_chars)
+    return text_source.classify(has_parents, assembled)
 
 
 def parse_args() -> argparse.Namespace:

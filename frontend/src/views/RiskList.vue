@@ -113,7 +113,12 @@
             :content="row.commit_hash"
             placement="top"
           >
-            <span class="mono">{{ row.commit_hash.slice(0, 8) }}</span>
+            <span
+              class="mono"
+              @click.stop="copyHash(row.commit_hash)"
+            >
+              {{ row.commit_hash.slice(0, 8) }}
+            </span>
           </el-tooltip>
         </template>
       </el-table-column>
@@ -167,6 +172,7 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getCommits } from '../api'
+import { ElMessage } from 'element-plus'
 import { riskColor } from '../utils/risk'
 
 const router = useRouter()
@@ -235,6 +241,16 @@ function reset() {
   filters.min_risk = null
   timeRange.value = []
   load(1)
+}
+
+// 点击复制提交哈希（.stop 阻止冒泡，避免触发整行跳详情）
+async function copyHash(hash) {
+  try {
+    await navigator.clipboard.writeText(hash)
+    ElMessage.success('已复制提交哈希')
+  } catch {
+    ElMessage.error(`复制失败，请手动复制：${hash}`)
+  }
 }
 
 function goDetail(row) {
