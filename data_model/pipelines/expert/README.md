@@ -62,16 +62,24 @@ python -m pipelines.verify_all_weights --check      # 权重交付校验：md5 +
 
 1. **取权重**：由模型线把 `models/` 打包分发（本机已有 8 个，`et_v1.pkl` 546MB、`rf_v1.pkl` 279MB，走网盘/拷贝，不进 git）。
 2. **指位置**：在 `backend/.env` 设 `MODEL_DIR=<解压后的目录>`；不设则默认指向本包 `models/`（`backend/app/config.py` 的默认值）。
-3. **自检 8/8 可加载**（`tabnet_v1` 需要 `data_model` 在 `sys.path`，见下方已知待办）：
+3. **自检清单内 3/3 可加载** —— 在线模型集的唯一来源是 `feature_order.txt` 的 **`[models]` 段**（已合并的 #96 定义），当前声明 `lr_v1` / `rf_v1` / `xgb_v1`：
 
    ```bash
-   cd backend && python -c "import sys; sys.path.insert(0,'.'); from app import model_registry; model_registry.load_models(); print(sorted(model_registry._REGISTRY))"
-   # 期望：['et_v1','lgbm_v1','lr_v1','mlp_deep_v1','rf_v1','svm_v1','tabnet_v1','xgb_v1']
+   cd backend && python -c "from app import model_registry; model_registry.load_models(); print(sorted(model_registry._REGISTRY))"
+   # 期望：['lr_v1', 'rf_v1', 'xgb_v1']   ← 即 [models] 段声明的三个
    ```
+
+   两条容易踩的坑：
+
+   - **`sys.path` 不用手工插** —— #99 已让 `load_models()` 自动把 `<repo>/data_model` 的绝对路径插入 `sys.path`（幂等、不接受请求参数或 `MODEL_DIR` 传入）。命令里漏了 `sys.path.insert` 也不会失败。
+   - **另外 5 个权重不会出现在列表里** —— `lgbm_v1` / `et_v1` / `svm_v1` / `mlp_deep_v1` / `tabnet_v1` 登记在 `[evaluated]` 段（本 PR 引入），只进评估不进交付，按冻结规格 `openspec/specs/model-coverage` R6「新增模型 MUST NOT 进入后端加载清单」不参与在线加载。它们加载不上**不算**联调缺陷，不要拿 8 个来验收这一条。
 
 4. **灌预测结果**：`data/prediction_result.csv`（83,943 行，`xgb_v1`，`feature_version=v1`）随包分发，后端用 `python -m app.ingest predictions <该文件>` 灌入 `prediction` 表。
 
-已知待办（不在本包改）：后端 `model_registry.load_models()` 未把 `data_model` 加入 `sys.path`，`tabnet_v1.pkl` 会报 `ModuleNotFoundError: No module named 'pipelines'` 被静默跳过；补齐该行后 8/8 全过（本地已验证）。
+已知待办（不在本包改）：
+
+- 后端 `sys.path` 那半个问题已由 **#99** 修掉（自动插入 `<repo>/data_model`）。`tabnet_v1` 还另有一个前序问题：该权重反序列化时引用 `__main__.TabNetWithEarlyStop`（旧导出脚本留下的类路径），`sys.path` 正确也照样加载失败。它当前不在 `[models]` 里，不影响上面的 3/3 自检；**待复核**「按可导入类路径重新导出」后是否恢复 —— 由模型线（蒋励）在交付范围裁定后处理并回执。
+- **交付范围待裁定**：T9 原文要求 8 个模型全部可用，而已合并的 #96 把在线集收敛为 `[models]` 声明的 3 个。裁定前按 `[models]` 验收；裁定后若要扩清单，须先按 R6 另立「模型切换」change 并升版契约三与 `docs/backend/api-spec.md`。
 
 ## 注意事项
 
