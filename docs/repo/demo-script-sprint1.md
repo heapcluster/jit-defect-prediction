@@ -11,8 +11,12 @@
 ```bash
 cd backend
 # 建表二选一：DDL 快照，或 ORM 初始化（两条路径都过索引自检）
-mysql -u<user> -p jit_defect < ../infra/schema.sql
+# ⚠️ 库名固定为 jit_demo（演示库），不要写成 jit_defect —— 那份是占位脏数据，不能上台
+mysql -u<user> -p jit_demo < ../infra/schema.sql
 # python -m app.db init
+
+# backend/.env 里把连接指向演示库
+# DATABASE_URL=mysql+pymysql://jit:<pwd>@127.0.0.1:3306/jit_demo
 
 # 依次灌四类数据，打印并留档每类入库行数
 python -m app.ingest commits     ../data_model/data/commits.csv
@@ -37,7 +41,7 @@ python -m app.ingest predictions ../data_model/pipelines/expert/data/prediction_
 - **演示与验收数据库敲定为 MySQL**：`DATABASE_URL=mysql+pymysql://jit:<pwd>@127.0.0.1:3306/jit_demo`。不用 SQLite —— 演示要的是「真库 + 真实规模」，MySQL 也是课程验收与 Issue #121 的既定方向。
 - **为什么联调库仍是 SQLite**（不改）：`integration-log.md` §0 定它是为了零外部依赖，且 **#117 的 9 张三态截图已在这个口径下取证并合入 main**；改成 MySQL 会让已归档的取证全部作废、刘帅华要重截。两者用途不同，**不是两套联调库**，`§0` 硬规矩 2 对本库继续有效。
 - **为什么不能拿 `dev.db` 上台**：§0.3 的自检 `min_risk=0.5&size=5` 在 `dev.db` 下**必为空**（seed 三行最高 0.3），演示步骤 1 会演成空态，T-ST-01 直接判不过。行数与 ≥0.5 条数见 `backend/scripts/evidence/integration-2026-10-24.md`。
-- **前置阻塞（先解这个，否则演示开不了）**：Issue #121 —— `jit` 账号目前**无 `CREATE DATABASE`**，需 infra 建 `jit_demo` 空库并授权 `jit@127.0.0.1`。现有 `jit_defect` 里的 2 提交 / 4 预测是**占位脏数据**（假哈希 `1111…`/`2222…`、`repo_name=activemq`、`smoke_v1`/`tree_placeholder_v0`），按 §5 第 4 条「演示 `commit_hash` 必须与库中真实数据一致」**不能上台**；演示走新建的干净库 `jit_demo`，`jit_defect` 的存量由 infra 处置，不在演示路径上。
+- **前置阻塞（先解这个，否则演示开不了）**：Issue **#142** —— infra 建 `jit_demo` 空库并授权 `jit@127.0.0.1`（`jit` 账号目前**无 `CREATE DATABASE`**）。该 issue 与 Issue #121 并列而不同：#121 是后端真库验收用的**探针库**（`jit_schema_probe` / `jit_orm_probe`），#142 是**演示库**，照 #121 执行不会产生演示库。现有 `jit_defect` 里的 2 提交 / 4 预测是**占位脏数据**（假哈希 `1111…`/`2222…`、`repo_name=activemq`、`smoke_v1`/`tree_placeholder_v0`），按 §5 第 4 条「演示 `commit_hash` 必须与库中真实数据一致」**不能上台**；演示走新建的干净库 `jit_demo`，`jit_defect` 的存量由 infra 处置，不在演示路径上。
 - 期望值（83,943 / ≥ 0.5）不改：演示库灌完正好满足。灌数只走 `app.ingest`，**不许手工改库**。
 - 录屏前跑一次 `backend/scripts/demo_preflight.py`（Issue #138，后端线）：按本节口径逐项自检，任一不满足退出码 1 并打印实际值。
 

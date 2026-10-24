@@ -60,7 +60,11 @@ python -m pipelines.verify_all_weights --check      # 权重交付校验：md5 +
 
 `.pkl` 按约定**不入库**，干净 clone 的 `models/` 里只有 `feature_order.txt`。联调/演示前按下面四步把权重摆到后端能读到的位置：
 
-1. **取权重**：由模型线把 `models/` 打包分发（本机已有 8 个，`et_v1.pkl` 546MB、`rf_v1.pkl` 279MB，走网盘/拷贝，不进 git）。**当前有效包是 `data/expert_models_20261024.zip`**（8 个 pkl + `feature_order.txt` + `manifest.txt`）；`expert_models_20261021.zip` 已作废但保留作分叉证据 —— 包内 `tabnet_v1.pkl` 是 `__main__` 导出，加载必失败。
+1. **取权重**：由模型线把 `models/` 打包分发（`.pkl` 不进 git）。**唯一有效包名是 `expert_models_20261024.zip`**，包内平铺 10 个文件：8 个 pkl + `feature_order.txt` + `manifest.txt`（打包与校验步骤见 `data_model/ENVIRONMENT.md` §7.2）。
+   - 体积：10 个文件未压缩合计 **591,701,820 B（约 564MiB）**，其中 `et_v1.pkl` 572,936,009 B（546MiB）、`rf_v1.pkl` 收敛后 12,715,033 B（12.1MiB，2026-10-24 前是 292,996,489 B）。**已超飞书单文件 153MB 上限，必须网盘或分卷**，不能直接发群。
+   - 当前状态：**该 zip 不在仓库、也不在本机 `data/` 下**（`data/` 与 `models/*.pkl` 都不入库），包级 MD5 与最终体积**待构建后实测回填**；在回填前不要把它当成已验收的交付物。
+   - `expert_models_20261021.zip` 已作废并删除（包内 `tabnet_v1.pkl` 为 `__main__` 导出，干净进程加载必失败）。若从别处拿到 10-21 旧包，请丢弃后按 §7.2 重打。
+   - 打包前必须先 `python -m pipelines.verify_all_weights --write-manifest`：`rf_v1` 收敛后 md5 已由 `1960cd98722f250fd56293f998e1bdee` 变为 `ca80c58656263c13079aa65ca0112b47`，旧 `manifest.txt` 对 `--check` 会直接退出码 2。
 2. **指位置**：在 `backend/.env` 设 `MODEL_DIR=<解压后的目录>`；不设则默认指向本包 `models/`（`backend/app/config.py` 的默认值）。
 3. **自检清单内 3/3 可加载** —— 在线模型集的唯一来源是 `feature_order.txt` 的 **`[models]` 段**（已合并的 #96 定义），当前声明 `lr_v1` / `rf_v1` / `xgb_v1`：
 
@@ -74,7 +78,15 @@ python -m pipelines.verify_all_weights --check      # 权重交付校验：md5 +
    - **`sys.path` 不用手工插** —— #99 已让 `load_models()` 自动把 `<repo>/data_model` 的绝对路径插入 `sys.path`（幂等、不接受请求参数或 `MODEL_DIR` 传入）。命令里漏了 `sys.path.insert` 也不会失败。
    - **另外 5 个权重不会出现在列表里** —— `lgbm_v1` / `et_v1` / `svm_v1` / `mlp_deep_v1` / `tabnet_v1` 登记在 `[evaluated]` 段（本 PR 引入），只进评估不进交付，按冻结规格 `openspec/specs/model-coverage` R6「新增模型 MUST NOT 进入后端加载清单」不参与在线加载。它们加载不上**不算**联调缺陷，不要拿 8 个来验收这一条。
 
-4. **灌预测结果**：`data/prediction_result.csv`（83,943 行，`xgb_v1`，`feature_version=v1`）随包分发，后端用 `python -m app.ingest predictions <该文件>` 灌入 `prediction` 表。
+4. **灌数据（可选，取决于对方要不要真实规模的列表）**：拿得到 CSV 时（自己跑 `01–04 + 07`，或用上面的数据包），cwd=`backend`：
+
+   ```bash
+   python -m app.ingest commits     <目录>/commits.csv             # 全量 camel 历史（约 45 万条）
+   python -m app.ingest features    <目录>/commit_features.csv    # 84,461 行
+   python -m app.ingest predictions <目录>/prediction_result.csv  # 83,943 行（xgb_v1 / feature_version=v1）
+   ```
+
+   顺序不能换。不灌也能验收「模型加载 + 单条在线预测」：`python -m scripts.seed_dev_data` 会造 3 行种子数据，`POST /api/predict` 对库里没有的哈希会走 `SOURCE_REPO` 现算特征。
 
 已知待办（不在本包改）：
 
