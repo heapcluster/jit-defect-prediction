@@ -46,7 +46,10 @@
 
 1. **建表**：`infra/schema.sql` 由每位同学在本机执行（`mysql -u<user> -p jit_defect < infra/schema.sql`）；`python -m app.db init` 作为等价性校验，两条路径都必须通过索引自检。
 2. **数据**：依次执行 4 次 `python -m app.ingest {commits|labels|features|predictions} <csv>`，打印并留档每类入库行数。
-3. **模型**：`MODEL_DIR` 指向 `data_model/pipelines/expert/models/`，**8 个 `.pkl` 必须全部加载成功**（含 `tabnet_v1`：需要 `data_model` 在 `sys.path`，且 `torch` / `pytorch_tabnet` 已安装）。启动日志不得出现 `model load failed`。
+3. **模型**：`MODEL_DIR` 指向 `data_model/pipelines/expert/models/`；**在线模型集 = 该目录 `feature_order.txt` 的 `[models]` 段**（已合并的 #96 定义的唯一来源，当前声明 `lr_v1` / `rf_v1` / `xgb_v1`）。清单内声明的模型必须全部加载成功，启动日志不得出现 `model load failed` 或 `failed models:`。
+   - 目录内另有 5 个权重（`lgbm_v1` / `et_v1` / `svm_v1` / `mlp_deep_v1` / `tabnet_v1`），登记在 `feature_order.txt` 的 **`[evaluated]` 段**（#98）：只进评估、不进交付，按冻结规格 `openspec/specs/model-coverage` R6「新增模型 MUST NOT 进入后端加载清单」不参与在线加载，**不属于本板块验收对象**。
+   - 导入路径无需手工处理：#99 已让后端在 `load_models()` 自动把 `<repo>/data_model` 的绝对路径插入 `sys.path`（幂等，不接受请求参数或 `MODEL_DIR` 传入），不要再手工设 `PYTHONPATH`。
+   - **待裁定（不阻塞本板块）**：T9 原文写「8 个模型全部可用」。若 PO 裁定扩大交付范围，须先按 R6 另立「模型切换」change 并升版契约三 / `docs/backend/api-spec.md`，再回来同步本条；裁定前按上面 `[models]` 的口径验收。
 4. **接口**：4 条 200；空数据返回 `[]`/`null` 而非 404；缺 `X-API-Key` → 40100；畸形 `commit_hash` → 40001；同一 hash 连调两次不产生第二行 prediction（幂等）。
-5. **给前端的模型清单**：就是仓库内现有的 **8 个** 模型 —— `lr_v1` / `rf_v1` / `xgb_v1` / `lgbm_v1` / `et_v1` / `svm_v1` / `mlp_deep_v1` / `tabnet_v1`，与第 3 条同源。MVP **不新增** `GET /api/models`（`docs/frontend/pages.md` §6 已裁定由前端维护静态清单），前端下拉即按这 8 个排。**8 个缺一即视为本板块未达标**，不存在「跳过某个模型 / 标为不可选」的退路；某模型确实加载不了时按缺陷处理（补依赖或换导出方式），不是改文档。
+5. **给前端的模型清单**：与第 3 条同源，即 `feature_order.txt` 的 `[models]` 段当前声明的模型（**不是**目录内全部 8 个 `.pkl`）。前端下拉按这份清单排，MVP **不新增** `GET /api/models`（`docs/frontend/pages.md` §6 已裁定由前端维护静态清单）。**清单内缺一即视为本板块未达标**；清单外权重（第 3 条的 `[evaluated]`）加载不上不算本板块缺陷。
 6. **证据**：四条接口的 curl 输出、`POST /api/predict` 连跑 20 次的 P50/P95（<500ms）、缺令牌与畸形参数两组截图。
