@@ -35,7 +35,7 @@ git checkout main && git pull && git branch -d feat/backend/predict-api
 ## 审阅人
 
 - 吕建江/刘帅华/蒋励 → 苏哲勋；苏哲勋 → 蒋励。
-- **§3.7**：组长蒋励（账号 `jolly326`）的 `docs/` PR，sober 必须无条件合入。
+- **文档线**：组长蒋励（账号 `jolly326`）的 `docs/` PR，除 `repo/collaboration.md` §3.8 的六种必须 Request changes 情形外直接 Approve；**§3.8 优先，不是无条件合入**。
 
 ## 冲突
 
