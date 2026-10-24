@@ -1,5 +1,5 @@
 # 权重清单（自动生成，勿手改）—— `python -m pipelines.verify_all_weights --write-manifest`
-# 线：expert ｜ 生成时间：2026-10-24T03:38:29Z ｜ 环境：python 3.12.14 / sklearn 1.9.1 / xgboost 3.4.1 / lightgbm 4.6.0 / torch 2.14.1+cpu
+# 线：expert ｜ 生成时间：2026-10-24T14:23:52Z ｜ 环境：python 3.12.14 / sklearn 1.9.1 / xgboost 3.4.1 / lightgbm 4.6.0 / torch 2.14.1+cpu
 # 口径：交付与验收以 **md5 匹配的那份**为准；md5 不同即另一版导出，须先核对类路径与指标再入库。
 # 在线加载清单不在此表：仍由 feature_order.txt 的 [models] 段声明（R6）。
 # 列：md5  size_bytes  module  n_features  file
@@ -7,7 +7,7 @@
 5b34ddfb98cfc628cd17f1a2f4cf068e  1028836  lightgbm.sklearn.LGBMClassifier  14  lgbm_v1.pkl
 28c65f8c3d653af53af71fac350f42fe  1777  sklearn.pipeline.Pipeline  14  lr_v1.pkl
 97447d2f1874e579410e8f23489e629d  95809  sklearn.pipeline.Pipeline  14  mlp_deep_v1.pkl
-1960cd98722f250fd56293f998e1bdee  292996489  sklearn.ensemble._forest.RandomForestClassifier  14  rf_v1.pkl
+ca80c58656263c13079aa65ca0112b47  12715033  sklearn.ensemble._forest.RandomForestClassifier  14  rf_v1.pkl
 be0a7d26c72faabbd371c83710d84550  3385933  sklearn.pipeline.Pipeline  14  svm_v1.pkl
 201a002b78c61a9589bec9b14496533c  300437  sklearn.pipeline.Pipeline  14  tabnet_v1.pkl
 56138e2b4b55fbcae83aaa2866d244de  1234840  xgboost.sklearn.XGBClassifier  14  xgb_v1.pkl

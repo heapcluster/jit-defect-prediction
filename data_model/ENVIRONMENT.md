@@ -160,9 +160,9 @@ git check-ignore -v data_model/pipelines/expert/reports/model_metrics.md # 应�
 
 | 类别 | 内容 | 体积 | 回传方式 |
 |---|---|---|---|
-| **必须传**：交付权重（`expert_models_20261024.zip` 一个包） | 8 个 `.pkl` + `feature_order.txt` + `manifest.txt`，交付集仍是 `lr_v1` / `rf_v1` / `xgb_v1` | **110,492,842 B（约 105MB）**，`rf_v1` 收敛后 12.1MB（2026-10-24 前是 279.4MB / 约 281MB） | **可直接发群**（< 153MB 单文件上限） |
+| **必须传**：交付权重（`expert_models_20261024.zip`，包内平铺 10 个文件，不带目录层级） | 8 个 `.pkl` + `feature_order.txt` + `manifest.txt`，交付集仍是 `lr_v1` / `rf_v1` / `xgb_v1` | 10 个文件**未压缩合计 591,701,820 B（约 564MiB）**；其中 `et_v1.pkl` 572,936,009 B、`rf_v1.pkl` 收敛后 12,715,033 B（2026-10-24 前为 292,996,489 B） | **超飞书单文件 153MB 上限 → 走网盘（C）或分卷（B）**。包级体积与 MD5 须构建后实测回填（§7.2 / §7.4） |
 | 可选：灌库用数据（`deliver_data_20261024.zip`） | `commits.csv` / `commit_features.csv` / `prediction_result.csv` | **18,006,911 B（约 17MB）** | 仅在对方不想自己跑 01–04+07 却要看真实列表时发；默认不发 |
-| 其余评估权重 | `et_v1` 546.4MB、`svm_v1` 3.2MB、`lgbm_v1` 1.0MB、`tabnet_v1` 0.3MB、`mlp_deep_v1` 0.1MB | 约 551MB | 分卷 / 网盘 |
+| 其余评估权重（已含在上面的 10 文件包里，勿重复索取） | `et_v1` 572,936,009 B、`svm_v1` 3,385,933 B、`lgbm_v1` 1,028,836 B、`tabnet_v1` 300,437 B、`mlp_deep_v1` 95,809 B | 约 551MiB | 不再单独走网盘；只需收 `expert_models_20261024.zip` 一个包 |
 | 报告 / 图表 / 清单 | `reports/*.md`、`figs/*.png`、`manifest.txt` | 小 | **走 git 提交** |
 
 > **为什么交付三个而不是只交 `xgb_v1.pkl`**：`backend/app/model_registry.py::load_models()` 会
@@ -181,17 +181,36 @@ git push
 
 ### 7.2 打包模型（训练机上执行）
 
-```powershell
-# 交付三模型（与 feature_order.txt 的 [models] 一致，后端够用）
-Compress-Archive -Path data_model/pipelines/expert/models/lr_v1.pkl,data_model/pipelines/expert/models/rf_v1.pkl,data_model/pipelines/expert/models/xgb_v1.pkl,data_model/pipelines/expert/models/feature_order.txt -DestinationPath jit_delivery_models.zip
+统一只产出一个包：**`expert_models_20261024.zip`**，包内**平铺 10 个文件**（8 个 `.pkl` + `feature_order.txt` + `manifest.txt`），不要带 `data_model/pipelines/expert/models/` 目录层级——否则收包方解压后路径对不上 §7.4 的校验命令。
 
-# 全量（含评估权重，et_v1 单个 546MB）
-Compress-Archive -Path data_model/pipelines/expert/models/* -DestinationPath expert_models.zip
+打包前先按当前权重重新生成清单（`rf_v1` 收敛后 md5/体积已变，旧清单必然 `--check` 失败）：
+
+```bash
+cd data_model
+python -m pipelines.verify_all_weights --write-manifest
+python -m pipelines.verify_all_weights --check      # 期望：清单一致（8 项）
+```
+
+```powershell
+# 训练机：仓库根目录执行
+$m = "data_model/pipelines/expert/models"
+$names = @("lr_v1.pkl","rf_v1.pkl","xgb_v1.pkl","et_v1.pkl","svm_v1.pkl","lgbm_v1.pkl","tabnet_v1.pkl","mlp_deep_v1.pkl","feature_order.txt","manifest.txt")
+Compress-Archive -Path ($names | ForEach-Object { Join-Path $m $_ }) -DestinationPath expert_models_20261024.zip
 ```
 
 ```bash
-# Linux
-zip -r expert_models.zip data_model/pipelines/expert/models
+# Linux：进到 models 目录后用 -j 压平，避免带目录层级
+cd data_model/pipelines/expert/models
+zip -j ../../../../expert_models_20261024.zip \
+  lr_v1.pkl rf_v1.pkl xgb_v1.pkl et_v1.pkl svm_v1.pkl lgbm_v1.pkl tabnet_v1.pkl mlp_deep_v1.pkl \
+  feature_order.txt manifest.txt
+```
+
+产出后立刻记录并回填本节的包级事实（当前仓库里没有该 zip，`data/` 与 `models/*.pkl` 都不入库，因此包级数值**在实测回填前一律视为待验收**）：
+
+```powershell
+Get-Item .\expert_models_20261024.zip | Select-Object Length
+Get-FileHash .\expert_models_20261024.zip -Algorithm MD5, SHA256
 ```
 
 ### 7.3 选一种方式传回本机
@@ -199,17 +218,29 @@ zip -r expert_models.zip data_model/pipelines/expert/models
 | 方式 | 适用 | 说明 |
 |---|---|---|
 | **A. 飞书群聊「想到什么取什么」** | 小文件（约 20MB 内） | 在飞书把 zip 直接拖进群；或用 CLI：`lark-cli im +messages-send --chat-id oc_838d67f14658f59672782cd7e2166f69 --file ./<小包>.zip --as user` |
-| **B. 分卷压缩** | 只在超 153MB 时用：收敛前的三模型（281MB）或未压缩的全量权重（约 570MB）。当前必须传的权重包 105MB，不需要 | 分卷后逐卷发群 / 云盘，回传后合并：`7z a -v20m jit_delivery_models.7z data_model/pipelines/expert/models/{lr_v1,rf_v1,xgb_v1}.pkl data_model/pipelines/expert/models/feature_order.txt`（每卷 20MB），合并解压 `7z x jit_delivery_models.7z.001` |
+| **B. 分卷压缩** | 只在超 153MB 时用：当前 10 文件包（未压缩约 564MiB）就属于这种，`et_v1.pkl` 单文件已 546MiB | 分卷后逐卷发群 / 云盘，回传后合并：`7z a -v20m expert_models_20261024.7z expert_models_20261024/*`（每卷 20MB，先解压平铺再分卷），合并解压 `7z x expert_models_20261024.7z.001` |
 | **C. 网盘** | 任意大小 | 上传百度网盘 / 阿里云盘，发分享链接 |
 | **D. 局域网直传** | 同一局域网 | Windows 共享文件夹 / `scp` / `rsync` |
 
-> ⚠️ 实测：飞书云盘 `drive +upload` 单文件 153MB 会报 `file size beyond limit`（错误码 1061043）。**D-14 收敛后**唯一必须传的权重包 `expert_models_20261024.zip` 是 **105MB**，直接发群（A）即可；只有收敛前的旧版权重（281MB）或未压缩的全量权重（约 570MB）才需要分卷（B）/ 网盘（C）。
+> ⚠️ 实测：飞书云盘 `drive +upload` 单文件 153MB 会报 `file size beyond limit`（错误码 1061043）。当前 `expert_models_20261024.zip` 的 10 个文件未压缩合计约 **564MiB**（`et_v1.pkl` 单文件 546MiB），**已超上限，不能直接发群（A）**，须走网盘（C）或分卷（B）。只有只含三模型的瘦包（`lr_v1` + `rf_v1` + `xgb_v1` + 两份清单，合计约 14MiB）才能用 A。
 
 ### 7.4 回传后校验与归位
 
 ```powershell
-# 两端 SHA256 一致即传输完整
-Get-FileHash .\jit_delivery_models.zip -Algorithm SHA256
+# 两端 MD5 / SHA256 一致即传输完整（与 §7.2 产出后记录的值对比）
+Get-FileHash .\expert_models_20261024.zip -Algorithm MD5
+Get-FileHash .\expert_models_20261024.zip -Algorithm SHA256
+```
+
+解压后**先跑清单校验**，这是收包方能独立复现的第一步（包内 `manifest.txt` 与实况必须逐项一致）：
+
+```bash
+cd data_model
+python -m pipelines.verify_all_weights --check
+# 期望（2026-10-24 本机实测，见下方记录）：
+#   [verify] 清单一致（8 项）
+#   [verify] 全部通过：8/8 可加载，特征宽度 [14]
+#   退出码 0；不一致时退出码 2
 ```
 
 解压 / 合并后，把 `.pkl` 放回 **`data_model/pipelines/expert/models/`**（`backend/app/config.py` 的 `MODEL_DIR` 默认指向这里，`load_models()` 加载该目录下全部 `*.pkl`），并逐个验证：
@@ -229,6 +260,37 @@ python -c "import sys; sys.path.insert(0,'backend'); from app import model_regis
 > 历史遗留：目录里若还有四包拆分前旧脚本产出的 `tabnet_v1.pkl`（类定义在 `__main__`），
 > `joblib.load` 会 `AttributeError`；`load_models()` 按契约三只记日志并跳过，不影响其余模型。
 > 用当前 `pipelines/expert/train.py` 重训即可覆盖成可回读的版本。
+
+#### 7.4.1 实测记录（2026-10-24，本机 `data_model/pipelines/expert/models/`）
+
+以下是在**未解压任何 zip、直接用工作区权重目录**跑出的原始输出，可当作 §7.4 的期望值基线；
+包级 MD5/体积尚未实测（zip 不入库），两项仍为**待验收**，构建后回填到 §7.2/§7.4 的表里。
+
+```
+$ cd data_model && python -m pipelines.verify_all_weights --check
+[verify] 线=expert 目录=.../data_model/pipelines/expert/models 共 8 个权重
+et_v1.pkl       159f751f22bcad2ff11d53646e5cbc28   546.4MB  sklearn.ensemble._forest.ExtraTreesClassifier
+lgbm_v1.pkl     5b34ddfb98cfc628cd17f1a2f4cf068e     1.0MB  lightgbm.sklearn.LGBMClassifier
+lr_v1.pkl       28c65f8c3d653af53af71fac350f42fe     0.0MB  sklearn.pipeline.Pipeline
+mlp_deep_v1.pkl 97447d2f1874e579410e8f23489e629d     0.1MB  sklearn.pipeline.Pipeline
+rf_v1.pkl       ca80c58656263c13079aa65ca0112b47    12.1MB  sklearn.ensemble._forest.RandomForestClassifier
+svm_v1.pkl      be0a7d26c72faabbd371c83710d84550     3.2MB  sklearn.pipeline.Pipeline
+tabnet_v1.pkl   201a002b78c61a9589bec9b14496533c     0.3MB  sklearn.pipeline.Pipeline
+xgb_v1.pkl      56138e2b4b55fbcae83aaa2866d244de     1.2MB  xgboost.sklearn.XGBClassifier
+[verify] 清单一致（8 项）
+[verify] 全部通过：8/8 可加载，特征宽度 [14]（6.9s）
+退出码 0
+```
+
+```
+$ cd backend && python -c "from app import model_registry; model_registry.load_models(); print(sorted(model_registry._REGISTRY))"
+REGISTRY= ['lr_v1', 'rf_v1', 'xgb_v1']
+```
+
+> 两条结论的边界：`8/8` 只说明**评估可用**，在线可加载集仍是 `feature_order.txt` 的 `[models]` 三项（R6），
+> 与 #134 的八模型在线切换提案无关——该提案尚未改变当前交付边界。
+> 另：`manifest.txt` 已按收敛后的 `rf_v1`（`ca80c586…` / 12,715,033 B）重新生成；
+> 旧清单里记的是收敛前的 `1960cd98…` / 292,996,489 B，任何拿旧清单对 `--check` 的做法都会得到退出码 2。
 
 > 说明：`data/`（数据集与中间 CSV）不随 git 也不随回传包走；若换机后需要，按第 4 节整目录拷贝或重跑 01–05。
 
