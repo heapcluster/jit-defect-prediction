@@ -74,7 +74,7 @@
       <div class="predict-bar">
         <el-select
           v-model="predictModel"
-          placeholder="选择模型（默认 xgb_v1）"
+          placeholder="选择模型（默认取最新模型）"
           style="width: 200px"
         >
           <el-option
