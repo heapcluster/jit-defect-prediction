@@ -156,6 +156,42 @@ def test_manifest_missing_or_wrong_feature_order_loads_nothing(tmp_path, monkeyp
     assert not model_registry._REGISTRY
 
 
+def test_manifest_rejects_invalid_or_duplicate_model_entry(
+    tmp_path, monkeypatch, restore_registry
+):
+    """[models] 段：带路径分隔符的文件名、以及重复条目，都必须让整份清单失效。
+
+    覆盖 `model_registry._read_manifest` 的两个拒收分支（此前只有「列序不符」被覆盖）。
+    """
+    joblib.dump(_fit(), tmp_path / "lr_v1.pkl")
+    monkeypatch.setattr(config, "MODEL_DIR", tmp_path)
+    _manifest(tmp_path, "lr_v1")
+    manifest = tmp_path / "feature_order.txt"
+    good = manifest.read_text(encoding="utf-8")
+
+    # 1) 非法文件名：带 ../ 的路径穿越写法
+    manifest.write_text(good.replace("lr_v1.pkl", "../lr_v1.pkl", 1), encoding="utf-8")
+    model_registry.load_models()
+    assert not model_registry._REGISTRY
+
+    # 2) 重复条目：同一文件名出现两次
+    manifest.write_text(good.replace("lr_v1.pkl", "lr_v1.pkl\nlr_v1.pkl", 1), encoding="utf-8")
+    model_registry.load_models()
+    assert not model_registry._REGISTRY
+
+
+def test_manifest_rejects_feature_order_without_index(tmp_path, monkeypatch, restore_registry):
+    """[feature_order] 段：`1. ns` 少了序号前缀 → 整份清单失效（走 invalid feature order 分支）。"""
+    joblib.dump(_fit(), tmp_path / "lr_v1.pkl")
+    monkeypatch.setattr(config, "MODEL_DIR", tmp_path)
+    _manifest(tmp_path, "lr_v1")
+    manifest = tmp_path / "feature_order.txt"
+    good = manifest.read_text(encoding="utf-8")
+    manifest.write_text(good.replace("1. ns", "ns", 1), encoding="utf-8")
+    model_registry.load_models()
+    assert not model_registry._REGISTRY
+
+
 def test_repository_model_module_loads_in_clean_process(tmp_path):
     code_dir = tmp_path / "data_model"
     package = code_dir / "pipelines"
