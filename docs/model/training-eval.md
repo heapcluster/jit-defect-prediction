@@ -1,5 +1,9 @@
 # 模型训练与评估（8 种 / 2 类 / 两类指标）
 
+> **状态：指针（2026-10-24 降级）。** 指标口径、超参、评估结论的**唯一权威**是
+> [`model-line-plan.md`](model-line-plan.md)。本文只保留「切分铁规矩」与「8 模型覆盖矩阵」两节，
+> 其余如与 `model-line-plan.md` 冲突，**以 `model-line-plan.md` 为准**。
+>
 > 负责人：蒋励 ｜ 关联 change：`model-training-and-delivery`、`model-expansion`
 > 课程硬要求：「至少 2 类（经典机器学习和深度学习）不少于 8 种预测模型、Effort-unware 和 effort-aware 两类、训练集和测试集划分」。
 
