@@ -1,7 +1,7 @@
 # backend-spec-path-references — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/query-api/spec.md`、`specs/db-schema/spec.md`
-> 负责人：backend 吕建江 ｜ 创建：2026-10-21 ｜ 更新：2026-10-24 ｜ 状态：delta 起草与静态校验完成；范围两次收缩（6 → 4 条 requirement，撤出与 #96/#97 撞车的两条）；PR #82 已 rebase 到 main `065c83a` 待复审，归档（3.2 / 3.3）待执行
+> 负责人：backend 吕建江 ｜ 创建：2026-10-21 ｜ 更新：2026-10-24 ｜ 状态：**已归档**（`2026-10-24-backend-spec-path-references`；#82 合入 main `57fbc99` 后于 `0773a49` 上执行归档，2.3 / 3.2 / 3.3 全部完成并回填证据；3.4 看板同步待吕建江飞书操作）
 > 用户故事：无（工程化）—— 纯路径/版本字符串修订，不改任何行为语义（看板行 18 后端线份额）
 > 统一格式见 `docs/common/openspec-task-template.md`；**本文件末的「测试与验证」为强制板块，缺失视为提案不完整。**
 
@@ -17,18 +17,21 @@
 
 - [x] 2.1 `openspec validate backend-spec-path-references --strict` 通过 —— 交付物：命令输出记录于本文件「测试与验证」§3
 - [x] 2.2 语义零变化比对：`git diff 11993e2 HEAD -- openspec/changes/backend-spec-path-references/specs/` 逐段人工过一遍，确认除路径/版本字符串外无任何措辞、阈值、判定、Scenario 期望变化 —— 交付物：§3 证据行
-- [ ] 2.3 现行规格旧引用清零扫描（**归档时执行**，现在必失败属预期）：cwd=仓库根。判据按「谁负责哪一处」拆开，不写成一句笼统的「全部清零」，免得把别人 delta 的落地时机算到本 change 头上
+- [x] 2.3 现行规格旧引用清零扫描（**归档时执行**，现在必失败属预期）：cwd=仓库根。判据按「谁负责哪一处」拆开，不写成一句笼统的「全部清零」，免得把别人 delta 的落地时机算到本 change 头上
       ① `git grep -n "docs/contracts" -- openspec/specs/db-schema` → 期望**无输出**（2 处全由本 change 落地）
       ② `git grep -n "docs/contracts" -- openspec/specs/query-api` → 本 change 归档后应由 3 命中降为 **1 命中**（只剩 `:72`「提交详情查询」那处，由 #97 的 delta 负责）；若 `on-demand-commit-prediction` 已先归档，则直接为 **0**。两种结果都记进证据，不按 0 硬凑
       ③ `git grep -n "data_model/models/" -- openspec/specs/predict-api` → 期望无输出，但**不由本 change 落地**：验的是 #96 `delivery-model-allowlist` 归档了没有；仍命中就另立 change 补（design D6）
       ④ `git grep -n "docs/contracts" -- openspec/specs/feature-extraction openspec/specs/model-delivery` → **属模型线，不计入本 change 判据**；2026-10-24 在 main `065c83a` 上实测 3 命中，已开 Issue #102 交蒋励
       ⑤ 归档前撞车复查：`grep -rl "^## MODIFIED Requirements" openspec/changes/*/specs/ | grep -v archive` 后逐文件列 `### Requirement:`，确认没有第二个未归档 change 改本 change 的那 4 条（design D6 补记的表就是这道检查的产物）
+      —— **2026-10-24 归档时实测（基线 main `0773a49`）**：① **无输出** ✅；② **1 命中**（`query-api/spec.md:72`，正是「提交详情查询」，归未归档的 `on-demand-commit-prediction`，走预判的第二种结果，不硬凑 0）；③ **1 命中**（`predict-api/spec.md:10`，归未归档的 `delivery-model-allowlist`，按 D6 不由本 change 落地、也不另立 change——#96 的归档 PR 会清掉它）；④ 不计入；⑤ 未归档 MODIFIED delta 共 5 个 change 10 个文件，逐条列 `### Requirement:` 后确认与本 change 的 4 条（统一包络与错误码 / Swagger 实现镜像 / 建表字段逐字对齐契约 / 特征列名与顺序）**零交集**（`on-demand-commit-prediction` 改的是「提交详情查询 / 在线预测入口 / 预测数据缺失错误」，`delivery-model-allowlist` 改「模型加载」，`path-references-alignment` 改模型线 5 份）
 
 ## 3. 归档与同步（排在依赖之后）
 
 - [x] 3.1 等 `backend-time-range-semantics` 归档 PR 合入（design D3 顺序约束）—— **已满足**：PR #84 已合入，main `065c83a` 上存在 `openspec/changes/archive/2026-10-21-backend-time-range-semantics/`，且它认领的 `openspec/specs/query-api/spec.md:4` 已由「契约三 1.4」同步为「契约三 1.5」（2026-10-24 用 `git ls-tree` + `git show` 核实）。本 change 的归档不再被前置阻塞
-- [ ] 3.2 归档本 change：`openspec archive backend-spec-path-references -y`，delta 落 `openspec/specs/query-api/spec.md` 与 `openspec/specs/db-schema/spec.md`（**不含 predict-api**，见 1.3 与 design D6）—— 交付给：自己；形式：归档 PR；同时跑 2.3 的 ①②③ 三条扫描并回填证据；归档前按 D6 再复查一次有无别的未归档 change 改这 5 条 requirement（「统一包络与错误码 / 提交详情查询 / Swagger 实现镜像 / 建表字段逐字对齐契约 / 特征列名与顺序」）
-- [ ] 3.3 归档 PR 内手工同步 `openspec/specs/db-schema/spec.md:4` 的 `## Purpose` 旧版本号「契约一 1.4」→「契约一 1.5」（delta 承载不到 Purpose 段） —— 交付物：归档 PR 的该处 diff；判据：cwd=仓库根 `git grep -n -E "契约(一|三) 1\.4" -- openspec/specs` 无输出。**范围收缩说明**：原列两处，其中 `openspec/specs/query-api/spec.md:4`「契约三 1.4」已由 `backend-time-range-semantics` 的归档 PR #84 声明并处理（其 tasks 3.3）；按 design D3 本 change 的归档必然排在 #84 之后，故本条不再重复声称，只保留 `db-schema` 一处，判据仍扫两处以防漏改
+- [x] 3.2 归档本 change：`openspec archive backend-spec-path-references -y`，delta 落 `openspec/specs/query-api/spec.md` 与 `openspec/specs/db-schema/spec.md`（**不含 predict-api**，见 1.3 与 design D6）—— 交付给：自己；形式：归档 PR；同时跑 2.3 的 ①②③ 三条扫描并回填证据；归档前按 D6 再复查一次有无别的未归档 change 改这 5 条 requirement（「统一包络与错误码 / 提交详情查询 / Swagger 实现镜像 / 建表字段逐字对齐契约 / 特征列名与顺序」）
+      —— **2026-10-24 已执行**：`npx -y --registry=https://registry.npmjs.org @fission-ai/openspec@1.11.0 archive backend-spec-path-references --yes` → `Applying changes to openspec/specs/db-schema/spec.md: ~ 2 modified`、`.../query-api/spec.md: ~ 2 modified`、`Totals: + 0, ~ 4, - 0, → 0`、`Change 'backend-spec-path-references' archived as '2026-10-24-backend-spec-path-references'`；归档后 `openspec validate --all --strict` → **25 passed, 0 failed (25 items)**；撞车复查结论见 2.3 ⑤
+- [x] 3.3 归档 PR 内手工同步 `openspec/specs/db-schema/spec.md:4` 的 `## Purpose` 旧版本号「契约一 1.4」→「契约一 1.5」（delta 承载不到 Purpose 段） —— 交付物：归档 PR 的该处 diff；判据：cwd=仓库根 `git grep -n -E "契约(一|三) 1\.4" -- openspec/specs` 无输出。**范围收缩说明**：原列两处，其中 `openspec/specs/query-api/spec.md:4`「契约三 1.4」已由 `backend-time-range-semantics` 的归档 PR #84 声明并处理（其 tasks 3.3）；按 design D3 本 change 的归档必然排在 #84 之后，故本条不再重复声称，只保留 `db-schema` 一处，判据仍扫两处以防漏改
+      —— **2026-10-24 已执行**：`db-schema/spec.md:4` 改为「契约一 1.5」；判据扫描 `git grep -n "契约一 1.4\|契约三 1.4" -- openspec/specs` → **无输出**（`query-api/spec.md:4` 本就是「契约三 1.5」，未动）
 - [ ] 3.4 看板行 18 与周报同步：后端线份额翻「已完成」，注明 archive 12 份仍待 PO 在 Issue #65 裁决 —— 交付给：吕建江（飞书为本人操作）；形式：看板备注
 
 ## 测试与验证（强制板块）
