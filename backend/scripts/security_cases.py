@@ -33,6 +33,25 @@ LEAK_PATTERNS = [
 ]
 
 
+def probe_mask(client, mask_url: str, good: dict) -> tuple[bool, str, str]:
+    """对注册表为空的服务实测 50000 掩码 → `(ok, detail, body)`。
+
+    放在模块级、由 `main()` 持有返回值：掩码结论不允许藏在嵌套作用域里
+    （#113 复审指出嵌套赋值极易被误读成静默失效）。先取 mask 服务库内一个真实
+    哈希再 POST，避免把「哈希不存在」的 40400 误当成掩码结论；`body` 交回调用方
+    做泄露扫描。
+    """
+    mlist = client.get(f"{mask_url}/api/commits", params={"size": 1}, headers=good)
+    mitems = (mlist.json().get("data") or {}).get("items") or [] if mlist.status_code == 200 else []
+    if not mitems:
+        return False, (f"mask 服务不可用或库中无提交（HTTP {mlist.status_code}），"
+                       "无法触发 50000；需先灌至少一行 commit+feature"), ""
+    mr = client.post(f"{mask_url}/api/predict", json={"commit_hash": mitems[0]["commit_hash"]}, headers=good)
+    mbody = mr.json()
+    ok = mr.status_code == 500 and mbody.get("code") == 50000 and mbody.get("message") == "internal error"
+    return ok, f"HTTP {mr.status_code} code={mbody.get('code')} message={mbody.get('message')}", mr.text
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
@@ -101,18 +120,11 @@ def main() -> int:
                     leaks.append(f"{label} 响应命中泄露模式 {pat.pattern}")
 
         if args.mask_url:
-            mlist = client.get(f"{args.mask_url}/api/commits", params={"size": 1}, headers=good)
-            mitems = (mlist.json().get("data") or {}).get("items") or [] if mlist.status_code == 200 else []
-            if not mitems:
-                mask_result = (False, f"mask 服务不可用或库中无提交（HTTP {mlist.status_code}），无法触发 50000；需先灌至少一行 commit+feature")
-            else:
-                mr = client.post(f"{args.mask_url}/api/predict", json={"commit_hash": mitems[0]["commit_hash"]}, headers=good)
-                mbody = mr.json()
-                mok = mr.status_code == 500 and mbody.get("code") == 50000 and mbody.get("message") == "internal error"
-                for pat in LEAK_PATTERNS:
-                    if pat.search(mr.text):
-                        leaks.append(f"50000 掩码响应命中泄露模式 {pat.pattern}")
-                mask_result = (mok, f"HTTP {mr.status_code} code={mbody.get('code')} message={mbody.get('message')}")
+            mok, mdetail, mtext = probe_mask(client, args.mask_url, good)
+            for pat in LEAK_PATTERNS:
+                if pat.search(mtext):
+                    leaks.append(f"50000 掩码响应命中泄露模式 {pat.pattern}")
+            mask_result = (mok, mdetail)
 
     all_ok = all(ok for _, ok, _ in results) and not leaks and (mask_result is None or mask_result[0])
     out = Path(args.out)
