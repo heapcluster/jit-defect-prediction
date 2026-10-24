@@ -80,6 +80,8 @@ INFO:     Uvicorn running on http://127.0.0.1:8024 (Press CTRL+C to quit)
 
 三个模型的 `explanation` 键名都能回溯到契约二 14 项特征；同一提交上三模型给出不同分数（0.912 / 0.905 / 0.999），说明切换真实生效而非回退默认。
 
+实拍截图 `integration-shot-predict.png`：无头 Edge 对本服务发起**真实** `POST /api/predict`（默认模型）后渲染 —— 状态行 `HTTP/1.1 200 OK`、`code==0`、`model_name==xgb_v1`、`risk_score=0.9993`、`features` 14 键、`explanation` 14 条非空，响应体节选与截断字节数都在图内；抓取时间 2026-10-24 14:42:14（+08:00）。该图同时充当 `delivery-model-allowlist` tasks 2.1 要的「真实加载与预测截图」的预测半张（加载半张是 §3 的启动日志）。
+
 ## 6. 幂等：同一哈希 POST 两次，`prediction` 只留一行
 
 ```text
