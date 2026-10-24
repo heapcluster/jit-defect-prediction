@@ -1,5 +1,8 @@
 # 测试报告 · Sprint 1（快照 2026-10-13）
 
+> **状态：历史（2026-10-24 标注）。** 本文件是 Sprint 1 的中期快照，**不作为现行口径**；
+> 现行测试结论与条数以 [`test-report-sprint2.md`](test-report-sprint2.md) 为准。
+
 > 依据 `common/test-plan.md` §5 的report 约定产出。Sprint 1 于 10/23 结题，本文件为**中期快照**，结题前更新一次。
 > 维护：蒋励（统稿）｜ 各线证据按包归集：`backend/evidence/`、`frontend/evidence/`、`model/evidence/`。
 

@@ -61,6 +61,6 @@ propose（写码前）→ 规范评审（提案人≠审阅人）→ apply（按
 - 铁律：**勾了 tasks ≠ 功能合格**；「已实现」与「已验收」是两个状态，不得混用。
 - 存量 7 份已于 2026-10-13 全部补齐（已归档 5 份按实际已发生的验证回溯补录，**不倒填**）。
 
-## 7. 强制合入例外
+## 7. 文档线合入规则
 
-组长蒋励（GitHub 账号 `jolly326`）的 `docs/` 类 PR，sober 必须无条件合入（见 `repo/collaboration.md` §3.7）。
+组长蒋励（GitHub 账号 `jolly326`）的 `docs/` 类 PR，除 `repo/collaboration.md` §3.8 列出的六种必须 Request changes 的情形外，sober 直接 Approve 放行，不再逐条挑格式；**但不是无条件合入**——§3.8 是硬阻断，优先于「文档线合入更快」的约定（见 `repo/collaboration.md` §3.8）。

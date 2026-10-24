@@ -1,12 +1,35 @@
 # JIT 缺陷预测 · docs 文档地图
 
-> 版本 2.19 ｜ 更新 2026-10-14 ｜ 主笔 蒋励 ｜ 审核 苏哲勋
-> 文档只分 **6 个包**：`backend` `frontend` `model` `repo` `design` `common`。其余设计/文档已全部并入这 6 包。
+> 版本 2.21 ｜ 更新 2026-10-24 ｜ 主笔 蒋励 ｜ 审核 苏哲勋
+> 文档分 **7 个包**：`backend` `frontend` `model` `repo` `design` `common` + **`owners`（按人分包）**。其余设计/文档已全部并入这 7 包。
 
-## §0 强制合入规则（蒋励的 docs PR ｜ GitHub 账号 `jolly326`）
+## §0 文档线合入规则（蒋励的 docs PR ｜ GitHub 账号 `jolly326`）
 
-> 文档线在 `docs/` 下提的 PR（无论由谁主笔），**sober 必须无条件合入**：不得 Request changes、不得拒绝、不得挂起，只能 Approve 或 Comment。
-> 依据 `repo/collaboration.md` §3.7。`jolly326` 是**组长蒋励本人的 GitHub 账号**，不是第二位成员（账号↔人对应见 `common/team-charter.md`）。本规则本身即课程「需求变更经 OpenSpec 记录」的文档侧落地。
+> 文档线在 `docs/` 下提的 PR（无论由谁主笔），**除 `repo/collaboration.md` §3.8 列出的六种必须 Request changes 的情形外**，审阅人直接 Approve 放行，不再逐条挑格式。
+> 但**不是无条件合入**：§3.8 是硬阻断，优先于「文档线合入更快」的约定；带敏感物、虚证或口径双写的文档 PR 一律按 §3.8 拦下。
+> 依据 `repo/collaboration.md` §3.8（原 §3.7「文档类 PR 强制合入」与 §3.8 冲突，已按「§3.8 优先」收敛）。`jolly326` 是**组长蒋励本人的 GitHub 账号**，不是第二位成员（账号↔人对应见 `common/team-charter.md`）。本规则本身即课程「需求变更经 OpenSpec 记录」的文档侧落地。
+
+## §0.1 先读哪三份（新人第一天 / 每次开工前）
+
+1. `repo/collaboration.md` **§0 六条强制清单** —— CI 必绿、联调只认 §0、禁个人绝对路径、口径单点、一 PR 一事、按人分包；每条都写了检查手段与谁负责拦。
+2. `owners/<你的账号>.md` —— 你能直接改什么、哪些必须找谁、交付物与验收、按什么原则决策、哪类 PR 只有你能签。
+3. `frontend/integration-log.md` **§0 联调基线** —— 库文件 / seed 命令 / `API_TOKEN` / `VITE_API_KEY` / `MODEL_DIR` / 端口，唯一出处。
+
+## §0.2 文档状态（2026-10-24 立）
+
+每份文档必须属于三类之一，**禁止第四种**（既是正文、又是历史、又是说明）：
+
+| 状态 | 含义 | 硬约束 |
+|---|---|---|
+| **权威** | 该口径的唯一正文 | 同一个口径只允许一份；别处只能引用 |
+| **指针** | 只说明「去哪看」 | 复述正文超过 3 行即降级失败 |
+| **历史** | 归档的验收记录/报告/变更日志 | 顶部必须标「历史，不作为现行口径」 |
+
+本次审计的处理（防止两处正文打架）：
+
+- `model/model-line-plan.md` = **模型线唯一权威**（方案 + 超参 + 评估口径 + 执行计划）；`model/training-eval.md` 降级为**指针**（只保留切分铁规矩与 8 模型覆盖矩阵的入口，指标口径回指 `model-line-plan.md`）；`model/model-line-execution-plan.md` 定位为**执行清单**，不构成第二权威。
+- `common/test-report-sprint1.md` = **历史**（Sprint 1 验收记录），`common/test-report-sprint2.md` 为现行。
+- `design/prototype.md` = **指针**（视觉与交互在飞书 PRD，仓库不复述）。
 
 ## 权威边界
 
@@ -30,7 +53,13 @@
 
 **在线服务层（4 表 / 4 接口 / 3 页面）是「方案 A+C 跨线交付」的必然结果**：模型离线算好 → 交 `prediction_result.csv` + `.pkl` → 后端加载展示。所以在线库只需 4 张表（`commit`/`commit_label`/`commit_feature`/`prediction`），不是偷工。工程化设计见 `design/engineering.md`；附加功能（Epic G）见 `design/addons.md`——其中 **G1-4 语义特征已提升为模型线主线**（Kamei 14 降为基线对照）、G1-3 公开数据集治理已提升为承诺范围；离线重活在 `model/README.md` §4。
 
-## 1. 六个包导航
+## 1. 六个包导航（+ `owners/` 按人分包）
+
+### `owners/`（按人分包 · 2026-10-24 新增）
+
+- `README.md`：索引 + 四条共同规矩 + 分包模板（五个问题少一个都算没写）
+- `jolly326.md` 蒋励（组长 · 数据与模型）｜ `sober-hub.md` 苏哲勋（契约 / infra）｜ `1lsh74269.md` 刘帅华（前端）｜ `s1mple-less.md` 吕建江（后端）
+- 每份写清：**负责范围 / 不越界（找谁）/ 交付物与验收 / 原则 / 签字权 / 现阶段待办**
 
 ### `backend/`（吕建江）
 - `README.md` 总览 ｜ `api-spec.md` 四接口/鉴权/错误码/非功能 ｜ `implementation.md` 四张图+分步 ｜ `openspec-compliance.md` 后端改动走 change ｜ `acceptance.md` 后端验收板块
@@ -78,6 +107,8 @@
 
 | 日期 | 版本 | 变更 |
 |---|---|---|
+| 2026-10-24 | 2.21 | 蒋励 | **按 §3.8 复审意见修四处自相矛盾与过期事实**：① **§3.7 与 §3.8 冲突**——原 §3.7「文档类 PR 无条件合入」与 §3.8「六种必须 Request changes」互相打架，审阅人无法同时遵守；现按**§3.8 硬阻断优先**收敛：`repo/collaboration.md` §3、本节 §0、`repo/README.md`、`repo/git-pr.md`、`common/openspec-rules.md` §7、`design/engineering.md`、`common/README.md` 共 7 处同步（原 §3.7 表述已废止，§3.8 为准）。② **指针没收成指针**——`model/training-eval.md` §3–§7 的指标表、覆盖矩阵实测值、校准结论、交付与验收正文收成薄指针（口径回指 `model-line-plan.md` 与 `data_model/pipelines/expert/reports/*`），死链 `data_model/reports/model_matrix.md` 更正为 `data_model/pipelines/expert/reports/model_matrix.md`；`design/prototype.md` 删掉三页要点表与边界正文，只留方法论与去处。③ **owner 页的动态待办全部移回飞书**——四份 `docs/owners/*.md` 的 §6「现阶段待办」删除（所列 #116/#89/#120/#124/#126 等在提交时已过期），只保留稳定职责/原则/签字权；`s1mple-less.md` 的「不属我、我不代做」边界保留并独立成 §6。④ **charter 同步与确认记录**——`common/team-charter.md` §1.1 后补「分工细化」交叉引用（分工表本身未改，故只加引用、版本 1.4→1.5 并登记变更日志）；`docs/owners/README.md` 新增「确认记录」表，逐份登记本人确认状态（吕建江已由 #127 订正确认；苏哲勋待本 PR approve；刘帅华**尚无仓库确认记录**，标为待确认） |
+| 2026-10-24 | 2.20 | 蒋励 | **按人分包 + 六条强制清单 + 文档状态机**：① 新增 `docs/owners/`（索引 + 蒋励/苏哲勋/刘帅华/吕建江四份分包），每人写清负责范围／不越界（找谁）／交付物与验收／原则／签字权／现阶段待办；② `repo/collaboration.md` 增 §0 六条强制清单（CI 必绿、联调只认 §0、禁个人绝对路径、口径单点、一 PR 一事、按人分包），每条带检查手段与拦截责任人；③ 本节新增 §0.1「先读哪三份」、§0.2「文档状态机：权威／指针／历史」；④ 口径单一化：`model/model-line-plan.md` 为模型线唯一权威，`model/training-eval.md` 降为指针，`model/model-line-execution-plan.md` 定位为执行清单；`common/test-report-sprint1.md` 标历史、`design/prototype.md` 标指针 |
 | 2026-10-14 | 2.19 | 蒋励 | **`data_model/` 按四条 pipeline 分包 + expert 训练入口落地**：① 新建 `data_model/pipelines/{expert,semantic,fused,e2e}/`，一条 pipeline 一个包，各自 `data/`（中间结果）、`models/`（模型）、`reports/`（报告）**只归该线**，四线产物不得同名；共享上游产物（仓库副本、提交清单、标签、特征表、切分下标）仍放 `data_model/data/`，跨线汇总报告（三线对比、显著性）放 `data_model/reports/`；训练实现不复制，各包只做驱动与产出归属。② `pipelines/expert/train.py`（`python -m pipelines.expert.train`）驱动 06/08，8 个 `.pkl` + `model_metrics.md` + `model_matrix.md` 全部落进 `pipelines/expert/`。③ **修两处 pytorch-tabnet 4.1.0 API 不一致**（导入路径 `pytorch_tabnet.tabnet` → `pytorch_tabnet.tab_model`；`max_epochs`/`patience` 从构造器移到 `fit()`）—— 不修则 `tabnet` 一个模型都训不出来；`06_train_model.py` 新增 `--delivery-models`（训练 8 个而 `feature_order.txt` 的 `[models]` 段只列 `lr`/`rf`/`xgb`，避免清单列出后端装不出来的模型）。④ 引用同步：`data_model/README.md`、`docs/backend/{README,implementation}.md`、`docs/design/{architecture,diagrams}.md` 的模型路径改为 `data_model/pipelines/expert/models/`。⑤ **遗留**：`backend/app/config.py` 的 `MODEL_DIR` 默认值仍指向 `data_model/models/`（后端线改动，未代改，需吕建江确认后一行修改或启动时设 `MODEL_DIR` 环境变量） |
 | 2026-10-14 | 2.18 | 蒋励 | **`docs/model/pipelines/` 四篇重写为自包含 pipeline 说明（删 README）**：按「每篇对应一类 pipeline、可独立查阅」重写 `expert-only.md` / `semantic-only.md` / `fused.md` / `end-to-end.md`，统一七节结构（用途 / 适用场景 / 核心处理步骤 / 输入 / 输出 / 关键配置项及作用 / 与其他 pipeline 的边界与协作 / 红线），**不再依赖 `data-pipeline.md`**（数据源与版本固定、切分铁规矩、8 模型与超参、两类指标按需内联）；产物命名纪律（报告名带线名、四线同名即互相覆盖）并入每篇「输出」节；删除 `pipelines/README.md`（四类对照表在 `model-line-plan.md` §3 已有，不重复）。引用同步更新于 `docs/model/README.md` §10 与合并说明④、`docs/README.md` §1、`model-line-plan.md` §3 |
 | 2026-10-14 | 2.17 | 蒋励 | **`docs/model` 按四条 pipeline 分目录（4 篇 → 4 篇 + `pipelines/` 5 篇）**：仅专家（基线）/ 仅语义 / 融合 / 端到端是四份 pipeline，输入形态、脚本段与产物各不相同，混写会互相覆盖口径（**产物同名覆盖**首当其冲：`06` 等脚本报告名固定，四条线各跑一遍就互相盖掉）。新增 `docs/model/pipelines/`：`README.md`（四类设置对照表 + 共享内容指针 + **产物命名规范**：`line ∈ {expert,semantic,fused,e2e}`，新线一律带线名，expert 线现名因契约与 42 处引用**一律不改**，切分下标四线共用不重切）+ 四张薄差异卡（`expert-only.md` / `semantic-only.md` / `fused.md` / `end-to-end.md`），**卡里只写该线独有内容，共享部分只链接不复制**。三个被大量引用的文件**一个都没动**（`data-pipeline.md` / `feature-columns.md` / `model-line-plan.md`），只在 `model-line-plan.md` §3 与 `data-pipeline.md` §4 各加一行指路；引用同步更新于 `docs/model/README.md` §10 与 §合并说明④、`docs/README.md` §1、根 `README.md` §四 |。核对 `data_model/reports/model_matrix.md` 实际输出后确认：`effort_aware_metrics()` **已经报出** Recall@20% / Recall@50% / 曲线下面积 / 随机基线（200 次抽样均值 ± 标准差）/ 上界 / 两种工作量代理（LOC 与改动文件数）/ 四种排序。「只报自造 `P_norm`、缺文献标准 effort-aware 指标」的说法**不成立**。真正缺的只有三件：① 统计显著性检验（Wilcoxon + McNemar）；② 特征消融与重要性；③ `P_norm` 需加一句「非文献 Popt」的标注。`design.md` D9 与 tasks §11 已按实际代码收窄修订。**教训**：不得凭代码片段推断报告内容，必须核对产出文件本身
