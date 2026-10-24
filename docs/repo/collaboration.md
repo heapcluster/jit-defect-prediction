@@ -23,6 +23,7 @@
 - `main` 受保护，**禁止直接推送**。
 - 工作分支 `<类型>/<线>/<简述>`：`feat/fix/docs/refactor/test/chore` × `model/backend/frontend/infra/docs/spec`。
 - PR 合入后**远端+本地都删**（`git branch -d`，Squash 合入用 `-D` 仅此场合）；`git fetch --prune` 清跟踪引用。
+- 仓库已开 `delete_branch_on_merge=true`（2026-10-24 核实）：**远端那半由 GitHub 自动做**，本地那半仍要自己删。判据：本地分支的提交已进 `main`（Squash 合入时 hash 不同，看文件内容或 PR 状态，别只看 `--merged`）。关闭的 PR（未合）也要删分支，内容由后续 PR 承载时在关闭评论里写明。
 
 ## 2. 提交信息
 
