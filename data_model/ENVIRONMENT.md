@@ -160,7 +160,7 @@ git check-ignore -v data_model/pipelines/expert/reports/model_metrics.md # 应�
 
 | 类别 | 内容 | 体积 | 回传方式 |
 |---|---|---|---|
-| 必需交付模型 | `lr_v1.pkl` + `rf_v1.pkl` + `xgb_v1.pkl` + `feature_order.txt`（与清单 `[models]` 三项逐字一致） | 约 281MB（`rf_v1` 279.4MB 占大头） | 分卷 / 网盘（超飞书 153MB 单文件上限） |
+| 必需交付模型 | `lr_v1.pkl` + `rf_v1.pkl` + `xgb_v1.pkl` + `feature_order.txt`（与清单 `[models]` 三项逐字一致） | 约 14MB（`rf_v1` 12.1MB 占大头；D-14 收敛后，2026-10-24 前是 279.4MB / 约 281MB） | 可直接发群（**收敛后已降到 153MB 单文件上限以内**）；旧版权重才需要分卷 |
 | 其余评估权重 | `et_v1` 546.4MB、`svm_v1` 3.2MB、`lgbm_v1` 1.0MB、`tabnet_v1` 0.3MB、`mlp_deep_v1` 0.1MB | 约 551MB | 分卷 / 网盘 |
 | 报告 / 图表 / 清单 | `reports/*.md`、`figs/*.png`、`manifest.txt` | 小 | **走 git 提交** |
 
@@ -198,11 +198,11 @@ zip -r expert_models.zip data_model/pipelines/expert/models
 | 方式 | 适用 | 说明 |
 |---|---|---|
 | **A. 飞书群聊「想到什么取什么」** | 小文件（约 20MB 内） | 在飞书把 zip 直接拖进群；或用 CLI：`lark-cli im +messages-send --chat-id oc_838d67f14658f59672782cd7e2166f69 --file ./<小包>.zip --as user` |
-| **B. 分卷压缩** | 交付三模型（281MB）/ 全量（约 830MB） | 分卷后逐卷发群 / 云盘，回传后合并：`7z a -v20m jit_delivery_models.7z data_model/pipelines/expert/models/{lr_v1,rf_v1,xgb_v1}.pkl data_model/pipelines/expert/models/feature_order.txt`（每卷 20MB），合并解压 `7z x jit_delivery_models.7z.001` |
+| **B. 分卷压缩** | 只在超过 153MB 时用：**收敛前**的三模型（281MB）或未压缩的全量 8 个权重（约 570MB） | 分卷后逐卷发群 / 云盘，回传后合并：`7z a -v20m jit_delivery_models.7z data_model/pipelines/expert/models/{lr_v1,rf_v1,xgb_v1}.pkl data_model/pipelines/expert/models/feature_order.txt`（每卷 20MB），合并解压 `7z x jit_delivery_models.7z.001` |
 | **C. 网盘** | 任意大小 | 上传百度网盘 / 阿里云盘，发分享链接 |
 | **D. 局域网直传** | 同一局域网 | Windows 共享文件夹 / `scp` / `rsync` |
 
-> ⚠️ 实测：飞书云盘 `drive +upload` 单文件 153MB 会报 `file size beyond limit`（错误码 1061043）。交付三模型压缩后约 281MB（`rf_v1` 占 279MB），**超出群聊/云盘单文件上限，请走分卷（B）或网盘（C）**；只有几十 MB 的小包才能直接发群（A）。
+> ⚠️ 实测：飞书云盘 `drive +upload` 单文件 153MB 会报 `file size beyond limit`（错误码 1061043）。**D-14 收敛前**交付三模型压缩后约 281MB（`rf_v1` 占 279MB），超上限、必须走分卷（B）/ 网盘（C）；**收敛后**三模型约 14MB，全量 8 个权重包 `expert_models_20261024.zip` 重打后 **110,492,842 B（约 105MB）**，两者都在 153MB 以内，**可直接发群（A）**。分卷（B）现在只对「未收敛的旧版权重」有意义。
 
 ### 7.4 回传后校验与归位
 

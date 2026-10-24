@@ -23,6 +23,8 @@
 | `tabnet_v1.pkl` | `201a002b78c61a9589bec9b14496533c` | 0.3MB | `sklearn.pipeline.Pipeline` | `sklearn.preprocessing._data.StandardScaler`<br>`pipelines.expert.model.TabNetWithEarlyStop` | 14 | ✅ |
 | `xgb_v1.pkl` | `56138e2b4b55fbcae83aaa2866d244de` | 1.2MB | `xgboost.sklearn.XGBClassifier` | — | 14 | ✅ |
 
+> ⚠️ **`rf_v1` 行已过期（2026-10-24 17:45 之后）**：D-14 收敛重训后 `rf_v1.pkl` 为 **`12,715,033 B`** / md5 **`ca80c58656263c13079aa65ca0112b47`**（节点 366.1 万→15.7 万，AUC 0.8190→0.8169）。其余 7 行不变。按 §0「实测数字只追加、不改写」，本表作为 `2026-10-24T03:38:29Z` 那次校验的**历史快照**保留，现行值一律以 `models/manifest.txt` 为准。
+
 ## 复现命令
 
 ```bash
