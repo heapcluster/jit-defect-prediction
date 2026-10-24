@@ -60,7 +60,7 @@ python -m pipelines.verify_all_weights --check      # 权重交付校验：md5 +
 
 `.pkl` 按约定**不入库**，干净 clone 的 `models/` 里只有 `feature_order.txt`。联调/演示前按下面四步把权重摆到后端能读到的位置：
 
-1. **取权重**：由模型线把 `models/` 打包分发（本机已有 8 个，`et_v1.pkl` 546MB、`rf_v1.pkl` **12.1MB**（D-14 收敛后；2026-10-24 17:45 前是 279.4MB），走网盘/拷贝，不进 git）。**当前有效包是 `data/expert_models_20261024.zip`**（8 个 pkl + `feature_order.txt` + `manifest.txt`），**2026-10-24 19:30 重打**：`110,492,842 B`、包级 md5 `57520463da2b94592842707874ab8c0d`、包内 `rf_v1.pkl` 为收敛版（`12,715,033 B` / md5 `ca80c58656263c13079aa65ca0112b47`），已逐条核对「包内 md5 = 磁盘 md5 = `manifest.txt` 登记值」。⚠️ **11:40 那版已作废**：它打于 rf 重训之前，包内 `rf_v1.pkl` 仍是 `292,996,489 B` 旧权重，收包方 `verify_all_weights --check` 会报 md5 不符（与 D-15 的 TabNet 同类事故）；`expert_models_20261021.zip` 同样作废但保留作分叉证据 —— 包内 `tabnet_v1.pkl` 是 `__main__` 导出，加载必失败。
+1. **取权重**：由模型线把 `models/` 打包分发（本机已有 8 个，`et_v1.pkl` 546MB、`rf_v1.pkl` 279MB，走网盘/拷贝，不进 git）。**当前有效包是 `data/expert_models_20261024.zip`**（8 个 pkl + `feature_order.txt` + `manifest.txt`）；`expert_models_20261021.zip` 已作废但保留作分叉证据 —— 包内 `tabnet_v1.pkl` 是 `__main__` 导出，加载必失败。
 2. **指位置**：在 `backend/.env` 设 `MODEL_DIR=<解压后的目录>`；不设则默认指向本包 `models/`（`backend/app/config.py` 的默认值）。
 3. **自检清单内 3/3 可加载** —— 在线模型集的唯一来源是 `feature_order.txt` 的 **`[models]` 段**（已合并的 #96 定义），当前声明 `lr_v1` / `rf_v1` / `xgb_v1`：
 
@@ -74,7 +74,15 @@ python -m pipelines.verify_all_weights --check      # 权重交付校验：md5 +
    - **`sys.path` 不用手工插** —— #99 已让 `load_models()` 自动把 `<repo>/data_model` 的绝对路径插入 `sys.path`（幂等、不接受请求参数或 `MODEL_DIR` 传入）。命令里漏了 `sys.path.insert` 也不会失败。
    - **另外 5 个权重不会出现在列表里** —— `lgbm_v1` / `et_v1` / `svm_v1` / `mlp_deep_v1` / `tabnet_v1` 登记在 `[evaluated]` 段（本 PR 引入），只进评估不进交付，按冻结规格 `openspec/specs/model-coverage` R6「新增模型 MUST NOT 进入后端加载清单」不参与在线加载。它们加载不上**不算**联调缺陷，不要拿 8 个来验收这一条。
 
-4. **灌预测结果**：`data/prediction_result.csv`（83,943 行，`xgb_v1`，`feature_version=v1`）随包分发，后端用 `python -m app.ingest predictions <该文件>` 灌入 `prediction` 表。
+4. **灌数据（3 步，顺序不能换）**：解压 `deliver_data_20261024.zip` 后，cwd=`backend`：
+
+   ```bash
+   python -m app.ingest commits     <解压目录>/commits.csv             # 全量 camel 历史（约 45 万条 / 33.7MB）
+   python -m app.ingest features    <解压目录>/commit_features.csv    # 84,461 行
+   python -m app.ingest predictions <解压目录>/prediction_result.csv  # 83,943 行（xgb_v1 / feature_version=v1）
+   ```
+
+   `GET /api/commits` 是 `prediction` 内连接，所以 `commits.csv` 灌全量**不会**把「无预测的提交」带进风险列表；要跟 `integration-2026-10-24.md` 的 84,461 严格对齐，再按 features 的哈希过滤一次即可（对三页面无影响）。
 
 已知待办（不在本包改）：
 
