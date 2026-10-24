@@ -70,6 +70,33 @@
         </el-tag>
       </div>
 
+      <!-- 重新预测 -->
+      <div class="predict-bar">
+        <el-select
+          v-model="predictModel"
+          placeholder="选择模型（默认取最新模型）"
+          style="width: 200px"
+        >
+          <el-option
+            v-for="m in models"
+            :key="m"
+            :label="m"
+            :value="m"
+          />
+        </el-select>
+        <el-button
+          type="primary"
+          :loading="predicting"
+          :disabled="forbidden"
+          @click="predict"
+        >
+          重新预测
+        </el-button>
+        <span class="predicted-at">
+          预测时间 {{ formatPredictedAt(detail.predicted_at) }}
+        </span>
+      </div>
+
       <!-- 元信息 -->
       <el-descriptions
         :column="2"
@@ -144,8 +171,11 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getCommitDetail } from '../api'
+import { getCommitDetail, postPredict } from '../api'
+import { ElMessage } from 'element-plus'
 import { riskColor, riskTag, riskLabel } from '../utils/risk'
+import { MODELS } from '../utils/models'
+import { FEATURE_GROUPS } from '../utils/features'
 
 const props = defineProps({
   hash: { type: String, required: true }
@@ -156,14 +186,13 @@ const loading = ref(false)
 const error = ref('')
 const errorCode = ref(0)
 
-// 特征五维分组（docs/pages.md 第 3 节）
-const featureGroups = [
-  { title: '代码分布', fields: ['ns', 'nd', 'nf', 'entropy'] },
-  { title: '规模', fields: ['la', 'ld', 'lt'] },
-  { title: '目的', fields: ['fix'] },
-  { title: '历史', fields: ['ndev', 'age', 'nuc'] },
-  { title: '开发者经验', fields: ['exp', 'rexp', 'sexp'] }
-]
+// 重新预测：模型下拉（实际交付的 3 个 .pkl，后端 model_registry 加载的版本名）
+const models = MODELS
+const predictModel = ref('')
+const predicting = ref(false)
+const forbidden = ref(false)
+
+const featureGroups = FEATURE_GROUPS
 
 const features = computed(() => detail.value?.features || {})
 // 契约三 §3：提交存在但无预测记录时 risk_score 为 null，前端按 null 渲染「尚未预测」
@@ -191,6 +220,14 @@ function formatTime(iso) {
   return new Date(iso).toLocaleString('zh-CN', { hour12: false })
 }
 
+// 预测时间：YYYY-MM-DD HH:mm（predict 响应有 predicted_at，GET 详情没有，首次加载显示「—」）
+function formatPredictedAt(iso) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 async function load() {
   loading.value = true
   error.value = ''
@@ -216,6 +253,30 @@ function errText(e) {
   return e?.message || '请求失败'
 }
 
+// 重新预测：POST /api/predict，刷新 risk_score / model_name / explanation / predicted_at
+async function predict() {
+  if (!detail.value) return
+  predicting.value = true
+  try {
+    const data = await postPredict(detail.value.commit_hash, predictModel.value || undefined)
+    detail.value = {
+      ...detail.value,
+      risk_score: data.risk_score,
+      model_name: data.model_name,
+      explanation: data.explanation || [],
+      features: data.features || detail.value.features,
+      predicted_at: data.predicted_at || null
+    }
+    ElMessage.success('预测完成')
+  } catch (e) {
+    // 40100 令牌失效：按 pages.md §5 不给重试，禁用重新预测按钮
+    if (e?.code === 40100) forbidden.value = true
+    ElMessage.error(errText(e))
+  } finally {
+    predicting.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -236,6 +297,12 @@ onMounted(load)
   align-items: center;
   gap: 14px;
   margin: 16px 0;
+}
+.predict-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
 }
 .big {
   font-size: 40px;
