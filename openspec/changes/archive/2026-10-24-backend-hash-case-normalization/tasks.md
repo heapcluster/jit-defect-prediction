@@ -1,7 +1,7 @@
 # backend-hash-case-normalization — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/query-api/spec.md`
-> 负责人：backend 吕建江 ｜ 创建：2026-10-24 ｜ 状态：实现与静态验证完成、PR #101 待复审（9/11；delta 已由 MODIFIED 改为 ADDED 以避开与 #97 的归档覆盖）
+> 负责人：backend 吕建江 ｜ 创建：2026-10-24 ｜ 状态：**已归档**（`2026-10-24-backend-hash-case-normalization`；PR #101 合入 main `c011463` 后于 `0773a49` 上归档，query-api +1 ADDED requirement；3.4 已完成，3.3 的 PO 裁定仍开放且不阻塞归档）
 > 用户故事：无（缺陷修复）；对应 `docs/repo/defect-records.md` §2 的 D-09（P3）
 > 统一格式见 `docs/common/openspec-task-template.md`；本文件末的「测试与验证」为强制板块。
 
@@ -22,8 +22,8 @@
 
 - [x] 3.1 `docs/repo/defect-records.md` 的 D-09 行更新为「🔧 修复已实现，change/PR 待复审合入（合入后再迁入 §1）」，并修正该行原本错位的「关联提交/change」列（原来填的是测试路径）— 交付物：`docs/repo/defect-records.md`；未在合入前写成已闭环。
 - [x] 3.2 `openspec validate --strict` 通过后提交独立 PR，交苏哲勋复审 — 交付物：PR #101（https://github.com/heapcluster/jit-defect-prediction/pull/101），实现提交 `6a153b5`，已请求 sober-hub 复审；未合入，D-09 行仍留在 §2。
-- [ ] 3.3 Open Question 1（`docs/backend/api-spec.md` 第 2 节是否补大小写口径）由 PO/SM 裁定后落地 — 交付形式：PR #101 评论回执；裁定前不改冻结契约。
-- [ ] 3.4 PR #101 合入后把 D-09 行从 `docs/repo/defect-records.md` §2 迁入 §1 已闭环 — 交付物：单独 docs 提交；未合入前不得迁。
+- [ ] 3.3 Open Question 1（`docs/backend/api-spec.md` 第 2 节是否补大小写口径）由 PO/SM 裁定后落地 — 交付形式：PR #101 评论回执；裁定前不改冻结契约。**2026-10-24 归档时仍开放**：归档不等待该裁定（代码行为已按 change 的 ADDED requirement 落地并合入）；若 PO 裁定为「补口径」，另立 change 改冻结契约，不在本 change 内追溯。
+- [x] 3.4 PR #101 合入后把 D-09 行从 `docs/repo/defect-records.md` §2 迁入 §1 已闭环 — 交付物：单独 docs 提交；未合入前不得迁。**2026-10-24 已执行**（#101 合入为 `c011463` 之后）：§2 原行删除，§1 新增闭环行（状态 ✅、关联 PR #101 与归档名、证据测试 4 条、全量 145 passed @ `0773a49`），并在该行保留 Open Question 1 的遗留说明。
 
 ## 测试与验证（强制板块）
 
