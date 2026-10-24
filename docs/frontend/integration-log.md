@@ -11,7 +11,7 @@
 | 环境 | Windows 11，Node 24，Python 3.12 |
 | 后端启动 | `cd backend` → `python -m scripts.seed_dev_data`（seed 3 提交 / 3 特征 / 3 预测）→ `python -m uvicorn app.main:app --host 127.0.0.1 --port 8000` |
 | 鉴权配置 | 请求头 `X-API-Key`，值 `dev-token-20260918`（开发令牌，已脱敏；真实值只进各自 `.env.local`，不入库） |
-| MODEL_DIR | 本机临时目录 `D:/Study-doc/homework/software-test/model`（lr/rf/xgb 三个 .pkl）；留空则回落 repo 内 `data_model/pipelines/expert/models/` |
+| MODEL_DIR | 留空，回落 repo 内 `data_model/pipelines/expert/models/`（不写个人绝对路径） |
 
 ## 验证结果（预期 → 实际）
 
