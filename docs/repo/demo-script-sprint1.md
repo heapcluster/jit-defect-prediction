@@ -4,7 +4,26 @@
 > 配套产物：本脚本 + 录屏，二者入库 `docs/` 或附 Issue 链接。
 > 接口与错误码口径：`backend/api-spec.md`；页面口径：`docs/frontend/pages.md`。
 
-## 0. 起服务与录屏准备（录屏前按序执行，2026-10-16 补）
+## 0. 起服务与录屏准备（录屏前按序执行，2026-10-16 补 / 2026-10-24 按 #96/#97/#99 订正）
+
+### 0.0 建库与灌数（一次性；首次演示前）
+
+```bash
+cd backend
+# 建表二选一：DDL 快照，或 ORM 初始化（两条路径都过索引自检）
+mysql -u<user> -p jit_defect < ../infra/schema.sql
+# python -m app.db init
+
+# 依次灌四类数据，打印并留档每类入库行数
+python -m app.ingest commits     ../data_model/data/commits.csv
+python -m app.ingest labels      ../data_model/data/commit_labels_szz.csv
+python -m app.ingest features    ../data_model/data/commit_features.csv
+python -m app.ingest predictions ../data_model/pipelines/expert/data/prediction_result.csv
+```
+
+- 期望：`predictions` 入库 **83,943** 行（`xgb_v1`，`feature_version=v1`）。
+- 权重目录：默认即 `data_model/pipelines/expert/models/`，不改 `MODEL_DIR` 也能加载（#99 自动插 `sys.path`）。
+- **`backend/.env` 的 `API_TOKEN` 必须等于 `frontend/.env.local` 的 `VITE_API_KEY`**，否则前端全部 40100。
 
 ### 0.1 起后端（终端 A）
 
@@ -52,8 +71,8 @@ curl -s -H "X-API-Key: $KEY" "http://localhost:8000/api/commits?min_risk=0.5&siz
 | 项 | 确认方式 | 通过标准 |
 |---|---|---|
 | 后端已起 | `curl -s -o /dev/null -w "%{http_code}" -H "X-API-Key: $KEY" http://localhost:8000/api/commits` | 返回 `200` |
-| 交付模型已加载 | 启动日志搜 `model_name` | 出现 `xgb_v1` |
-| 预测结果已入库 | `SELECT COUNT(*) FROM prediction;` | 大于 0 |
+| 交付模型已加载 | 启动日志搜 `model_name` / 搜 `failed models` | 出现 `lr_v1` / `rf_v1` / `xgb_v1` **三个**，且无 `model load failed`（#96 定：在线模型集 = `feature_order.txt` 的 `[models]` 段） |
+| 预测结果已入库 | `SELECT COUNT(*) FROM prediction;` | 83,943（只少不多即为灌数未完成；`0` 时不要临场造数） |
 | 前端三页面可访问 | 浏览器打开列表 / 详情 / 趋势三页 | 三页均渲染，非白屏 |
 
 ## 2. 正向演示（主链路，一条提交走完三段）
@@ -88,9 +107,22 @@ Header: X-API-Key: <KEY>
 - 预期：返回按时间的风险序列。
 - 页面动作：打开「趋势看板」，定位 `$HASH` 所处时段。
 
-**口播**：一条提交从"被预警"到"被解释"到"被观察"，闭环成立。
+### 步骤 4 — 换模型重预测（可选加分项；#90 合并后可用）
 
-## 3. 异常输入验证（至少演示一项，二者建议都录）
+```
+POST /api/predict
+Header: X-API-Key: <KEY>
+Body: {"commit_hash": "$HASH", "model_name": "rf_v1"}
+```
+
+- 预期：`code=0`，返回 `risk_score` + `model_name` + `predicted_at` + `explanation`；同一 hash 连调两次**不产生第二行** prediction（幂等 upsert）。
+- 页面动作：详情页「重新预测」下拉切 `xgb_v1` → `rf_v1`，分数就地刷新、不刷新整个页面。
+- 注：#90 未合入前前端没有入口，则走 curl 版本，口播说明「接口已通、页面入口随 #90 上」。
+- 另一条可选项（更能体现「在线推理」而非只展示历史分数）：换一条**库里没有预测**的提交直接调 `POST /api/predict`，后端会现算 14 维特征（#97）。
+
+**口播**：一条提交从"被预警"到"被解释"到"被观察"，再到"换模型重算"，闭环成立。
+
+## 3. 异常输入验证（A / B 必录，C 建议录）
 
 ### A. 无效 API Key → 401
 
@@ -100,22 +132,31 @@ curl -i -H "X-API-Key: wrong-key" http://localhost:8000/api/commits
 
 - 预期：HTTP `401`，`code=40100`；响应体 **不得**出现堆栈、SQL 语句、文件路径。
 
-### B. 非法 commit_hash → 404
+### B. 畸形 commit_hash → 400（**不是 404**）
 
 ```
 curl -i -H "X-API-Key: $KEY" http://localhost:8000/api/commits/zzzz
 ```
 
+- 预期：HTTP `400`，`code=40001`，`message` = 「参数非法：commit_hash 需为 40 位十六进制」。
+- 口径依据：`backend/app/api/commits.py:45-47` —— 长度≠40 或非十六进制先判**参数非法（40001）**。
+
+### C. 合法格式但不存在的 commit_hash → 404
+
+```
+curl -i -H "X-API-Key: $KEY" http://localhost:8000/api/commits/0000000000000000000000000000000000000000
+```
+
 - 预期：HTTP `404`，`code=40400`；**页面展示空态而非崩溃**。
 
-> 两者均为契约约定的错误码，不属于自造错误码。
+> A/B/C 三者均为契约约定的错误码，不属于自造错误码。演示时务必区分 B 与 C：拿 `zzzz` 演示 404 会当场被问住。
 
 ## 4. 录屏要求
 
 | 项 | 要求 |
 |---|---|
 | 命名 | `demo-sprint1-YYYYMMDD.mp4` |
-| 内容顺序 | 列表 → 详情归因 → 趋势看板 → 异常用例（单独一段） |
+| 内容顺序 | 列表 → 详情归因 → 趋势看板 → 换模型重预测（可选）→ 异常用例（单独一段） |
 | 归档 | 入库 `docs/` 或附到 Issue，并在飞书看板本行「关联链接」填写该地址 |
 
 > 说明：录屏需人工实际执行演示录制，脚本本身不产生录屏文件。
@@ -124,5 +165,6 @@ curl -i -H "X-API-Key: $KEY" http://localhost:8000/api/commits/zzzz
 
 - [ ] 三段主链路连续走通，无中断
 - [ ] 至少一项异常用例返回预期错误码且页面不崩
+- [ ] 错误码未混用：缺令牌 `40100` / 畸形 hash `40001` / 合法但不存在 `40400`（拿 `zzzz` 演示 404 属口径错误）
 - [ ] 录屏文件已归档，看板「关联链接」可点开
 - [ ] 演示所用 `commit_hash` 与库中真实数据一致（可复现）
