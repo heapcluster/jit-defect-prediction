@@ -12,7 +12,7 @@
 
 页面、图表、联调记录。
 
-**低保真原型与交互设计在飞书《产品需求文档》六、交互原型图**（不在仓库）；页面与接口的字段映射在 `docs/frontend/pages.md`。
+**低保真原型与交互设计在飞书《产品需求文档》六、交互原型图**（不在仓库）；页面与接口的字段映射在 `docs/pages.md`。
 
 ## 目录结构（按这个放，不要新建同级目录）
 
@@ -39,15 +39,13 @@ npm run dev          # 开发服务，默认 5173
 
 ## 页面 ↔ 接口 ↔ 字段
 
-**唯一的对照表是 `docs/frontend/pages.md`** —— 每个页面用接口的哪些字段、三态与错误码怎么处理，都在那里。接口本身的定义以 `docs/backend/api-spec.md` 为准（契约三 v1.5）。
-
-> 旧路径 `docs/pages.md` 与 `docs/contracts/api-format.md` 已随 #55 六包重组移除，指向它们的旧表述一律作废。
+**唯一的对照表是 `docs/pages.md`** —— 每个页面用接口的哪些字段、三态与错误码怎么处理，都在那里。接口本身的定义以 `docs/contracts/api-format.md` 为准。
 
 | 页面 | 接口 | 字段映射 |
 |---|---|---|
-| 风险列表 | `GET /api/commits` | `docs/frontend/pages.md` 第 2 节 |
-| 提交详情 | `GET /api/commits/{commit_hash}` | `docs/frontend/pages.md` 第 3 节 |
-| 趋势看板 | `GET /api/trends` | `docs/frontend/pages.md` 第 4 节 |
+| 风险列表 | `GET /api/commits` | `docs/pages.md` 第 2 节 |
+| 提交详情 | `GET /api/commits/{commit_hash}` | `docs/pages.md` 第 3 节 |
+| 趋势看板 | `GET /api/trends` | `docs/pages.md` 第 4 节 |
 
 **只有这三个页面。** 第四个（模型管理、用户设置之类）不做 —— 课程没要求，且会稀释前三个页面的完成度。
 
@@ -61,7 +59,7 @@ npm run dev          # 开发服务，默认 5173
 6. 按错误码区分处理，不把服务端 `message` 原样甩给用户当技术细节；`40100`（令牌失效）不重试，提示重新登录。
 7. 图表统一 ECharts，不混用其他图表库。
 
-**高风险阈值（`risk_score ≥ 0.5`）只在 `docs/frontend/pages.md` 第 5 节定义一处**，三个页面统一用，不要各页各写一个数。
+**高风险阈值（`risk_score ≥ 0.5`）只在 `docs/pages.md` 第 5 节定义一处**，三个页面统一用，不要各页各写一个数。
 
 ## 边界
 
