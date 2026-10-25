@@ -61,7 +61,7 @@ commit_label      utf8mb4_unicode_ci
 prediction        utf8mb4_unicode_ci
 ```
 
-**少于 4 张表 = `SOURCE` 没找到文件**，九成是 cwd 不在仓库根（§6 坑 2）。
+**没列出 4 张表、或报 `Failed to open file` 且退出码 1 = `SOURCE` 没找到文件**，九成是 cwd 不在仓库根（§6 坑 2）。注意这种情况下的残留状态：`CREATE DATABASE` 在 `SOURCE` 之前已执行，所以**库会建出来但里面 0 张表**，批模式遇错即中止（除非加 `--force`）→ **一律按退出码判定，别只看「库存在」**；改对 cwd 重跑即可补齐四表（幂等）。
 
 **幂等**：`CREATE DATABASE` 与四表 `CREATE TABLE` 全带 `IF NOT EXISTS`，同一条命令重跑不报错、**不清已有数据**。要重建空库请自己显式 `DROP DATABASE jit_demo`（脚本永不做破坏性操作，`backend/tests/test_schema_mysql_script.py` 把这条钉住了）。
 
@@ -148,7 +148,7 @@ python -m scripts.demo_preflight --out scripts/evidence/preflight-<日期>.md
 | # | 现象 | 根因 | 解法 |
 |---|---|---|---|
 | 1 | `ERROR 1044 (42000): Access denied for user 'jit'@'127.0.0.1' to database 'jit_demo'` | 只被授予「某个库 ALL PRIVILEGES」的账号**没有** `CREATE DATABASE`（全局只有 `GRANT USAGE ON *.*`）。本项目实测：`jit@127.0.0.1` 建 `jit_demo` 必报 1044 | 用 **root** 跑 §2.1；或让有权限的人执行一次 `GRANT ALL PRIVILEGES ON jit_demo.* TO '<你的账号>'@'127.0.0.1'; FLUSH PRIVILEGES;`（库仍需先由 root 建出来） |
-| 2 | `ERROR: Failed to open file 'infra/schema.sql'` | `SOURCE` 是 **mysql 客户端内建命令**，按**当前工作目录**解析相对路径 | cwd 切到**仓库根**再跑；另外 `SOURCE` 只有客户端认，pymysql / SQLAlchemy 都不认（ORM 路径走 `python -m app.db init`） |
+| 2 | `ERROR at line 3: Failed to open file 'infra\schema.sql', error: 2`（本机实测原文，Windows 下路径分隔符显示为反斜杠），退出码 1 | `SOURCE` 是 **mysql 客户端内建命令**，按**当前工作目录**解析相对路径 | cwd 切到**仓库根**再跑；此时 `jit_demo` 已被建出但 0 张表，重跑即补齐（§2.2）。另外 `SOURCE` 只有客户端认，pymysql / SQLAlchemy 都不认（ORM 路径走 `python -m app.db init`） |
 | 3 | `ERROR 2003 (HY000): Can't connect to MySQL server on '127.0.0.1:3306'` | 服务没起，或 3306 被另一个实例占用 | Windows：`Get-Service MySQL80` / `net start MySQL80`；查占用 `netstat -ano \| findstr :3306`，再按 PID 看是哪个进程 |
 | 4 | `ModuleNotFoundError: No module named 'pymysql'` | 跑成了系统 Python，不是 conda 环境 `jit-defect-prediction` | `conda activate jit-defect-prediction` 后重试；依赖清单只有 `data_model/environment.yml` 一份 |
 | 5 | 中文提交信息乱码，或 `Incorrect string value: '\xF0\x9F...'` | 库/连接不是 `utf8mb4`（`utf8` 在 MySQL 里是 `utf8mb3`，存不下 4 字节字符） | 用 §2.1 的脚本建库（已钉 `utf8mb4`），连接串带 `?charset=utf8mb4` |
@@ -170,4 +170,20 @@ python -m scripts.demo_preflight --out scripts/evidence/preflight-<日期>.md
 
 ---
 
-**本文档只写已验证或已裁定的内容。** 尚未在本机 MySQL 上完成的项，如实登记在此，不当已验证：§2.1 的建库命令**需要 `CREATE DATABASE` 权限**，本项目后端线的本机账号没有（实测 1044），因此在拿到 root 或授权之前，§5.1 的六条判据在本机 MySQL 上**未实测**；同口径的实测证据目前有两份 —— SQLite 全量库（`system-layer-backend-2026-10-24.md`，43 项断言全过）与组长本机 MySQL（Issue #147 正文：`jit_demo` 建库 + 双路径幂等 + 灌数 + 三模型加载 + `total=83943` + 236 期趋势）。补跑后按「只追加、不改写」在本节下方补记。
+## 8. 本文档的实测边界（哪些是测过的、哪些不是）
+
+**本文档只写已验证或已裁定的内容**，未验证的一律如实登记，不当已验证。
+
+| 内容 | 状态 | 依据 |
+|---|---|---|
+| `SOURCE` 按 cwd 解析相对路径（正例 rc=0 / 反例 rc=1 + 错误原文） | ✅ 本机实测 | 临时目录里造 `backend/scripts/outer.sql` + `infra/inner.sql` 正反两跑，反例输出即 §6 坑 2 的原文 |
+| 普通账号建 `jit_demo` 报 `ERROR 1044 (42000)` | ✅ 本机实测 | `jit@127.0.0.1` 只有全局 `GRANT USAGE ON *.*` + **单个既有库**的 `ALL PRIVILEGES`，无 `CREATE DATABASE` |
+| 服务端 `8.0.45` / `utf8mb4` / `utf8mb4_0900_ai_ci` / `time_zone=SYSTEM` | ✅ 本机实测 | §1.1 第二条自检命令 |
+| `PyMySQL 1.2.3`、`SQLAlchemy 2.0.54` | ✅ 本机实测 | `pip show PyMySQL`、`import sqlalchemy` |
+| 四份 CSV 的数据行数（84,461 / 83,943 / 84,461 / 83,943） | ✅ 本机实测 | 逐份数数据行（不含表头） |
+| 时间列不受 `time_zone` 影响 | ✅ 代码级实测 | `infra/schema.sql` 四个时间列全为 `DATETIME`；`backend/app` 内 `NOW()` / `CURRENT_TIMESTAMP` / `server_default` grep 0 命中 |
+| **§2.1 的建库命令本身**（`CREATE DATABASE` + `SOURCE infra/schema.sql` 在真 MySQL 上跑通） | ❌ **本机未实测** | 后端线本机账号无 `CREATE DATABASE`（实测 1044），需 root 或一次性授权。**建库头两条路径的等价性与幂等性已由组长本机 MySQL 实测**（Issue #147 正文） |
+| **§5.1 六条判据在本机 MySQL 上** | ❌ **本机未实测** | 同上；同口径的实测证据现有两份：SQLite 全量库（`backend/scripts/evidence/system-layer-backend-2026-10-24.md`，43 项断言全过）与组长本机 MySQL `jit_demo`（#147：建库 + 双路径幂等 + 灌数 + 三模型加载 + `total=83943` + 236 期趋势 + 现场预测 8.4s） |
+
+拿到 root 或授权后按 §0 走一遍，把结果**只追加、不改写**地补记在本节下方（含日期、账号形态、六条判据的实际值）。
+
