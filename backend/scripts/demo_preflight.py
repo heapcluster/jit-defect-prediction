@@ -18,9 +18,22 @@
 `(commit_hash, model_name)` 预测行来发 —— upsert 命中同一行、不插入新行 —— 并用
 「总行数前后不变」把这一点钉死。其余五项全是只读 SELECT / GET。
 
+两个**可选前置阶段**（Issue #142：把「建库→灌数→起服务→断言」并进同一条命令）：
+  `--init-db`  阶段 0a 建库建表：等价于 `python -m app.db init`（ORM 路径，含 `_assert_indexes`
+               自检）。**它只建表、不建数据库** —— MySQL 上库还不存在时会如实 FAIL 并指路
+               `backend/scripts/schema_mysql.sql`（需 `CREATE DATABASE` 权限，见
+               `docs/backend/mysql-setup.md` §2）。
+  `--ingest`   阶段 0b 灌真实数据：按 `commits → labels → features → predictions` 顺序各调一次
+               `python -m app.ingest`，逐类报入库行数。**四类 CSV 先全部存在性预检再动手**，
+               缺任一类就一条都不灌（不留半灌的演示库）。CSV 路径默认取
+               `docs/repo/demo-script-sprint1.md` §0.0 的唯一口径，本机产物名不同时用
+               `--ingest-csv KIND=PATH` 覆盖（可重复）。
+两个阶段默认**都不跑**：不加这两个开关时，本脚本仍是原来那份「只读 + 判据 6 一次幂等写」的自检。
+任一阶段 FAIL → 六条判据一律记「前置不满足，未执行」并进 rc=1，不会拿后面的绿掩盖前面。
+
 令牌与口令一律不回显：判据 1 只打印长度与掩码，`DATABASE_URL` 只打印方言/主机/库名，
-仓库外的绝对路径（如 `MODEL_DIR`）在输出与证据文件里一律写作 `<仓库外路径>`
-（`docs/repo/collaboration.md` §0 第 3 条）。
+仓库外的绝对路径（如 `MODEL_DIR`、`--ingest-csv` 指到的路径）在输出与证据文件里一律写作
+`<仓库外路径>`（`docs/repo/collaboration.md` §0 第 3 条）。
 
 演示库口径（Issue #130 更正裁定）：**MySQL `jit_demo`**；联调库仍是 SQLite `backend/dev.db`。
 本脚本对两者都适用 —— 它只认 `DATABASE_URL`，不假设方言。
@@ -29,6 +42,10 @@
   python -m scripts.demo_preflight
   python -m scripts.demo_preflight --port 8055 --out scripts/evidence/preflight-2026-10-25.md
   DATABASE_URL=mysql+pymysql://<user>:<pwd>@127.0.0.1:3306/jit_demo python -m scripts.demo_preflight
+  # 从零到断言一条命令（建库→灌数→起服务→六条判据）：
+  python -m scripts.demo_preflight --init-db --ingest --out scripts/evidence/preflight-2026-10-25.md
+  # 本机某一类产物名与 §0.0 不同时，只覆盖那一类（KIND 取 commits|labels|features|predictions）：
+  python -m scripts.demo_preflight --ingest --ingest-csv features=<本机实际路径>
   # 对联调库跑（判据 2、3 会如实 FAIL，这正是它该有的行为，不要为了让它变绿而改期望值）：
   python -m scripts.demo_preflight --expect-predictions 3
 """
@@ -60,6 +77,20 @@ DEFAULT_FRONTEND_ENV = REPO_ROOT / "frontend" / ".env.local"
 LOADED_RE = re.compile(r"loaded models:\s*(\[[^\]]*\])")
 COUNT_MODELS = (Commit, CommitLabel, CommitFeature, Prediction)
 TABLES = tuple(model.__tablename__ for model in COUNT_MODELS)
+INGEST_KINDS = ("commits", "labels", "features", "predictions")
+# 四类 CSV 的默认路径照抄 docs/repo/demo-script-sprint1.md §0.0（唯一出处），本脚本不另立口径；
+# 本机产物名不同时用 --ingest-csv KIND=PATH 覆盖，脚本会把实际用到的路径打进输出。
+DEFAULT_INGEST_CSV = {
+    "commits": REPO_ROOT / "data_model" / "data" / "commits.csv",
+    "labels": REPO_ROOT / "data_model" / "data" / "commit_labels_szz.csv",
+    "features": REPO_ROOT / "data_model" / "data" / "commit_features.csv",
+    "predictions": REPO_ROOT / "data_model" / "pipelines" / "expert" / "data" / "prediction_result.csv",
+}
+INGEST_DONE_RE = re.compile(r"灌入完成（(\w+)）：(\d+) 行")
+STAGE_NAMES = ("0a 建库建表", "0b 灌真实数据")
+CRITERION_NAMES = ("1 令牌一致", "2 库行数", "3 存在高风险行",
+                   "4 交付模型全部加载", "5 四接口 200", "6 同 hash 两次预测只留一行")
+DEFAULT_EXPECT_PREDICTIONS = 83943
 
 
 def parse_dotenv(path: Path) -> dict[str, str]:
@@ -172,6 +203,121 @@ def count_pair(url: str, commit_hash: str, model_name: str) -> int:
             ).scalar_one())
     finally:
         engine.dispose()
+
+
+def init_database(db_url: str) -> tuple[bool, str]:
+    """阶段 0a：建表（ORM 路径），等价于 `python -m app.db init`，含 `_assert_indexes` 自检。
+
+    **只建表、不建数据库** —— MySQL 上库还不存在时 `create_all` 会抛 1049。这里如实 FAIL 并
+    指路那条需要 `CREATE DATABASE` 权限的命令，不假装建好了。
+    """
+    from app import db as app_db
+
+    if not db_url:
+        return False, "DATABASE_URL 未设置（backend/.env 与 shell 环境变量都没有），无从建表"
+    try:
+        app_db.init_db()
+    except (SQLAlchemyError, RuntimeError, OSError) as exc:
+        detail = f"{type(exc).__name__}: {exc}"
+        if "unknown database" in str(exc).lower() or "1049" in str(exc):
+            detail += (" ｜ ORM 路径只建表不建库：先用有 CREATE DATABASE 权限的账号跑 "
+                       "`mysql -u root -p < backend/scripts/schema_mysql.sql`（cwd=仓库根；"
+                       "该脚本与权限/常见报错说明在 PR #150 内，Issue #142）")
+        return False, detail
+    try:
+        counts = count_rows(db_url)
+    except (SQLAlchemyError, OSError) as exc:
+        return False, f"建表没报错，但随后读不到四表：{type(exc).__name__}: {exc}"
+    return True, ("四表建好且索引自检通过（`CREATE TABLE IF NOT EXISTS`，连跑两次即验证幂等）："
+                  + " ".join(f"{name}={counts[name]}" for name in TABLES))
+
+
+def resolve_ingest_paths(overrides: list[str]) -> tuple[dict[str, Path], list[str]]:
+    """把 `--ingest-csv KIND=PATH` 覆盖到 §0.0 的默认路径上；写法不对就返回错误而不是猜。"""
+    paths = dict(DEFAULT_INGEST_CSV)
+    errors: list[str] = []
+    for item in overrides:
+        kind, sep, value = item.partition("=")
+        if not sep or kind not in INGEST_KINDS or not value:
+            errors.append(f"--ingest-csv 要写成 KIND=PATH（KIND 取 {'|'.join(INGEST_KINDS)}），"
+                          f"实际收到 {item!r}")
+            continue
+        paths[kind] = Path(value)
+    return paths, errors
+
+
+def run_ingest(paths: dict[str, Path], db_url: str) -> tuple[bool, str, dict[str, int]]:
+    """阶段 0b：按 commits → labels → features → predictions 各调一次 `python -m app.ingest`。
+
+    **先对四类 CSV 做存在性预检再动手**：缺任一类就一条都不灌，避免留下半灌的演示库 ——
+    半灌的库在判据 2、3 上会给出看起来合理的错数，比直接失败更难查。
+    退出码 0 但没打印「灌入完成（kind）：N 行」同样判 FAIL：解析不出行数就不算灌成功。
+
+    子进程**显式**拿到本脚本判据所用的同一个 `DATABASE_URL`：`app/config.py` 只调
+    `load_dotenv()`、它不覆盖已存在的环境变量，所以这一赋值一定生效 —— 灌的库与断言的库
+    必然是同一个，不会出现「断言 A 库、灌进 B 库」。
+    """
+    missing = [f"{kind}={display_path(path)}" for kind, path in paths.items() if not path.is_file()]
+    if missing:
+        return False, ("CSV 不存在，四类一条都没灌：" + "；".join(missing)
+                       + " ｜ 默认路径取自 docs/repo/demo-script-sprint1.md §0.0（唯一出处），"
+                         "本机产物名不同就用 --ingest-csv KIND=PATH 指定"), {}
+    counts: dict[str, int] = {}
+    details: list[str] = []
+    child_env = dict(os.environ, PYTHONUTF8="1", DATABASE_URL=db_url)
+    for kind in INGEST_KINDS:
+        started = time.time()
+        proc = subprocess.run(
+            [sys.executable, "-m", "app.ingest", kind, str(paths[kind])],
+            cwd=str(BACKEND_DIR), capture_output=True, text=True, check=False,
+            encoding="utf-8", errors="replace", env=child_env,
+        )
+        elapsed = time.time() - started
+        match = INGEST_DONE_RE.search(proc.stdout or "")
+        if proc.returncode != 0:
+            tail = " | ".join(((proc.stderr or proc.stdout or "").strip().splitlines() or ["（无输出）"])[-3:])
+            done = "、".join(f"{k}={v}" for k, v in counts.items()) or "无"
+            todo = "、".join(k for k in INGEST_KINDS if k not in counts)
+            return False, (f"{kind} 退出码 {proc.returncode}：{tail} ｜ 已灌 {done}；未灌 {todo}"
+                           "（ingest 幂等，修好后整条重跑即可，不会插重复行）"), counts
+        if match is None:
+            done = "、".join(f"{k}={v}" for k, v in counts.items()) or "无"
+            return False, (f"{kind} 退出码 0，但没打印「灌入完成（{kind}）：N 行」，"
+                           f"无法确认入库行数 —— 不拿解析失败当成功 ｜ 已灌 {done}"), counts
+        counts[kind] = int(match.group(2))
+        details.append(f"{kind}={counts[kind]} 行（{elapsed:.1f}s）")
+    return True, "；".join(details), counts
+
+
+def run_build_stages(args, db_url: str) -> tuple[list[tuple[str, bool, str]], list[str], list[str]]:
+    """跑可选的阶段 0a/0b → (结果行, 信息行, 需要掩码的路径)。不加开关时返回三个空表。"""
+    results: list[tuple[str, bool, str]] = []
+    infos: list[str] = []
+    secret_paths: list[str] = []
+    if args.init_db:
+        ok, detail = init_database(db_url)
+        results.append((STAGE_NAMES[0], ok, detail))
+    if args.ingest:
+        paths, errors = resolve_ingest_paths(args.ingest_csv or [])
+        # 原始参数串与解析后的 Path 都登记：Windows 下 str(Path(...)) 会把正斜杠转成反斜杠，
+        # 只登记一边会让证据里的命令行漏掉一条真路径。
+        secret_paths.extend(str(path) for path in paths.values())
+        secret_paths.extend(args.ingest_csv or [])
+        if not db_url:
+            results.append((STAGE_NAMES[1], False,
+                            ("DATABASE_URL 未设置（backend/.env 与 shell 环境变量都没有），"
+                             "灌数没有目标库 —— 不猜、不回落默认库")))
+        elif errors:
+            results.append((STAGE_NAMES[1], False, "；".join(errors)))
+        else:
+            infos.append("灌数用的 CSV：" + "；".join(f"{kind}={display_path(path)}"
+                                                      for kind, path in paths.items()))
+            ok, detail, counts = run_ingest(paths, db_url)
+            results.append((STAGE_NAMES[1], ok, detail))
+            if ok:
+                infos.append(f"灌数合计 {sum(counts.values())} 行；各类行数的合法取值与对账见 "
+                             "docs/backend/mysql-setup.md §4（PR #150 内；labels/features 各有两个合法值）")
+    return results, infos, secret_paths
 
 
 def pick_target(url: str, models: list[str]) -> tuple[str, str, float] | None:
@@ -341,12 +487,18 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=8055, help="本脚本自己起服务用的端口")
     parser.add_argument("--backend-env", default=str(DEFAULT_BACKEND_ENV))
     parser.add_argument("--frontend-env", default=str(DEFAULT_FRONTEND_ENV))
-    parser.add_argument("--expect-predictions", type=int, default=83943,
+    parser.add_argument("--expect-predictions", type=int, default=DEFAULT_EXPECT_PREDICTIONS,
                         help="判据 2 的期望 prediction 行数；演示库 83943，联调库 3")
     parser.add_argument("--expect-models", default="lr_v1,rf_v1,xgb_v1",
                         help="判据 4 的期望加载清单，逗号分隔；默认 = 交付清单三个")
     parser.add_argument("--timeout", type=float, default=120.0, help="等服务就绪的秒数")
     parser.add_argument("--out", default="", help="可选：把结果写成证据 markdown")
+    parser.add_argument("--init-db", action="store_true",
+                        help="可选前置阶段 0a：先建表（等价 python -m app.db init，含索引自检）")
+    parser.add_argument("--ingest", action="store_true",
+                        help="可选前置阶段 0b：按 §0.0 的四类 CSV 依次灌数，逐类报入库行数")
+    parser.add_argument("--ingest-csv", action="append", default=[], metavar="KIND=PATH",
+                        help="覆盖某一类 CSV 的路径，可重复；KIND 取 commits|labels|features|predictions")
     args = parser.parse_args()
 
     backend_env = Path(args.backend_env)
@@ -356,6 +508,11 @@ def main() -> int:
     threshold = config.HIGH_RISK_THRESHOLD
     results: list[tuple[str, bool, str]] = []
     infos: list[str] = []
+
+    db_url = config.DATABASE_URL
+    model_dir = config.MODEL_DIR
+    stage_results, stage_infos, stage_paths = run_build_stages(args, db_url)
+    infos.extend(stage_infos)
 
     # ── 判据 1：两份 .env 的令牌必须逐字相等 ──────────────────────────
     backend_values = parse_dotenv(backend_env) if backend_env.is_file() else None
@@ -386,14 +543,21 @@ def main() -> int:
         infos.append(f"shell 环境变量 API_TOKEN={mask_secret(env_token)} 与 backend/.env 不同，"
                      "服务用的是环境变量那一份（load_dotenv 不覆盖已有环境变量）")
 
-    db_url = config.DATABASE_URL
-    model_dir = config.MODEL_DIR
     token = env_token or backend_token
-    replacements = local_replacements(db_url, model_dir, backend_env, frontend_env)
+    replacements = local_replacements(db_url, model_dir, backend_env, frontend_env, *stage_paths)
     infos.append(f"库：{mask_database_url(db_url)}")
     infos.append(f"模型目录：{display_path(model_dir)}")
     infos.append(f"高风险阈值：{threshold}（取自 app/config.py::HIGH_RISK_THRESHOLD，不在本脚本另立）")
     infos.append(f"服务：{base_url}（本脚本自己起，判据 4 要读它的启动日志）")
+
+    # 阶段 0a/0b 任一 FAIL：判据 2~6 一律记「未执行」并进 rc=1，不拿后面的绿掩盖前面的红。
+    # 判据 1（两份 .env 的令牌）不依赖库，已经真跑过，就报它的实际结果，不改成「未执行」。
+    if stage_results and not all(ok for _, ok, _ in stage_results):
+        failed = "、".join(name for name, ok, _ in stage_results if not ok)
+        for name in CRITERION_NAMES[1:]:
+            results.append((name, False,
+                            f"前置阶段未通过（{failed}），未执行；实际值见上面该阶段那一行的输出"))
+        return finish(stage_results + results, infos, args, base_url, replacements)
 
     # ── 判据 2、3：库行数与高风险行 ──────────────────────────────────
     snapshot: tuple[dict[str, int], int] | None = None
@@ -439,14 +603,14 @@ def main() -> int:
     if blocker:
         for name in ("4 交付模型全部加载", "5 四接口 200", "6 同 hash 两次预测只留一行"):
             results.append((name, False, f"前置不满足，未执行：{blocker}"))
-        return finish(results, infos, args, base_url, replacements)
+        return finish(stage_results + results, infos, args, base_url, replacements)
 
     commit_hash, model_name, stored_score = target
     infos.append(f"判据 5/6 用的样本：commit_hash={commit_hash}、model_name={model_name}、"
                  f"库内 risk_score={stored_score}")
 
     run_service_checks(args, base_url, db_url, token, model_dir, target, expect_models, results, infos)
-    return finish(results, infos, args, base_url, replacements)
+    return finish(stage_results + results, infos, args, base_url, replacements)
 
 
 def finish(results: list[tuple[str, bool, str]], infos: list[str], args, base_url: str,
@@ -463,16 +627,31 @@ def finish(results: list[tuple[str, bool, str]], infos: list[str], args, base_ur
     return 0 if all_ok else 1
 
 
+def evidence_command(args) -> str:
+    """证据里记的命令必须能复现本次运行 —— 前置阶段与 CSV 覆盖都要写进去（路径经掩码）。"""
+    parts = ["python -m scripts.demo_preflight", f"--port {args.port}"]
+    if args.init_db:
+        parts.append("--init-db")
+    if args.ingest:
+        parts.append("--ingest")
+    parts += [f"--ingest-csv {item}" for item in (args.ingest_csv or [])]
+    if args.expect_predictions != DEFAULT_EXPECT_PREDICTIONS:
+        parts.append(f"--expect-predictions {args.expect_predictions}")
+    return " ".join(parts)
+
+
 def write_evidence(out: Path, results, infos, args, base_url: str, all_ok: bool,
                    replacements: dict[str, str] | None = None) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
+    command = sanitize_for_evidence(evidence_command(args), replacements)
     lines = [
         f"# 录屏前自检 {datetime.now(timezone.utc).astimezone().date().isoformat()}",
         "",
-        f"- 命令：`python -m scripts.demo_preflight --port {args.port}`（cwd=`backend`；令牌与库口令一律掩码）",
-        "- 判据来源：Issue #138（裁定见 Issue #130 三）；演示库口径见 Issue #130 更正裁定（MySQL `jit_demo`）",
+        f"- 命令：`{command}`（cwd=`backend`；令牌与库口令一律掩码）",
+        "- 判据来源：Issue #138（裁定见 Issue #130 三）；演示库口径见 Issue #130 更正裁定（MySQL `jit_demo`）"
+        + ("；前置阶段（建库/灌数）按 Issue #142 并入同一条命令" if (args.init_db or args.ingest) else ""),
         "",
-        "| 判据 | 结果 | 实际值 |",
+        "| 判据 / 阶段 | 结果 | 实际值 |",
         "|---|---|---|",
     ]
     lines += [f"| {name} | {'PASS' if ok else 'FAIL'} | {sanitize_for_evidence(detail, replacements)} |"

@@ -490,3 +490,314 @@ def test_pick_target_prefers_expected_models(tmp_path, model_name):
     picked = mod.pick_target(db_url, [model_name])
     assert picked is not None
     assert picked[1] == model_name
+
+
+# ── 阶段 0a/0b：建库 → 灌数（Issue #142 要求并进同一条命令） ──────────
+
+KINDS = ("commits", "labels", "features", "predictions")
+
+
+def _write_ingest_csvs(tmp_path: Path) -> Path:
+    """四份**真**能灌进库的最小 CSV（一行一提交），表头逐字对齐 app/ingest.py 的 _require。"""
+    from app import config
+
+    csv_dir = tmp_path / "csv"
+    csv_dir.mkdir()
+    feats = ",".join(str(FEATURES[name]) for name in config.FEATURE_COLUMNS)
+    (csv_dir / "commits.csv").write_text(
+        "repo_name,commit_hash,author_name,author_email,committed_at,message,parent_hash\n"
+        f"camel,{HASH},jdoe,jdoe@example.com,2026-08-03T09:00:00Z,CAMEL-1 fix,\n", encoding="utf-8")
+    (csv_dir / "labels.csv").write_text(
+        "commit_hash,is_bug_inducing,label_method,bug_fix_hash,labeled_at\n"
+        f"{HASH},1,szz,,2026-10-24T06:24:31Z\n", encoding="utf-8")
+    (csv_dir / "features.csv").write_text(
+        "commit_hash,committed_at,feature_version," + ",".join(config.FEATURE_COLUMNS) + "\n"
+        f"{HASH},2026-08-03T09:00:00Z,v1,{feats}\n", encoding="utf-8")
+    (csv_dir / "predictions.csv").write_text(
+        "commit_hash,model_name,risk_score,predicted_at,feature_version\n"
+        f"{HASH},xgb_v1,0.9,2026-09-01T08:00:00Z,v1\n", encoding="utf-8")
+    return csv_dir
+
+
+def _ingest_argv(csv_dir: Path, kinds=KINDS) -> list[str]:
+    argv: list[str] = []
+    for kind in kinds:
+        argv += ["--ingest-csv", f"{kind}={csv_dir / (kind + '.csv')}"]
+    return argv
+
+
+def _fresh_engine(monkeypatch):
+    """`app.db` 的 engine 是模块级缓存，不重置就会用到别的测试留下的库。"""
+    from app import db as app_db
+
+    monkeypatch.setattr(app_db, "_engine", None)
+
+
+def test_init_db_and_ingest_stages_reach_eight_of_eight_on_a_blank_database(
+        tmp_path, monkeypatch, capsys):
+    """建库→灌数→起服务→断言一条命令跑通：阶段 2 条 + 判据 6 条 = 8/8、rc=0，且数据是真灌进去的。"""
+    mod = _load_module()
+    _fresh_engine(monkeypatch)
+    db_url = f"sqlite:///{(tmp_path / 'blank.db').as_posix()}"
+    csv_dir = _write_ingest_csvs(tmp_path)
+    rc = _run(monkeypatch, mod, tmp_path,
+              ["--init-db", "--ingest", "--expect-predictions", "1", *_ingest_argv(csv_dir)],
+              db_url=db_url)
+    out = capsys.readouterr().out
+    assert rc == 0, out
+    assert "PASS 0a 建库建表" in out and "PASS 0b 灌真实数据" in out
+    assert "汇总：8/8 通过" in out
+    for kind, rows in (("commits", 1), ("labels", 1), ("features", 1), ("predictions", 1)):
+        assert f"{kind}={rows} 行" in out, f"{kind} 的入库行数没被如实报出"
+    # 不靠脚本自报：直接查库，证明四张表里真的有行
+    counts = mod.count_rows(db_url)
+    assert counts == {"commit": 1, "commit_label": 1, "commit_feature": 1, "prediction": 1}
+
+
+def test_stages_print_before_the_six_criteria_and_do_not_change_their_numbering(
+        tmp_path, monkeypatch, capsys):
+    mod = _load_module()
+    _fresh_engine(monkeypatch)
+    db_url = f"sqlite:///{(tmp_path / 'blank2.db').as_posix()}"
+    rc = _run(monkeypatch, mod, tmp_path, ["--init-db"], db_url=db_url)
+    out = capsys.readouterr().out
+    assert rc == 1, "空库上判据 2/3 必须 FAIL，不许因为建库成功就整体判绿"
+    assert out.index("0a 建库建表") < out.index("1 令牌一致") < out.index("6 同 hash 两次预测只留一行")
+    assert "PASS 0a 建库建表" in out and "FAIL 2 库行数" in out and "FAIL 3 存在高风险行" in out
+    assert "0b 灌真实数据" not in out, "没给 --ingest 就不该出现灌数阶段"
+    assert "汇总：2/7 通过" in out, "1 条阶段 + 6 条判据；只有阶段与判据 1 该绿"
+
+
+def test_stage_failure_blocks_the_db_dependent_criteria_and_never_starts_the_service(
+        tmp_path, monkeypatch, capsys):
+    mod = _load_module()
+    _fresh_engine(monkeypatch)
+    started = []
+    # 目录不存在 → SQLite 打不开文件 → 阶段 0a 必须 FAIL（不是异常穿透）
+    db_url = f"sqlite:///{(tmp_path / 'no-such-dir' / 'x.db').as_posix()}"
+    extra = _wire(monkeypatch, mod, tmp_path, db_url)
+    monkeypatch.setattr(mod, "start_service",
+                        lambda *a, **k: started.append(a) or pytest.fail("前置阶段 FAIL 就不该起服务"))
+    monkeypatch.setattr(sys, "argv", ["demo_preflight", *extra, "--init-db"])
+    rc = mod.main()
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert started == []
+    assert "FAIL 0a 建库建表" in out
+    for name in mod.CRITERION_NAMES[1:]:
+        assert f"FAIL {name} :: 前置阶段未通过（0a 建库建表），未执行" in out, name
+    assert "PASS 1 令牌一致" in out, "判据 1 不依赖库、已经真跑过，要报实际结果而不是「未执行」"
+    assert "汇总：1/7 通过" in out
+
+
+def test_ingest_prechecks_every_csv_and_touches_nothing_when_one_is_missing(
+        tmp_path, monkeypatch, capsys):
+    """四类 CSV 先全部存在性预检：缺一个就一条都不灌，不留半灌的演示库。"""
+    mod = _load_module()
+    db_url = _make_db(tmp_path, [(HASH, 0.9, "xgb_v1")])
+    csv_dir = _write_ingest_csvs(tmp_path)
+    (csv_dir / "features.csv").unlink()
+    calls: list = []
+    monkeypatch.setattr(mod.subprocess, "run",
+                        lambda *a, **k: calls.append(a) or pytest.fail("缺 CSV 时不该起灌数子进程"))
+    rc = _run(monkeypatch, mod, tmp_path,
+              ["--ingest", "--expect-predictions", "1", *_ingest_argv(csv_dir)], db_url=db_url)
+    out = capsys.readouterr().out
+    assert rc == 1 and calls == []
+    assert "FAIL 0b 灌真实数据" in out and "四类一条都没灌" in out
+    assert "features=" in out and "docs/repo/demo-script-sprint1.md §0.0" in out
+
+
+def test_ingest_child_process_is_pinned_to_the_same_database_url(tmp_path, monkeypatch, capsys):
+    """灌数子进程必须拿到与断言同一个 DATABASE_URL —— 否则会「断言 A 库、灌进 B 库」。"""
+    mod = _load_module()
+    db_url = _make_db(tmp_path, [(HASH, 0.9, "xgb_v1")])
+    csv_dir = _write_ingest_csvs(tmp_path)
+    seen: list[dict] = []
+
+    class Done:
+        returncode = 0
+        stderr = ""
+
+        def __init__(self, kind):
+            self.stdout = f"灌入完成（{kind}）：7 行"
+
+    def fake_run(cmd, **kwargs):
+        seen.append({"cmd": cmd, "env": kwargs.get("env"), "cwd": kwargs.get("cwd")})
+        return Done(cmd[3])
+
+    monkeypatch.setattr(mod.subprocess, "run", fake_run)
+    rc = _run(monkeypatch, mod, tmp_path,
+              ["--ingest", "--expect-predictions", "7", *_ingest_argv(csv_dir)], db_url=db_url)
+    out = capsys.readouterr().out
+    assert [item["cmd"][3] for item in seen] == list(KINDS), "必须按 commits→labels→features→predictions 顺序"
+    for item in seen:
+        assert item["cmd"][1:3] == ["-m", "app.ingest"]
+        assert item["env"]["DATABASE_URL"] == db_url
+        assert item["env"]["PYTHONUTF8"] == "1"
+        assert item["cwd"] == str(mod.BACKEND_DIR)
+    assert "PASS 0b 灌真实数据" in out
+    assert all(f"{kind}=7 行" in out for kind in KINDS), out
+    assert rc == 1, "灌数是假装的（真库仍只有 1 行），判据 2 必须如实 FAIL"
+
+
+FAKE_INGEST_ROWS = {"commits": 3, "labels": 5, "features": 5, "predictions": 5}
+
+
+class _FakeIngest:
+    """假的 `subprocess.run`：按 kind 造「灌入完成（kind）：N 行」，可指定哪一类失败。"""
+
+    def __init__(self, fail_at: str = "", rc: int = 1, stderr: str = "", silent: bool = False):
+        self._fail_at = fail_at
+        self._rc = rc
+        self._stderr = stderr
+        self._silent = silent
+        self.calls: list[list[str]] = []
+
+    def __call__(self, cmd, **kwargs):
+        kind = cmd[3]
+        self.calls.append(list(cmd))
+        proc = type("Done", (), {})()
+        proc.stderr = ""
+        if kind == self._fail_at:
+            proc.returncode = self._rc
+            proc.stdout = "" if self._silent else "（什么都没打印）"
+            proc.stderr = self._stderr
+        else:
+            proc.returncode = 0
+            proc.stdout = f"灌入完成（{kind}）：{FAKE_INGEST_ROWS[kind]} 行"
+        return proc
+
+
+def test_ingest_reports_which_kinds_landed_when_one_fails_midway(tmp_path, monkeypatch, capsys):
+    mod = _load_module()
+    db_url = _make_db(tmp_path, [(HASH, 0.9, "xgb_v1")])
+    csv_dir = _write_ingest_csvs(tmp_path)
+    fake = _FakeIngest(fail_at="features", stderr="灌入失败（features）：第 2 行缺列 feature_version")
+    monkeypatch.setattr(mod.subprocess, "run", fake)
+    rc = _run(monkeypatch, mod, tmp_path,
+              ["--ingest", "--expect-predictions", "1", *_ingest_argv(csv_dir)], db_url=db_url)
+    out = capsys.readouterr().out
+    assert rc == 1 and "FAIL 0b 灌真实数据" in out
+    assert [cmd[3] for cmd in fake.calls] == ["commits", "labels", "features"], "失败即停，不再灌后面两类"
+    assert "features 退出码 1" in out and "缺列 feature_version" in out
+    assert "已灌 commits=3、labels=5" in out and "未灌 features、predictions" in out
+    assert "ingest 幂等" in out
+
+
+def test_ingest_refuses_to_treat_rc0_without_a_row_count_as_success(tmp_path, monkeypatch, capsys):
+    mod = _load_module()
+    db_url = _make_db(tmp_path, [(HASH, 0.9, "xgb_v1")])
+    csv_dir = _write_ingest_csvs(tmp_path)
+    monkeypatch.setattr(mod.subprocess, "run", _FakeIngest(fail_at="commits", rc=0, silent=True))
+    rc = _run(monkeypatch, mod, tmp_path,
+              ["--ingest", "--expect-predictions", "1", *_ingest_argv(csv_dir)], db_url=db_url)
+    out = capsys.readouterr().out
+    assert rc == 1 and "不拿解析失败当成功" in out and "退出码 0" in out
+
+
+def test_ingest_without_a_database_url_fails_instead_of_guessing(tmp_path, monkeypatch, capsys):
+    mod = _load_module()
+    csv_dir = _write_ingest_csvs(tmp_path)
+    rc = _run(monkeypatch, mod, tmp_path,
+              ["--ingest", *_ingest_argv(csv_dir)], db_url="")
+    out = capsys.readouterr().out
+    assert rc == 1 and "FAIL 0b 灌真实数据" in out
+    assert "灌数没有目标库" in out and "不猜、不回落默认库" in out
+
+
+@pytest.mark.parametrize("bad", ["features", "=path.csv", "weights=x.csv", "features="])
+def test_ingest_csv_override_rejects_bad_syntax(tmp_path, monkeypatch, capsys, bad):
+    mod = _load_module()
+    db_url = _make_db(tmp_path, [(HASH, 0.9, "xgb_v1")])
+    calls: list = []
+    monkeypatch.setattr(mod.subprocess, "run", lambda *a, **k: calls.append(a))
+    rc = _run(monkeypatch, mod, tmp_path, ["--ingest", "--ingest-csv", bad], db_url=db_url)
+    out = capsys.readouterr().out
+    assert rc == 1 and calls == []
+    assert "要写成 KIND=PATH" in out and "commits|labels|features|predictions" in out
+
+
+def test_resolve_ingest_paths_defaults_come_from_the_demo_script_caliber(tmp_path):
+    mod = _load_module()
+    paths, errors = mod.resolve_ingest_paths([])
+    assert errors == []
+    assert set(paths) == set(KINDS)
+    assert paths["commits"] == mod.REPO_ROOT / "data_model" / "data" / "commits.csv"
+    assert paths["predictions"] == (mod.REPO_ROOT / "data_model" / "pipelines" / "expert"
+                                    / "data" / "prediction_result.csv")
+    override = tmp_path / "elsewhere.csv"
+    paths, errors = mod.resolve_ingest_paths([f"features={override}"])
+    assert errors == [] and paths["features"] == override
+    assert paths["commits"] == mod.REPO_ROOT / "data_model" / "data" / "commits.csv"
+
+
+def test_evidence_records_the_stage_flags_and_masks_every_csv_path(tmp_path, monkeypatch):
+    mod = _load_module()
+    _fresh_engine(monkeypatch)
+    db_url = f"sqlite:///{(tmp_path / 'ev.db').as_posix()}"
+    csv_dir = _write_ingest_csvs(tmp_path)
+    out_file = tmp_path / "evidence" / "preflight.md"
+    argv = ["--init-db", "--ingest", "--expect-predictions", "1", *_ingest_argv(csv_dir),
+            "--out", str(out_file)]
+    _run(monkeypatch, mod, tmp_path, argv, db_url=db_url)
+    text = out_file.read_text(encoding="utf-8")
+    assert "--init-db" in text and "--ingest" in text
+    assert "--expect-predictions 1" in text, "命令必须能复现本次运行，含改过的期望值"
+    assert str(csv_dir) not in text and str(tmp_path) not in text
+    assert not re.search(r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]", text), "证据文件里不许出现本机绝对路径"
+    assert "| 0a 建库建表 | PASS |" in text and "| 0b 灌真实数据 | PASS |" in text
+    assert "判据 / 阶段" in text and "前置阶段（建库/灌数）按 Issue #142" in text
+
+
+def test_evidence_command_omits_defaults_when_no_stage_is_requested(tmp_path):
+    mod = _load_module()
+
+    class Args:
+        port = 8099
+        init_db = False
+        ingest = False
+        ingest_csv = ()
+        expect_predictions = mod.DEFAULT_EXPECT_PREDICTIONS
+
+    assert mod.evidence_command(Args()) == "python -m scripts.demo_preflight --port 8099"
+
+
+def test_init_db_without_a_database_url_fails_instead_of_guessing():
+    mod = _load_module()
+    ok, detail = mod.init_database("")
+    assert not ok and "DATABASE_URL 未设置" in detail and "无从建表" in detail
+
+
+def test_init_db_points_at_the_create_database_script_when_the_schema_is_missing(monkeypatch):
+    """MySQL 上「库还不存在」是最常见的一次性卡点，必须指路而不是只甩一个 1049。"""
+    from sqlalchemy.exc import OperationalError
+
+    mod = _load_module()
+    from app import db as app_db
+
+    def boom():
+        raise OperationalError("CREATE TABLE …", {},
+                               Exception("(1049, \"Unknown database 'jit_demo'\")"))
+
+    monkeypatch.setattr(app_db, "init_db", boom)
+    ok, detail = mod.init_database("mysql+pymysql://u:***@127.0.0.1:3306/jit_demo")
+    assert not ok
+    assert "1049" in detail and "Unknown database" in detail
+    assert "backend/scripts/schema_mysql.sql" in detail and "CREATE DATABASE" in detail
+
+
+def test_init_db_fails_when_tables_cannot_be_read_back(monkeypatch, tmp_path):
+    """create_all 不报错但随后读不到四表 = 建表没真落地，不许判 PASS。"""
+    mod = _load_module()
+    _fresh_engine(monkeypatch)
+    from app import db as app_db
+
+    monkeypatch.setattr(app_db, "init_db", lambda: None)
+
+    def boom(url):
+        raise mod.SQLAlchemyError("表不存在")
+
+    monkeypatch.setattr(mod, "count_rows", boom)
+    ok, detail = mod.init_database(f"sqlite:///{(tmp_path / 'x.db').as_posix()}")
+    assert not ok and "建表没报错，但随后读不到四表" in detail
