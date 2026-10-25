@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """一键建库脚本（非 docker）。
 
 在「已安装 MySQL 的本机」上把 jit-defect-prediction 跑起来所需的库一次性备好：
