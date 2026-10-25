@@ -4,6 +4,9 @@
 > **本文不复述**（复述即违反 §0.2「指针不得超 3 行」）：本机全链路跑通顺序（§0–§6）的唯一出处是 `docs/common/local-runbook.md`；四份 CSV 的文件名与产出口径的唯一出处是 `docs/repo/demo-script-sprint1.md` §0.0；四表 DDL 的唯一出处是 `infra/schema.sql`；联调库口径（SQLite `backend/dev.db`、令牌）的唯一出处是 `docs/frontend/integration-log.md` §0。
 > **归属**：后端线（`docs/owners/s1mple-less.md` §1）。**依据**：Issue #142（2026-10-25 裁定「每人本机 MySQL + 后端出 `.sql` 建库脚本 + 配置文档」）、Issue #130 更正裁定（演示与系统层验收一律 MySQL `jit_demo`，联调库不变）。
 
+> ⚠️ **建库脚本待实机验收（2026-10-25，sober-hub 复审要求，如实标注）**：`CREATE DATABASE` 需要 root 或已授权账号，后端线本机账号实测报 `ERROR 1044`、`root` 免密报 `ERROR 1045`，所以 **§2.1 那条命令尚未在真 MySQL 上跑通过**。已实测的（`SOURCE` 相对路径解析正反两例、1044 报错、服务端版本/字符集/时区、依赖版本、CSV 行数、特征口径、SQLite 形态的全链路 8/8）与**未实测的**（建库命令本身、§5.1 六条判据在 MySQL 上）逐条列在 **§8**。
+> **在拿到实机验收证据之前，Issue #142 不算交付完成**；本 PR 的 37 条守门用例全是静态文本检查，**证明不了 `SOURCE` 与建库权限在真实客户端上奏效**。拿到 root 或一次性授权后按 §0 走一遍，把退出码、四表与索引自检、重跑幂等的实际值**只追加**补记进 §8。
+
 ## 0. 十分钟路径
 
 | 步 | 做什么 | 命令（cwd 见每节） | 判据 |
@@ -143,16 +146,19 @@ python -m app.ingest predictions <prediction_result.csv>
 >
 > 顺带说明这两份文件各自的正当用途，别把 raw 当成「错文件」：`commit_features_raw.csv` 是**融合/语义线的训练输入**（`data_model/pipelines/fused/config.py::FEATURES_RAW_CSV` 实测就指向它），它归模型线用；**入 `commit_feature` 表必须是契约形态那一份**。两者用途不同，不是同一份数据的两种形态。
 >
-> **当前缺口**：`docs/repo/demo-script-sprint1.md` §0.0 第 3 条写的是 `data_model/data/commit_features.csv`，而**这个文件目前不存在**（该目录下只有 `commit_features_raw.csv`）。照 §0.0 复制会在第三类直接报文件不存在；改用 raw 那份就会踩上面这个坑。正解是数据线补出这份投影（属 `data_model/`，不归后端代做）；临时自救可从 `dataset_szz.csv` 投影出契约二第三节的 14 列：
+> **当前缺口**：`docs/repo/demo-script-sprint1.md` §0.0 第 3 条写的是 `data_model/data/commit_features.csv`，而**这个文件目前不存在**（该目录下只有 `commit_features_raw.csv`）。照 §0.0 复制会在第三类直接报文件不存在；改用 raw 那份就会踩上面这个坑。正解是数据线补出这份投影（属 `data_model/`，不归后端代做）；临时自救按下面两步做。
 >
-> ```bash
-> # cwd = 仓库根；列名以 docs/model/feature-columns.md 第三节（= backend/app/config.py::FEATURE_COLUMNS）为准
-> python - <<'PY'
-> import csv, pathlib
+> **第 1 步**：把下面这段存成 `project_features.py`（放哪个目录都行，**不要用 heredoc** —— `python - <<'PY'` 只在 Git Bash/Linux 下有效，PowerShell 与 cmd 都会失败）：
+>
+> ```python
+> # 列名以 docs/model/feature-columns.md 第三节（= backend/app/config.py::FEATURE_COLUMNS）为准
+> import csv
+> import pathlib
+>
 > KEEP = ["commit_hash", "committed_at", "feature_version",
 >         "ns", "nd", "nf", "entropy", "la", "ld", "lt", "fix",
 >         "ndev", "age", "nuc", "exp", "rexp", "sexp"]
-> src = pathlib.Path("data_model/data/dataset_szz.csv")
+> src = pathlib.Path("data_model/data/dataset_szz.csv")     # 相对仓库根
 > dst = pathlib.Path("data_model/data/commit_features.csv")
 > count = 0
 > with src.open(encoding="utf-8", newline="") as fin, dst.open("w", encoding="utf-8", newline="") as fout:
@@ -161,9 +167,16 @@ python -m app.ingest predictions <prediction_result.csv>
 >     for row in csv.DictReader(fin):
 >         writer.writerow(row)
 >         count += 1
-> print(f"写出 {count} 行 → {dst}")
-> PY
+> print(f"写出 {count} 行 -> {dst}")
 > ```
+>
+> **第 2 步**：在**仓库根**执行（三种终端同一条命令，无 shell 特有语法）：
+>
+> ```
+> python project_features.py
+> ```
+>
+> 期望输出 `写出 83943 行 -> data_model\data\commit_features.csv`。随后 `cd backend` → `python -m app.ingest features ../data_model/data/commit_features.csv` 重灌一次即可（ingest 幂等、同 hash 覆盖，不用重建库、不用重灌其他三类）。
 >
 > 灌完**必须验一次口径**（一条 SQL，能挡住这个坑）：契约形态下 `la` / `ld` 会出现**大量负值**（`ln(x)` 在 x<1 时为负），原始计数则**恒为非负**且量级完全不同。本机全量实测两份文件的判据值：
 >
@@ -274,7 +287,8 @@ python -m scripts.demo_preflight --init-db --ingest --out scripts/evidence/prefl
 | 四份 CSV 的数据行数（84,461 / 83,943 / 84,461 / 83,943） | ✅ 本机实测 | 逐份数数据行（不含表头） |
 | **特征口径判别**（§4 那张对照表与两个在线概率） | ✅ 本机实测 | 两份文件全量扫 `min(la)`/`min(ld)`/`max(nf)`/`la<0` 行数；再用 `joblib.load(xgb_v1.pkl)` 对同一提交分别喂两套特征，得 0.82657 / 0.79963，后者与 `prediction_result.csv` 存量值逐位相同 |
 | **两份特征文件逐列的变换关系**（§4 那张 3,000 条比对表） | ✅ 本机实测 | 取交集前 3,000 条提交，逐列比对 `dataset` 与 `ln(raw)`（容差 1e-9）：9 列 3000/3000 命中、`fix` 逐字相等 3000/3000、`la`/`ld`/`lt`/`nuc` 仅 132/471/1125/1122 命中 → 结论「不能自己取 `ln` 补救」由此而来 |
-| **建库→灌数→起服务→六条判据全链路**（SQLite 形态） | ✅ 本机实测 **8/8 通过、rc=0、86 秒** | `python -m scripts.demo_preflight --init-db --ingest …`（PR #151 的脚本）：0a 四表建好 + 索引自检；0b 实灌 commits 84,461 / labels 83,943 / features 84,461 / predictions 83,943；判据 2 `prediction=83943`、判据 3 `risk≥0.5` = **14,596**、判据 4 `loaded models: ['lr_v1','rf_v1','xgb_v1']`、判据 5 四接口 200、判据 6 两次 POST 后 `(hash, xgb_v1)` 恒 1 行且总行数不变。**注意这一轮 features 灌的正是 raw 那份**，所以它同时复现了 §6 坑 9（在线 0.82657 vs 存量 0.79963）—— 判据 1~6 全绿也**抓不到特征口径错**，这正是 §5.1 判据 1b 存在的原因 |
+| **建库→灌数→起服务→六条判据全链路**（SQLite 形态） | ✅ 本机实测 **两轮各 8/8 通过、rc=0** | `python -m scripts.demo_preflight --init-db --ingest …`（PR #151 的脚本）。**这是一组 A/B 对照**，两轮只差 `features` 用哪份 CSV：<br>**第一轮**（`features=commit_features_raw.csv`，84,461 行，86 秒）→ 判据 6 信息行显示在线重算 **0.82657**、库内存量 **0.79963**，**两者不等** = 特征口径错；<br>**第二轮**（`features=` 按 §4 投影出的 `commit_features.csv`，83,943 行，120 秒）→ 在线重算 **0.79963 / 0.79963**，与库内存量**逐位相同** = 口径对。<br>两轮其余判据输出完全一致：`prediction=83943`、`risk≥0.5` = **14,596**、`loaded models: ['lr_v1','rf_v1','xgb_v1']`、四接口全 200 code=0、两次 POST 后 `(hash, xgb_v1)` 恒 1 行且总行数不变。**结论：判据 1~6 全绿抓不到特征口径错**（没有一条比对 `commit_feature` 的值），这正是 §5.1 判据 1b 存在的原因 |
+| §4 的投影配方 | ✅ 本机实跑 | 存成 `project_features.py` 后在仓库根执行 → 输出 `写出 83943 行 -> data_model\data\commit_features.csv`；产物 17 列、`min(la) = −12.944379598832155`、`la<0` 的行 **76,444**、`max(nf) = 9.793951665467821`，与上表判别值逐项吻合 |
 | 时间列不受 `time_zone` 影响 | ✅ 代码级实测 | `infra/schema.sql` 四个时间列全为 `DATETIME`；`backend/app` 内 `NOW()` / `CURRENT_TIMESTAMP` / `server_default` grep 0 命中 |
 | **§2.1 的建库命令本身**（`CREATE DATABASE` + `SOURCE infra/schema.sql` 在真 MySQL 上跑通） | ❌ **本机未实测** | 后端线本机账号无 `CREATE DATABASE`（实测 1044），需 root 或一次性授权。**建库头两条路径的等价性与幂等性已由组长本机 MySQL 实测**（Issue #147 正文） |
 | **§5.1 六条判据在本机 MySQL 上** | ❌ **本机未实测** | 同上；同口径的实测证据现有两份：SQLite 全量库（`backend/scripts/evidence/system-layer-backend-2026-10-24.md`，43 项断言全过）与组长本机 MySQL `jit_demo`（#147：建库 + 双路径幂等 + 灌数 + 三模型加载 + `total=83943` + 236 期趋势 + 现场预测 8.4s） |
