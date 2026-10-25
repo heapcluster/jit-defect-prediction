@@ -173,10 +173,10 @@
 
 ## 6. 交付边界
 
-- **本期交付模型 = `lr` / `rf` / `xgb` 三个**（后端 `[models]` 段）；其余 5 个仅评估对照，不进交付链（`model-coverage` R6）。
-- **不静默切换**：四类对比若显示更优者，须另开「模型切换」提案，走契约三变更流程。
+- **本期交付模型 = 8 个全部在线**（2026-10-25 组长裁定，Issue #139 / change `online-eight-model-selection`）：`lr_v1` / `rf_v1` / `xgb_v1` / `lgbm_v1` / `et_v1` / `svm_v1` / `mlp_deep_v1` / `tabnet_v1` 全部进后端 `[models]` 段、可在线切换；实测 8/8 加载（9.8s）、推理全部 <130ms、归因 5 非空 / 3 设计内降级为空，证据见 `backend/scripts/evidence/online-eight-model-selection-2026-10-25.md`。
+- **不静默切换**：R6 的「不静默加模型」规矩不变——后续新增仍须另开 change 走契约三变更流程（本次是显式裁定，不是开口子）。
 - **模型文件不入库**：`data_model/pipelines/expert/models/*.pkl` 被 `.gitignore` 排除，走打包交付；随包交付 `models/feature_order.txt`（**契约二第三节的副本**，不一致时以契约为准）。
-- **后端加载**：统一 `joblib.load`（`lr_v1`/`rf_v1` 是 joblib 格式、`xgb_v1` 是标准 pickle）；`model_name` 与 `prediction.model_name` 及接口入参同名。
+- **后端加载**：统一 `joblib.load`（`lr_v1`/`rf_v1` 是 joblib 格式、`xgb_v1` 是标准 pickle；`svm_v1`/`mlp_deep_v1`/`tabnet_v1` 是 Pipeline，加载环境须有对应依赖）；`model_name` 与 `prediction.model_name` 及接口入参同名。
 
 ---
 
@@ -184,7 +184,7 @@
 
 > 课程模块：预测与解释模块（缺陷概率 + 归因/解释）。契约三冻结 `explanation` 算法 = SHAP。
 
-- **为什么 SHAP**：契约三要求 `explanation` 逐特征且带 `direction`（推高/降低），SHAP 天然满足；全局特征重要性无方向、非逐样本，满足不了。树模型用 `TreeExplainer`（`xgb` / `rf` / `lgbm` / `et`）；`svm` / `mlp_deep` / `tabnet` 无精确解释器，如实登记「未实测 + 原因」。
+- **为什么 SHAP**：契约三要求 `explanation` 逐特征且带 `direction`（推高/降低），SHAP 天然满足；全局特征重要性无方向、非逐样本，满足不了。树族用 `TreeExplainer`（`xgb` / `rf` / `lgbm` / `et`）、线性 Pipeline 解包后用 `LinearExplainer`（`lr`）；`svm_v1` / `mlp_deep_v1` / `tabnet_v1` 无高效精确解释器（KernelSHAP 单次 1–3s 会打穿 500ms 靶子），按 #139 裁定**设计内降级为空数组**、前端渲染「无归因」——这是登记在契约三 §4 的预期行为，不是缺陷。
 - **接口结构**（与 `GET /api/commits/{hash}`、`POST /api/predict` **同一套，两处不许各写一份**）：
 
 ```json

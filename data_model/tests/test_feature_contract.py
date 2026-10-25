@@ -36,9 +36,12 @@ EXPECTED_14 = [
     "exp", "rexp", "sexp",  # 开发者经验 Experience
 ]
 
-# 交付边界（specs/model-coverage R6）：8 个模型全部为评估用，
-# [models] 段只登记交给后端加载的三个
-DELIVERED_MODELS = ["lr_v1.pkl", "rf_v1.pkl", "xgb_v1.pkl"]
+# 交付边界（specs/model-coverage R6，2026-10-25 组长裁定 Issue #139 起 8 模型全部上线）：
+# [models] 段登记交给后端加载的 8 个；新增模型仍走 change 流程，不静默加
+DELIVERED_MODELS = [
+    "lr_v1.pkl", "rf_v1.pkl", "xgb_v1.pkl",
+    "lgbm_v1.pkl", "et_v1.pkl", "svm_v1.pkl", "mlp_deep_v1.pkl", "tabnet_v1.pkl",
+]
 
 
 def _literal(path: Path, name: str):
@@ -102,8 +105,8 @@ def test_feature_version_is_v1():
     assert _literal(EXTRACT_FEATURES, "FEATURE_VERSION") == "v1"
 
 
-def test_delivered_models_are_exactly_three():
-    """交付边界：只有三个模型进 [models] 段，其余五个仅作评估。"""
+def test_delivered_models_are_exactly_eight():
+    """交付边界：[models] 段登记 8 个在线模型（Issue #139 组长裁定 2026-10-25）。"""
     assert _manifest_models() == DELIVERED_MODELS
 
 

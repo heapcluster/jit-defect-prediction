@@ -326,3 +326,47 @@ def test_missing_model_directory_clears_registry(tmp_path, monkeypatch, restore_
     monkeypatch.setattr(config, "MODEL_DIR", tmp_path / "missing")
     model_registry.load_models()
     assert not model_registry._REGISTRY
+
+
+def test_is_tree_family_covers_lightgbm():
+    """#139 实测：LGBMClassifier 模块是 lightgbm.sklearn、类名无 Tree/Forest/Boost，
+    不显式识别会掉进 LinearExplainer 报 InvalidModelError 把归因降级为空。"""
+    lgbm = type("LGBMClassifier", (), {"__module__": "lightgbm.sklearn"})()
+    assert model_registry._is_tree_family(lgbm)
+    xgb = type("XGBClassifier", (), {"__module__": "xgboost.sklearn"})()
+    assert model_registry._is_tree_family(xgb)
+    svc = type("SVC", (), {"__module__": "sklearn.svm._classes"})()
+    assert not model_registry._is_tree_family(svc)
+
+
+def test_explain_lightgbm_uses_tree_explainer(tmp_path, monkeypatch, restore_registry):
+    """lgbm_v1 真形态：LGBMClassifier 走 TreeExplainer，归因非空（#139 上线前为降级空）。"""
+    lightgbm = pytest.importorskip("lightgbm")
+    rng = np.random.RandomState(11)
+    X = rng.rand(80, 14)
+    y = (X[:, 3] > 0.5).astype(int)
+    model = lightgbm.LGBMClassifier(n_estimators=20, min_child_samples=2, random_state=11, verbose=-1).fit(X, y)
+    _explain_of(tmp_path, monkeypatch, model, "lgbm_v1")
+
+
+def test_explain_kernel_model_degrades_to_empty_without_raising(tmp_path, monkeypatch, restore_registry):
+    """svm/mlp_deep/tabnet 的设计内降级：核/深度模型无高效精确 SHAP 解释器，
+    explain() 返回空数组且不抛异常（契约三 §4 允许这三个模型归因为空，见 #139 裁定）。"""
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.svm import SVC
+
+    rng = np.random.RandomState(13)
+    X = rng.rand(60, 14)
+    y = (X[:, 3] > 0.5).astype(int)
+    pipe = Pipeline([("scaler", StandardScaler()), ("svc", SVC(kernel="rbf", probability=True, random_state=13))]).fit(X, y)
+    joblib.dump(pipe, tmp_path / "svm_v1.pkl")
+    _manifest(tmp_path, "svm_v1")
+    monkeypatch.setattr(config, "MODEL_DIR", tmp_path)
+    model_registry.load_models()
+    assert model_registry.has("svm_v1")
+    # 预测照常工作（500ms 靶子内的推理路径不受解释器影响）
+    risk = model_registry.predict_proba(pipe, [0.5] * 14)
+    assert 0.0 <= risk <= 1.0
+    # 归因降级：空数组、不抛异常
+    assert model_registry.explain(model_registry.get_model("svm_v1"), [0.5] * 14) == []
