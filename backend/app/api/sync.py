@@ -80,7 +80,7 @@ def fetch_latest_tip(repo: str, retries: int = 3) -> str:
             if attempt < retries:
                 time.sleep(5)
     else:
-        raise AppError(50000, "sync git operation failed") from last
+        raise AppError(50000, INTERNAL_ERROR_MESSAGE) from last
     tip = _run_git(repo, "rev-parse", "FETCH_HEAD").strip()
     if len(tip) != 40:
         raise AppError(50000, INTERNAL_ERROR_MESSAGE)
