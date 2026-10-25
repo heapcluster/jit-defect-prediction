@@ -102,16 +102,35 @@ def display_path(path: str | Path | None) -> str:
         return "<仓库外路径>"
 
 
-LOCAL_PATH_RE = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]:[\\/][^\s；，、）)|]*|/(?:Users|home)/[^\s；，、）)|]*")
+LOCAL_PATH_RE = re.compile(
+    r"(?<![A-Za-z0-9])[A-Za-z]:[\\/][^\s；，、）)|]*"
+    r"|(?<![A-Za-z0-9])/(?:Users|home|tmp|private/var|var/folders)/[^\s；，、）)|]*"
+)
 
 
-def sanitize_for_evidence(text: str) -> str:
+def local_replacements(*values: str | Path | None) -> dict[str, str]:
+    """把**已知的**本机值整串登记为待替换项（库 URL、模型目录、两份 .env 路径）。
+
+    正则只能兜底，真正可靠的是「我知道哪些值是本机路径」：SQLite 的 `DATABASE_URL`
+    本身就是 `sqlite:///` + 绝对路径，驱动报错也可能带上它。
+    """
+    out: dict[str, str] = {}
+    for value in values:
+        text = str(value) if value else ""
+        if text and (":///" in text or re.search(r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]", text) or text.startswith("/")):
+            out[text] = "<本机路径>"
+    return out
+
+
+def sanitize_for_evidence(text: str, replacements: dict[str, str] | None = None) -> str:
     """把落在文本里的本机绝对路径整段换成 `<本机路径>`。
 
     终端输出可以带真路径（方便当场排查），但 `--out` 写出的证据文件是要入库的，
     入库文件里不许出现个人绝对路径（`docs/repo/collaboration.md` §0 第 3 条）。
-    SQLite 的 `DATABASE_URL` 与驱动报错信息都可能带盘符，所以按整行扫一遍而不是只掩码口令。
+    先按已知值整串替换，再用正则兜底；`/api/...` 这类接口路径不在兜底名单里，不会被误伤。
     """
+    for raw in replacements or {}:
+        text = text.replace(raw, replacements[raw])
     return LOCAL_PATH_RE.sub("<本机路径>", text)
 
 
@@ -370,6 +389,7 @@ def main() -> int:
     db_url = config.DATABASE_URL
     model_dir = config.MODEL_DIR
     token = env_token or backend_token
+    replacements = local_replacements(db_url, model_dir, backend_env, frontend_env)
     infos.append(f"库：{mask_database_url(db_url)}")
     infos.append(f"模型目录：{display_path(model_dir)}")
     infos.append(f"高风险阈值：{threshold}（取自 app/config.py::HIGH_RISK_THRESHOLD，不在本脚本另立）")
@@ -419,17 +439,18 @@ def main() -> int:
     if blocker:
         for name in ("4 交付模型全部加载", "5 四接口 200", "6 同 hash 两次预测只留一行"):
             results.append((name, False, f"前置不满足，未执行：{blocker}"))
-        return finish(results, infos, args, base_url)
+        return finish(results, infos, args, base_url, replacements)
 
     commit_hash, model_name, stored_score = target
     infos.append(f"判据 5/6 用的样本：commit_hash={commit_hash}、model_name={model_name}、"
                  f"库内 risk_score={stored_score}")
 
     run_service_checks(args, base_url, db_url, token, model_dir, target, expect_models, results, infos)
-    return finish(results, infos, args, base_url)
+    return finish(results, infos, args, base_url, replacements)
 
 
-def finish(results: list[tuple[str, bool, str]], infos: list[str], args, base_url: str) -> int:
+def finish(results: list[tuple[str, bool, str]], infos: list[str], args, base_url: str,
+           replacements: dict[str, str] | None = None) -> int:
     for name, ok, detail in results:
         print(f"{'PASS' if ok else 'FAIL'} {name} :: {detail}")
     for line in infos:
@@ -438,11 +459,12 @@ def finish(results: list[tuple[str, bool, str]], infos: list[str], args, base_ur
     all_ok = passed == len(results)
     print(f"汇总：{passed}/{len(results)} 通过" + ("" if all_ok else " —— 存在 FAIL，别上台"))
     if args.out:
-        write_evidence(Path(args.out), results, infos, args, base_url, all_ok)
+        write_evidence(Path(args.out), results, infos, args, base_url, all_ok, replacements)
     return 0 if all_ok else 1
 
 
-def write_evidence(out: Path, results, infos, args, base_url: str, all_ok: bool) -> None:
+def write_evidence(out: Path, results, infos, args, base_url: str, all_ok: bool,
+                   replacements: dict[str, str] | None = None) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     lines = [
         f"# 录屏前自检 {datetime.now(timezone.utc).astimezone().date().isoformat()}",
@@ -453,7 +475,7 @@ def write_evidence(out: Path, results, infos, args, base_url: str, all_ok: bool)
         "| 判据 | 结果 | 实际值 |",
         "|---|---|---|",
     ]
-    lines += [f"| {name} | {'PASS' if ok else 'FAIL'} | {sanitize_for_evidence(detail)} |"
+    lines += [f"| {name} | {'PASS' if ok else 'FAIL'} | {sanitize_for_evidence(detail, replacements)} |"
               for name, ok, detail in results]
     passed = sum(1 for _, ok, _ in results if ok)
     if all_ok:
@@ -461,7 +483,7 @@ def write_evidence(out: Path, results, infos, args, base_url: str, all_ok: bool)
     else:
         verdict = f"**汇总：{passed}/{len(results)}，存在 FAIL —— 别上台，也不得作为证据提交**"
     lines += ["", "**信息行（不计入判定）**", ""]
-    lines += [f"- {sanitize_for_evidence(line)}" for line in infos]
+    lines += [f"- {sanitize_for_evidence(line, replacements)}" for line in infos]
     lines += ["", verdict, ""]
     out.write_text("\n".join(lines), encoding="utf-8", newline="\n")
     print(f"证据写入 {display_path(out)}")

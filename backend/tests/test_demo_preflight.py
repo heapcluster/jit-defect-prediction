@@ -469,8 +469,18 @@ def test_evidence_file_never_contains_local_absolute_paths(monkeypatch, tmp_path
     assert "<本机路径>" in evidence, "应替换为占位符而不是直接删掉整行"
 
     sample = f"库：sqlite:///{(tmp_path / 'demo.db').as_posix()}；模型目录 {tmp_path / 'm'}；口令 ***"
-    cleaned = mod.sanitize_for_evidence(sample)
-    assert str(tmp_path) not in cleaned and cleaned.count("<本机路径>") == 2 and "口令 ***" in cleaned
+    cleaned = mod.sanitize_for_evidence(sample, mod.local_replacements(f"sqlite:///{(tmp_path / 'demo.db').as_posix()}"))
+    assert str(tmp_path) not in cleaned and "<本机路径>" in cleaned and "口令 ***" in cleaned
+
+
+def test_sanitize_keeps_api_paths_and_repo_relative_paths():
+    """兜底正则不许误伤：契约三的 `/api/...` 与仓库内相对路径必须原样留下。"""
+    mod = _load_module()
+    text = ("GET /api/commits → HTTP 200；GET /api/trends；POST /api/predict；"
+            "pipelines/e2e/data/prediction_result.csv；backend/scripts/demo_preflight.py")
+    assert mod.sanitize_for_evidence(text, {}) == text
+    assert mod.sanitize_for_evidence("日志在 /tmp/x/uvicorn.log", {}) == "日志在 <本机路径>"
+    assert mod.sanitize_for_evidence("库 sqlite:////tmp/pytest-x/db.sqlite", {}) == "库 sqlite:///<本机路径>"
 
 
 @pytest.mark.parametrize("model_name", ["xgb_v1", "seed_v1"])
