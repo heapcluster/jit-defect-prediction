@@ -62,8 +62,8 @@ mysql -u root -p -e "GRANT ALL PRIVILEGES ON jit_demo.* TO 'jit'@'127.0.0.1'; FL
 cd backend
 DATABASE_URL="mysql+pymysql://jit:<密码>@127.0.0.1:3306/jit_demo?charset=utf8mb4" python -m app.db init
 
-# B. DDL 路径（部署形态；先按 §2.1 建库，脚本只建四表，门禁要求纯 DDL）
-mysql -u root -p jit_demo < ../infra/schema.sql
+# B. DDL 路径（部署形态；先按 §2.1 建库，schema.sql 只建四表，目标库在命令行指定）
+mysql -u jit -p jit_demo < ../infra/schema.sql
 ```
 
 两种都要满足：**连跑两次不报错（幂等）**，且下面这条自检通过：
@@ -86,19 +86,18 @@ cd backend && python -m scripts.seed_dev_data   # 建 backend/dev.db 并灌 3 �
 
 ---
 
-## 3. 灌真实数据（可选）
+## 3. 同步最新提交（数据来源，2026-10-25 起唯一口径）
 
-不灌也能验收「模型加载 + 单条在线预测」；要三页面有真实规模数据才灌。CSV 来自数据线产物（`01–04 + 07`），或用交付包 `deliver_data_20261024.zip`（18,006,911 B / md5 `601f5fceac3105273d98fb7eedfcb360`）。
+**系统只预测 Camel 最新提交，不再灌任何历史 CSV**（旧交付包 `deliver_data_20261024.zip` 与 84,461/83,943/14,596 等数字已退出口径，见 #147/#149）。数据入口是同步：后端对 `SOURCE_REPO` 执行 fetch → 挑出库中不存在的新提交 → **逐条现算 14 项特征 → 模型推理 → 入库 → 列表自动排序**。
 
 ```bash
-# cwd=backend，顺序不能换（commits → features → predictions）
-python -m app.ingest commits     <目录>/commits.csv
-python -m app.ingest features    <目录>/commit_features.csv
-python -m app.ingest predictions <目录>/prediction_result.csv
+# 起后端后（§4），批量同步最近 N 条（默认 10，上限 50）
+curl -X POST 'http://127.0.0.1:8000/api/sync?limit=50' -H 'X-API-Key: <令牌>'
 ```
 
-幂等：同一文件重跑不增行（按表幂等键 upsert）；缺主键字段的行整批回滚并报行号。
-`GET /api/commits` 是 `prediction` 内连接，`commits.csv` 灌全量（约 45 万条）不会把「无预测的提交」带进风险列表。
+返回 `{tip, scanned, new, predicted[], skipped[]}`：`new=0` 表示无新提交（幂等）；单条失败（如提交不可达）计入 `skipped`，其余继续。想要更大的演示窗口就把 `limit` 调大；`SYNC_ON_STARTUP=1` 可在启动时自动同步一次。
+
+> **口径提醒**：本地 Camel clone 的历史深度会影响过程特征（exp/ndev/nuc/age），同一提交在不同深度算出的 risk 可能不同（实测 0.54 → 0.22）。每人 clone 后建议 `git fetch --unshallow`（至少覆盖近半年），保证各机器可复现。
 
 ---
 
@@ -115,7 +114,7 @@ SOURCE_REPO=<本地 Apache Camel 仓库绝对路径>   # 只在本机 .env.local
 
 > `SOURCE_REPO` 是「现场预测新提交」的开关：不配时，`POST /api/predict` 只查库，库里没有的哈希一律 40400。
 > 配了之后后端会调 `data_model/preparation/03_extract_features.py` 现算 14 项特征，**首次会扫 Git 历史，别拿它做性能验收**。
-> `backend/.env.example` 已含 `SOURCE_REPO` 与 `jit_demo` 模板（2026-10-25 统一口径，PR 见仓库）。
+> `backend/.env.example` 已含 `SOURCE_REPO` 行（演示库 MySQL `jit_demo` 的库名口径见 #130/#142）。
 > 批量同步：`POST /api/sync?limit=10`（change `realtime-commit-sync`）——fetch SOURCE_REPO 最新提交、逐条预测入库；`.env` 设 `SYNC_ON_STARTUP=1` 可在启动时后台预同步一次。
 
 ```bash
