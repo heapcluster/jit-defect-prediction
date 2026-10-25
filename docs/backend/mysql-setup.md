@@ -113,7 +113,7 @@ python -m app.ingest predictions <prediction_result.csv>
 | `labels` | **83,943** 或 83,887 | 两个都合法：`commit_label` 表**没有任何接口读取**（四接口只读 `commit` / `commit_feature` / `prediction`），差 56 行的定位方法与影响面见 PR #145 §6.1 |
 | `features` | **只有 83,943 一个合法值** | 且**必须是契约二 v1.2「对数变换后」的形态**，见下面那条警告 |
 
-> ⚠️ **`commit_features_raw.csv`（84,461 行）不能灌** —— 它是**对数变换之前**的原始计数导出，不是「多 518 行的超集」，而是**另一套特征空间**。灌进去之后 `POST /api/predict` 会**静默算出错误概率**（模型不报错、接口 200、页面照常显示），本机实测同一条提交、同一个 `xgb_v1`：
+> ⚠️ **`commit_features_raw.csv`（84,461 行）不能灌** —— 它是**模型线的训练输入形态**（`fused` 线的 `FEATURES_RAW_CSV` 就是它），不是「多 518 行的超集」，而是**另一套特征空间**。灌进去之后 `POST /api/predict` 会**静默算出错误概率**（模型不报错、接口 200、页面照常显示），本机实测同一条提交、同一个 `xgb_v1`：
 >
 > | 特征来源 | 在线预测概率 |
 > |---|---|
@@ -121,6 +121,18 @@ python -m app.ingest predictions <prediction_result.csv>
 > | `dataset_szz.csv`（契约形态：`ns=0.0, nd=2.30259=ln(10), nf=3.73767=ln(42), entropy=1.68498=ln(5.3923)`） | **0.79963** ← 与离线批量产物 `prediction_result.csv` 的存量值**逐位相同** |
 >
 > 依据是**冻结契约二 v1.2 第四节**：「全部 14 项取对数变换 …… 非 0 值取 `ln(x)`、0 值记 0」，`fix` 除外。所以 `commit_feature` 表里该存的是 `ln` 之后的值。
+>
+> **两份文件逐列的实测关系**（取交集前 3,000 条提交，`dataset` 值与 `ln(raw)` 比对，容差 1e-9）：
+>
+> | 列 | `dataset == ln(raw)` | `dataset == raw` | 说明 |
+> |---|---|---|---|
+> | `ns` `nd` `nf` `entropy` `ndev` `age` `exp` `rexp` `sexp` | **3000/3000** | 0~206/3000 | 严格满足契约的 `ln` 口径 |
+> | `fix` | —（`ln(1)=0` 会误判） | **3000/3000** | 契约明文「`fix` 不做对数变换」，逐字相等 |
+> | `la` `ld` `lt` `nuc` | **132 / 471 / 1125 / 1122 每 3000** | 128~469/3000 | ⚠️ **不满足 `ln` 关系** —— 这四列在两份文件里是不同口径的产物 |
+>
+> **由此得出一条硬结论：不能拿 `commit_features_raw.csv` 自己取 `ln` 补救。** 9 列可以，`la`/`ld`/`lt`/`nuc` 这四列**无论怎么变换都对不上**（那 132~1125 条「命中」基本是两边都为 0 的行）。要得到契约形态的特征，**只能用 `dataset_szz.csv`（或数据线由它投影出的 `commit_features.csv`）**。
+>
+> 顺带说明这两份文件各自的正当用途，别把 raw 当成「错文件」：`commit_features_raw.csv` 是**融合/语义线的训练输入**（`data_model/pipelines/fused/config.py::FEATURES_RAW_CSV` 实测就指向它），它归模型线用；**入 `commit_feature` 表必须是契约形态那一份**。两者用途不同，不是同一份数据的两种形态。
 >
 > **当前缺口**：`docs/repo/demo-script-sprint1.md` §0.0 第 3 条写的是 `data_model/data/commit_features.csv`，而**这个文件目前不存在**（该目录下只有 `commit_features_raw.csv`）。照 §0.0 复制会在第三类直接报文件不存在；改用 raw 那份就会踩上面这个坑。正解是数据线补出这份投影（属 `data_model/`，不归后端代做）；临时自救可从 `dataset_szz.csv` 投影出契约二第三节的 14 列：
 >
@@ -231,6 +243,7 @@ python -m scripts.demo_preflight --out scripts/evidence/preflight-<日期>.md
 | `PyMySQL 1.2.3`、`SQLAlchemy 2.0.54` | ✅ 本机实测 | `pip show PyMySQL`、`import sqlalchemy` |
 | 四份 CSV 的数据行数（84,461 / 83,943 / 84,461 / 83,943） | ✅ 本机实测 | 逐份数数据行（不含表头） |
 | **特征口径判别**（§4 那张对照表与两个在线概率） | ✅ 本机实测 | 两份文件全量扫 `min(la)`/`min(ld)`/`max(nf)`/`la<0` 行数；再用 `joblib.load(xgb_v1.pkl)` 对同一提交分别喂两套特征，得 0.82657 / 0.79963，后者与 `prediction_result.csv` 存量值逐位相同 |
+| **两份特征文件逐列的变换关系**（§4 那张 3,000 条比对表） | ✅ 本机实测 | 取交集前 3,000 条提交，逐列比对 `dataset` 与 `ln(raw)`（容差 1e-9）：9 列 3000/3000 命中、`fix` 逐字相等 3000/3000、`la`/`ld`/`lt`/`nuc` 仅 132/471/1125/1122 命中 → 结论「不能自己取 `ln` 补救」由此而来 |
 | **建库→灌数→起服务→六条判据全链路**（SQLite 形态） | ✅ 本机实测 **8/8 通过、rc=0、86 秒** | `python -m scripts.demo_preflight --init-db --ingest …`（PR #151 的脚本）：0a 四表建好 + 索引自检；0b 实灌 commits 84,461 / labels 83,943 / features 84,461 / predictions 83,943；判据 2 `prediction=83943`、判据 3 `risk≥0.5` = **14,596**、判据 4 `loaded models: ['lr_v1','rf_v1','xgb_v1']`、判据 5 四接口 200、判据 6 两次 POST 后 `(hash, xgb_v1)` 恒 1 行且总行数不变。**注意这一轮 features 灌的正是 raw 那份**，所以它同时复现了 §6 坑 9（在线 0.82657 vs 存量 0.79963）—— 判据 1~6 全绿也**抓不到特征口径错**，这正是 §5.1 判据 1b 存在的原因 |
 | 时间列不受 `time_zone` 影响 | ✅ 代码级实测 | `infra/schema.sql` 四个时间列全为 `DATETIME`；`backend/app` 内 `NOW()` / `CURRENT_TIMESTAMP` / `server_default` grep 0 命中 |
 | **§2.1 的建库命令本身**（`CREATE DATABASE` + `SOURCE infra/schema.sql` 在真 MySQL 上跑通） | ❌ **本机未实测** | 后端线本机账号无 `CREATE DATABASE`（实测 1044），需 root 或一次性授权。**建库头两条路径的等价性与幂等性已由组长本机 MySQL 实测**（Issue #147 正文） |
