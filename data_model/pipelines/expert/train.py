@@ -35,9 +35,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--test", type=Path, default=config.TEST_CSV)
     p.add_argument("--features-raw", type=Path, default=config.FEATURES_RAW_CSV)
     p.add_argument("--models", default=",".join(config.DEFAULT_MODELS))
-    p.add_argument("--delivery-models", default="lr,rf,xgb",
-                   help="写入 feature_order.txt [models] 段的交付清单（默认契约口径）；"
-                        "扩展模型只进评估不进交付（specs/model-coverage R6）")
+    p.add_argument("--delivery-models", default=",".join(config.DEFAULT_MODELS),
+                   help="写入 feature_order.txt [models] 段的交付清单；默认与训练口径一致"
+                        "（8 个分类器全部在线交付，Issue #139 组长裁定 / change "
+                        "online-eight-model-selection）")
     p.add_argument("--seed", type=int, default=config.SEED)
     p.add_argument("--model-dir", type=Path, default=config.MODELS_DIR)
     p.add_argument("--report", type=Path, default=None,
@@ -155,11 +156,12 @@ def shap_latency(name: str, model, X_test: np.ndarray, n_rows: int) -> dict:
 def write_feature_order(model_dir: Path, wanted: list[str]) -> Path:
     """写交付清单副本（契约二第三节的副本，不是权威）。
 
-    ``[models]`` = 契约交付集（``--delivery-models``，默认 lr/rf/xgb）；
+    ``[models]`` = 契约交付集（``--delivery-models``，默认取 ``config.DEFAULT_MODELS``，
+    即 8 个分类器全部交付）；
     ``[evaluated]`` = **目录里真实存在的** ``*_v1.pkl`` 减交付集
-    （specs/model-coverage R6：只进评估）。两段都写，是为了让「目录里有 8 个
-    .pkl、清单里只有 3 个」不被读成漏交付；取磁盘而不是取
-    ``config.DEFAULT_MODELS``，是因为训练口径会变，写死的清单只会漂移。
+    （八模型全部上线后本节为空）。两段都写，是为了让「目录里有 N 个 .pkl、
+    清单里只有 M 个」不被读成漏交付；取磁盘而不是写死清单，是因为训练口径会变，
+    写死的清单只会漂移。
 
     注意：仓库里 ``feature_order.txt`` 还带 ``[contract]`` / ``[how_to_load]`` /
     ``[dependencies]`` 三段手工维护内容，本函数**不生成**这三段 —— 重训会用本函数
