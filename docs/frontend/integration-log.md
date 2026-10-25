@@ -3,15 +3,15 @@
 > change `frontend-integration` ｜ 前端线 刘帅华 ｜ 记录 2026-10-13
 > 类型：本地真实后端联调（非 mock）；后端为 FastAPI + SQLite 种子数据
 
-## §0 联调基线（唯一出处，2026-10-24 蒋励定）
+## §0 联调基线（唯一出处，2026-10-24 蒋励定 / 2026-10-25 演示库口径随 #147 更新）
 
 **任何联调、截图取证，只认这张表。** 前后端的 `.env` / `.env.local` 都是它的下游，不许各自定义。
-**演示与验收不在这张表范围内** —— 它们走 MySQL 演示库 `jit_demo`，口径见 `docs/repo/demo-script-sprint1.md` §0.0.1（数据库已敲定为 MySQL）。
+**演示与验收不在这张表范围内** —— 它们走 MySQL 演示库 `jit_demo`，口径见 `docs/repo/demo-script-sprint1.md` §0.0.1（数据库已敲定为 MySQL，数据入口为实时同步）。
 
 | 项 | 基线值 | 维护线 |
 |---|---|---|
 | 数据库（联调） | SQLite，`backend/dev.db`；`DATABASE_URL=sqlite:///./dev.db` | 后端 |
-| 数据库（演示 / 验收） | **MySQL `jit_demo`**；`DATABASE_URL=mysql+pymysql://jit:<pwd>@127.0.0.1:3306/jit_demo`。建库授权见 Issue #121，灌数与判据见 `docs/repo/demo-script-sprint1.md` §0.0.1 | 后端 + infra |
+| 数据库（演示 / 验收） | **MySQL `jit_demo`**；`DATABASE_URL=mysql+pymysql://jit:<pwd>@127.0.0.1:3306/jit_demo?charset=utf8mb4`。建库脚本见 Issue #142 / PR #150（每人本机 MySQL，root 建库），数据入口 = `POST /api/sync` 实时同步，判据见 `docs/repo/demo-script-sprint1.md` §0.0.1 | 后端 |
 | 建库灌数 | `cd backend` → `python -m scripts.seed_dev_data`（PowerShell / bash 同一写法；`PYTHONPATH=.` 前缀在 PowerShell 下不是有效命令，不要写） | 后端 |
 | 种子内容 | 3 提交 / 3 特征 / 3 预测；`commit_hash` = `000…001` ~ `000…003` | 后端 |
 | 后端令牌 | `API_TOKEN=dev-token-20260918`，请求头 `X-Api-Key`（不是 `Authorization: Bearer`） | 后端 |
@@ -24,7 +24,7 @@
 
 1. **不写个人绝对路径。** `MODEL_DIR` 只允许留空或仓库内相对路径；个人机器路径**后端**写进 `backend/.env`（`backend/app/config.py` 只调用 `load_dotenv()`，读的是 `backend/.env`，**不会读 `.env.local`**），**前端**写进 `frontend/.env.local`（Vite 原生加载）。两处都不进 `.env.example`、不进任何入库文档。理由：写死个人路径的人能跑，其他人必然 `50000`；而写成后端读不到的文件名，等于没设。
 2. **不各自建库。** 联调库只有 `backend/dev.db` 一份，由 `seed_dev_data.py` 生成。要造空态/失败态，先用 query 参数（如 `min_risk`）或改 seed 脚本，**不许手工改库、不许另建一套联调库**。理由：各建一套后，"我这边有数据"会变成无法复现的口径。
-   **唯一例外：演示库 `jit_demo`（MySQL）** —— 它是登记在案、生成命令可复现的**第二份库**，用途是演示与系统层验收，不属本条禁止范围；联调与取证一律不碰它。建库授权见 Issue #121，灌数只走 `python -m app.ingest`。
+   **唯一例外：演示库 `jit_demo`（MySQL）** —— 它是登记在案、生成命令可复现的**第二份库**，用途是演示与系统层验收，不属本条禁止范围；联调与取证一律不碰它。建库脚本见 Issue #142 / PR #150（每人本机 MySQL，root 建库）；演示数据只走 `POST /api/sync` 实时同步，不灌历史 CSV。
 3. **口径变更走 PR。** 改这张表必须同一个 PR 里同步 `backend/.env.example` 与 `frontend/.env.example`，描述带 `[联调基线]` 标记。理由：口径散落是三处改一处漏的直接来源。
 
 ### 落地方式
