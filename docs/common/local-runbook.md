@@ -62,8 +62,8 @@ mysql -u root -p -e "GRANT ALL PRIVILEGES ON jit_demo.* TO 'jit'@'127.0.0.1'; FL
 cd backend
 DATABASE_URL="mysql+pymysql://jit:<密码>@127.0.0.1:3306/jit_demo?charset=utf8mb4" python -m app.db init
 
-# B. DDL 路径（部署形态，脚本在 infra/，自带 CREATE DATABASE + USE）
-mysql -u root -p < ../infra/schema.sql
+# B. DDL 路径（部署形态；先按 §2.1 建库，脚本只建四表，门禁要求纯 DDL）
+mysql -u root -p jit_demo < ../infra/schema.sql
 ```
 
 两种都要满足：**连跑两次不报错（幂等）**，且下面这条自检通过：
@@ -116,6 +116,7 @@ SOURCE_REPO=<本地 Apache Camel 仓库绝对路径>   # 只在本机 .env.local
 > `SOURCE_REPO` 是「现场预测新提交」的开关：不配时，`POST /api/predict` 只查库，库里没有的哈希一律 40400。
 > 配了之后后端会调 `data_model/preparation/03_extract_features.py` 现算 14 项特征，**首次会扫 Git 历史，别拿它做性能验收**。
 > `backend/.env.example` 已含 `SOURCE_REPO` 与 `jit_demo` 模板（2026-10-25 统一口径，PR 见仓库）。
+> 批量同步：`POST /api/sync?limit=10`（change `realtime-commit-sync`）——fetch SOURCE_REPO 最新提交、逐条预测入库；`.env` 设 `SYNC_ON_STARTUP=1` 可在启动时后台预同步一次。
 
 ```bash
 cd backend
