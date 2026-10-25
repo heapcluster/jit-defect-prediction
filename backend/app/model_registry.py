@@ -223,13 +223,20 @@ def explain(entry: ModelEntry, vector: list[float]) -> list[dict]:
 
 
 def _is_tree_family(model: Any) -> bool:
+    """树族模型（TreeExplainer 适用）：sklearn 树/森林、xgboost、lightgbm。
+
+    lightgbm 的 LGBMClassifier 模块是 `lightgbm.sklearn`、类名既无 Tree/Forest 也无
+    Boost —— 不显式识别会掉进 LinearExplainer 分支报 InvalidModelError（#139 裁定
+    8 模型上线时实测：lgbm_v1 归因被降级为空）。
+    """
     module = type(model).__module__ or ""
     name = type(model).__name__
     return (
-        module.startswith(("sklearn.tree", "sklearn.ensemble", "xgboost"))
+        module.startswith(("sklearn.tree", "sklearn.ensemble", "xgboost", "lightgbm"))
         or "Tree" in name
         or "Forest" in name
         or "Boost" in name
+        or name.startswith("LGBM")
     )
 
 
