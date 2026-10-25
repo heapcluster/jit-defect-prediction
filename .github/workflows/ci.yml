@@ -21,6 +21,22 @@ jobs:
     name: CI
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    # 后端测试套件依赖 MySQL（conftest 的 session 级 engine 读 DATABASE_URL 指向 jit_test）：
+    # 起一个一次性 mysql:8.0 service，端口映射到 127.0.0.1:3306，
+    # 由下面的「准备测试库」步骤用仓库自己的 infra/setup_mysql.py 建 jit_demo + jit_test 并执行 schema.sql。
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: jit_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     defaults:
       run:
         shell: bash -el {0}
@@ -28,6 +44,8 @@ jobs:
       PYTHONDONTWRITEBYTECODE: "1"
       PYTHONUTF8: "1"
       OPENSPEC_TELEMETRY: "0"
+      # 后端 pytest 的库：与 services.mysql 对应；backend/.env 不入库，环境变量优先于 .env
+      DATABASE_URL: "mysql+pymysql://root:root@127.0.0.1:3306/jit_test?charset=utf8mb4"
 
     steps:
       - name: Checkout
@@ -81,6 +99,13 @@ jobs:
 
       - name: Test CI contract
         run: python -m unittest discover -s infra/tests -p 'test_*.py' -v
+
+      - name: Prepare test database
+        # 用仓库自己的建库脚本备好 jit_demo + jit_test 并执行 schema.sql（顺带在 CI 里验证该脚本本身）
+        run: |
+          python infra/setup_mysql.py \
+            --database-url "mysql+pymysql://root:root@127.0.0.1:3306/jit_demo?charset=utf8mb4" \
+            --test-db jit_test --skip-start
 
       - name: Test backend
         working-directory: backend
