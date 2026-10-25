@@ -1,28 +1,36 @@
 """批量同步最新提交并在线预测（POST /api/sync，change realtime-commit-sync）。
 
-职责：对配置的 SOURCE_REPO 执行一次「fetch → 挑新哈希 → 逐条现算特征并预测入库」。
+职责：对配置的 SOURCE_REPO 执行一次「fetch → 挑待预测哈希 → 逐条现算特征并预测入库」。
 预测本身复用 POST /api/predict 的单条路径（同一条 extract→upsert→幂等 prediction 链），
 本模块只负责批量编排，不另立预测口径、不直接写表。
 
-边界：不从请求接收仓库路径；不做 PR open/merged/closed 状态清理（归 change 后续任务）；
-全量历史扫描的时延由 SOURCE_REPO 仓库自身规模决定，MUST NOT 宣称 500ms 靶子适用于本接口。
+三条边界（2026-10-25 审阅后固化）：
+1. **绝不改动 SOURCE_REPO 的检出状态**：远端 tip 不是本地 HEAD 祖先时，建一个专用临时
+   工作树（--no-checkout）做特征提取，用后即焚；用户正在用的分支/工作区不受影响。
+2. 「待预测」按**默认模型是否已有 prediction 行**判断（commit 表存在 ≠ 已预测）。
+3. 不从请求接收仓库路径；不做 PR open/merged/closed 状态清理（归 change 后续任务）；
+   MUST NOT 宣称 500ms 靶子适用于本接口（时延取决于 SOURCE_REPO 历史规模）。
 """
 
 from __future__ import annotations
 
 import logging
+import shutil
 import subprocess
+import tempfile
 import threading
 import time
+from collections.abc import Callable
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Query
 
-from app import config, feature_source
-from app.api.predict import PredictRequest, predict
+from app import config, model_registry
+from app.api.predict import PredictRequest, predict_commit
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import AppError
-from app.models import Commit
+from app.models import Prediction
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
 
@@ -34,7 +42,7 @@ MAX_LIMIT = 50
 
 
 def _run_git(repo: str, *args: str) -> str:
-    """执行只读 git 命令；代理经命令行参数禁用，不读全局配置。失败映射为契约内 50000。"""
+    """执行 git 命令；代理经命令行参数禁用，不读全局配置。失败映射为契约内 50000。"""
     cmd = ["git", "-C", repo, "-c", "http.proxy=", "-c", "https.proxy=", *args]
     try:
         proc = subprocess.run(
@@ -71,20 +79,47 @@ def fetch_latest_tip(repo: str, retries: int = 3) -> str:
     return tip
 
 
-def pick_new_hashes(hashes: list[str], existing: set[str]) -> list[str]:
-    """按最新在前挑出库中尚不存在的哈希（纯函数，供测试）。"""
-    return [h for h in hashes if h not in existing]
-
-
-def ensure_reachable(repo: str, tip: str) -> None:
-    """提取器只认 HEAD 可达提交：tip 不是 HEAD 祖先时，detach 到 tip。"""
+def _is_ancestor(repo: str, commit: str, base: str = "HEAD") -> bool:
     check = subprocess.run(
-        ["git", "-C", repo, "merge-base", "--is-ancestor", tip, "HEAD"],
+        ["git", "-C", repo, "merge-base", "--is-ancestor", commit, base],
         capture_output=True, timeout=_GIT_TIMEOUT, check=False,
     )
-    # merge-base --is-ancestor 以退出码表达结果：0=是祖先，1=不是
-    if check.returncode != 0:
-        _run_git(repo, "checkout", "--detach", "-q", tip)
+    return check.returncode == 0
+
+
+def ensure_extractable(repo: str, tip: str) -> tuple[str, Callable[[], None]]:
+    """返回 (特征提取用仓库路径, 释放函数)。
+
+    tip 已从 HEAD 可达：直接用 SOURCE_REPO 本身，释放为空操作；
+    否则建专用临时工作树（detached @ tip，--no-checkout 不落工作区文件），
+    绝不 checkout / reset 用户的检出状态。释放函数负责 worktree remove + 目录清理。
+    """
+    if _is_ancestor(repo, tip):
+        return repo, lambda: None
+
+    tmp = Path(tempfile.mkdtemp(prefix="jit-sync-"))
+    try:
+        _run_git(repo, "worktree", "add", "--detach", "--no-checkout", str(tmp), tip)
+    except AppError:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
+
+    def _release() -> None:
+        try:
+            _run_git(repo, "worktree", "remove", "--force", str(tmp))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    return str(tmp), _release
+
+
+def pick_hashes_to_predict(hashes: list[str], predicted: set[str]) -> list[str]:
+    """按最新在前挑出**默认模型尚无 prediction 行**的哈希（纯函数，供测试）。
+
+    判据是 prediction 而非 commit：灌数允许 commit 多于 prediction，
+    已存在但未预测的提交必须能被同步补上。
+    """
+    return [h for h in hashes if h not in predicted]
 
 
 def list_recent_hashes(repo: str, limit: int) -> list[str]:
@@ -93,7 +128,7 @@ def list_recent_hashes(repo: str, limit: int) -> list[str]:
 
 
 def sync_recent(limit: int = 10) -> dict:
-    """同步入口：fetch → 挑新 → 逐条走单条预测链。任一条失败不中断整批。"""
+    """同步入口：fetch → 挑待预测 → 逐条走单条预测链。任一条失败不中断整批。"""
     if not (1 <= limit <= MAX_LIMIT):
         raise AppError(40001, f"参数非法：limit 需在 1..{MAX_LIMIT}")
     if not _sync_lock.acquire(blocking=False):
@@ -104,35 +139,53 @@ def sync_recent(limit: int = 10) -> dict:
             raise AppError(40400, "sync source repository unavailable")
 
         tip = fetch_latest_tip(str(repo))
-        ensure_reachable(str(repo), tip)
         hashes = list_recent_hashes(str(repo), limit)
 
+        default_model = model_registry.default_model()
+        default_name = default_model.name if default_model else None
         with SessionLocal() as session:
-            rows = session.query(Commit.commit_hash).filter(Commit.commit_hash.in_(hashes)).all()
-            existing = {r[0] for r in rows}
-        new_hashes = pick_new_hashes(hashes, existing)
-
-        predicted: list[dict] = []
-        skipped: list[dict] = []
-        for h in new_hashes:
-            try:
-                result = predict(PredictRequest(commit_hash=h))
-                predicted.append(
-                    {
-                        "commit_hash": h,
-                        "model_name": result["data"]["model_name"],
-                        "risk_score": result["data"]["risk_score"],
-                    }
+            if default_name is not None:
+                rows = (
+                    session.query(Prediction.commit_hash)
+                    .filter(
+                        Prediction.commit_hash.in_(hashes),
+                        Prediction.model_name == default_name,
+                    )
+                    .all()
                 )
-            except AppError as exc:
-                skipped.append({"commit_hash": h, "code": exc.code, "message": exc.message})
-        logger.info("sync done: scanned=%s new=%s predicted=%s skipped=%s",
-                    len(hashes), len(new_hashes), len(predicted), len(skipped))
+                predicted = {r[0] for r in rows}
+            else:
+                predicted = set()
+        pending = pick_hashes_to_predict(hashes, predicted)
+
+        extract_repo, release = ensure_extractable(str(repo), tip)
+        try:
+            results: list[dict] = []
+            skipped: list[dict] = []
+            for h in pending:
+                try:
+                    result = predict_commit(PredictRequest(commit_hash=h), repo=extract_repo)
+                    results.append(
+                        {
+                            "commit_hash": h,
+                            "model_name": result["data"]["model_name"],
+                            "risk_score": result["data"]["risk_score"],
+                        }
+                    )
+                except AppError as exc:
+                    skipped.append({"commit_hash": h, "code": exc.code, "message": exc.message})
+        finally:
+            release()
+
+        logger.info(
+            "sync done: tip=%s scanned=%s pending=%s predicted=%s skipped=%s",
+            tip[:10], len(hashes), len(pending), len(results), len(skipped),
+        )
         return {
             "tip": tip,
             "scanned": len(hashes),
-            "new": len(new_hashes),
-            "predicted": predicted,
+            "new": len(pending),
+            "predicted": results,
             "skipped": skipped,
         }
     finally:
@@ -141,9 +194,18 @@ def sync_recent(limit: int = 10) -> dict:
 
 @router.post("/api/sync")
 def sync_endpoint(limit: int = Query(default=10, ge=1, le=MAX_LIMIT)) -> dict:
-    """拉取 SOURCE_REPO 最新提交并逐条现算预测入库；无新提交时幂等返回 0。"""
+    """拉取 SOURCE_REPO 最新提交并逐条现算预测入库；无待预测提交时幂等返回 0。"""
     data = sync_recent(limit)
     return {"code": 0, "message": "ok", "data": data}
 
 
-__all__ = ["build_fetch_args", "feature_source", "pick_new_hashes", "router", "sync_recent"]
+__all__ = [
+    "MAX_LIMIT",
+    "build_fetch_args",
+    "ensure_extractable",
+    "fetch_latest_tip",
+    "list_recent_hashes",
+    "pick_hashes_to_predict",
+    "router",
+    "sync_recent",
+]

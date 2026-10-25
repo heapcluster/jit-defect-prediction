@@ -27,8 +27,7 @@ class PredictRequest(BaseModel):
     model_name: str | None = None
 
 
-@router.post("/api/predict", response_model=schemas.PredictResponse)
-def predict(body: PredictRequest) -> dict:
+def predict_commit(body: PredictRequest, repo=None) -> dict:
     if not body.commit_hash or len(body.commit_hash) != 40 or any(
         c not in HASH_HEX for c in body.commit_hash.lower()
     ):
@@ -45,7 +44,7 @@ def predict(body: PredictRequest) -> dict:
             if config.SOURCE_REPO is None:
                 raise AppError(40400, missing_message)
             try:
-                extracted = feature_source.extract(commit_hash)
+                extracted = feature_source.extract(commit_hash, repo=repo)
             except ValueError as exc:
                 raise AppError(40400, missing_message) from exc
             except Exception as exc:
@@ -136,3 +135,9 @@ def predict(body: PredictRequest) -> dict:
             "explanation": explanation,
         },
     }
+
+
+@router.post("/api/predict", response_model=schemas.PredictResponse)
+def predict(body: PredictRequest) -> dict:
+    """对单条提交现算特征并预测（runbook §6 第 5 条）。"""
+    return predict_commit(body)
