@@ -139,6 +139,83 @@ python -V                                               # 必须是 3.12.x
 
 ---
 
+## 七、部署与使用（快速开始）
+
+### 7.1 前提
+
+- conda 环境 `jit-defect-prediction`（Python **3.12.14**），依赖唯一清单 `data_model/environment.yml`
+  （仓库不再维护第二份依赖清单）。
+- MySQL 8（部署/演示）或 SQLite（本地零依赖）；Node 18+（前端）。
+- `backend/.env` —— **不入库**，从 `backend/.env.example` 复制后按本机改。
+
+### 7.2 `backend/.env` 关键项
+
+| 变量 | 说明 |
+|---|---|
+| `DATABASE_URL` | 本地默认 `sqlite:///./dev.db`；部署换 `mysql+pymysql://user:pass@127.0.0.1:3306/jit_defect` |
+| `API_TOKEN` | 接口令牌，请求头 `x-api-key`；**未配置时一律拒绝**（fail closed） |
+| `MODEL_DIR` | 留空即回落 `<repo>/data_model/pipelines/expert/models/`；禁止写个人绝对路径 |
+| `SOURCE_REPO` | 本地 Apache Camel 克隆根目录（含 `.git`）。留空 = `POST /api/predict` 只查库，库里没有的哈希返回 40400 |
+| `SYNC_ON_STARTUP` | `=1` 时启动后台预同步一次（需先配 `SOURCE_REPO`） |
+
+### 7.3 起后端
+
+```bash
+cd backend
+python -m app.db init                      # 建四张表：commit / commit_label / commit_feature / prediction
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8011
+```
+
+启动日志应出现 8 个已加载模型（`lr_v1` … `tabnet_v1`）。清单缺失或列序与契约二不符时注册表为空，
+预测返回 50000，查询接口仍可用。
+
+### 7.4 冒烟自测
+
+```bash
+# 在线预测（现算 14 项特征 + 推理 + SHAP 归因，落三张表）
+curl -X POST http://127.0.0.1:8011/api/predict \
+  -H "x-api-key: $API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"commit_hash":"<40位哈希>","model_name":"xgb_v1"}'
+
+# 查询
+curl "http://127.0.0.1:8011/api/commits?size=5"            -H "x-api-key: $API_TOKEN"
+curl "http://127.0.0.1:8011/api/commits/<40位哈希>"         -H "x-api-key: $API_TOKEN"
+curl "http://127.0.0.1:8011/api/trends?granularity=week"   -H "x-api-key: $API_TOKEN"
+
+# 批量同步最新提交并逐条预测（需 SOURCE_REPO，且该仓库能 git fetch）
+curl -X POST "http://127.0.0.1:8011/api/sync?limit=5" -H "x-api-key: $API_TOKEN"
+```
+
+响应统一包络 `{ "code": 0, "message": "ok", "data": {...} }`；错误码只用契约三那 5 个。
+
+### 7.5 离线训练与交付（数据线，不直连库）
+
+```bash
+cd data_model
+python -m pytest -q                        # 数据线单测
+python -m pipelines.expert.train           # 默认训练 8 个分类器
+```
+
+产物落在 `data_model/pipelines/expert/`：`models/*.pkl`、`models/feature_order.txt`（交付清单）、
+`data/prediction_result.csv`（由后端灌 `prediction` 表）、`reports/` 报告。
+
+### 7.6 前端
+
+```bash
+cd frontend
+npm install
+npm run dev        # 本地开发（默认读 http://127.0.0.1:8011，见 frontend/.env.example）
+npm run build      # 产出静态站点 dist/
+npm run test:unit  # 单测（含模型清单与「无归因」降级用例）
+```
+
+### 7.7 一键联调与更多细节
+
+`python backend/scripts/demo_preflight.py` 可一条命令跑完建库→灌数→起服务→断言。
+完整命令链、三端联调判据与故障排查见 `docs/common/local-runbook.md`。
+
+---
+
 ## 变更日志
 
 | 日期 | 版本 | 变更人 | 主要变更 |

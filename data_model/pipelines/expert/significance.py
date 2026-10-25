@@ -5,7 +5,7 @@
    报告**同时**给出区间的上/下限 —— 一个指标只有下限也高于 0.7 才叫「稳」。
 2. **随机基线对比（二项检验）**：真实模型 Recall@20% 与「随机前 20% 抽样」对比，
    `scipy.stats.binomtest` 给 p 值 —— 回答「是不是碰巧」。
-3. **Wilcoxon 符号秩检验**：交付两两配对（lr vs rf、lr vs xgb、rf vs xgb），
+3. **Wilcoxon 符号秩检验**：交付模型两两配对（8 个分类器的全部两两组合），
    每条提交上谁的分更靠前 —— 回答「模型间差异是不是显著」。
 
 ≥0.7 判据说明：课程里程碑 M2 的验收线是 **AUC ≥ 0.70**（用户在与导师沟通后定下的），
@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from itertools import combinations
 from pathlib import Path
 
 import numpy as np
@@ -38,8 +39,10 @@ BOOTSTRAP_REPEATS = 1000
 EFFORT_FRACTION = 0.2
 NULL_REPEATS = 20000        # 随机基线的蒙特卡洛重抽次数
 AUC_TARGET = 0.7
-PAIRWISE_PAIRS = [("lr", "rf"), ("lr", "xgb"), ("rf", "xgb")]
-DELIVERY_MODELS = ("lr", "rf", "xgb")   # 契约约定: feature_order.txt 的 [models] 段
+# 交付清单 = 训练口径：8 个分类器全部在线交付（Issue #139 组长裁定 /
+# change online-eight-model-selection）。取 config 而非写死，训练口径变了这里不漂。
+DELIVERY_MODELS = tuple(config.DEFAULT_MODELS)
+PAIRWISE_PAIRS = list(combinations(DELIVERY_MODELS, 2))
 
 
 def parse_args() -> argparse.Namespace:
