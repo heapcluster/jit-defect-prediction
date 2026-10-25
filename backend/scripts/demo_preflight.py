@@ -226,7 +226,7 @@ def init_database(db_url: str) -> tuple[bool, str]:
         if "unknown database" in str(exc).lower() or "1049" in str(exc):
             detail += (" ｜ ORM 路径只建表不建库：先用有 CREATE DATABASE 权限的账号跑 "
                        "`mysql -u root -p < backend/scripts/schema_mysql.sql`（cwd=仓库根；"
-                       "该脚本与权限/常见报错说明在 PR #150 内，Issue #142）")
+                       "该脚本与权限/常见报错说明见 docs/backend/mysql-setup.md §2 与 §6，Issue #142）")
         return False, detail
     try:
         counts = count_rows(db_url)
@@ -330,7 +330,7 @@ def run_build_stages(args, db_url: str) -> tuple[list[tuple[str, bool, str]], li
             results.append((STAGE_NAMES[1], ok, detail))
             if ok:
                 infos.append(f"灌数合计 {sum(counts.values())} 行；各类行数的合法取值见 "
-                             "docs/backend/mysql-setup.md §4（PR #150 内）。**features 必须是契约二 v1.2 "
+                             "docs/backend/mysql-setup.md §4。**features 必须是契约二 v1.2 "
                              "的对数变换形态**：灌 commit_features_raw.csv（变换前的原始计数）不会报错，"
                              "但 POST /api/predict 会静默算错，判别 SQL 见该节")
     return results, infos, secret_paths
