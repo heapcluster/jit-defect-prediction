@@ -77,9 +77,13 @@ def main() -> int:
         print(f"[fused] {name:<8} AUC={eu['auc']:.4f}  F1={eu['f1']:.4f}  P={eu['precision']:.4f}  R={eu['recall']:.4f}")
 
     if not args.no_export:
-        (args.model_dir / "manifest.txt").write_text(
+        # 同 semantic：在线加载清单叫 load_manifest.txt，避免与 verify_all_weights 的
+        # md5 权重清单 manifest.txt 撞名。缓存路径写仓内相对路径 —— config 里的
+        # EMBEDDINGS_NPZ 是 resolve() 过的绝对路径，直接插值会撞 collaboration.md
+        # §0 第 3 条（且 .gitignore 对 models/manifest.txt 有反选，一 add 就进库）。
+        (args.model_dir / "load_manifest.txt").write_text(
             f"[input]\nKamei 14（契约二第三节顺序）⊕ 冻结语义 768 = {config.EXPECTED_DIM} 维\n"
-            f"语义缓存：{config.EMBEDDINGS_NPZ}\n\n[models]\n"
+            f"语义缓存：{config.EMBEDDINGS_NPZ.relative_to(config.PKG.parent.parent.parent).as_posix()}\n\n[models]\n"
             + "".join(f"{m}_fused_v1.pkl\t{MODEL_NAMES.get(m, m)}\n"
                       for m in wanted) + "\n",
             encoding="utf-8", newline="\n")

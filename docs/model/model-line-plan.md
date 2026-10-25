@@ -99,6 +99,40 @@
 
 ---
 
+### 3.1 四线实测对照与主线裁定（2026-10-25 组长裁定）
+
+四条线已全部跑完（`expert` / `semantic` / `fused` / `e2e`），口径一致：**同切分、检验集 25,183 条、正样本 14.38%**。数字均为实测（`verify_all_weights` 真跑过，rc=0、0 个 LOAD FAILED），产物由后端同学在本机（4060）产出后交接归档。
+
+**Effort-unaware AUC（各线最优）**
+
+| 线 | 最优模型 | AUC |
+|---|---|---|
+| `fused`（14 ⊕ 768 = 782 维） | `lgbm` | **0.8395** |
+| `expert`（Kamei 14 维） | `tabnet` / `xgb` | 0.8294 / 0.8281 |
+| `semantic`（冻结 CodeBERT 768 维） | `mlp_deep` | 0.7644 |
+| `e2e`（CodeBERT 端到端） | — | 0.7553 |
+
+- `fused` 优于 `expert`（**+0.010**）→ **两模态互补成立**
+- `semantic` 低于 `expert`（**−0.065**）→ **单模态无增量**
+
+**Effort-aware P_norm（两列指向不同的「最好」）**
+
+| 线 | 表现 | 最好者 |
+|---|---|---|
+| `expert` | **8/8 全负** | `svm −0.0791` |
+| `semantic` | 7/8 正 | `xgb 0.3526` / `lr 0.3325` |
+| `fused` | 7/8 正但整体低于 `semantic` | `mlp_deep 0.2549`（`tabnet −0.1581`） |
+| `e2e` | 负 | −0.1995 |
+
+**主线裁定（组长 蒋励，2026-10-25）**
+
+1. **在线交付主线 = `expert`（Kamei 14 维 → 8 个分类器）**。这不是偏好而是硬约束：后端 `FEATURE_COLUMNS` 固定 14 列，`model_registry` 对特征数不等于 14 的模型直接 `model skipped`，因此 `semantic`（768）/ `fused`（782）/ `e2e` 均无法上线；`docs/model/pipelines/expert-only.md` 亦已声明 expert 是四线中唯一进入在线交付链的一条。
+2. **`semantic` / `fused` / `e2e` 定位为离线对照**，其结论用于答辩的「融合对照读法」，不进在线链路。
+3. **排序口径维持 `risk_score` 降序（effort-unaware）**，MVP 内不改 —— 改动属契约三变更，#37 已按里程碑维持冻结；且 effort-aware 方向下 `expert` 8/8 全负，换口径对主线反而更差。
+4. **P_norm 反向这一条登记为 #37 的补充证据**（说明「排序问题」与「模型问题」要分开看），不在 MVP 内落地。
+
+> 迁移在线侧以支持多模态模型（答辩需接入对比）已另立 issue **#158**，范围与前置问题见该 issue。
+
 ## 4. 评估与验收口径
 
 ### 4.1 切分铁规矩
