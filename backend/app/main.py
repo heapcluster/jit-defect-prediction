@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import threading
 from contextlib import asynccontextmanager
 
@@ -20,8 +19,8 @@ logger = logging.getLogger("backend.main")
 
 
 def _startup_sync_if_enabled() -> None:
-    """SYNC_ON_STARTUP=1 时后台预同步最新提交（失败只记日志，不阻塞启动）。"""
-    if os.getenv("SYNC_ON_STARTUP", "") != "1":
+    """config.SYNC_ON_STARTUP=1 时后台预同步最新提交（失败只记日志，不阻塞启动）。"""
+    if not config.SYNC_ON_STARTUP:
         return
     if not config.SOURCE_REPO:
         logger.warning("SYNC_ON_STARTUP=1 but SOURCE_REPO is not configured")

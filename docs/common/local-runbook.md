@@ -45,7 +45,7 @@ cd data_model; python -m pipelines.verify_all_weights --check
 
 ## 2. 建库
 
-两条路都能建出同样的四张表（`commit` / `commit_label` / `commit_feature` / `prediction`）。**先选定一条，别在同一个库上混用**：两条路径的等价性已在 MySQL `jit_demo` 实测（DDL 与 ORM 双路径幂等 + `_assert_indexes` 通过，2026-10-25 组长本机复测）；**Issue #121 是真库验收的探针库，与本演示库无关**。
+两条路都能建出同样的四张表（`commit` / `commit_label` / `commit_feature` / `prediction`）。**先选定一条，别在同一个库上混用**：两条路径的等价性已在本机 MySQL `jit_demo` 实测（DDL 与 ORM 双路径幂等 + `_assert_indexes` 通过，2026-10-25 组长复测）；**Issue #121 是真库验收的探针库，与本演示库无关**。
 
 ### 2.1 建库建号（MySQL，本机自建）
 
@@ -55,12 +55,15 @@ mysql -u root -p -e "CREATE USER IF NOT EXISTS 'jit'@'127.0.0.1' IDENTIFIED BY '
 mysql -u root -p -e "GRANT ALL PRIVILEGES ON jit_demo.* TO 'jit'@'127.0.0.1'; FLUSH PRIVILEGES;"
 ```
 
+> `jit` 这类普通账号通常无 `CREATE DATABASE`（MySQL 8 报 1044），建库步用 root。一条命令建库+建表的包装脚本见 PR #150（`backend/scripts/schema_mysql.sql`，PowerShell 下用 `-e "SOURCE ..."`）。
+
 ### 2.2 建表（二选一）
 
 ```bash
 # A. ORM 路径（推荐，会顺带跑 _assert_indexes 自检）
-cd backend
-DATABASE_URL="mysql+pymysql://jit:<密码>@127.0.0.1:3306/jit_demo?charset=utf8mb4" python -m app.db init
+# 连接串写 backend/.env（DATABASE_URL=mysql+pymysql://jit:<密码>@127.0.0.1:3306/jit_demo?charset=utf8mb4），
+# 命令不带行内前缀 —— load_dotenv() 不覆盖已有环境变量，行内前缀会压过 .env，且口令会进 shell 历史
+cd backend && python -m app.db init
 
 # B. DDL 路径（部署形态；先按 §2.1 建库，schema.sql 只建四表，目标库在命令行指定）
 mysql -u jit -p jit_demo < ../infra/schema.sql
@@ -70,8 +73,7 @@ mysql -u jit -p jit_demo < ../infra/schema.sql
 
 ```bash
 cd backend
-DATABASE_URL="mysql+pymysql://jit:<密码>@127.0.0.1:3306/jit_demo?charset=utf8mb4" \
-  python -c "from app.db import get_engine, _assert_indexes; _assert_indexes(get_engine()); print('indexes ok')"
+python -c "from app.db import get_engine, _assert_indexes; _assert_indexes(get_engine()); print('indexes ok')"
 ```
 
 > 索引自检只覆盖 `INDEX_ASSERTIONS` 里的核心索引，不等于完整列/键对照；完整验收按 `docs/backend/acceptance.md` 板块 B1。
@@ -86,18 +88,36 @@ cd backend && python -m scripts.seed_dev_data   # 建 backend/dev.db 并灌 3 �
 
 ---
 
-## 3. 同步最新提交（数据来源，2026-10-25 起唯一口径）
+## 3. 灌真实数据（可选；历史口径，逐步退出）
 
-**系统只预测 Camel 最新提交，不再灌任何历史 CSV**（旧交付包 `deliver_data_20261024.zip` 与 84,461/83,943/14,596 等数字已退出口径，见 #147/#149）。数据入口是同步：后端对 `SOURCE_REPO` 执行 fetch → 挑出库中不存在的新提交 → **逐条现算 14 项特征 → 模型推理 → 入库 → 列表自动排序**。
+不灌也能验收「模型加载 + 单条在线预测」；要三页面有真实规模数据才灌。CSV 来自数据线产物（`01–04 + 07`），或用交付包 `deliver_data_20261024.zip`（18,006,911 B / md5 `601f5fceac3105273d98fb7eedfcb360`）。
+
+> **口径预告（2026-10-25 蒋励裁定，见 #147/#149）**：演示数据入口将切换为「实时同步 Camel 最新提交」（见 §3.1，随本 PR 合入生效）；CSV 灌数保留为现行可用路径，收口时间由组长另裁，两节会长期并存到切换完成。
 
 ```bash
-# 起后端后（§4），批量同步最近 N 条（默认 10，上限 50）
+# cwd=backend，顺序不能换（commits → features → predictions）
+python -m app.ingest commits     <目录>/commits.csv
+python -m app.ingest features    <目录>/commit_features.csv
+python -m app.ingest predictions <目录>/prediction_result.csv
+```
+
+幂等：同一文件重跑不增行（按表幂等键 upsert）；缺主键字段的行整批回滚并报行号。
+`GET /api/commits` 是 `prediction` 内连接，`commits.csv` 灌全量（约 45 万条）不会把「无预测的提交」带进风险列表。
+
+### 3.1 实时同步（change `realtime-commit-sync`，新数据入口）
+
+**系统只预测 Camel 最新提交**（2026-10-25 蒋励裁定）：后端对 `SOURCE_REPO` 执行 fetch → 挑出库中不存在（或默认模型尚未预测）的新提交 → **逐条现算 14 项特征 → 模型推理 → 入库 → 列表自动排序**。
+
+```bash
+# 起后端后（§4）：批量同步最近 N 条（默认 10，上限 50）
 curl -X POST 'http://127.0.0.1:8000/api/sync?limit=50' -H 'X-API-Key: <令牌>'
 ```
 
-返回 `{tip, scanned, new, predicted[], skipped[]}`：`new=0` 表示无新提交（幂等）；单条失败（如提交不可达）计入 `skipped`，其余继续。想要更大的演示窗口就把 `limit` 调大；`SYNC_ON_STARTUP=1` 可在启动时自动同步一次。
+返回 `{tip, scanned, new, predicted[], skipped[]}`：`new=0` 表示无待预测提交（幂等）；单条失败（如提交不可达）计入 `skipped`，其余继续。`SOURCE_REPO` 未配置 → 40400；`limit` 越界 → 40001；同一时刻只允许一个同步任务。
 
+> **耗时与演示方式**：单条约 3~8 秒（含全量历史扫描 + SHAP），`limit=50` 最坏约数分钟且 HTTP 同步挂起 —— 演示一律用 `SYNC_ON_STARTUP=1` 启动预同步，或现场只发小 `limit`。
 > **口径提醒**：本地 Camel clone 的历史深度会影响过程特征（exp/ndev/nuc/age），同一提交在不同深度算出的 risk 可能不同（实测 0.54 → 0.22）。每人 clone 后建议 `git fetch --unshallow`（至少覆盖近半年），保证各机器可复现。
+> **read-only 保证**：远端 tip 不是本地 HEAD 祖先时，后端建**专用临时工作树**（`--no-checkout`）提取特征，用后即焚，**不会改动你正在使用的检出状态**（进程被硬杀时在 SOURCE_REPO 跑一次 `git worktree prune` 清残留）。
 
 ---
 
@@ -110,12 +130,11 @@ DATABASE_URL=mysql+pymysql://jit:<密码>@127.0.0.1:3306/jit_demo?charset=utf8mb
 API_TOKEN=<与服务端一致的令牌>
 MODEL_DIR=                       # 留空 = 回落到 data_model/pipelines/expert/models/
 SOURCE_REPO=<本地 Apache Camel 仓库绝对路径>   # 只在本机 .env.local 写，不进文档、不进 .env.example
+# SYNC_ON_STARTUP=1              # 启动时后台预同步一次（默认关，模板行以 backend/.env.example 为准）
 ```
 
-> `SOURCE_REPO` 是「现场预测新提交」的开关：不配时，`POST /api/predict` 只查库，库里没有的哈希一律 40400。
+> `SOURCE_REPO` 是「现场预测新提交 / 批量同步」的开关：不配时，`POST /api/predict` 只查库，库里没有的哈希一律 40400。
 > 配了之后后端会调 `data_model/preparation/03_extract_features.py` 现算 14 项特征，**首次会扫 Git 历史，别拿它做性能验收**。
-> `backend/.env.example` 已含 `SOURCE_REPO` 行（演示库 MySQL `jit_demo` 的库名口径见 #130/#142）。
-> 批量同步：`POST /api/sync?limit=10`（change `realtime-commit-sync`）——fetch SOURCE_REPO 最新提交、逐条预测入库；`.env` 设 `SYNC_ON_STARTUP=1` 可在启动时后台预同步一次。
 
 ```bash
 cd backend

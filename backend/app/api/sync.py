@@ -29,7 +29,7 @@ from app import config, model_registry
 from app.api.predict import PredictRequest, predict_commit
 from app.auth import require_api_key
 from app.db import SessionLocal
-from app.errors import AppError
+from app.errors import INTERNAL_ERROR_MESSAGE, AppError
 from app.models import Prediction
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
@@ -42,16 +42,24 @@ MAX_LIMIT = 50
 
 
 def _run_git(repo: str, *args: str) -> str:
-    """执行 git 命令；代理经命令行参数禁用，不读全局配置。失败映射为契约内 50000。"""
+    """执行 git 命令；代理经命令行参数禁用，不读全局配置。
+
+    `encoding="utf-8"` 显式指定：Windows 默认按 locale（cp936）解码，Camel 的
+    中文提交信息会乱码并最终写进 `commit.message`。
+    失败一律映射为契约内 50000 + `internal error`（细节只进 logger，不回显调用方）。
+    """
     cmd = ["git", "-C", repo, "-c", "http.proxy=", "-c", "https.proxy=", *args]
     try:
         proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=_GIT_TIMEOUT, check=True
+            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=_GIT_TIMEOUT, check=True,
         )
     except subprocess.TimeoutExpired as exc:
-        raise AppError(50000, "sync git operation timed out") from exc
+        logger.exception("sync git timeout: %s", args[:2])
+        raise AppError(50000, INTERNAL_ERROR_MESSAGE) from exc
     except (subprocess.CalledProcessError, OSError) as exc:
-        raise AppError(50000, "sync git operation failed") from exc
+        logger.exception("sync git failed: %s", args[:2])
+        raise AppError(50000, INTERNAL_ERROR_MESSAGE) from exc
     return proc.stdout
 
 
@@ -75,14 +83,15 @@ def fetch_latest_tip(repo: str, retries: int = 3) -> str:
         raise AppError(50000, "sync git operation failed") from last
     tip = _run_git(repo, "rev-parse", "FETCH_HEAD").strip()
     if len(tip) != 40:
-        raise AppError(50000, "sync git operation failed")
+        raise AppError(50000, INTERNAL_ERROR_MESSAGE)
     return tip
 
 
 def _is_ancestor(repo: str, commit: str, base: str = "HEAD") -> bool:
     check = subprocess.run(
         ["git", "-C", repo, "merge-base", "--is-ancestor", commit, base],
-        capture_output=True, timeout=_GIT_TIMEOUT, check=False,
+        capture_output=True, encoding="utf-8", errors="replace",
+        timeout=_GIT_TIMEOUT, check=False,
     )
     return check.returncode == 0
 
@@ -93,6 +102,9 @@ def ensure_extractable(repo: str, tip: str) -> tuple[str, Callable[[], None]]:
     tip 已从 HEAD 可达：直接用 SOURCE_REPO 本身，释放为空操作；
     否则建专用临时工作树（detached @ tip，--no-checkout 不落工作区文件），
     绝不 checkout / reset 用户的检出状态。释放函数负责 worktree remove + 目录清理。
+
+    自救：进程被硬杀（Ctrl-C）时 `<repo>/.git/worktrees/` 可能留残留条目，
+    之后 `git worktree` 命令会警告 —— 在 SOURCE_REPO 里跑一次 `git worktree prune` 即可。
     """
     if _is_ancestor(repo, tip):
         return repo, lambda: None
@@ -132,7 +144,8 @@ def sync_recent(limit: int = 10) -> dict:
     if not (1 <= limit <= MAX_LIMIT):
         raise AppError(40001, f"参数非法：limit 需在 1..{MAX_LIMIT}")
     if not _sync_lock.acquire(blocking=False):
-        raise AppError(50000, "sync already in progress")
+        # 冻结错误码集合内无 429；并发重入统一按 50000 + internal error 处理
+        raise AppError(50000, INTERNAL_ERROR_MESSAGE)
     try:
         repo = config.SOURCE_REPO
         if repo is None or not (repo / ".git").exists():
