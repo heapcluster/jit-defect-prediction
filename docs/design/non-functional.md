@@ -14,7 +14,7 @@
 
 - `POST /api/predict` 95% 请求 < 500ms（课程明确「对外提供在线预测服务」的压测靶子）。
 - **证据**：`backend/scripts/` 压测脚本循环 100 次，输出 **p50/p95/p99** 分位数 + 截图。不得拿查询接口代替（查询读索引，快不代表模型推理性能）。
-- **2026-10-24 实测结论（见 §5.2）**：默认路径（不传 `model_name` → 版本序最新 `xgb_v1`）p95=15.5ms **达标**；`lr_v1` p95=9.0ms 达标；`rf_v1` 收敛前 p95=713.8ms 未达标，按 D-14 收敛后 **p95=127.7ms 达标**（AUC 降 0.0021）。旧证据 `perf-real-2026-09-20.md` 测的是 #97 之前的接口，不可再引。
+- **2026-10-24 实测结论（见 §5.2）**：默认路径（不传 `model_name` → 版本序最新 `xgb_v1`）p95=15.5ms **达标**；`lr_v1` p95=9.0ms 达标；`rf_v1` 收敛前 p95=713.8ms 未达标，按 D-14 收敛后 **p95=127.7ms 达标**（AUC 降 0.0021）。旧证据 `backend/scripts/evidence/archive/perf-real-2026-09-20.md` 测的是 #97 之前的接口，不可再引。
 
 ## 3. 可靠性
 
@@ -76,7 +76,7 @@
 - **max 一列不是失败项**：n=100 各行里的最大值是**首个请求**的 SHAP 解释器惰性构造（`model_registry.get_explainer` 构造后缓存），其后 99 次不含该成本；判定只看 p95。
 - **`rf_v1` 的问题是模型规模，不是契约冲突（D-14 已按裁定 ③ 落地）**：收敛前 p95 713.8ms 超靶子 43%，根因是 SHAP 在 366 万节点上的单次遍历（`predict_proba` 只占 53–86ms，见 `docs/model/evidence/rf-shap-2026-10-24.md`）。把 rf 收敛到 `min_samples_leaf=100` / `max_depth=15`（节点降 23.3 倍）后复测 p95 **127.7ms 达标**，代价 AUC 0.8190→0.8169（降 0.0021，验收上限 0.01）。**契约三 §4 枚举与 500ms 靶子均未改动。** 已知副作用：阈值 0.5 下 F1 0.4083→0.3659、Recall 0.3355→0.2789，若后续要求 F1 回 0.40 应重标阈值（走 change），不回退模型规模。
 - 旁证链：2026-10-23 的函数级探测（`on-demand-commit-2026-10-23.md`，rf_v1 五次 605–947ms）当时已提示冲突；收敛**前**那行已升级成真 HTTP + 真库 + 100 次的正式测量（`perf_loop.py --n 100`，单模型 `MODEL_DIR`）；收敛**后**那行目前是真 HTTP + 真库 + 30 次旁证，**100 次复测由后端线在本 PR 合入后补记**（换权重会影响已入库 `prediction` 行的可比性，先合入再复测，避免引用尚未进 main 的文件）。
-- 旧证据 `perf-real-2026-09-20.md`（p50 12.6 / p95 21.6 / p99 67）测的是 #97 之前的 `POST /api/predict`（不现算 14 维特征），**不可再引**；`perf-placeholder-2026-09-19.md` 是占位模型，同样不可再引。
+- 旧证据 `backend/scripts/evidence/archive/perf-real-2026-09-20.md`（p50 12.6 / p95 21.6 / p99 67）测的是 #97 之前的 `POST /api/predict`（不现算 14 维特征），**不可再引**；`backend/scripts/evidence/archive/perf-placeholder-2026-09-19.md` 是占位模型，同样不可再引。
 - 原始记录：收敛前 `backend/scripts/evidence/perf-2026-10-24.md`；收敛后复测 `backend/scripts/evidence/perf-rf-converged-2026-10-24.md`。
 
 ### 5.3 可靠性——佐证（非本轮新测，列可点验落点）

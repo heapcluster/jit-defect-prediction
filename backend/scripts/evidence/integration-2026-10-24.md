@@ -1,6 +1,6 @@
 # 三端联调实测记录 2026-10-24（建库 → 4×ingest → 起服务 → 四接口 → 幂等 → 压测，一条命令链）
 
-- 目的：`test-plan.md` §4.2 T-IT-01~03 与 `docs/backend/acceptance.md` 三端联调条款的**正式执行记录**。此前仓库里只有套件内 SQLite 级联调（`backend/tests/test_integration_api.py` 6 条，夹具模型 + 合成 CSV）与 2026-10-16 的种子库真服务记录（`predict-real-models-2026-10-16.md`，3 行数据），都**不等于**「真实全量数据 + 真交付权重 + 真服务」的联调；本文件补上这一层。
+- 目的：`test-plan.md` §4.2 T-IT-01~03 与 `docs/backend/acceptance.md` 三端联调条款的**正式执行记录**。此前仓库里只有套件内 SQLite 级联调（`backend/tests/test_integration_api.py` 6 条，夹具模型 + 合成 CSV）与 2026-10-16 的种子库真服务记录（`archive/predict-real-models-2026-10-16.md`，3 行数据），都**不等于**「真实全量数据 + 真交付权重 + 真服务」的联调；本文件补上这一层。
 - 基线：main `0773a49`（`backend/app` 与被测树逐字一致）
 - 执行方式：**一条驱动脚本顺序跑完全部步骤**（`it_20261024_driver.py`，本机临时目录，不入库），任一步 rc≠0 立即停、不产出半成品；全部 stdout 逐字进 `it_run.log`，接口响应逐字进 `transcripts.md`。
 - 环境：Windows 11 / Python 3.12.7（仓库根 `.venv`）/ fastapi 0.141.1 / uvicorn 0.53.0 / SQLAlchemy 2.0.54 / scikit-learn 1.9.1 / xgboost 3.4.1 / shap 0.52.0；服务 `http://127.0.0.1:8024`（PID 55812）
@@ -149,5 +149,5 @@ git diff --name-only 0773a49 HEAD -- backend/   # 期望：只有本目录新增
 
 ## 10. 口径与引用
 
-- 看板「前后端联调 / 三端联调」行与 `docs/backend/acceptance.md` 的联调条款改引**本文件**；`predict-real-models-2026-10-16.md` 降为「种子库真服务记录」（3 行数据），不再作为全量联调证据。
+- 看板「前后端联调 / 三端联调」行与 `docs/backend/acceptance.md` 的联调条款改引**本文件**；`archive/predict-real-models-2026-10-16.md` 降为「种子库真服务记录」（3 行数据），不再作为全量联调证据。
 - 本文件只记已发生的执行；MySQL 补跑、02 交叉校验结论、前端页面层联调分别以补记行或新文件追加，不倒填既有数字。

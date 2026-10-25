@@ -1,8 +1,5 @@
 # 测试报告 · Sprint 1（快照 2026-10-13）
 
-> **状态：历史（2026-10-24 标注）。** 本文件是 Sprint 1 的中期快照，**不作为现行口径**；
-> 现行测试结论与条数以 [`test-report-sprint2.md`](test-report-sprint2.md) 为准。
-
 > 依据 `common/test-plan.md` §5 的report 约定产出。Sprint 1 于 10/23 结题，本文件为**中期快照**，结题前更新一次。
 > 维护：蒋励（统稿）｜ 各线证据按包归集：`backend/evidence/`、`frontend/evidence/`、`model/evidence/`。
 
@@ -42,7 +39,7 @@
 
 ## 3. 覆盖率
 
-**已在 main 完成实测**（PR #74 `0cad776`，2026-10-16 合入）：`pytest-cov==7.1.0` 已入 `backend/requirements.txt`，在 Python 3.12.7 上实测后端**行覆盖 84%**（600 stmts / 95 miss），超过 `test-plan.md` §5 的 Sprint 2 目标 ≥60%。证据：`backend/scripts/evidence/coverage-2026-10-16.md`；Sprint 3 ≥75% 目标待后续提升。
+**已在 main 完成实测**（PR #74 `0cad776`，2026-10-16 合入）：`pytest-cov==7.1.0` 已入 `backend/requirements.txt`，在 Python 3.12.7 上实测后端**行覆盖 84%**（600 stmts / 95 miss），超过 `test-plan.md` §5 的 Sprint 2 目标 ≥60%。证据：`backend/scripts/evidence/archive/coverage-2026-10-16.md`；Sprint 3 ≥75% 目标待后续提升。
 
 > ⚠️ **基线口径提醒**：上述 84% 是在**不含本 PR 的 `backend/tests/test_security_boundaries.py`（48 条）**的 main 上测得。本 PR 合入后后端测试将从 45 条增至 93 条，**覆盖率须重测后另出证据文件**，不在旧文件上倒填数字。
 
@@ -54,7 +51,7 @@
 | 2 | 前后端联调（T-IT-01~03） | 需先后端 `:8000` + 前端 dev + 真实数据（跑数据线 01–04） | 刘帅华 + 吕建江 |
 | 3 | 系统测试（T-ST-01~05） | 依赖 2；演示录屏同此 | 蒋励 |
 | 4 | 性能分位数（T-NF-01） | 压测脚本在 `nfr-evidence-scripts`，Sprint 3 出证 | 吕建江 |
-| 5 | ~~覆盖率测量~~ **已完成** | PR #74：`pytest-cov==7.1.0`，Python 3.12.7 实测行覆盖 84%（600/95），证据 `backend/scripts/evidence/coverage-2026-10-16.md` | 吕建江 ✅ |
+| 5 | ~~覆盖率测量~~ **已完成** | PR #74：`pytest-cov==7.1.0`，Python 3.12.7 实测行覆盖 84%（600/95），证据 `backend/scripts/evidence/archive/coverage-2026-10-16.md` | 吕建江 ✅ |
 | 6 | ~~在 Python 3.12 复跑全量~~ **已完成** | PR #74：3.12.7 全量复跑 45 passed / 0 failed | 吕建江 ✅ |
 
 ## 5. 与 `test-plan.md` §7 退出准则的差距（Sprint 3 验收前必须清零）
