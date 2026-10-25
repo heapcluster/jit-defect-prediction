@@ -120,7 +120,10 @@ def main() -> int:
         print(f"[semantic] {name:<8} AUC={eu['auc']:.4f}  F1={eu['f1']:.4f}  P={eu['precision']:.4f}  R={eu['recall']:.4f}")
 
     if not args.no_export:
-        (args.model_dir / "manifest.txt").write_text(
+        # 这是「在线加载清单」，不是 verify_all_weights 的 md5 权重清单。两者同名会撞车：
+        # verify --check 按 5 列 md5 格式解析，遇到 [encoder] 行直接 ValueError。
+        # 故本文件固定叫 load_manifest.txt；manifest.txt 归 verify_all_weights 专用。
+        (args.model_dir / "load_manifest.txt").write_text(
             f"[encoder]\n{config.TEXT_MODEL}（冻结，mean-pool，{X_train.shape[1]} 维）\n\n[models]\n"
             + "".join(f"{m}_semantic_v1.pkl\t{MODEL_NAMES.get(m, m)}\n"
                       for m in wanted)

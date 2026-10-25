@@ -8,12 +8,16 @@
 # ===== 数据集、模型等大文件（严禁入库）=====
 data/
 datasets/
-# 模型产物：任意 pipeline 的 models/ 下权重不入库；feature_order.txt / manifest.txt 是
-# **交付清单（纯文本）**，必须入库才能被审阅/比对（否则干净 clone 缺清单）。
+# 模型产物：任意 pipeline 的 models/ 下权重不入库；feature_order.txt / manifest.txt /
+# load_manifest.txt 是**交付清单（纯文本）**，必须入库才能被审阅/比对（否则干净 clone 缺清单）。
+#   - manifest.txt      = verify_all_weights 的 md5 权重清单（5 列）
+#   - load_manifest.txt = 各线的在线加载清单（[encoder] / [input] + [models]）
+# 两者语义不同、文件名必须分开，否则 verify --check 会按 md5 格式解析加载清单而报错。
 # 故排除任意层级 models/ 的内容，但保留纯文本交付清单。
 data_model/pipelines/*/models/**
 !data_model/pipelines/*/models/feature_order.txt
 !data_model/pipelines/*/models/manifest.txt
+!data_model/pipelines/*/models/load_manifest.txt
 artifacts/
 *.onnx
 *.pkl
