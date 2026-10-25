@@ -110,10 +110,57 @@ python -m app.ingest predictions <prediction_result.csv>
 |---|---|---|
 | `commits` | **84,461** | 全量提交清单（含 518 条无对应特征/标签的行） |
 | `predictions` | **83,943** | 方案 C 离线预测结果，= 数据集规模 |
-| `labels` | **83,943** 或 83,887 | 取决于用哪份标签文件；组长本机实测 83,887，差 56 行的定位方法与影响面见 PR #145 §6.1 |
-| `features` | **83,943** 或 **84,461** | `dataset_szz` 投影 = 83,943；`commit_features_raw.csv`（每提交一行的原始导出）= 84,461，与前者是**超集**关系 |
+| `labels` | **83,943** 或 83,887 | 两个都合法：`commit_label` 表**没有任何接口读取**（四接口只读 `commit` / `commit_feature` / `prediction`），差 56 行的定位方法与影响面见 PR #145 §6.1 |
+| `features` | **只有 83,943 一个合法值** | 且**必须是契约二 v1.2「对数变换后」的形态**，见下面那条警告 |
 
-`labels` / `features` 这两行的两个数都**不是错**：`commit_label` 表**没有任何接口读取**（四接口只读 `commit` / `commit_feature` / `prediction`），`commit_feature` 是超集时多出的行不会被查到。**必须守的不变式是「有预测必有特征行」**（否则详情页与 `POST /api/predict` 会 40400），在 SQLite 全量库实测 **0 例外**。
+> ⚠️ **`commit_features_raw.csv`（84,461 行）不能灌** —— 它是**对数变换之前**的原始计数导出，不是「多 518 行的超集」，而是**另一套特征空间**。灌进去之后 `POST /api/predict` 会**静默算出错误概率**（模型不报错、接口 200、页面照常显示），本机实测同一条提交、同一个 `xgb_v1`：
+>
+> | 特征来源 | 在线预测概率 |
+> |---|---|
+> | `commit_features_raw.csv`（原始计数：`ns=1, nd=10, nf=42, entropy=5.3923…`） | **0.82657** ← 错的 |
+> | `dataset_szz.csv`（契约形态：`ns=0.0, nd=2.30259=ln(10), nf=3.73767=ln(42), entropy=1.68498=ln(5.3923)`） | **0.79963** ← 与离线批量产物 `prediction_result.csv` 的存量值**逐位相同** |
+>
+> 依据是**冻结契约二 v1.2 第四节**：「全部 14 项取对数变换 …… 非 0 值取 `ln(x)`、0 值记 0」，`fix` 除外。所以 `commit_feature` 表里该存的是 `ln` 之后的值。
+>
+> **当前缺口**：`docs/repo/demo-script-sprint1.md` §0.0 第 3 条写的是 `data_model/data/commit_features.csv`，而**这个文件目前不存在**（该目录下只有 `commit_features_raw.csv`）。照 §0.0 复制会在第三类直接报文件不存在；改用 raw 那份就会踩上面这个坑。正解是数据线补出这份投影（属 `data_model/`，不归后端代做）；临时自救可从 `dataset_szz.csv` 投影出契约二第三节的 14 列：
+>
+> ```bash
+> # cwd = 仓库根；列名以 docs/model/feature-columns.md 第三节（= backend/app/config.py::FEATURE_COLUMNS）为准
+> python - <<'PY'
+> import csv, pathlib
+> KEEP = ["commit_hash", "committed_at", "feature_version",
+>         "ns", "nd", "nf", "entropy", "la", "ld", "lt", "fix",
+>         "ndev", "age", "nuc", "exp", "rexp", "sexp"]
+> src = pathlib.Path("data_model/data/dataset_szz.csv")
+> dst = pathlib.Path("data_model/data/commit_features.csv")
+> count = 0
+> with src.open(encoding="utf-8", newline="") as fin, dst.open("w", encoding="utf-8", newline="") as fout:
+>     writer = csv.DictWriter(fout, fieldnames=KEEP, extrasaction="ignore")
+>     writer.writeheader()
+>     for row in csv.DictReader(fin):
+>         writer.writerow(row)
+>         count += 1
+> print(f"写出 {count} 行 → {dst}")
+> PY
+> ```
+>
+> 灌完**必须验一次口径**（一条 SQL，能挡住这个坑）：契约形态下 `la` / `ld` 会出现**大量负值**（`ln(x)` 在 x<1 时为负），原始计数则**恒为非负**且量级完全不同。本机全量实测两份文件的判据值：
+>
+> | 文件 | `min(la)` | `min(ld)` | `max(nf)` | `la < 0` 的行数 |
+> |---|---|---|---|---|
+> | `dataset_szz.csv`（契约形态，**该灌这份**） | **−12.9444** | **−12.1698** | **9.7940** | **76,444 / 83,943**（91.1%） |
+> | `commit_features_raw.csv`（变换前，**不可灌**） | 0.0000 | 0.0000 | **17,925** | **0** |
+>
+> ```sql
+> SELECT MIN(la) AS min_la, MIN(ld) AS min_ld, MAX(nf) AS max_nf,
+>        SUM(la < 0) AS neg_la_rows, COUNT(*) AS total FROM commit_feature;
+> -- 契约形态：min_la/min_ld 为负、max_nf 约 9.8、neg_la_rows ≈ 0.91 × total
+> -- 灌错了（raw）：neg_la_rows = 0、max_nf 上万
+> ```
+>
+> 佐证：契约二 v1.2 的变更日志本身就把「`la` / `ld` 出现负值」当作 `ln(x)` 口径的判据（该日志记的是当时数据集上的 −8.7612 / −9.1363；上表是我在当前 Camel 全量数据上的实测值，两者符号与量级一致）。
+
+**必须守的不变式**：「有预测必有特征行」（否则详情页与 `POST /api/predict` 会 40400），在 SQLite 全量库实测 **0 例外**；以及上面那条「特征必须是对数变换后的契约形态」。
 
 - **灌入幂等**：同一文件重跑不增行（按表幂等键 upsert：`commit=commit_hash`、`label=(commit_hash, label_method)`、`feature=commit_hash`、`prediction=(commit_hash, model_name)`）；缺主键字段的行整批回滚并报行号。该幂等性在 SQLite 全量库四类各灌两遍实测通过，MySQL 侧由组长本机实测（#147）。
 
@@ -125,7 +172,8 @@ python -m app.ingest predictions <prediction_result.csv>
 
 | # | 判据 | 期望值 | 怎么查 |
 |---|---|---|---|
-| 1 | 四表行数 | `commit` **84,461**、`prediction` **83,943**、`commit_feature` 83,943 或 84,461、`commit_label` 83,943 或 83,887 | `SELECT COUNT(*)`，或脚本 |
+| 1 | 四表行数 | `commit` **84,461**、`prediction` **83,943**、`commit_feature` **83,943**、`commit_label` 83,943 或 83,887 | `SELECT COUNT(*)`，或脚本 |
+| 1b | **特征口径**（防「灌了 raw 那份」） | `MIN(la)` 为负、`SUM(la < 0)` ≈ 0.91 × 总行数 | §4 那条 SQL |
 | 2 | 高风险行 | `risk_score ≥ 0.5` 恰 **14,596** 条（占 83,943 的 17.39%） | `SELECT COUNT(*) FROM prediction WHERE risk_score >= 0.5` |
 | 3 | 列表接口 | `GET /api/commits?size=1` → `data.total = 83943` | curl / 浏览器 |
 | 4 | 趋势接口 | `GET /api/trends` → **236** 期，各期 `commit_count` 之和 = 83,943 | curl |
@@ -155,6 +203,7 @@ python -m scripts.demo_preflight --out scripts/evidence/preflight-<日期>.md
 | 6 | 担心时间被时区偏移 | 不成立：四表时间列都是 `DATETIME`（不是会按会话时区转换的 `TIMESTAMP`），后端一律在 Python 侧取 UTC 再去 `tzinfo` 后写入，`backend/app` 内没有任何 SQL 侧 `NOW()` / `CURRENT_TIMESTAMP` / `server_default`（grep 实测 0 命中） | 无需设 `time_zone`；本机实测 `@@time_zone = SYSTEM` 也不产生偏移。**别把时间列改成 `TIMESTAMP`** |
 | 7 | 改了 `backend/.env` 的连接串，服务却还连旧库 | 命令行带了 `DATABASE_URL=...` 前缀，而 `load_dotenv()` **不覆盖已存在的环境变量** | 命令里去掉前缀（§3）；`docs/common/local-runbook.md` §2.2 里那种带前缀的写法与本口径二选一，别混用 |
 | 8 | 建到了共享实例上那份旧库 | 那份库里有 2 提交 / 4 预测的**占位脏数据**（假哈希 `1111…`/`2222…`、`repo_name=activemq`、`model_name` 为 `smoke_v1` / `tree_placeholder_v0`），灌真数据不会覆盖它们（哈希不同），演示列表会只剩一条假数据还排在前面 | 演示与验收一律用本机新建的 `jit_demo`；那份旧库**不是演示库**，其存量清理归 infra、不阻断演示（#142「存量处置（降级，不阻断）」） |
+| 9 | **在线预测的概率与库内存量值对不上**（同一提交、同一模型，详情页点「重新预测」后数字变了） | 灌的是 `commit_features_raw.csv` —— 那是**对数变换之前**的原始计数，模型按契约二 v1.2 的 `ln` 形态训练，喂原始计数不报错、只给错答案 | 按 §4 从 `dataset_szz.csv` 投影出契约形态的 `commit_features.csv` 重灌 `features`（ingest 幂等，同 hash 覆盖），再用 §4 那条 SQL 验 `MIN(la)` 为负。本机实测差多少：同一提交 `xgb_v1` raw → **0.82657**、契约形态 → **0.79963**（= 离线批量产物的存量值） |
 
 ## 7. 与其他文档的关系
 
@@ -181,6 +230,8 @@ python -m scripts.demo_preflight --out scripts/evidence/preflight-<日期>.md
 | 服务端 `8.0.45` / `utf8mb4` / `utf8mb4_0900_ai_ci` / `time_zone=SYSTEM` | ✅ 本机实测 | §1.1 第二条自检命令 |
 | `PyMySQL 1.2.3`、`SQLAlchemy 2.0.54` | ✅ 本机实测 | `pip show PyMySQL`、`import sqlalchemy` |
 | 四份 CSV 的数据行数（84,461 / 83,943 / 84,461 / 83,943） | ✅ 本机实测 | 逐份数数据行（不含表头） |
+| **特征口径判别**（§4 那张对照表与两个在线概率） | ✅ 本机实测 | 两份文件全量扫 `min(la)`/`min(ld)`/`max(nf)`/`la<0` 行数；再用 `joblib.load(xgb_v1.pkl)` 对同一提交分别喂两套特征，得 0.82657 / 0.79963，后者与 `prediction_result.csv` 存量值逐位相同 |
+| **建库→灌数→起服务→六条判据全链路**（SQLite 形态） | ✅ 本机实测 **8/8 通过、rc=0、86 秒** | `python -m scripts.demo_preflight --init-db --ingest …`（PR #151 的脚本）：0a 四表建好 + 索引自检；0b 实灌 commits 84,461 / labels 83,943 / features 84,461 / predictions 83,943；判据 2 `prediction=83943`、判据 3 `risk≥0.5` = **14,596**、判据 4 `loaded models: ['lr_v1','rf_v1','xgb_v1']`、判据 5 四接口 200、判据 6 两次 POST 后 `(hash, xgb_v1)` 恒 1 行且总行数不变。**注意这一轮 features 灌的正是 raw 那份**，所以它同时复现了 §6 坑 9（在线 0.82657 vs 存量 0.79963）—— 判据 1~6 全绿也**抓不到特征口径错**，这正是 §5.1 判据 1b 存在的原因 |
 | 时间列不受 `time_zone` 影响 | ✅ 代码级实测 | `infra/schema.sql` 四个时间列全为 `DATETIME`；`backend/app` 内 `NOW()` / `CURRENT_TIMESTAMP` / `server_default` grep 0 命中 |
 | **§2.1 的建库命令本身**（`CREATE DATABASE` + `SOURCE infra/schema.sql` 在真 MySQL 上跑通） | ❌ **本机未实测** | 后端线本机账号无 `CREATE DATABASE`（实测 1044），需 root 或一次性授权。**建库头两条路径的等价性与幂等性已由组长本机 MySQL 实测**（Issue #147 正文） |
 | **§5.1 六条判据在本机 MySQL 上** | ❌ **本机未实测** | 同上；同口径的实测证据现有两份：SQLite 全量库（`backend/scripts/evidence/system-layer-backend-2026-10-24.md`，43 项断言全过）与组长本机 MySQL `jit_demo`（#147：建库 + 双路径幂等 + 灌数 + 三模型加载 + `total=83943` + 236 期趋势 + 现场预测 8.4s） |

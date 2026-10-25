@@ -122,6 +122,14 @@ def test_setup_doc_covers_every_item_issue_142_asked_for(needle):
     assert needle in SETUP_DOC.read_text(encoding="utf-8"), f"配置文档缺 #142 要求的项：{needle}"
 
 
+def test_setup_doc_warns_about_the_raw_feature_table():
+    """§4 那条警告是承重的：灌 raw 特征表会让在线预测静默算错，删掉它等于埋雷。"""
+    text = SETUP_DOC.read_text(encoding="utf-8")
+    for needle in ("commit_features_raw.csv", "dataset_szz.csv", "对数变换", "契约二 v1.2",
+                   "0.82657", "0.79963", "MIN(la)"):
+        assert needle in text, f"配置文档缺特征口径警告的关键项：{needle}"
+
+
 @pytest.mark.parametrize(
     "index_doc",
     [
