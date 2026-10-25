@@ -42,9 +42,18 @@ python -c "import sqlalchemy; print(sqlalchemy.__version__)"
 
 ### 2.1 命令
 
+**Git Bash / Linux shell**（cwd 必须是仓库根目录，不是 `backend/`）：
+
 ```bash
-# cwd 必须是仓库根目录（不是 backend/）
 mysql -u root -p < backend/scripts/schema_mysql.sql
+```
+
+**PowerShell**（团队主力是 Windows，而 PowerShell **不支持 `<` 输入重定向** —— 实测报「`<` 运算符保留供将来使用」，见 §6 坑 10）：
+
+```powershell
+# cwd = 仓库根。两种都行，实测都 rc=0；推荐第一种（客户端自己读文件，不经 PowerShell 的编码转换）
+mysql -u root -p -e "SOURCE backend/scripts/schema_mysql.sql"
+Get-Content backend/scripts/schema_mysql.sql | mysql -u root -p
 ```
 
 口令走 `-p` 的**交互输入**，不要写成 `-p<口令>`（会进 shell 历史，且 MySQL 自己会警告）。
@@ -197,11 +206,31 @@ python -m app.ingest predictions <prediction_result.csv>
 ### 5.2 一条命令自检
 
 ```bash
-# cwd = backend；连接串与令牌走 backend/.env，也可用 --db-url / --token 显式覆盖
+# cwd = backend；连接串、令牌、MODEL_DIR 一律读 backend/.env（脚本不提供覆盖它们的开关）
 python -m scripts.demo_preflight --out scripts/evidence/preflight-<日期>.md
+# 从零到断言（PR #151 的两个前置阶段）：建表 → 灌数 → 起服务 → 六条判据
+python -m scripts.demo_preflight --init-db --ingest --out scripts/evidence/preflight-<日期>.md
 ```
 
-脚本（Issue #138）逐条判六项：令牌一致性 → 库四表行数 → 存在 `risk_score ≥ 0.5` 的行 → 交付模型全部加载 → 契约三的四条路径全 200 → 同 hash 两次预测只留一行。**任一不满足退出码 1 并打印实际值**；证据文件里的口令、连接串与个人绝对路径一律自动掩码。
+脚本（Issue #138）**实际支持的开关**（`python -m scripts.demo_preflight --help` 是唯一权威，下表只是速查）：
+
+| 开关 | 作用 | 默认 |
+|---|---|---|
+| `--init-db` | 前置阶段 0a：建表（等价 `python -m app.db init`，含索引自检）。**只建表不建库** | 关 |
+| `--ingest` | 前置阶段 0b：四类 CSV 依次 `app.ingest`，逐类报行数 | 关 |
+| `--ingest-csv KIND=PATH` | 覆盖某一类 CSV 路径，可重复；KIND 取 `commits\|labels\|features\|predictions` | §0.0 的四条路径 |
+| `--expect-predictions N` | 判据 2 的期望 `prediction` 行数；**联调库跑要写 3** | `83943` |
+| `--expect-models a,b,c` | 判据 4 的期望加载清单 | `lr_v1,rf_v1,xgb_v1` |
+| `--host` / `--port` | 脚本自己起的服务地址 | `127.0.0.1` / `8055` |
+| `--timeout S` | 等服务就绪的秒数（模型加载约 40s，首次跑建议放宽） | `120` |
+| `--backend-env` / `--frontend-env` | 两份 `.env` 的位置（判据 1 比对令牌用） | `backend/.env` / `frontend/.env.local` |
+| `--out PATH` | 把结果写成证据 markdown | 不写 |
+
+**没有** `--db-url` 与 `--token` 这两个开关：库与令牌只从 `backend/.env`（或已存在的环境变量）读，脚本刻意不提供命令行覆盖 —— 命令行传口令会进 shell 历史，也会让「判据 1 比对的两份 `.env`」与「实际连的库」脱钩。
+
+脚本逐条判六项：令牌一致性 → 库四表行数 → 存在 `risk_score ≥ 0.5` 的行 → 交付模型全部加载 → 契约三的四条路径全 200 → 同 hash 两次预测只留一行。**任一不满足退出码 1 并打印实际值**；证据文件里的口令、连接串与个人绝对路径一律自动掩码。
+
+> ⚠️ **六条判据全绿 ≠ 特征口径对**：判据里没有一条比对 `commit_feature` 的**值**，所以灌了 §4 那份 raw 特征表也会 8/8 全绿（本机实测就是这个结果）。灌完请另跑 §4 的那条 SQL 验一次。
 
 ## 6. 常见坑（现象 → 根因 → 解法）
 
@@ -215,7 +244,8 @@ python -m scripts.demo_preflight --out scripts/evidence/preflight-<日期>.md
 | 6 | 担心时间被时区偏移 | 不成立：四表时间列都是 `DATETIME`（不是会按会话时区转换的 `TIMESTAMP`），后端一律在 Python 侧取 UTC 再去 `tzinfo` 后写入，`backend/app` 内没有任何 SQL 侧 `NOW()` / `CURRENT_TIMESTAMP` / `server_default`（grep 实测 0 命中） | 无需设 `time_zone`；本机实测 `@@time_zone = SYSTEM` 也不产生偏移。**别把时间列改成 `TIMESTAMP`** |
 | 7 | 改了 `backend/.env` 的连接串，服务却还连旧库 | 命令行带了 `DATABASE_URL=...` 前缀，而 `load_dotenv()` **不覆盖已存在的环境变量** | 命令里去掉前缀（§3）；`docs/common/local-runbook.md` §2.2 里那种带前缀的写法与本口径二选一，别混用 |
 | 8 | 建到了共享实例上那份旧库 | 那份库里有 2 提交 / 4 预测的**占位脏数据**（假哈希 `1111…`/`2222…`、`repo_name=activemq`、`model_name` 为 `smoke_v1` / `tree_placeholder_v0`），灌真数据不会覆盖它们（哈希不同），演示列表会只剩一条假数据还排在前面 | 演示与验收一律用本机新建的 `jit_demo`；那份旧库**不是演示库**，其存量清理归 infra、不阻断演示（#142「存量处置（降级，不阻断）」） |
-| 9 | **在线预测的概率与库内存量值对不上**（同一提交、同一模型，详情页点「重新预测」后数字变了） | 灌的是 `commit_features_raw.csv` —— 那是**对数变换之前**的原始计数，模型按契约二 v1.2 的 `ln` 形态训练，喂原始计数不报错、只给错答案 | 按 §4 从 `dataset_szz.csv` 投影出契约形态的 `commit_features.csv` 重灌 `features`（ingest 幂等，同 hash 覆盖），再用 §4 那条 SQL 验 `MIN(la)` 为负。本机实测差多少：同一提交 `xgb_v1` raw → **0.82657**、契约形态 → **0.79963**（= 离线批量产物的存量值） |
+| 9 | **在线预测的概率与库内存量值对不上**（同一提交、同一模型，详情页点「重新预测」后数字变了） | 灌的是 `commit_features_raw.csv` —— 那是模型线的训练输入形态（`ln` 变换之前），专家模型按契约二 v1.2 的 `ln` 形态训练，喂它不报错、只给错答案 | 按 §4 从 `dataset_szz.csv` 投影出契约形态的 `commit_features.csv` 重灌 `features`（ingest 幂等，同 hash 覆盖，不用重建库），再用 §4 那条 SQL 验 `MIN(la)` 为负。本机实测差多少：同一提交 `xgb_v1` raw → **0.82657**、契约形态 → **0.79963**（= 离线批量产物的存量值） |
+| 10 | PowerShell 里跑 `mysql … < backend/scripts/schema_mysql.sql` 报「`<` 运算符保留供将来使用」，一条语句都没执行 | PowerShell **不支持** `<` 输入重定向（bash/cmd 才支持），这是 shell 语法差异、不是 MySQL 的问题 | 用 §2.1 的 PowerShell 写法：`mysql -u root -p -e "SOURCE backend/scripts/schema_mysql.sql"`（实测 rc=0），或 `Get-Content … \| mysql -u root -p`（实测 rc=0）。`cmd /c "mysql -u root -p < backend\scripts\schema_mysql.sql"` 也可以 |
 
 ## 7. 与其他文档的关系
 

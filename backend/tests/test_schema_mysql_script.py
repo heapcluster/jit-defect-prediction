@@ -130,6 +130,27 @@ def test_setup_doc_warns_about_the_raw_feature_table():
         assert needle in text, f"配置文档缺特征口径警告的关键项：{needle}"
 
 
+def test_env_example_keeps_the_integration_baseline_and_only_comments_the_demo_db():
+    """`backend/.env.example` 的四条不变式 —— 库名收敛到 jit_demo 时最容易顺手改坏的就是它们。
+
+    生效值必须仍是联调库（SQLite dev.db）：#130 的更正裁定只把**演示库**改成 MySQL，
+    联调库没变（#117 的 9 张三态截图已在 SQLite 口径下取证）。MySQL 那行只能注释着当备选。
+    """
+    text = (REPO_ROOT / "backend" / ".env.example").read_text(encoding="utf-8")
+    lines = text.splitlines()
+    assert lines[0].startswith("# 联调基线见 docs/frontend/integration-log.md §0"), (
+        "首行必须是指向 §0 的指针（§0「落地方式」明文要求，也是硬规矩 3 的入口）")
+    assert "DATABASE_URL=sqlite:///./dev.db" in lines, "生效值必须仍是联调库 SQLite dev.db"
+    assert "API_TOKEN=dev-token-20260918" in lines, "令牌是 §0 表里钉死的值，改它要同 PR 同步前端模板"
+    assert "SOURCE_REPO=" in lines, "#135 加的现场预测开关不能被库名收敛顺手删掉"
+    mysql_lines = [line for line in lines if "mysql+pymysql://" in line]
+    assert mysql_lines, "应保留一行注释掉的 MySQL 备选模板"
+    assert all(line.lstrip().startswith("#") for line in mysql_lines), (
+        "MySQL 连接串只能是注释备选，不能成为生效值（否则今天照模板装环境的人没建库就直接连不上）")
+    assert "jit_demo" in " ".join(mysql_lines) and "jit_defect" not in text, (
+        "备选模板里的库名必须是 jit_demo；jit_defect 是共享实例上那份占位脏数据库")
+
+
 @pytest.mark.parametrize(
     "index_doc",
     [
