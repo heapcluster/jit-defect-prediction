@@ -64,6 +64,15 @@ uvicorn app.main:app --reload --port 8000
 
 前提：目标 **MySQL 8 数据库已创建**，账号已有连接与建表权限。以下入口只建四张表，不创建数据库/用户、不授权、不灌数据；连接或权限错误需由管理员处理，不自动提权。
 
+**还没有库？（一条命令建库 + 建表）** 演示 / 验收库 `jit_demo` 用 `backend/scripts/schema_mysql.sql`：
+
+```bash
+# cwd = 仓库根；需要 CREATE DATABASE 权限（普通账号会报 1044），跑完当场列出建好的四张表
+mysql -u root -p < backend/scripts/schema_mysql.sql
+```
+
+该脚本 = `CREATE DATABASE IF NOT EXISTS jit_demo`（utf8mb4 / utf8mb4_unicode_ci）+ `USE jit_demo` + `SOURCE infra/schema.sql`，满足本节开头「别人 clone 后一条命令能把库建好」那条完成定义。**四表 DDL 仍只有 `infra/schema.sql` 一份**，脚本不复制 DDL，所以下面两条入口的行为与幂等性不变。MySQL 安装、`.env` 写法、灌数与验收清单、常见报错见 **`docs/backend/mysql-setup.md`**（Issue #142）。
+
 **mysql 客户端入口（cwd=仓库根，Git Bash / Bash）：**
 
 ```bash

@@ -69,6 +69,7 @@
 - `implementation.md` — 架构图 + 请求流 + predict 时序图 + 类图（四张图，含生成方式标注）+ 分步实现
 - `openspec-compliance.md` — 后端改动如何走 change（字段一致铁律）
 - `acceptance.md` — 后端验收功能板块与「达到什么效果」
+- `mysql-setup.md` — **演示库 `jit_demo` 的 MySQL 安装 / 一条命令建库 / `.env` 写法 / 验收清单 / 常见坑**（Issue #142；本机建库照这份走）
 
 ## 6. 先读 common 里的哪几份
 
