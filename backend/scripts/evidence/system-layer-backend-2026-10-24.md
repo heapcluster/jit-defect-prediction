@@ -1,6 +1,6 @@
 # 系统层 T-ST-01~05 的后端半边执行记录（2026-10-24，实跑于 SQLite `demo.db`）
 
-> **⚠ 口径变更说明（2026-10-25 补记，#141 审阅条件 1）**：本记录跑于 **SQLite `backend/demo.db`**，而 **Issue #130 的更正裁定**（蒋励，2026-10-24 追加，覆盖原裁定「一」里的 SQLite 表述）已把**演示库敲定为 MySQL `jit_demo`**（联调库仍是 SQLite `backend/dev.db` 不变，理由：#117 的 9 张三态截图已在该口径下取证并合入，改口径会让取证作废）。因此 **在建库授权（Issue #142）到位、并按同一脚本在 `jit_demo` 上复跑回填之前，本文件只作过程证据，不能作为「MySQL 演示库已验证」的依据**。数据与 43 项断言本身有效：四份 CSV 与 `integration-2026-10-24.md` §2 是同一批真实产物，断言口径（T-ST-04 清单内外分判）也是裁定 A 的原文。复跑结果按「只追加不改写」以补记形式加在本文件末尾，本段与下面的原有数字一律不动。
+> **⚠ 口径变更说明（2026-10-25 补记，#141 审阅条件 1）**：本记录跑于 **SQLite `backend/demo.db`**，而 **Issue #130 的更正裁定**（蒋励，2026-10-24 追加，覆盖原裁定「一」里的 SQLite 表述）已把**演示库敲定为 MySQL `jit_demo`**（联调库仍是 SQLite `backend/dev.db` 不变，理由：#117 的 9 张三态截图已在该口径下取证并合入，改口径会让取证作废）。因此 **在建库授权（Issue #142）到位、并按同一脚本在 `jit_demo` 上复跑回填之前，本文件只作过程证据，不能作为「MySQL 演示库已验证」的依据**。数据与 43 项断言本身有效：四份 CSV 与 `integration-2026-10-24.md` §2 是同一批真实产物，断言口径（T-ST-04 清单内外分判）也是裁定 A 的原文。复跑结果按「只追加不改写」以补记形式加在本文件末尾，本段与下面的原有数字一律不动。**→ 该复跑已于 2026-10-25 15:4x 在本机 MySQL `jit_demo` 上完成，结果见文末 §7（48/48 通过）；本段其余文字与下面 §1–§6 的原有数字未改一字。**
 >
 > **文档状态（按 `docs/README.md` §0.2 的三分类交代清楚，避免被读成「第四种状态」）**：本文件是 T-ST-01~05 **后端半边**的验收记录，对该用例仍是**唯一正文（权威）**，只是**演示库口径这一项的适用范围受限**（SQLite 实跑 ≠ MySQL 演示库已验证）。**故不标「历史，不作为现行口径」**——它没有被任何文件取代；MySQL `jit_demo` 的复跑补记**落在本文件末尾**，不另开第二份正文、不倒填原有数字（`docs/repo/collaboration.md` §0 第 4 条口径单点）。
 
@@ -93,14 +93,66 @@ T-ST-04 的 `explanation` 条数实测：`lr_v1` **10/14**、`rf_v1` 14/14、`xg
 | `data_model/data/commit_labels_szz.csv`（10-24 15:26 那次 02 独立重跑的产物） | **83,943** | 打标结果；本记录灌库用的是它的投影，且已与该次重跑**逐行核对一致**（见 `integration-2026-10-24.md` 的交叉校验补记） |
 | 本记录灌库用的 `commit_features_for_ingest.csv` | 83,943 | `dataset_szz.csv` 的投影（只留数据集内的提交） |
 
-- **features 84,461 vs 83,943 是超集关系，不是缺数**：raw 导出覆盖全部提交，投影只留数据集内的 83,943 行。
+- **⚠ 订正（2026-10-25，本条原写「features 84,461 vs 83,943 是超集关系，不是缺数」，该判断错了）**：`commit_features_raw.csv`（84,461 行）**不是**投影版的超集，而是**另一套特征空间** —— 它是模型线（`fused`）的训练输入形态，**未按契约二 v1.2 第四节做对数变换**。逐列实测（两份文件交集前 3,000 条提交，容差 1e-9）：`ns/nd/nf/entropy/ndev/age/exp/rexp/sexp` 满足 `dataset == ln(raw)` **3000/3000**，`fix` 满足 `dataset == raw` 3000/3000（契约明文 `fix` 不取对数），但 **`la`/`ld`/`lt`/`nuc` 只有 132/471/1125/1122 每 3000 命中** → **这四列无法由 raw 反推，自己取 `ln` 也补不出来**。后果实测：同一提交 `77b260b6…`、同一 `xgb_v1`，喂 raw → **0.82657**，喂 `dataset_szz.csv` → **0.79963**（与离线批量产物 `prediction_result.csv` 的存量值逐位相同）→ **灌 raw 会让 `POST /api/predict` 静默算错**（接口 200、模型不报错、页面照常显示）。判别 SQL 与投影配方见 `docs/backend/mysql-setup.md` §4（PR #150）。本记录那份 SQLite 库灌的是**投影版**（83,943 行），所以本文件的数字不受影响；受影响的是「84,461 也能用」这个结论，现予撤回。
 - **labels 83,887 比本机 `commit_labels_szz.csv`（83,943）少 56 行 —— 这一条我无法在本机证实来源**：交付包不在我机器上（全盘搜过没有该 zip），所以不猜。定位只需一条：把包内 labels CSV 的 `commit_hash` 集合与 `data_model/data/commit_labels_szz.csv` 做双向差集；若差集非空，说明包内那份来自**另一次打标运行**，以哪份为准属模型线口径（与 `dataset_szz.csv` 的 83,943、正样本 18,662 及切分/训练绑定的是 10-24 15:26 那一版）。
 - **对演示与四接口的影响：不阻塞，但两张表性质不同，别混为一谈**：
   - `commit_label` **没有任何接口读它**（grep 实证：只有 `app/ingest.py` 写、`app/models.py` 定义），少 56 行不影响任何页面与断言；
-  - `commit_feature` **是被读的**（详情返回 `features` 14 键；`POST /api/predict` 用它按契约二 §3 的列序组装 14 维向量），84,461 是 83,943 的超集，只会更宽松；
+  - `commit_feature` **是被读的**（详情返回 `features` 14 键；`POST /api/predict` 用它按契约二 §3 的列序组装 14 维向量），**因此它的「值」必须是契约二 v1.2 的对数形态**，行数多寡是次要问题 —— 见上一条订正：84,461 那份 raw 文件即使覆盖了全部提交，喂给模型也会算错；
   - 真正必须守的不变式是「**有预测的提交必须有特征行**」（否则详情回 `features: null`、`POST /api/predict` 回 40400）。本记录那份库实测 **0 例外**，另两条（有预测必有 `commit` 行、有预测必有 `commit_label` 行）同样 **0 例外**；`commit_feature` 覆盖 83,943 个不同哈希。列表 `total` 由 `prediction` 与 `commit` 的内连接决定，两边都是 83,943，故演示口径一致。
   - 复核命令（SQLite 写法；MySQL 下同语义）：`select count(*) from prediction p left join commit_feature f using(commit_hash) where f.commit_hash is null` → 期望 0。
 
 ### 6.2 §1 复跑命令的口径订正（#145 复审意见落地）
 
 原 §1 新段写的是「上面五条命令**一条不改**，只把 `DATABASE_URL` 换成 `mysql+pymysql://…`」，同时又说「口令走 `backend/.env`」。@sober-hub 复审指出这两句**互相冲突且不可执行**：五条命令都带行内 `DATABASE_URL=…` 前缀，而 `app/config.py` 的 `load_dotenv()` **不覆盖已存在的环境变量**，因此 `.env` 里的真实连接串不会生效，照占位符跑也连不上 MySQL。已按其改法订正为「**连接串写 `.env` + 五条命令去掉行内前缀**」，CSV 路径改为引用 `demo-script-sprint1.md` §0.0/§0.0.1 的唯一口径。原 SQLite 记录与「未在 MySQL 验证」的警示一律保留。
+
+## 7. 补记：MySQL `jit_demo` 上的复跑（2026-10-25 15:1x–15:4x 实跑，只追加）
+
+**§1 那句「本文件只作过程证据」到此解除** —— 同一批断言已在裁定口径的 MySQL 演示库上跑过一遍，**48/48 通过**。原有 §1–§6 的文字与数字未改一字（除 §6.1 那条已自报的订正）。
+
+### 7.1 环境
+
+| 项 | 值 |
+|---|---|
+| 数据库 | **MySQL 8.0.45**，库 `jit_demo`（`utf8mb4` / `utf8mb4_unicode_ci`），账号 `jit@127.0.0.1`（**普通账号，非 root**） |
+| 建库 | 用户以 root 执行 `CREATE DATABASE IF NOT EXISTS jit_demo … utf8mb4_unicode_ci` + `GRANT ALL ON jit_demo.*`；随后我实测 `mysql -u jit -h 127.0.0.1 < backend/scripts/schema_mysql.sql`（cwd=仓库根）→ **rc=0**，自检 `SELECT` 列出四表、排序规则全 `utf8mb4_unicode_ci`（**库已存在时普通账号重跑整条脚本也 rc=0**：`CREATE DATABASE IF NOT EXISTS` 短路，不再检查全局 `CREATE`） |
+| 建表两条路径 | DDL 路径 `mysql -u jit -h 127.0.0.1 jit_demo < infra/schema.sql` **连跑两次 rc=0 / rc=0**；ORM 路径 `python -m app.db init` rc=0 且 `_assert_indexes` 通过，单独复核输出 `indexes ok` |
+| 灌数 | `python -m scripts.demo_preflight --init-db --ingest …` 一条命令：**8/8 通过、rc=0、330 秒**；`commits=84461`(87.3s) / `labels=83943`(80.6s) / `features=83943`(66.0s) / `predictions=83943`(82.1s)，合计 336,290 行 |
+| `features` 用哪份 | **按 `docs/backend/mysql-setup.md` §4 从 `dataset_szz.csv` 投影出的契约形态文件（83,943 行）**，不是 `commit_features_raw.csv`。判据 1b 实测：`MIN(la)=−12.9443795988`、`MIN(ld)=−12.1697872202`、`MAX(nf)=9.7939516655`、`SUM(la<0)=76444`、`COUNT(*)=83943` |
+| 运行环境 | conda `jit-defect-prediction`（Python 3.12.15 / SQLAlchemy 2.0.54 / PyMySQL 1.2.3）；`MODEL_DIR` 指向已核验的交付权重目录（zip md5 `57520463…`、rf md5 `ca80c586…`） |
+
+### 7.2 §1 的 5 项核对（在 T-ST-04 的 POST 之前测，即未被本驱动写入污染时）
+
+| 核对项 | 实测 | 期望 |
+|---|---|---|
+| 四表行数 | `commit=84461`、`commit_label=83943`、`commit_feature=83943`、`prediction=83943` | 同左 ✅ |
+| `risk_score ≥ 0.5` | **14596** | 14596（17.39%）✅ |
+| `GET /api/commits` 的 `total` | **83943** | 83943 ✅ |
+| `min_risk=0.5&size=5` | **5 条，首条 `risk_score=0.9993`** | ≥1 条 ✅（首条值与 SQLite 那次逐位相同） |
+| 启动日志 | `INFO:backend.model_registry:loaded models: ['lr_v1', 'rf_v1', 'xgb_v1']`，无 `failed models:` | 同左 ✅ |
+
+### 7.3 断言结果（48 项，按用例分组）
+
+| 用例 | 结果 | 与 §2 原记录的对应 |
+|---|---|---|
+| **T-ST-01** 正向主链路 | **8/8** | 与原记录同为 8 项。列表 200 且 `total=83943`；首条带 `risk_score`/`model_name`；详情 200、`features` **恰 14 键且键名逐字一致（差集 = ∅）**、`explanation` 14 条；趋势 200 且 **236 期**（与库内 `COUNT(DISTINCT DATE_FORMAT(committed_at,'%Y-%m'))=236` 一致） |
+| **T-ST-02** 无效 Key | **4/4** | 缺令牌 401+40100；错令牌 401+40100 且 `message` 为固定文案 `missing or invalid token` |
+| **T-ST-03** 非法哈希 | **4/4** | 39 位→40001；40 位非十六进制→40001；库外 40 位合法→40400 且 HTTP 404 |
+| **T-ST-04** 清单内外分判 | **20/20** | 原记录 17 项 = 清单内 3×4 + 清单外 5；本次把清单内每个模型拆成 **5** 条（200 且回显同名 / `explanation` 非空 / 键名 ⊆ 契约二 14 特征 / 无重复特征 / `risk_score ∈ [0,1]`）→ 3×5 + 5 = **20**。清单外 5 个（`lgbm_v1`/`et_v1`/`svm_v1`/`mlp_deep_v1`/`tabnet_v1`）逐个 **40001** ✅ |
+| **T-ST-05** 回归 | **7/7** | 不传 `model_name`→200 且默认 `xgb_v1`；同哈希再 POST→200 且 `(hash, xgb_v1)` 仍 **1 行**；`size=101`→40001；`granularity=decade`→40001；`openapi.json` 的 `/api/*` 仍 **4 条**（`/api/commits`、`/api/commits/{commit_hash}`、`/api/predict`、`/api/trends`） |
+| **合计** | **48/48，退出码 0** | 原记录 43 项 = 上表 40 项（8+4+4+17+7）+ §1 核对 5 项中的 3 项计入方式不同；本次把 §1 的 5 项**单独计数**、并把 T-ST-04 清单内每模型由 4 条拆成 5 条，故为 48。**差异全在计数粒度，不在断言内容** —— 原记录每一条断言本次都跑到了 |
+
+**T-ST-04 的 `explanation` 条数实测（样本提交 `77b260b6…`）**：`lr_v1` **3/14**、`rf_v1` **14/14**、`xgb_v1` **14/14**；`lr_v1` 的 `risk_score=0.90472`、`rf_v1=0.69431`、`xgb_v1=0.79963`。原记录 §2 下方写的是 `lr_v1` 10/14 —— **不矛盾**：两次取的样本提交不同（`lr_v1` 是线性模型，SHAP 贡献精确为 0 的特征数随提交而变，§3 第 1 条已说明「条数 ≤ 14 属契约合规」）。T-ST-01 的详情断言取的是列表首条（`risk_score=0.9993` 那条），与 T-ST-04 的样本不是同一条提交，故 `explanation` 条数也不同（14 条）。
+
+**在线重算与库内存量一致**：`xgb_v1` 对 `77b260b6…` 两次 POST 都返回 **0.79963**，与 `prediction` 表存量值**逐位相同** —— 这是 §6.1 那条订正的正面对照（同一提交若灌 raw 特征表则返回 0.82657）。
+
+### 7.4 本次复跑抓到的两个问题（都是我自己的，不是后端缺陷，如实登记）
+
+1. **驱动脚本读错了字段名**：第一遍跑「趋势 200 且期数 > 0」判 FAIL，实际值是「HTTP 200，0 期」。根因是我的驱动读 `data.items`，而契约三与 `app/schemas.py::TrendsData` 的字段名是 **`series`** → 取到空列表。**差点把测量脚本的 bug 报成后端缺陷**；改成 `data.series` 后同一条断言实测 **236 期** 通过。教训与 `docs/common/test-strategy.md` 那条「先验证量具本身」一致：断言 FAIL 时先看自己怎么量的。
+2. **T-ST-04 会往演示库写 2 行**：清单内三个模型逐个 POST 时，`lr_v1`/`rf_v1` 对该提交是**新的** `(commit_hash, model_name)` 组合（CSV 里只有 `xgb_v1`），upsert 会各插 1 行 → 第二遍跑时 `prediction` 从 83,943 变 **83,945**、`risk ≥ 0.5` 从 14,596 变 **14,598**（两条新行 `lr_v1=0.90472`、`rf_v1=0.69431` 都 ≥ 0.5）。这与 2026-10-24 那次 SQLite 复跑的现象完全一致（`integration-2026-10-24.md` 记的「结束 83,945 账目闭合」就是它），**属预期副作用而非幂等失效**：`(hash, xgb_v1)` 始终 1 行、同模型重复 POST 不增行。
+   **处置**：先把这 2 行整行备份（含 `id`/`predicted_at`/`risk_score`，存本机 `Temp/mysql_preflight/backup_prediction_2rows.txt`），再 `DELETE FROM prediction WHERE model_name IN ('lr_v1','rf_v1')`，删后实测 `prediction=83943`、`risk≥0.5=14596`、`model_name<>'xgb_v1'` 的行 **0** → **演示库已复原到文档口径**。只删了自己这次插的 2 行，未动任何 CSV 灌入的数据；共享实例上那份旧库**一个字节都没碰**。
+   **对演示的含义**：现场演 T-ST-04（清单内三模型逐个查）之后，库里就会多这 2 行，`GET /api/commits` 的 `total` 会变 83,945。要么演示前重建/清理，要么在演示脚本里把「`total` 83,943 → 83,945」写成预期变化，别让人以为是缺陷。这一条已在 #138 提出，等组长定口径。
+
+### 7.5 仍未覆盖（与原记录 §4 一致，不冒充）
+
+页面三态与文案（T-ST-02 的「提示重新登录不给重试」、T-ST-03 的「空态而非崩溃」）、T-ST-04 的前端下拉渲染、T-ST-01~05 的录屏与三方同场，属前端线与三方同场，**本文件不覆盖**（#140 归刘帅华；录屏已由组长线下排期）。驱动脚本仍**未入仓**（与原记录 §5 同状态）：本次复跑用的是本机临时脚本，需要的话可按 `security_cases.py`/`perf_loop.py` 的先例落为 `backend/scripts/` 下的正式脚本并配测试 —— 但那与 `demo_preflight.py`（#138，六条判据）职责重叠，**要不要合并成一份、还是各自独立，等组长一句话**，我不擅自新增第二份自检脚本。
+

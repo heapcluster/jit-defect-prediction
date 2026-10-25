@@ -102,7 +102,7 @@ DATABASE_URL=mysql+pymysql://<user>:<pwd>@127.0.0.1:3306/jit_demo?charset=utf8mb
 
 - **口令只写进本机 `backend/.env`**（已被 `.gitignore` 忽略），不进任何入库文档、不进 `.env.example`（§0 硬规矩 1 的同源要求）。`<user>` 用你自己建的账号即可 —— 建库要 `CREATE DATABASE` 权限（§6 坑 1），但**灌数与起服务只需要该库的 DML/DDL 权限**。
 - **必须带 `?charset=utf8mb4`**，否则中文提交信息可能按服务端默认字符集写入（§6 坑 5）。
-- **坑（最容易踩）**：`backend/app/config.py` 只调用 `load_dotenv()`，而 **`load_dotenv()` 默认不覆盖已存在的环境变量** —— 所以 `DATABASE_URL=... python -m app.ingest ...` 这种**行内前缀会压过 `.env`**。两者只能选一种；本口径选 `.env`，**命令里一律不带前缀**（PR #145 §1 的复跑命令、`docs/repo/demo-script-sprint1.md` §0.0 同此口径）。
+- **坑（最容易踩）**：`backend/app/config.py` 只调用 `load_dotenv()`，而 **`load_dotenv()` 默认不覆盖已存在的环境变量** —— 所以 `DATABASE_URL=... python -m app.ingest ...` 这种**行内前缀会压过 `.env`**。两者只能选一种；本口径选 `.env`，**命令里一律不带前缀**（`backend/scripts/evidence/system-layer-backend-2026-10-24.md` §1 的复跑命令、`docs/repo/demo-script-sprint1.md` §0.0 同此口径）。
 - `API_TOKEN` 必须等于前端 `frontend/.env.local` 的 `VITE_API_KEY`，否则前端全部 40100。当前值与其余基线项**只认** `docs/frontend/integration-log.md` §0，本文不抄。
 - `MODEL_DIR` 留空即回落到仓库内 `data_model/pipelines/expert/models/`（#99 自动插 `sys.path`，不要再手工设 `PYTHONPATH`）。
 
@@ -123,7 +123,7 @@ python -m app.ingest predictions <prediction_result.csv>
 |---|---|---|
 | `commits` | **84,461** | 全量提交清单（含 518 条无对应特征/标签的行） |
 | `predictions` | **83,943** | 方案 C 离线预测结果，= 数据集规模 |
-| `labels` | **83,943** 或 83,887 | 两个都合法：`commit_label` 表**没有任何接口读取**（四接口只读 `commit` / `commit_feature` / `prediction`），差 56 行的定位方法与影响面见 PR #145 §6.1 |
+| `labels` | **83,943** 或 83,887 | 两个都合法：`commit_label` 表**没有任何接口读取**（四接口只读 `commit` / `commit_feature` / `prediction`），差 56 行的定位方法与影响面见 `backend/scripts/evidence/system-layer-backend-2026-10-24.md` §6.1 与 §7 |
 | `features` | **只有 83,943 一个合法值** | 且**必须是契约二 v1.2「对数变换后」的形态**，见下面那条警告 |
 
 > ⚠️ **`commit_features_raw.csv`（84,461 行）不能灌** —— 它是**模型线的训练输入形态**（`fused` 线的 `FEATURES_RAW_CSV` 就是它），不是「多 518 行的超集」，而是**另一套特征空间**。灌进去之后 `POST /api/predict` 会**静默算出错误概率**（模型不报错、接口 200、页面照常显示），本机实测同一条提交、同一个 `xgb_v1`：
@@ -222,7 +222,7 @@ python -m app.ingest predictions <prediction_result.csv>
 ```bash
 # cwd = backend；连接串、令牌、MODEL_DIR 一律读 backend/.env（脚本不提供覆盖它们的开关）
 python -m scripts.demo_preflight --out scripts/evidence/preflight-<日期>.md
-# 从零到断言（PR #151 的两个前置阶段）：建表 → 灌数 → 起服务 → 六条判据
+# 从零到断言（--init-db / --ingest 两个前置阶段）：建表 → 灌数 → 起服务 → 六条判据
 python -m scripts.demo_preflight --init-db --ingest --out scripts/evidence/preflight-<日期>.md
 ```
 
@@ -288,7 +288,7 @@ python -m scripts.demo_preflight --init-db --ingest --out scripts/evidence/prefl
 | 四份 CSV 的数据行数（84,461 / 83,943 / 84,461 / 83,943） | ✅ 本机实测 | 逐份数数据行（不含表头） |
 | **特征口径判别**（§4 那张对照表与两个在线概率） | ✅ 本机实测 | 两份文件全量扫 `min(la)`/`min(ld)`/`max(nf)`/`la<0` 行数；再用 `joblib.load(xgb_v1.pkl)` 对同一提交分别喂两套特征，得 0.82657 / 0.79963，后者与 `prediction_result.csv` 存量值逐位相同 |
 | **两份特征文件逐列的变换关系**（§4 那张 3,000 条比对表） | ✅ 本机实测 | 取交集前 3,000 条提交，逐列比对 `dataset` 与 `ln(raw)`（容差 1e-9）：9 列 3000/3000 命中、`fix` 逐字相等 3000/3000、`la`/`ld`/`lt`/`nuc` 仅 132/471/1125/1122 命中 → 结论「不能自己取 `ln` 补救」由此而来 |
-| **建库→灌数→起服务→六条判据全链路**（SQLite 形态） | ✅ 本机实测 **两轮各 8/8 通过、rc=0** | `python -m scripts.demo_preflight --init-db --ingest …`（PR #151 的脚本）。**这是一组 A/B 对照**，两轮只差 `features` 用哪份 CSV：<br>**第一轮**（`features=commit_features_raw.csv`，84,461 行，86 秒）→ 判据 6 信息行显示在线重算 **0.82657**、库内存量 **0.79963**，**两者不等** = 特征口径错；<br>**第二轮**（`features=` 按 §4 投影出的 `commit_features.csv`，83,943 行，120 秒）→ 在线重算 **0.79963 / 0.79963**，与库内存量**逐位相同** = 口径对。<br>两轮其余判据输出完全一致：`prediction=83943`、`risk≥0.5` = **14,596**、`loaded models: ['lr_v1','rf_v1','xgb_v1']`、四接口全 200 code=0、两次 POST 后 `(hash, xgb_v1)` 恒 1 行且总行数不变。**结论：判据 1~6 全绿抓不到特征口径错**（没有一条比对 `commit_feature` 的值），这正是 §5.1 判据 1b 存在的原因 |
+| **建库→灌数→起服务→六条判据全链路**（SQLite 形态） | ✅ 本机实测 **两轮各 8/8 通过、rc=0** | `python -m scripts.demo_preflight --init-db --ingest …`。**这是一组 A/B 对照**，两轮只差 `features` 用哪份 CSV：<br>**第一轮**（`features=commit_features_raw.csv`，84,461 行，86 秒）→ 判据 6 信息行显示在线重算 **0.82657**、库内存量 **0.79963**，**两者不等** = 特征口径错；<br>**第二轮**（`features=` 按 §4 投影出的 `commit_features.csv`，83,943 行，120 秒）→ 在线重算 **0.79963 / 0.79963**，与库内存量**逐位相同** = 口径对。<br>两轮其余判据输出完全一致：`prediction=83943`、`risk≥0.5` = **14,596**、`loaded models: ['lr_v1','rf_v1','xgb_v1']`、四接口全 200 code=0、两次 POST 后 `(hash, xgb_v1)` 恒 1 行且总行数不变。**结论：判据 1~6 全绿抓不到特征口径错**（没有一条比对 `commit_feature` 的值），这正是 §5.1 判据 1b 存在的原因 |
 | §4 的投影配方 | ✅ 本机实跑 | 存成 `project_features.py` 后在仓库根执行 → 输出 `写出 83943 行 -> data_model\data\commit_features.csv`；产物 17 列、`min(la) = −12.944379598832155`、`la<0` 的行 **76,444**、`max(nf) = 9.793951665467821`，与上表判别值逐项吻合 |
 | 时间列不受 `time_zone` 影响 | ✅ 代码级实测 | `infra/schema.sql` 四个时间列全为 `DATETIME`；`backend/app` 内 `NOW()` / `CURRENT_TIMESTAMP` / `server_default` grep 0 命中 |
 | **§2.1 的建库脚本在真 MySQL 上跑通**（`SOURCE infra/schema.sql` + 四表 + 排序规则） | ✅ 本机实测 **rc=0** | `mysql -u jit -h 127.0.0.1 < backend/scripts/schema_mysql.sql`（cwd=仓库根，MySQL 8.0.45）→ 退出码 0，自检 `SELECT` 输出 `commit / commit_feature / commit_label / prediction` 四行、`TABLE_COLLATION` 全为 `utf8mb4_unicode_ci`。**账号形态 = 普通账号 `jit`（非 root）**：库已由 root 建出，`CREATE DATABASE IF NOT EXISTS` 短路，所以普通账号也能整条跑通（§6 坑 1 补充）。**仍缺的一步**：从**空实例**首次 `CREATE DATABASE`，需要 root（本机 `jit` 实测 1044、`root` 免密 1045）；`jit_demo` 由用户以 root 建出，我实测其 `DEFAULT_CHARACTER_SET_NAME=utf8mb4`、`DEFAULT_COLLATION_NAME=utf8mb4_unicode_ci`，与脚本指定值逐字一致 |
