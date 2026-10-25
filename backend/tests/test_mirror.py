@@ -9,16 +9,7 @@ def _schema(client):
 
 def test_paths_match_contract(client):
     paths = set(_schema(client)["paths"])
-    assert paths == {
-        "/api/commits", "/api/commits/{commit_hash}", "/api/trends", "/api/predict", "/api/sync",
-    }
-
-
-def test_sync_is_post_with_limit(client):
-    doc = _schema(client)
-    assert "post" in doc["paths"]["/api/sync"]
-    params = {p["name"] for p in doc["paths"]["/api/sync"]["post"]["parameters"]}
-    assert "limit" in params
+    assert paths == {"/api/commits", "/api/commits/{commit_hash}", "/api/trends", "/api/predict"}
 
 
 def test_commits_params_match_contract(client):

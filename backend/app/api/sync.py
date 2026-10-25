@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import subprocess
 import threading
+import time
 
 from fastapi import APIRouter, Depends, Query
 
@@ -33,36 +34,46 @@ MAX_LIMIT = 50
 
 
 def _run_git(repo: str, *args: str) -> str:
-    """执行只读 git 命令；代理经命令行参数禁用，不读全局配置。"""
+    """执行只读 git 命令；代理经命令行参数禁用，不读全局配置。失败映射为契约内 50000。"""
     cmd = ["git", "-C", repo, "-c", "http.proxy=", "-c", "https.proxy=", *args]
     try:
         proc = subprocess.run(
             cmd, capture_output=True, text=True, timeout=_GIT_TIMEOUT, check=True
         )
     except subprocess.TimeoutExpired as exc:
-        raise RuntimeError("git fetch timed out") from exc
-    except subprocess.CalledProcessError as exc:
-        raise RuntimeError("git command failed") from exc
+        raise AppError(50000, "sync git operation timed out") from exc
+    except (subprocess.CalledProcessError, OSError) as exc:
+        raise AppError(50000, "sync git operation failed") from exc
     return proc.stdout
 
 
 def build_fetch_args() -> list[str]:
-    """fetch 命令参数（纯函数，供测试断言禁代理与超时口径）。"""
-    return ["fetch", "origin"]
+    """fetch 命令参数：取远端默认分支（HEAD），经命令行禁代理（纯函数，供测试）。"""
+    return ["fetch", "origin", "HEAD"]
+
+
+def fetch_latest_tip(repo: str, retries: int = 3) -> str:
+    """fetch 远端并返回最新 tip 哈希（FETCH_HEAD 首个条目）；网络抖动时重试。"""
+    last: Exception | None = None
+    for attempt in range(1, retries + 1):
+        try:
+            _run_git(repo, *build_fetch_args())
+            break
+        except AppError as exc:
+            last = exc
+            if attempt < retries:
+                time.sleep(5)
+    else:
+        raise AppError(50000, "sync git operation failed") from last
+    tip = _run_git(repo, "rev-parse", "FETCH_HEAD").strip()
+    if len(tip) != 40:
+        raise AppError(50000, "sync git operation failed")
+    return tip
 
 
 def pick_new_hashes(hashes: list[str], existing: set[str]) -> list[str]:
     """按最新在前挑出库中尚不存在的哈希（纯函数，供测试）。"""
     return [h for h in hashes if h not in existing]
-
-
-def fetch_latest_tip(repo: str) -> str:
-    """fetch 远端并返回最新 tip 哈希（FETCH_HEAD 首个条目）。"""
-    _run_git(repo, *build_fetch_args())
-    tip = _run_git(repo, "rev-parse", "FETCH_HEAD").strip()
-    if len(tip) != 40:
-        raise RuntimeError("unexpected fetch head")
-    return tip
 
 
 def ensure_reachable(repo: str, tip: str) -> None:

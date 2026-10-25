@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import subprocess
+
 import pytest
 
 from app.api import sync as sync_module
@@ -17,7 +19,22 @@ def test_pick_new_hashes_keeps_order_and_skips_existing():
 
 
 def test_build_fetch_args_disables_proxy():
-    assert sync_module.build_fetch_args() == ["fetch", "origin"]
+    assert sync_module.build_fetch_args() == ["fetch", "origin", "HEAD"]
+
+
+def test_git_failure_maps_to_50000(monkeypatch, tmp_path):
+    """git 子进程失败/超时映射为契约内 50000，不裸抛 RuntimeError。"""
+    calls = {"n": 0}
+
+    def _fail(*_a, **_k):
+        calls["n"] += 1
+        raise subprocess.TimeoutExpired(cmd="git", timeout=180)
+
+    monkeypatch.setattr(sync_module.subprocess, "run", _fail)
+    with pytest.raises(AppError) as exc:
+        sync_module.fetch_latest_tip(str(tmp_path), retries=2)
+    assert exc.value.code == 50000
+    assert calls["n"] == 2  # 重试次数生效
 
 
 def test_sync_requires_source_repo(monkeypatch):

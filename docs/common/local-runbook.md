@@ -45,14 +45,14 @@ cd data_model; python -m pipelines.verify_all_weights --check
 
 ## 2. 建库
 
-两条路都能建出同样的四张表（`commit` / `commit_label` / `commit_feature` / `prediction`）。**先选定一条，别在同一个库上混用**：两条路径的等价性已在 MySQL `jit_demo` 实测（DDL 与 ORM 双路径幂等 + `_assert_indexes` 通过，2026-10-25 组长本机复测）；**Issue #121 是真库验收的探针库，与本演示库无关**。
+两条路都能建出同样的四张表（`commit` / `commit_label` / `commit_feature` / `prediction`）。**先选定一条，别在同一个库上混用**：两条路径的等价性目前只在 SQLite 上验过，MySQL 真库等价性还卡在 **Issue #121**（隔离库授权），未验收前不要当"已验证"。
 
 ### 2.1 建库建号（MySQL，本机自建）
 
 ```bash
-mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS jit_demo CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-mysql -u root -p -e "CREATE USER IF NOT EXISTS 'jit'@'127.0.0.1' IDENTIFIED BY '<自己设的密码>';"
-mysql -u root -p -e "GRANT ALL PRIVILEGES ON jit_demo.* TO 'jit'@'127.0.0.1'; FLUSH PRIVILEGES;"
+mysql -u root -p -e "CREATE DATABASE jit DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;"
+mysql -u root -p -e "CREATE USER 'jit'@'127.0.0.1' IDENTIFIED BY '<自己设的密码>';"
+mysql -u root -p -e "GRANT ALL PRIVILEGES ON jit.* TO 'jit'@'127.0.0.1'; FLUSH PRIVILEGES;"
 ```
 
 ### 2.2 建表（二选一）
@@ -60,17 +60,17 @@ mysql -u root -p -e "GRANT ALL PRIVILEGES ON jit_demo.* TO 'jit'@'127.0.0.1'; FL
 ```bash
 # A. ORM 路径（推荐，会顺带跑 _assert_indexes 自检）
 cd backend
-DATABASE_URL="mysql+pymysql://jit:<密码>@127.0.0.1:3306/jit_demo?charset=utf8mb4" python -m app.db init
+DATABASE_URL="mysql+pymysql://jit:<密码>@127.0.0.1:3306/jit" python -m app.db init
 
-# B. DDL 路径（部署形态；先按 §2.1 建库，脚本只建四表，门禁要求纯 DDL）
-mysql -u root -p jit_demo < ../infra/schema.sql
+# B. DDL 路径（部署形态，脚本在 infra/）
+mysql -u jit -p jit < ../infra/schema.sql
 ```
 
 两种都要满足：**连跑两次不报错（幂等）**，且下面这条自检通过：
 
 ```bash
 cd backend
-DATABASE_URL="mysql+pymysql://jit:<密码>@127.0.0.1:3306/jit_demo?charset=utf8mb4" \
+DATABASE_URL="mysql+pymysql://jit:<密码>@127.0.0.1:3306/jit" \
   python -c "from app.db import get_engine, _assert_indexes; _assert_indexes(get_engine()); print('indexes ok')"
 ```
 
@@ -107,7 +107,7 @@ python -m app.ingest predictions <目录>/prediction_result.csv
 `backend/.env`（模板见 `backend/.env.example`，实际值不进 git）：
 
 ```ini
-DATABASE_URL=mysql+pymysql://jit:<密码>@127.0.0.1:3306/jit_demo?charset=utf8mb4
+DATABASE_URL=mysql+pymysql://jit:<密码>@127.0.0.1:3306/jit
 API_TOKEN=<与服务端一致的令牌>
 MODEL_DIR=                       # 留空 = 回落到 data_model/pipelines/expert/models/
 SOURCE_REPO=<本地 Apache Camel 仓库绝对路径>   # 只在本机 .env.local 写，不进文档、不进 .env.example
@@ -115,8 +115,7 @@ SOURCE_REPO=<本地 Apache Camel 仓库绝对路径>   # 只在本机 .env.local
 
 > `SOURCE_REPO` 是「现场预测新提交」的开关：不配时，`POST /api/predict` 只查库，库里没有的哈希一律 40400。
 > 配了之后后端会调 `data_model/preparation/03_extract_features.py` 现算 14 项特征，**首次会扫 Git 历史，别拿它做性能验收**。
-> `backend/.env.example` 已含 `SOURCE_REPO` 与 `jit_demo` 模板（2026-10-25 统一口径，PR 见仓库）。
-> 批量同步：`POST /api/sync?limit=10`（change `realtime-commit-sync`）——fetch SOURCE_REPO 最新提交、逐条预测入库；`.env` 设 `SYNC_ON_STARTUP=1` 可在启动时后台预同步一次。
+> 注意：`backend/.env.example` 目前**没有** `SOURCE_REPO` 这一行（已知缺口，待后端子线补），自己在本机 `.env` 里加即可。
 
 ```bash
 cd backend
