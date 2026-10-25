@@ -526,18 +526,32 @@ def _ingest_argv(csv_dir: Path, kinds=KINDS) -> list[str]:
     return argv
 
 
-def _fresh_engine(monkeypatch):
-    """`app.db` 的 engine 是模块级缓存，不重置就会用到别的测试留下的库。"""
+@pytest.fixture
+def fresh_db_engine():
+    """让 `init_database()` 走真 `app.db.get_engine()`，跑完把全局状态还原。
+
+    `app.db._engine` 与 `SessionLocal` 的 bind 都是**模块级全局**：`get_engine()` 一旦按
+    本测试的 `DATABASE_URL` 建了 engine，就会顺手 `SessionLocal.configure(bind=…)`。
+    只还原 `_engine` 不还原 bind，会把一个指向已删除 tmp 文件的坏 bind 留给后面的测试文件
+    —— `tests/conftest.py` 的 session 级 engine 被顶掉后，`test_ingest.py` / `test_mirror.py`
+    会整片报 `sqlite3.OperationalError: unable to open database file`（本机实测 78 个 error）。
+    """
     from app import db as app_db
 
-    monkeypatch.setattr(app_db, "_engine", None)
+    original_engine = app_db._engine
+    app_db._engine = None
+    yield app_db
+    app_db._engine = original_engine
+    if original_engine is not None:
+        app_db.SessionLocal.configure(bind=original_engine)
+    else:
+        app_db.SessionLocal.kw.pop("bind", None)
 
 
-def test_init_db_and_ingest_stages_reach_eight_of_eight_on_a_blank_database(
+def test_init_db_and_ingest_stages_reach_eight_of_eight_on_a_blank_database(fresh_db_engine, 
         tmp_path, monkeypatch, capsys):
     """建库→灌数→起服务→断言一条命令跑通：阶段 2 条 + 判据 6 条 = 8/8、rc=0，且数据是真灌进去的。"""
     mod = _load_module()
-    _fresh_engine(monkeypatch)
     db_url = f"sqlite:///{(tmp_path / 'blank.db').as_posix()}"
     csv_dir = _write_ingest_csvs(tmp_path)
     rc = _run(monkeypatch, mod, tmp_path,
@@ -557,10 +571,9 @@ def test_init_db_and_ingest_stages_reach_eight_of_eight_on_a_blank_database(
     assert counts == {"commit": 1, "commit_label": 1, "commit_feature": 1, "prediction": 1}
 
 
-def test_stages_print_before_the_six_criteria_and_do_not_change_their_numbering(
+def test_stages_print_before_the_six_criteria_and_do_not_change_their_numbering(fresh_db_engine, 
         tmp_path, monkeypatch, capsys):
     mod = _load_module()
-    _fresh_engine(monkeypatch)
     db_url = f"sqlite:///{(tmp_path / 'blank2.db').as_posix()}"
     rc = _run(monkeypatch, mod, tmp_path, ["--init-db"], db_url=db_url)
     out = capsys.readouterr().out
@@ -571,10 +584,9 @@ def test_stages_print_before_the_six_criteria_and_do_not_change_their_numbering(
     assert "汇总：2/7 通过" in out, "1 条阶段 + 6 条判据；只有阶段与判据 1 该绿"
 
 
-def test_stage_failure_blocks_the_db_dependent_criteria_and_never_starts_the_service(
+def test_stage_failure_blocks_the_db_dependent_criteria_and_never_starts_the_service(fresh_db_engine, 
         tmp_path, monkeypatch, capsys):
     mod = _load_module()
-    _fresh_engine(monkeypatch)
     started = []
     # 目录不存在 → SQLite 打不开文件 → 阶段 0a 必须 FAIL（不是异常穿透）
     db_url = f"sqlite:///{(tmp_path / 'no-such-dir' / 'x.db').as_posix()}"
@@ -735,9 +747,8 @@ def test_resolve_ingest_paths_defaults_come_from_the_demo_script_caliber(tmp_pat
     assert paths["commits"] == mod.REPO_ROOT / "data_model" / "data" / "commits.csv"
 
 
-def test_evidence_records_the_stage_flags_and_masks_every_csv_path(tmp_path, monkeypatch):
+def test_evidence_records_the_stage_flags_and_masks_every_csv_path(fresh_db_engine, tmp_path, monkeypatch):
     mod = _load_module()
-    _fresh_engine(monkeypatch)
     db_url = f"sqlite:///{(tmp_path / 'ev.db').as_posix()}"
     csv_dir = _write_ingest_csvs(tmp_path)
     out_file = tmp_path / "evidence" / "preflight.md"
@@ -753,17 +764,79 @@ def test_evidence_records_the_stage_flags_and_masks_every_csv_path(tmp_path, mon
     assert "判据 / 阶段" in text and "前置阶段（建库/灌数）按 Issue #142" in text
 
 
-def test_evidence_command_omits_defaults_when_no_stage_is_requested(tmp_path):
+def _stage_args(mod, **overrides):
+    """按脚本自己的 VERDICT_FLAGS 默认值造 args，新增判据参数时这条测试自动跟上。"""
+    import types
+
+    fields: dict = {"init_db": False, "ingest": False, "ingest_csv": ()}
+    fields.update(dict(mod.VERDICT_FLAGS))
+    fields.update(overrides)
+    return types.SimpleNamespace(**fields)
+
+
+def test_evidence_command_omits_defaults_when_no_stage_is_requested():
     mod = _load_module()
+    assert mod.evidence_command(_stage_args(mod, port=8099)) == \
+        "python -m scripts.demo_preflight --port 8099"
 
-    class Args:
-        port = 8099
-        init_db = False
-        ingest = False
-        ingest_csv = ()
-        expect_predictions = mod.DEFAULT_EXPECT_PREDICTIONS
 
-    assert mod.evidence_command(Args()) == "python -m scripts.demo_preflight --port 8099"
+def test_evidence_command_records_every_non_default_verdict_parameter():
+    """漏记任一判据参数，「照命令复跑」就会得出与本次不同的结论（sober-hub #151 复审第 2 条）。"""
+    mod = _load_module()
+    args = _stage_args(
+        mod, init_db=True, ingest=True, ingest_csv=("features=x.csv",),
+        port=8099, host="0.0.0.0", expect_predictions=3,
+        expect_models="lr_v1,rf_v1,xgb_v1,lgbm_v1", timeout=5.0,
+        backend_env="/elsewhere/backend.env", frontend_env="/elsewhere/frontend.env.local",
+    )
+    command = mod.evidence_command(args)
+    for needle in ("--init-db", "--ingest", "--ingest-csv features=x.csv", "--port 8099",
+                   "--host 0.0.0.0", "--expect-predictions 3",
+                   "--expect-models lr_v1,rf_v1,xgb_v1,lgbm_v1", "--timeout 5.0",
+                   "--backend-env /elsewhere/backend.env",
+                   "--frontend-env /elsewhere/frontend.env.local"):
+        assert needle in command, f"证据命令漏记了影响判定的参数：{needle}\n实际：{command}"
+
+
+def test_evidence_records_non_default_expect_models_and_flags_masked_paths(
+        tmp_path, monkeypatch):
+    """端到端核对：用非默认 --expect-models 跑一次，证据里的命令必须带上它；掩码处要有替换说明。"""
+    mod = _load_module()
+    db_url = _make_db(tmp_path, [(HASH, 0.9, "xgb_v1")])
+    out_file = tmp_path / "evidence" / "preflight.md"
+    rc = _run(monkeypatch, mod, tmp_path,
+              ["--expect-predictions", "1", "--expect-models", "lr_v1,rf_v1,xgb_v1,lgbm_v1",
+               "--timeout", "5", "--out", str(out_file)], db_url=db_url)
+    text = out_file.read_text(encoding="utf-8")
+    assert rc == 1, "期望清单里多了一个未交付的 lgbm_v1，判据 4 必须 FAIL"
+    assert "--expect-models lr_v1,rf_v1,xgb_v1,lgbm_v1" in text
+    assert "--timeout 5.0" in text and "--expect-predictions 1" in text
+    assert "| 4 交付模型全部加载 | FAIL |" in text, "期望清单多一个未交付模型，判据 4 必须 FAIL"
+    # backend.env / frontend.env.local 都在 tmp_path 下 → 命令里必被掩码，且要有替换说明
+    assert "<本机路径>" in text and "掩码占位" in text and "替换成自己的实际路径" in text
+    assert str(tmp_path) not in text
+
+
+def test_init_db_failure_skips_ingest_entirely(fresh_db_engine, tmp_path, monkeypatch, capsys):
+    """0a FAIL 就不许跑 0b：库结构可能不对，这时灌数会真改掉演示库却只能给 rc=1。"""
+    mod = _load_module()
+    csv_dir = _write_ingest_csvs(tmp_path)
+    calls: list = []
+    monkeypatch.setattr(mod.subprocess, "run",
+                        lambda *a, **k: calls.append(a) or pytest.fail("0a 已 FAIL，不该起灌数子进程"))
+    db_url = f"sqlite:///{(tmp_path / 'no-such-dir' / 'x.db').as_posix()}"
+    extra = _wire(monkeypatch, mod, tmp_path, db_url)
+    monkeypatch.setattr(mod, "start_service",
+                        lambda *a, **k: pytest.fail("前置阶段 FAIL 就不该起服务"))
+    monkeypatch.setattr(sys, "argv",
+                        ["demo_preflight", *extra, "--init-db", "--ingest", *_ingest_argv(csv_dir)])
+    rc = mod.main()
+    out = capsys.readouterr().out
+    assert rc == 1 and calls == []
+    assert "FAIL 0a 建库建表" in out
+    assert "FAIL 0b 灌真实数据 :: 前置阶段「0a 建库建表」已 FAIL，未执行灌数" in out
+    assert "子进程一个都没起" in out
+    assert not (tmp_path / "no-such-dir").exists(), "不许为了建库把目录造出来"
 
 
 def test_init_db_without_a_database_url_fails_instead_of_guessing():
@@ -790,10 +863,9 @@ def test_init_db_points_at_the_create_database_script_when_the_schema_is_missing
     assert "backend/scripts/schema_mysql.sql" in detail and "CREATE DATABASE" in detail
 
 
-def test_init_db_fails_when_tables_cannot_be_read_back(monkeypatch, tmp_path):
+def test_init_db_fails_when_tables_cannot_be_read_back(fresh_db_engine, monkeypatch, tmp_path):
     """create_all 不报错但随后读不到四表 = 建表没真落地，不许判 PASS。"""
     mod = _load_module()
-    _fresh_engine(monkeypatch)
     from app import db as app_db
 
     monkeypatch.setattr(app_db, "init_db", lambda: None)

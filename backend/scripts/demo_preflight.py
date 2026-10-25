@@ -91,6 +91,10 @@ STAGE_NAMES = ("0a 建库建表", "0b 灌真实数据")
 CRITERION_NAMES = ("1 令牌一致", "2 库行数", "3 存在高风险行",
                    "4 交付模型全部加载", "5 四接口 200", "6 同 hash 两次预测只留一行")
 DEFAULT_EXPECT_PREDICTIONS = 83943
+DEFAULT_EXPECT_MODELS = "lr_v1,rf_v1,xgb_v1"
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 8055
+DEFAULT_TIMEOUT = 120.0
 
 
 def parse_dotenv(path: Path) -> dict[str, str]:
@@ -290,14 +294,24 @@ def run_ingest(paths: dict[str, Path], db_url: str) -> tuple[bool, str, dict[str
 
 
 def run_build_stages(args, db_url: str) -> tuple[list[tuple[str, bool, str]], list[str], list[str]]:
-    """跑可选的阶段 0a/0b → (结果行, 信息行, 需要掩码的路径)。不加开关时返回三个空表。"""
+    """跑可选的阶段 0a/0b → (结果行, 信息行, 需要掩码的路径)。不加开关时返回三个空表。
+
+    **0a FAIL 就不跑 0b**：库结构可能不对（例如四表在但索引自检失败），这时灌数会真的
+    改掉演示库、最后却只能给 rc=1 —— 承诺是「任一前置阶段失败即停止」，不能先写再报错。
+    """
     results: list[tuple[str, bool, str]] = []
     infos: list[str] = []
     secret_paths: list[str] = []
+    init_ok = True
     if args.init_db:
-        ok, detail = init_database(db_url)
-        results.append((STAGE_NAMES[0], ok, detail))
+        init_ok, detail = init_database(db_url)
+        results.append((STAGE_NAMES[0], init_ok, detail))
     if args.ingest:
+        if not init_ok:
+            results.append((STAGE_NAMES[1], False,
+                            (f"前置阶段「{STAGE_NAMES[0]}」已 FAIL，未执行灌数 —— "
+                             "不在一个结构可能不对的库上写数据（CSV 一个都没读、子进程一个都没起）")))
+            return results, infos, secret_paths
         paths, errors = resolve_ingest_paths(args.ingest_csv or [])
         # 原始参数串与解析后的 Path 都登记：Windows 下 str(Path(...)) 会把正斜杠转成反斜杠，
         # 只登记一边会让证据里的命令行漏掉一条真路径。
@@ -485,15 +499,15 @@ def run_service_checks(args, base_url: str, db_url: str, token: str, model_dir, 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="录屏前六条判据自检（Issue #138）")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8055, help="本脚本自己起服务用的端口")
+    parser.add_argument("--host", default=DEFAULT_HOST)
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="本脚本自己起服务用的端口")
     parser.add_argument("--backend-env", default=str(DEFAULT_BACKEND_ENV))
     parser.add_argument("--frontend-env", default=str(DEFAULT_FRONTEND_ENV))
     parser.add_argument("--expect-predictions", type=int, default=DEFAULT_EXPECT_PREDICTIONS,
                         help="判据 2 的期望 prediction 行数；演示库 83943，联调库 3")
-    parser.add_argument("--expect-models", default="lr_v1,rf_v1,xgb_v1",
+    parser.add_argument("--expect-models", default=DEFAULT_EXPECT_MODELS,
                         help="判据 4 的期望加载清单，逗号分隔；默认 = 交付清单三个")
-    parser.add_argument("--timeout", type=float, default=120.0, help="等服务就绪的秒数")
+    parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT, help="等服务就绪的秒数")
     parser.add_argument("--out", default="", help="可选：把结果写成证据 markdown")
     parser.add_argument("--init-db", action="store_true",
                         help="可选前置阶段 0a：先建表（等价 python -m app.db init，含索引自检）")
@@ -629,16 +643,31 @@ def finish(results: list[tuple[str, bool, str]], infos: list[str], args, base_ur
     return 0 if all_ok else 1
 
 
+# 会影响判定结果的参数与其默认值。证据里的命令必须记全**非默认**项，否则「照命令复跑」
+# 会得出与本次不同的结论（sober-hub 在 #151 复审指出：只记阶段开关与 CSV 不够）。
+VERDICT_FLAGS = (
+    ("port", DEFAULT_PORT),
+    ("host", DEFAULT_HOST),
+    ("expect_predictions", DEFAULT_EXPECT_PREDICTIONS),
+    ("expect_models", DEFAULT_EXPECT_MODELS),
+    ("timeout", DEFAULT_TIMEOUT),
+    ("backend_env", str(DEFAULT_BACKEND_ENV)),
+    ("frontend_env", str(DEFAULT_FRONTEND_ENV)),
+)
+
+
 def evidence_command(args) -> str:
-    """证据里记的命令必须能复现本次运行 —— 前置阶段与 CSV 覆盖都要写进去（路径经掩码）。"""
-    parts = ["python -m scripts.demo_preflight", f"--port {args.port}"]
+    """拼出能复现本次判定的命令：阶段开关 + CSV 覆盖 + 所有非默认的判据参数。"""
+    parts = ["python -m scripts.demo_preflight"]
     if args.init_db:
         parts.append("--init-db")
     if args.ingest:
         parts.append("--ingest")
     parts += [f"--ingest-csv {item}" for item in (args.ingest_csv or [])]
-    if args.expect_predictions != DEFAULT_EXPECT_PREDICTIONS:
-        parts.append(f"--expect-predictions {args.expect_predictions}")
+    for name, default in VERDICT_FLAGS:
+        value = getattr(args, name)
+        if str(value) != str(default):
+            parts.append(f"--{name.replace('_', '-')} {value}")
     return " ".join(parts)
 
 
@@ -652,6 +681,12 @@ def write_evidence(out: Path, results, infos, args, base_url: str, all_ok: bool,
         f"- 命令：`{command}`（cwd=`backend`；令牌与库口令一律掩码）",
         "- 判据来源：Issue #138（裁定见 Issue #130 三）；演示库口径见 Issue #130 更正裁定（MySQL `jit_demo`）"
         + ("；前置阶段（建库/灌数）按 Issue #142 并入同一条命令" if (args.init_db or args.ingest) else ""),
+    ]
+    if "<本机路径>" in command or "<仓库外路径>" in command:
+        lines.append(
+            "- ⚠️ 上面命令里的 `<本机路径>` / `<仓库外路径>` 是**掩码占位**（§0 硬规矩 1：个人绝对路径不入库）；"
+            "在本机复跑时要替换成自己的实际路径，其余参数照抄即可复现同一组判定")
+    lines += [
         "",
         "| 判据 / 阶段 | 结果 | 实际值 |",
         "|---|---|---|",
