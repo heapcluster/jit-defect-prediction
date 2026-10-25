@@ -549,6 +549,9 @@ def test_init_db_and_ingest_stages_reach_eight_of_eight_on_a_blank_database(
     assert "汇总：8/8 通过" in out
     for kind, rows in (("commits", 1), ("labels", 1), ("features", 1), ("predictions", 1)):
         assert f"{kind}={rows} 行" in out, f"{kind} 的入库行数没被如实报出"
+    # 灌完必须把「features 要契约二 v1.2 的对数形态」这条警告打出来：
+    # 灌 raw 那份不会报错，只会让在线预测静默算错（本机实测 0.82657 vs 0.79963）
+    assert "对数变换" in out and "commit_features_raw.csv" in out, out
     # 不靠脚本自报：直接查库，证明四张表里真的有行
     counts = mod.count_rows(db_url)
     assert counts == {"commit": 1, "commit_label": 1, "commit_feature": 1, "prediction": 1}

@@ -315,8 +315,10 @@ def run_build_stages(args, db_url: str) -> tuple[list[tuple[str, bool, str]], li
             ok, detail, counts = run_ingest(paths, db_url)
             results.append((STAGE_NAMES[1], ok, detail))
             if ok:
-                infos.append(f"灌数合计 {sum(counts.values())} 行；各类行数的合法取值与对账见 "
-                             "docs/backend/mysql-setup.md §4（PR #150 内；labels/features 各有两个合法值）")
+                infos.append(f"灌数合计 {sum(counts.values())} 行；各类行数的合法取值见 "
+                             "docs/backend/mysql-setup.md §4（PR #150 内）。**features 必须是契约二 v1.2 "
+                             "的对数变换形态**：灌 commit_features_raw.csv（变换前的原始计数）不会报错，"
+                             "但 POST /api/predict 会静默算错，判别 SQL 见该节")
     return results, infos, secret_paths
 
 
