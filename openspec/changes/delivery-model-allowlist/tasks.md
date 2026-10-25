@@ -44,13 +44,13 @@
 | 验收依据 | `specs/predict-api/spec.md` 三个 Scenario |
 | 用例数与结果 | 合成模型测试通过；真实三权重未验收 |
 | 复现命令 / 步骤 | `cd backend && python -m pytest -q tests/test_model_registry.py`；`openspec validate delivery-model-allowlist --strict --no-interactive` |
-| 证据归档 | `backend/scripts/evidence/delivery-model-allowlist-2026-10-23.md` |
+| 证据归档 | `backend/scripts/evidence/archive/delivery-model-allowlist-2026-10-23.md` |
 
 ### 4. 非功能验证
 
 | 维度 | 是否触及 | 证据 |
 |---|---|---|
-| 性能 | 是，未验收 | 需真实三权重压测；`backend/scripts/evidence/delivery-model-allowlist-2026-10-23.md` |
+| 性能 | 是，未验收 | 需真实三权重压测；`backend/scripts/evidence/archive/delivery-model-allowlist-2026-10-23.md` |
 | 安全 | 是 | 清单模型名限安全文件名，错误不回显路径；`cd backend && python -m pytest -q tests/test_model_registry.py` |
 | 可靠 | 是 | 缺清单/错序拒载、单个模型损坏可降级；同上 |
 | 易用 | 否 | 前端本 change 不触及；`cd backend && python -m pytest -q tests/test_model_registry.py` 仅覆盖后端 |

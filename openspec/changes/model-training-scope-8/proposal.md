@@ -13,6 +13,7 @@
 ## What Changes
 
 - `expert` / `semantic` / `fused` 的 `config.DEFAULT_MODELS` 收敛为 8 个：`lr rf xgb lgbm et svm mlp_deep tabnet`；`model.py::MODEL_NAMES` 保留 12 个注册项（`nb dt knn mlp` 仅兼容旧产物，默认不训练、不进四线对比）。
+- 同步 `openspec/specs/model-training/spec.md` 的「MUST 训练 2–3 个经典模型」→「MUST 训练 8 个分类器」（`specs/model-training/spec.md` delta）：课程「至少 2 类不少于 8 种」已按 8 个落地，不再按 MVP 分期。
 - `tests/test_model_registry_parity.py` 拆成两条断言：注册表 = 12、训练口径 = 8，且三线一致。
 - `semantic` / `fused` 报告标题的分类器数量改为按本次实际训练模型数动态生成，杜绝「配置 8、标题 12」的漂移。
 - 新增 effort 对照口径 `budget`：先按该口径的评审下限过滤（LOC → `MIN_REVIEW_LOC=10` 行，nf → `MIN_REVIEW_FILES=2` 文件），其余按风险密度降序；**单位随口径走，不再共用 10**。

@@ -1,6 +1,6 @@
 # 仅专家（基线）· Pipeline 说明
 
-> 版本 1.1 ｜ 更新 2026-10-14 ｜ 主笔 蒋励 ｜ 审核 苏哲勋
+> 版本 1.3 ｜ 更新 2026-10-25 ｜ 主笔 蒋励 ｜ 审核 苏哲勋
 > **一句话**：从 Apache Camel 固定版本出发，用 Kamei 14 专家特征训练 8 个分类器，产出课程必做的**基线结果**；同时它是四条 pipeline 中**唯一进入在线交付链**的一条，向后端交模型文件与全量预测结果。
 > 本文自包含：用途、步骤、输入输出、配置项、边界全部写在本文，照本文即可开工与复查。
 
@@ -8,7 +8,7 @@
 
 1. **跑通「原始仓库 → 可交付模型」的完整参照链路**（九步），为其余三条 pipeline 提供数据上游：提交清单、缺陷标签、14 维特征表、样本集与切分下标都由本线产出，被仅语义 / 融合 / 端到端三条线复用。
 2. **产出课程必做的基线组结果**：Kamei 14 + 8 模型 + 两类指标，作为与语义主线对照的基准。
-3. **产出在线交付物**：`lr` / `rf` / `xgb` 三个模型文件 + 全量预测结果文件，是后端接口能加载、前端三页面能展示的唯一来源。
+3. **产出在线交付物**：`lr` / `rf` / `xgb` / `lgbm` / `et` / `svm` / `mlp_deep` / `tabnet` 八个模型文件 + 全量预测结果文件，是后端接口能加载、前端三页面能展示的唯一来源。
 
 ## 2. 适用场景
 
@@ -61,8 +61,8 @@
 | 样本集 | `data_model/data/dataset_{szz,szz_lite}.csv` | ❌ | **融合线的左表**（四线共享） |
 | 切分文件 | `data_model/data/split_szz_{train,test}.csv` | ❌ | **四线共用的切分下标**，只读不重切 |
 | 切分统计 | `pipelines/expert/reports/split_stats{tag}.md` | ✅ | 证据 |
-| 模型文件 | `pipelines/expert/models/{lr,rf,xgb}_v1.pkl` | ❌ | **交付后端**（随包交付） |
-| 交付清单 | `pipelines/expert/models/feature_order.txt`（`[models]` 段只列交付三件套） | ❌ | 契约二第三节的副本，供后端装配 |
+| 模型文件 | `pipelines/expert/models/{lr,rf,xgb,lgbm,et,svm,mlp_deep,tabnet}_v1.pkl` | ❌ | **交付后端**（随包交付） |
+| 交付清单 | `pipelines/expert/models/feature_order.txt`（`[models]` 段列交付八件套） | ❌ | 契约二第三节的副本，供后端装配 |
 | 指标报告 | `pipelines/expert/reports/model_metrics.md` | ✅ | ⑧ 的比对基线 |
 | 覆盖矩阵 | `pipelines/expert/reports/model_matrix.md` | ✅ | 8 模型 × 2 类 × 两类指标 |
 | 校准与阈值 | `pipelines/expert/reports/calibration_threshold.md` | ✅ | 阈值 vs 工作量配额对照 |
@@ -104,7 +104,7 @@
 
 - 14 项列名、顺序、归一化与对数口径以契约二（`docs/model/feature-columns.md`）为唯一权威，`la/ld` 除以 `lt`、`lt/nuc` 除以 `nf`、全部取 `ln`、`entropy` 用 14 天滚动窗口、`rexp` 衰减 `Σ count(n)/(n+1)`。
 - 口径一改必须升 `feature_version`（v1 → v2）并全量重算，**不覆盖旧版**；下游对照产物全部重跑。
-- 交付模型名 `lr_v1` / `rf_v1` / `xgb_v1` 与接口入参 `model_name` 同名，不得自行改名。
+- 交付模型名 `lr_v1` / `rf_v1` / `xgb_v1` / `lgbm_v1` / `et_v1` / `svm_v1` / `mlp_deep_v1` / `tabnet_v1` 与接口入参 `model_name` 同名，不得自行改名。
 
 ## 7. 与其他 pipeline 的边界与协作关系
 
@@ -131,6 +131,7 @@
 
 | 日期 | 版本 | 变更 |
 |---|---|---|
+| 2026-10-25 | 1.3 | 交付清单由 3 个扩到 8 个在线模型（`lr_v1` / `rf_v1` / `xgb_v1` / `lgbm_v1` / `et_v1` / `svm_v1` / `mlp_deep_v1` / `tabnet_v1`，change `online-eight-model-selection` / Issue #139）；§1.3、§5 产物表、§6.3 交付模型名同步改八项 |
 | 2026-10-14 | 1.2 | 训练入口落为 `data_model/pipelines/expert/train.py`（`python -m pipelines.expert.train`），产物全部落到 `pipelines/expert/{models,reports}`；`06_train_model.py` 修两处 pytorch-tabnet 4.1.0 API 不一致（导入路径 `pytorch_tabnet.tabnet` → `pytorch_tabnet.tab_model`；`max_epochs`/`patience` 从构造器移到 `fit()`），并新增 `--delivery-models`（训练 8 个而清单只列 3 个交付模型） |
 | 2026-10-14 | 1.1 | 重写为独立自包含的 pipeline 说明（不再依赖 `data-pipeline.md`）：补齐用途/适用场景/九步/输入输出/参数与超参/边界协作/红线；产物表按脚本实际输出核对（补 `reports/split_stats{tag}.md`、`reports/prediction_stats.md`，`prediction_result.csv` 归属改 `data/`） |
 | 2026-10-14 | 1.0 | 从 `model-line-plan.md` §3 / `data-pipeline.md` §4 拆出仅专家线独有内容 |
