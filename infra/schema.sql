@@ -1,3 +1,10 @@
+-- 演示库 = MySQL `jit_demo`（Issue #130 更正裁定 / #142：每人本机 MySQL，库名唯一口径）
+-- 用法（本机管理员账号跑一次即可，自带建库，幂等可重跑）：
+--   mysql -u root -p < infra/schema.sql
+-- 表结构与 backend/app/models.py 逐字对齐（MySQL TINYINT(1) / BIGINT）。
+CREATE DATABASE IF NOT EXISTS jit_demo CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE jit_demo;
+
 CREATE TABLE IF NOT EXISTS commit (
     id BIGINT NOT NULL AUTO_INCREMENT,
     repo_name VARCHAR(64) NOT NULL,
