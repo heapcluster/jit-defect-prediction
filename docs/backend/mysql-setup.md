@@ -1,8 +1,8 @@
 # MySQL 演示库 `jit_demo`：安装 → 建库 → 配置 → 验收
 
 > **文档状态（`docs/README.md` §0.2）：权威** —— 本机 MySQL 与演示库 `jit_demo` 的**安装、权限、建库脚本、`.env` 写法、验收清单、常见坑**只此一份。
-> **本文不复述**（复述即违反 §0.2「指针不得超 3 行」）：本机全链路跑通顺序（§0–§6）的唯一出处是 `docs/common/local-runbook.md`；四份 CSV 的文件名与产出口径的唯一出处是 `docs/repo/demo-script-sprint1.md` §0.0；四表 DDL 的唯一出处是 `infra/schema.sql`；联调库口径（SQLite `backend/dev.db`、令牌）的唯一出处是 `docs/frontend/integration-log.md` §0。
-> **归属**：后端线（`docs/owners/s1mple-less.md` §1）。**依据**：Issue #142（2026-10-25 裁定「每人本机 MySQL + 后端出 `.sql` 建库脚本 + 配置文档」）、Issue #130 更正裁定（演示与系统层验收一律 MySQL `jit_demo`，联调库不变）。
+> **本文不复述**（复述即违反 §0.2「指针不得超 3 行」）：本机全链路跑通顺序（§0–§6）的唯一出处是 `docs/common/local-runbook.md`；四份 CSV 的文件名与产出口径的唯一出处是 `docs/repo/demo-script-sprint1.md` §0.0；四表 DDL 的唯一出处是 `infra/schema.sql`；联调库口径（MySQL `jit_demo`、令牌）的唯一出处是 `docs/frontend/integration-log.md` §0。
+> **归属**：后端线（`docs/owners/s1mple-less.md` §1）。**依据**：Issue #142（2026-10-25 裁定「每人本机 MySQL + 后端出 `.sql` 建库脚本 + 配置文档」）；本项目统一用 MySQL，联调 / 演示 / 验收共用 `jit_demo`，双库策略已废除。
 
 > ✅ **建库脚本已在真 MySQL 上跑通（2026-10-25 实测，MySQL 8.0.45 / 演示库 `jit_demo`）**：`mysql -u jit -h 127.0.0.1 < backend/scripts/schema_mysql.sql`（cwd=仓库根）→ **退出码 0**，末尾自检 `SELECT` 列出四张表且排序规则全为 `utf8mb4_unicode_ci`；随后 DDL 路径（`mysql -u jit -h 127.0.0.1 jit_demo < infra/schema.sql`）**连跑两次都 rc=0**（幂等），ORM 路径 `python -m app.db init` 与 `_assert_indexes` 在同一库上输出 `indexes ok`。全链路（建表→灌数→起服务→六条判据）**8/8 通过、退出码 0、330 秒**，实测值见 §8。
 >
@@ -108,6 +108,19 @@ DATABASE_URL=mysql+pymysql://<user>:<pwd>@127.0.0.1:3306/jit_demo?charset=utf8mb
 
 ## 4. 灌真实数据
 
+### 4.1 先建 Camel 历史索引（现算特征的数据来源）
+
+在线预测（`POST /api/predict`、`POST /api/sync`、`POST /api/sync-prs`）在提交或特征缺失时要现算 14 项特征，数据来源是本地一份 **blobless 历史索引**（只取提交 + 树、不含 blob，几十 MB），由 `backend/.env` 的 `SOURCE_REPO` 指向。第一次跑预测前先建它：
+
+```bash
+# cwd = 仓库根；路径放仓库外（不要放仓库里，也不要写进入库文档）
+python infra/clone_camel_history.py --repo apache/camel --path <本机路径>/camel-history
+python infra/clone_camel_history.py --path <本机路径>/camel-history --fetch   # 增量更新
+```
+
+- 索引**不是开发库、不进工作流、不持有预测状态**；`SOURCE_REPO` 配它的路径（见 §3）。
+- 它取代了原「离线 CSV 灌库」成为数据入口：灌库（`app.ingest`）已移除，实时预测见 `docs/common/local-runbook.md` §4。
+
 ```bash
 # cwd = backend；连接串已在 backend/.env（命令行不带前缀，见 §3）
 python -m app.ingest commits     <提交清单.csv>
@@ -195,9 +208,9 @@ python -m app.ingest predictions <prediction_result.csv>
 >
 > 佐证：契约二 v1.2 的变更日志本身就把「`la` / `ld` 出现负值」当作 `ln(x)` 口径的判据（该日志记的是当时数据集上的 −8.7612 / −9.1363；上表是我在当前 Camel 全量数据上的实测值，两者符号与量级一致）。
 
-**必须守的不变式**：「有预测必有特征行」（否则详情页与 `POST /api/predict` 会 40400），在 SQLite 全量库实测 **0 例外**；以及上面那条「特征必须是对数变换后的契约形态」。
+**必须守的不变式**：「有预测必有特征行」（否则详情页与 `POST /api/predict` 会 40400），在本机 MySQL `jit_demo` 实测 **0 例外**；以及上面那条「特征必须是对数变换后的契约形态」。
 
-- **灌入幂等**：同一文件重跑不增行（按表幂等键 upsert：`commit=commit_hash`、`label=(commit_hash, label_method)`、`feature=commit_hash`、`prediction=(commit_hash, model_name)`）；缺主键字段的行整批回滚并报行号。该幂等性在 SQLite 全量库四类各灌两遍实测通过，MySQL 侧由组长本机实测（#147）。
+- **灌入幂等**：同一文件重跑不增行（按表幂等键 upsert：`commit=commit_hash`、`label=(commit_hash, label_method)`、`feature=commit_hash`、`prediction=(commit_hash, model_name)`）；缺主键字段的行整批回滚并报行号。该幂等性在 MySQL `jit_demo` 四类各灌两遍实测通过（组长本机 #147）。
 
 ## 5. 验收清单
 
@@ -267,7 +280,7 @@ python -m scripts.demo_preflight --init-db --ingest --out scripts/evidence/prefl
 |---|---|
 | 本机从零跑通全链路的**步骤顺序**（§0–§6，含六条自检与前端） | `docs/common/local-runbook.md` |
 | 四份 CSV 的**文件名与产出口径**、演示脚本与判据 | `docs/repo/demo-script-sprint1.md` §0.0 / §0.0.1 |
-| 联调库（SQLite `dev.db`）、`API_TOKEN`、端口等**联调基线** | `docs/frontend/integration-log.md` §0 |
+| 联调库（MySQL `jit_demo`）、`API_TOKEN`、端口等**联调基线** | `docs/frontend/integration-log.md` §0 |
 | 四表 DDL 本体、字段与索引要求 | `infra/schema.sql` + `docs/design/data-fields.md` |
 | 接口路径、错误码、非功能靶子 | `docs/backend/api-spec.md`（契约三 v1.5，冻结） |
 | 后端验收板块（B1 建表、B4 在线预测、B5/B6 非功能） | `docs/backend/acceptance.md` |

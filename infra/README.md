@@ -17,7 +17,8 @@ GitHub 仓库配置、分支规范与分支保护、PR / Issue 模板、CI 流�
 ## 边界
 
 - `main` 分支受保护，禁止直接推送；合并前至少 1 位非作者审阅。
-- CI 等有可测代码之后再接（`openspec validate` 也一并进流水线）。
+- CI 已落地（`.github/workflows/ci.yml`：lint → 规格检查 → 三线测试 → 构建；后端测试跑在一次性
+  `mysql:8.0` service 上，库由 `infra/setup_mysql.py` 建）。
 - 只在本目录内写代码。
 
 ## PR 自动审阅原型（默认只读）
