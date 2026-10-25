@@ -4,8 +4,9 @@
 > **本文不复述**（复述即违反 §0.2「指针不得超 3 行」）：本机全链路跑通顺序（§0–§6）的唯一出处是 `docs/common/local-runbook.md`；四份 CSV 的文件名与产出口径的唯一出处是 `docs/repo/demo-script-sprint1.md` §0.0；四表 DDL 的唯一出处是 `infra/schema.sql`；联调库口径（SQLite `backend/dev.db`、令牌）的唯一出处是 `docs/frontend/integration-log.md` §0。
 > **归属**：后端线（`docs/owners/s1mple-less.md` §1）。**依据**：Issue #142（2026-10-25 裁定「每人本机 MySQL + 后端出 `.sql` 建库脚本 + 配置文档」）、Issue #130 更正裁定（演示与系统层验收一律 MySQL `jit_demo`，联调库不变）。
 
-> ⚠️ **建库脚本待实机验收（2026-10-25，sober-hub 复审要求，如实标注）**：`CREATE DATABASE` 需要 root 或已授权账号，后端线本机账号实测报 `ERROR 1044`、`root` 免密报 `ERROR 1045`，所以 **§2.1 那条命令尚未在真 MySQL 上跑通过**。已实测的（`SOURCE` 相对路径解析正反两例、1044 报错、服务端版本/字符集/时区、依赖版本、CSV 行数、特征口径、SQLite 形态的全链路 8/8）与**未实测的**（建库命令本身、§5.1 六条判据在 MySQL 上）逐条列在 **§8**。
-> **在拿到实机验收证据之前，Issue #142 不算交付完成**；本 PR 的 37 条守门用例全是静态文本检查，**证明不了 `SOURCE` 与建库权限在真实客户端上奏效**。拿到 root 或一次性授权后按 §0 走一遍，把退出码、四表与索引自检、重跑幂等的实际值**只追加**补记进 §8。
+> ✅ **建库脚本已在真 MySQL 上跑通（2026-10-25 实测，MySQL 8.0.45 / 演示库 `jit_demo`）**：`mysql -u jit -h 127.0.0.1 < backend/scripts/schema_mysql.sql`（cwd=仓库根）→ **退出码 0**，末尾自检 `SELECT` 列出四张表且排序规则全为 `utf8mb4_unicode_ci`；随后 DDL 路径（`mysql -u jit -h 127.0.0.1 jit_demo < infra/schema.sql`）**连跑两次都 rc=0**（幂等），ORM 路径 `python -m app.db init` 与 `_assert_indexes` 在同一库上输出 `indexes ok`。全链路（建表→灌数→起服务→六条判据）**8/8 通过、退出码 0、330 秒**，实测值见 §8。
+>
+> ⚠️ **仍未由我在 root 下实测的一步**：**从空实例首次 `CREATE DATABASE`**。本机 root 口令不在我手上（`jit` 账号建库实测 `ERROR 1044`、`root` 免密 `ERROR 1045`），`jit_demo` 是由用户以 root 执行 §6 坑 1 里那两条语句建出来的 —— 建出后我实测其 `DEFAULT_CHARACTER_SET_NAME=utf8mb4`、`DEFAULT_COLLATION_NAME=utf8mb4_unicode_ci`，**与脚本指定的值逐字一致**。我跑的那一次是「库已存在」的路径：此时 `CREATE DATABASE IF NOT EXISTS` 短路，**普通账号也能 rc=0 重跑整条脚本**（见 §6 坑 1 的补充）。
 
 ## 0. 十分钟路径
 
@@ -207,7 +208,7 @@ python -m app.ingest predictions <prediction_result.csv>
 | # | 判据 | 期望值 | 怎么查 |
 |---|---|---|---|
 | 1 | 四表行数 | `commit` **84,461**、`prediction` **83,943**、`commit_feature` **83,943**、`commit_label` 83,943 或 83,887 | `SELECT COUNT(*)`，或脚本 |
-| 1b | **特征口径**（防「灌了 raw 那份」） | `MIN(la)` 为负、`SUM(la < 0)` ≈ 0.91 × 总行数 | §4 那条 SQL |
+| 1b | **特征口径**（防「灌了 raw 那份」） | `MIN(la)` 为负、`SUM(la < 0)` ≈ 0.91 × 总行数、`MAX(nf)` ≈ 9.8。**MySQL 实测**：`MIN(la) = −12.9443795988`、`MIN(ld) = −12.1697872202`、`MAX(nf) = 9.7939516655`、`SUM(la<0) = 76444`、总行数 83943（与 §4 CSV 层实测逐项吻合；小数位比 CSV 少是因为列类型是 `DECIMAL(20,10)`，按 10 位截断，属预期） | §4 那条 SQL |
 | 2 | 高风险行 | `risk_score ≥ 0.5` 恰 **14,596** 条（占 83,943 的 17.39%） | `SELECT COUNT(*) FROM prediction WHERE risk_score >= 0.5` |
 | 3 | 列表接口 | `GET /api/commits?size=1` → `data.total = 83943` | curl / 浏览器 |
 | 4 | 趋势接口 | `GET /api/trends` → **236** 期，各期 `commit_count` 之和 = 83,943 | curl |
@@ -249,7 +250,7 @@ python -m scripts.demo_preflight --init-db --ingest --out scripts/evidence/prefl
 
 | # | 现象 | 根因 | 解法 |
 |---|---|---|---|
-| 1 | `ERROR 1044 (42000): Access denied for user 'jit'@'127.0.0.1' to database 'jit_demo'` | 只被授予「某个库 ALL PRIVILEGES」的账号**没有** `CREATE DATABASE`（全局只有 `GRANT USAGE ON *.*`）。本项目实测：`jit@127.0.0.1` 建 `jit_demo` 必报 1044 | 用 **root** 跑 §2.1；或让有权限的人执行一次 `GRANT ALL PRIVILEGES ON jit_demo.* TO '<你的账号>'@'127.0.0.1'; FLUSH PRIVILEGES;`（库仍需先由 root 建出来） |
+| 1 | `ERROR 1044 (42000): Access denied for user 'jit'@'127.0.0.1' to database 'jit_demo'` | 只被授予「某个库 ALL PRIVILEGES」的账号**没有** `CREATE DATABASE`（全局只有 `GRANT USAGE ON *.*`）。本项目实测：`jit@127.0.0.1` 建 `jit_demo` 必报 1044 | 用 **root** 跑 §2.1；或让有权限的人执行一次 `CREATE DATABASE IF NOT EXISTS jit_demo CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;` + `GRANT ALL PRIVILEGES ON jit_demo.* TO '<你的账号>'@'127.0.0.1'; FLUSH PRIVILEGES;`。<br>**补充（本机实测）**：库建好并授权之后，**普通账号重跑 §2.1 那条脚本会 rc=0** —— `CREATE DATABASE IF NOT EXISTS` 在库已存在时短路，不再检查全局 `CREATE` 权限。所以 root 只需出手一次，之后每人自己重跑脚本都安全（幂等、不清数据） |
 | 2 | `ERROR at line 3: Failed to open file 'infra\schema.sql', error: 2`（本机实测原文，Windows 下路径分隔符显示为反斜杠），退出码 1 | `SOURCE` 是 **mysql 客户端内建命令**，按**当前工作目录**解析相对路径 | cwd 切到**仓库根**再跑；此时 `jit_demo` 已被建出但 0 张表，重跑即补齐（§2.2）。另外 `SOURCE` 只有客户端认，pymysql / SQLAlchemy 都不认（ORM 路径走 `python -m app.db init`） |
 | 3 | `ERROR 2003 (HY000): Can't connect to MySQL server on '127.0.0.1:3306'` | 服务没起，或 3306 被另一个实例占用 | Windows：`Get-Service MySQL80` / `net start MySQL80`；查占用 `netstat -ano \| findstr :3306`，再按 PID 看是哪个进程 |
 | 4 | `ModuleNotFoundError: No module named 'pymysql'` | 跑成了系统 Python，不是 conda 环境 `jit-defect-prediction` | `conda activate jit-defect-prediction` 后重试；依赖清单只有 `data_model/environment.yml` 一份 |
@@ -290,8 +291,33 @@ python -m scripts.demo_preflight --init-db --ingest --out scripts/evidence/prefl
 | **建库→灌数→起服务→六条判据全链路**（SQLite 形态） | ✅ 本机实测 **两轮各 8/8 通过、rc=0** | `python -m scripts.demo_preflight --init-db --ingest …`（PR #151 的脚本）。**这是一组 A/B 对照**，两轮只差 `features` 用哪份 CSV：<br>**第一轮**（`features=commit_features_raw.csv`，84,461 行，86 秒）→ 判据 6 信息行显示在线重算 **0.82657**、库内存量 **0.79963**，**两者不等** = 特征口径错；<br>**第二轮**（`features=` 按 §4 投影出的 `commit_features.csv`，83,943 行，120 秒）→ 在线重算 **0.79963 / 0.79963**，与库内存量**逐位相同** = 口径对。<br>两轮其余判据输出完全一致：`prediction=83943`、`risk≥0.5` = **14,596**、`loaded models: ['lr_v1','rf_v1','xgb_v1']`、四接口全 200 code=0、两次 POST 后 `(hash, xgb_v1)` 恒 1 行且总行数不变。**结论：判据 1~6 全绿抓不到特征口径错**（没有一条比对 `commit_feature` 的值），这正是 §5.1 判据 1b 存在的原因 |
 | §4 的投影配方 | ✅ 本机实跑 | 存成 `project_features.py` 后在仓库根执行 → 输出 `写出 83943 行 -> data_model\data\commit_features.csv`；产物 17 列、`min(la) = −12.944379598832155`、`la<0` 的行 **76,444**、`max(nf) = 9.793951665467821`，与上表判别值逐项吻合 |
 | 时间列不受 `time_zone` 影响 | ✅ 代码级实测 | `infra/schema.sql` 四个时间列全为 `DATETIME`；`backend/app` 内 `NOW()` / `CURRENT_TIMESTAMP` / `server_default` grep 0 命中 |
-| **§2.1 的建库命令本身**（`CREATE DATABASE` + `SOURCE infra/schema.sql` 在真 MySQL 上跑通） | ❌ **本机未实测** | 后端线本机账号无 `CREATE DATABASE`（实测 1044），需 root 或一次性授权。**建库头两条路径的等价性与幂等性已由组长本机 MySQL 实测**（Issue #147 正文） |
-| **§5.1 六条判据在本机 MySQL 上** | ❌ **本机未实测** | 同上；同口径的实测证据现有两份：SQLite 全量库（`backend/scripts/evidence/system-layer-backend-2026-10-24.md`，43 项断言全过）与组长本机 MySQL `jit_demo`（#147：建库 + 双路径幂等 + 灌数 + 三模型加载 + `total=83943` + 236 期趋势 + 现场预测 8.4s） |
+| **§2.1 的建库脚本在真 MySQL 上跑通**（`SOURCE infra/schema.sql` + 四表 + 排序规则） | ✅ 本机实测 **rc=0** | `mysql -u jit -h 127.0.0.1 < backend/scripts/schema_mysql.sql`（cwd=仓库根，MySQL 8.0.45）→ 退出码 0，自检 `SELECT` 输出 `commit / commit_feature / commit_label / prediction` 四行、`TABLE_COLLATION` 全为 `utf8mb4_unicode_ci`。**账号形态 = 普通账号 `jit`（非 root）**：库已由 root 建出，`CREATE DATABASE IF NOT EXISTS` 短路，所以普通账号也能整条跑通（§6 坑 1 补充）。**仍缺的一步**：从**空实例**首次 `CREATE DATABASE`，需要 root（本机 `jit` 实测 1044、`root` 免密 1045）；`jit_demo` 由用户以 root 建出，我实测其 `DEFAULT_CHARACTER_SET_NAME=utf8mb4`、`DEFAULT_COLLATION_NAME=utf8mb4_unicode_ci`，与脚本指定值逐字一致 |
+| **两条建表路径在同一个 MySQL 库上的等价性与幂等性** | ✅ 本机实测 | DDL 路径 `mysql -u jit -h 127.0.0.1 jit_demo < infra/schema.sql` **连跑两次都 rc=0**；ORM 路径 `python -m app.db init`（经 preflight 的 0a 阶段）在同一个库上 rc=0 且 `_assert_indexes` 通过；单独再跑 `python -c "from app.db import get_engine, _assert_indexes; _assert_indexes(get_engine())"` → `indexes ok` |
+| **§5.1 六条判据 + 判据 1b 在本机 MySQL 上** | ✅ 本机实测 **8/8 通过、rc=0、330 秒** | 见下面「补记 2026-10-25」的完整实测值。同口径另有两份旁证：SQLite 全量库（`backend/scripts/evidence/system-layer-backend-2026-10-24.md`，43 项断言全过）与组长本机 MySQL `jit_demo`（#147 正文） |
 
-拿到 root 或授权后按 §0 走一遍，把结果**只追加、不改写**地补记在本节下方（含日期、账号形态、六条判据的实际值）。
+### 补记 2026-10-25｜本机 MySQL `jit_demo` 实机验收（只追加，不改写上文）
+
+- **环境**：MySQL 8.0.45（Windows 服务 `MySQL80`）、库 `jit_demo`（`utf8mb4` / `utf8mb4_unicode_ci`）、账号 `jit@127.0.0.1`（**普通账号，非 root**；库由用户以 root 建出并 `GRANT ALL ON jit_demo.*`）、conda 环境 `jit-defect-prediction`（Python 3.12.15 / SQLAlchemy 2.0.54 / PyMySQL 1.2.3）、权重目录为已交付的 `data_model/pipelines/expert/models/`（含 2026-10-24 的 rf 收敛版）。
+- **建库脚本**：`mysql -u jit -h 127.0.0.1 < backend/scripts/schema_mysql.sql`（cwd=仓库根）→ **rc=0**，自检 `SELECT` 列出四张表、排序规则全 `utf8mb4_unicode_ci`。
+- **两条建表路径**：DDL 路径连跑两次 **rc=0 / rc=0**（幂等）；ORM 路径（preflight 的 0a 阶段）在同一库上 **rc=0** + `_assert_indexes` 通过，单独复核输出 `indexes ok`。
+- **一条命令全链路**：`python -m scripts.demo_preflight --init-db --ingest --expect-predictions 83943 …` → **8/8 通过、退出码 0、15:16:31 → 15:22:01 共 330 秒**。逐条实际值：
+
+| 阶段 / 判据 | 实际值 |
+|---|---|
+| 0a 建库建表 | 四表 + 索引自检通过（库已由 DDL 路径建好，ORM 路径重跑幂等） |
+| 0b 灌真实数据 | `commits=84461`（87.3s）、`labels=83943`（80.6s）、`features=83943`（66.0s）、`predictions=83943`（82.1s），合计 **336,290 行** |
+| 1 令牌一致 | `API_TOKEN` 与 `VITE_API_KEY` 各 `***（18 字符）`，逐字相等 |
+| 2 库行数 | `prediction=83943`（期望 83943）；`commit=84461`、`commit_label=83943`、`commit_feature=83943` |
+| 3 存在高风险行 | `risk_score >= 0.5` 的行 = **14596** |
+| 4 交付模型全部加载 | `loaded models: ['lr_v1', 'rf_v1', 'xgb_v1']`，无 `failed models:` |
+| 5 四接口 200 | 列表 / 详情 / 趋势 / 预测 四条全 `HTTP 200 code=0` |
+| 6 同 hash 两次预测只留一行 | 两次 POST `200/200`；`(77b260b6…, xgb_v1)` 行数 `1 → 1`；`prediction` 总行数 `83943 → 83943` |
+
+- **判据 1b（特征口径，§4 的判别 SQL）**：`MIN(la) = −12.9443795988`、`MIN(ld) = −12.1697872202`、`MAX(nf) = 9.7939516655`、`SUM(la<0) = 76444`、`COUNT(*) = 83943` → **契约二 v1.2 的对数形态确认**。与 §4 CSV 层实测逐项吻合；小数位比 CSV 少是因为列类型 `DECIMAL(20,10)` 按 10 位截断，属预期。
+- **趋势期数**：`SELECT COUNT(DISTINCT DATE_FORMAT(committed_at,'%Y-%m')) FROM commit_feature` → **236** 期，与组长本机 MySQL 实测一致。
+- **在线重算与库内存量逐位相同**：判据 6 的样本 `77b260b6…` / `xgb_v1`，两次 POST 都返回 **0.79963**，库内原值也是 **0.79963** —— 这正是 §4/§6 坑 9 那个反例的正面对照（同一提交灌 raw 那份时返回 0.82657）。
+- **本轮 `features` 用的是按 §4 投影出的契约形态文件（83,943 行），不是 `commit_features_raw.csv`。**
+- 证据文件（脚本 `--out` 产出，令牌/连接串/CSV 路径全部自动掩码）：连接串在证据里显示为 `mysql+pymysql://jit:***@127.0.0.1:3306/jit_demo?charset=utf8mb4`。
+
+**仍未闭合的一项**：从**空 MySQL 实例**首次执行 `CREATE DATABASE`（需 root）。本机 root 口令不在后端线手上，`jit_demo` 由用户以 root 建出后我只核了它的字符集与排序规则。若要在文档里把这一步也标成「已实测」，需要有 root 的人在**删掉 `jit_demo` 之后**跑一次 §2.1 并记录输出 —— 这属破坏性操作，我不会自行执行。
 
