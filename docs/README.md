@@ -62,7 +62,7 @@
 - 每份写清：**负责范围 / 不越界（找谁）/ 交付物与验收 / 原则 / 签字权 / 现阶段待办**
 
 ### `backend/`（吕建江）
-- `README.md` 总览 ｜ `api-spec.md` 四接口/鉴权/错误码/非功能 ｜ `implementation.md` 四张图+分步 ｜ `openspec-compliance.md` 后端改动走 change ｜ `acceptance.md` 后端验收板块
+- `README.md` 总览 ｜ `api-spec.md` 四接口/鉴权/错误码/非功能 ｜ `implementation.md` 四张图+分步 ｜ `openspec-compliance.md` 后端改动走 change ｜ `acceptance.md` 后端验收板块 ｜ `mysql-setup.md` **MySQL 演示库 `jit_demo`：安装/一条命令建库/`.env`/验收清单/常见坑**（#142）
 
 ### `frontend/`（刘帅华）
 - `README.md` 总览 ｜ `pages.md` 三页面字段映射+三态+阈值 ｜ `implementation.md` 三页面+联调+分步 ｜ `openspec-compliance.md` ｜ `acceptance.md` 前端验收板块
