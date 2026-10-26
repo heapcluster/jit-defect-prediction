@@ -27,7 +27,7 @@ def get_engine() -> Engine:
 
 
 def configure_engine(engine: Engine) -> None:
-    """测试用：注入自定义 engine（SQLite 内存库）。"""
+    """测试用：注入自定义 engine（如 MySQL 测试库 jit_test）。"""
     global _engine
     _engine = engine
     SessionLocal.configure(bind=engine)

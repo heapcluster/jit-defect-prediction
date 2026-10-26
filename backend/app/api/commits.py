@@ -103,7 +103,9 @@ def list_commits(
             stmt = stmt.where(Commit.committed_at <= end)
         total = session.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
         window = session.execute(
-            stmt.order_by(Prediction.risk_score.desc()).offset((page - 1) * size).limit(size)
+            # risk_score 相同时按 commit_hash 兜底排序：等值分页跨页才不会重复/漏行
+            stmt.order_by(Prediction.risk_score.desc(), Prediction.commit_hash.asc())
+            .offset((page - 1) * size).limit(size)
         ).all()
         items = [
             {

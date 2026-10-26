@@ -1,6 +1,18 @@
-"""Swagger 实现镜像（tasks 5.1）：openapi 路径与参数名逐字对齐契约三 1.5。"""
+"""Swagger 实现镜像（tasks 5.1）：openapi 路径与参数名逐字对齐契约三。
+
+契约三原有五条路径；realtime-pr-prediction（PR 实时预测）又登记了三条：
+`POST /api/sync-prs`、`GET /api/prs`、`GET /api/prs/{number}`
+（api-spec.md §5 同步登记，版本见该文件头）。
+路径集仍是「一条不多一条不少」的精确断言 —— 新增端点必须同步改这里与契约，
+不允许静默多出路径。
+"""
 
 from tests.conftest import HEADERS
+
+CONTRACT_PATHS = {
+    "/api/commits", "/api/commits/{commit_hash}", "/api/trends", "/api/predict", "/api/sync",
+}
+PR_PATHS = {"/api/sync-prs", "/api/prs", "/api/prs/{number}"}
 
 
 def _schema(client):
@@ -9,9 +21,7 @@ def _schema(client):
 
 def test_paths_match_contract(client):
     paths = set(_schema(client)["paths"])
-    assert paths == {
-        "/api/commits", "/api/commits/{commit_hash}", "/api/trends", "/api/predict", "/api/sync",
-    }
+    assert paths == CONTRACT_PATHS | PR_PATHS
 
 
 def test_sync_is_post_with_limit(client):
@@ -33,6 +43,48 @@ def test_trends_params_match_contract(client):
 
 def test_predict_is_post(client):
     assert "post" in _schema(client)["paths"]["/api/predict"]
+
+
+def test_pr_endpoints_methods_and_params_match_contract(client):
+    """PR 三条端点的方法与查询参数逐字对齐（api-spec §5）。
+
+    `x-api-key` 是鉴权头（契约三 §1），经 router 级 dependencies 声明进 OpenAPI，故在参数列表里。
+    """
+    doc = _schema(client)
+    assert set(doc["paths"]["/api/sync-prs"]) == {"post"}
+    assert {p["name"] for p in doc["paths"]["/api/sync-prs"]["post"]["parameters"]} == {
+        "limit", "x-api-key",
+    }
+    for path in ("/api/prs", "/api/prs/{number}"):
+        assert set(doc["paths"][path]) == {"get"}, path
+        params = {p["name"] for p in doc["paths"][path]["get"]["parameters"]}
+        assert "model_name" in params and "x-api-key" in params, path
+        if path == "/api/prs":
+            assert "limit" in params, path
+
+
+def test_prs_response_fields_match_contract(client):
+    doc, data = _data_props(client, "/api/prs")
+    assert _keys(doc, data) == {"items", "model_name", "skipped"}
+    assert _keys(doc, data["properties"]["items"]["items"]) == {
+        "number", "title", "author", "state", "html_url", "updated_at",
+        "risk_score", "commit_count", "predicted_count", "predicted_at",
+    }
+
+
+def test_pr_detail_response_fields_match_contract(client):
+    doc, data = _data_props(client, "/api/prs/{number}")
+    assert _keys(doc, data) == {
+        "number", "title", "author", "state", "html_url", "updated_at", "model_name", "commits",
+    }
+    assert _keys(doc, data["properties"]["commits"]["items"]) == {
+        "sha", "message", "author", "risk_score", "predicted_at",
+    }
+
+
+def test_sync_prs_response_fields_match_contract(client):
+    doc, data = _data_props(client, "/api/sync-prs", "post")
+    assert _keys(doc, data) == {"prs_scanned", "commits_predicted", "prs", "skipped"}
 
 
 def _data_props(client, path, method="get"):

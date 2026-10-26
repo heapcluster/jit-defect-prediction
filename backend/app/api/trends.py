@@ -36,7 +36,10 @@ def trends(
 
     with SessionLocal() as session:
         model = model_name or default_model_in_table(session)
-        stmt = select(Prediction, Commit).join(Commit, Commit.commit_hash == Prediction.commit_hash)
+        # 只取两列标量，不物化 Prediction / Commit 两个 ORM 实体：演示库是 8.4 万行 ×
+        # 2 个实体的量级，物化整表会把内存吃满（口径不变，仍逐行分桶）。
+        stmt = select(Prediction.risk_score, Commit.committed_at).join(
+            Commit, Commit.commit_hash == Prediction.commit_hash)
         if model is not None:
             stmt = stmt.where(Prediction.model_name == model)
         if start is not None:
@@ -46,8 +49,8 @@ def trends(
         rows = session.execute(stmt).all()
 
     buckets: dict[str, list[float]] = {}
-    for prediction, commit in rows:
-        buckets.setdefault(_period(commit.committed_at, granularity), []).append(float(prediction.risk_score))
+    for risk_score, committed_at in rows:
+        buckets.setdefault(_period(committed_at, granularity), []).append(float(risk_score))
     series = [
         {
             "period": period,

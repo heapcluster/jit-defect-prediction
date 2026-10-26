@@ -86,7 +86,7 @@ frontend ──HTTP──▶ backend ──读 .pkl / 调 .py──▶ data_mode
 ## 5. 运行时视图（三条主链路）
 
 **① 在线查询（读）**
-前端 → `GET /api/commits` / `/api/commits/{hash}` / `/api/trends` → ORM → MySQL/SQLite → 统一包络返回。
+前端 → `GET /api/commits` / `/api/commits/{hash}` / `/api/trends` → ORM → MySQL → 统一包络返回。
 
 **② 在线预测（写 + 算）**
 `POST /api/predict`（单条）或 `POST /api/sync`（批量拉取最新提交）→
@@ -121,4 +121,4 @@ Camel 仓库 → 抽取提交 → SZZ 打标 → 14 项特征 → 时间序切�
 | 模型接入 | 文件交付 + 注册表插件化 | 训练与在线解耦，训练口径变化不影响接口 |
 | 模型数量 | 训练 8 个、在线 8 个 | 课程「至少 2 类不少于 8 种」，且已裁定全部上线 |
 | 归因能力 | 与预测能力分离 | 不把秒级 KernelSHAP 放进 500ms 请求路径 |
-| 数据库 | ORM + 单一 DATABASE_URL 配置 | 本地 SQLite / 部署 MySQL 只换连接串 |
+| 数据库 | ORM + 单一 DATABASE_URL 配置 | 统一 MySQL，联调 / 演示 / 验收同一套 |

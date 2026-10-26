@@ -1,6 +1,6 @@
 # 后端接口规格（API Spec）
 
-> 来源：契约三（已并入本文件）**v1.6**（原 `docs/contracts/api-format.md`，已冻结 2026-09-19；v1.5 = 2026-10-11 补记时间区间语义，PR #62 / Issue #61；**v1.6 = 2026-10-25 新增 §5 `POST /api/sync` 批量同步，路径数 4→5，来源 change `realtime-commit-sync`，裁定：蒋励**）｜ 维护：吕建江
+> 来源：契约三（已并入本文件）**v1.7**（原 `docs/contracts/api-format.md`，已冻结 2026-09-19；v1.5 = 2026-10-11 补记时间区间语义，PR #62 / Issue #61；v1.6 = 2026-10-25 新增 §5 `POST /api/sync` 批量同步，路径数 4→5，来源 change `realtime-commit-sync`，裁定：蒋励；**v1.7 = 2026-10-25 新增 §6~§8 PR 实时预测三条端点（路径数 5→8），并把 §4 的在线模型清单口径回填为 #153 后的 8 模型**）｜ 维护：吕建江
 > **本文件是后端实现的唯一接口依据。冻结后改动走契约变更流程，不许口头改、不许前端/后端各写一份。**
 
 ## 一、通用约定
@@ -32,7 +32,7 @@
 | 40400 | 404 | 目标不存在 | `commit not found` |
 | 50000 | 500 | 服务内部错误 | `internal error`（**不得回显堆栈/SQL/路径**） |
 
-## 三、五个接口
+## 三、八个接口
 
 ### 1. `GET /api/commits` —— 风险列表
 请求：`page` `size` `min_risk` `model_name` `start_time` `end_time`
@@ -55,7 +55,7 @@
 ### 4. `POST /api/predict` —— 在线预测（课程硬要求：对外在线预测服务）
 请求体：`{ "commit_hash": "40位十六进制", "model_name"?: "默认最新" }`
 响应 `data`：`commit_hash` `model_name` `risk_score` `predicted_at` `features{14项}` `explanation[]`（结构与第 2 节一致）。
-- 本次演示的在线模型以 `MODEL_DIR/feature_order.txt` 的 `[models]` 段为准（当前 `lr_v1` / `rf_v1` / `xgb_v1`）；目录内其他训练权重不进入注册表。清单缺失或 `[feature_order]` 与契约二 14 项顺序不一致时，注册表保持空并记录服务端错误；查询接口仍可用，预测返回 50000。
+- 本次演示的在线模型以 `MODEL_DIR/feature_order.txt` 的 `[models]` 段为准（当前 expert 全量 8 个：`lr_v1` / `rf_v1` / `xgb_v1` / `lgbm_v1` / `et_v1` / `svm_v1` / `mlp_deep_v1` / `tabnet_v1`，#153 组长裁定）；目录内其他训练权重不进入注册表。清单缺失或 `[feature_order]` 与契约二 14 项顺序不一致时，注册表保持空并记录服务端错误；查询接口仍可用，预测返回 50000。
 - `features` 给**口径处理后的值**（除 `fix` 外取自然对数；`la/ld/lt/nuc` 先归一化）。
 - 可配置 `SOURCE_REPO` 指向本地 Git 仓库副本（路径由服务端 `.env` 设置，不接受请求方传入）。提交或特征行缺失时，后端调用 `data_model/preparation/03_extract_features.py` 的单条 v1 入口，现算 14 项、落 `commit`/`commit_feature` 后实时推理；仓库 HEAD 必须包含目标非合并提交。未配置来源时保留原有只查库行为。
 - 错误：缺哈希/非 40 位 → `40001`；未配置来源且哈希不在 `commit` 表，或已配置来源但目标不可达 → `40400`；仓库路径失效/抽取内部失败、模型加载失败 → `50000`（只写日志不回显路径）。
@@ -70,6 +70,26 @@
 - 可选 `SYNC_ON_STARTUP=1`：服务启动后台预同步一次，失败只记日志不阻塞启动。
 - **不做 PR 状态跟踪与删除**（预测对象是 commit；close/merged 的生命周期标记另行 change）。
 - **耗时口径**：本端点不适用 500ms 靶子（§四 的性能靶子只针对 `POST /api/predict` 单条）。单条含全量历史扫描 + SHAP，实测约 3~8s/条（取决于 SOURCE_REPO 历史深度）；`limit=50` 最坏约数分钟且 HTTP 同步挂起 —— 演示与验收一律用 `SYNC_ON_STARTUP=1` 启动预同步或小 `limit`，不现场发大 limit。
+
+### 6. `POST /api/sync-prs` —— 拉取 Camel open PR 并实时预测入库（change `realtime-pr-prediction`）
+请求：`limit`（默认 10，上限 50，越界 `40001`）。
+响应 `data`：`prs_scanned` / `commits_predicted` / `prs[]`（每项 `pr` `title` `commits_predicted`）/ `skipped[]`（每项 `pr` + `reason` 或 `commit` `code` `message`）。
+- 行为：拉 GitHub 公开仓库的 open PR 清单 → 逐 PR `git fetch origin pull/<n>/head`（仅取对象，不 checkout，SOURCE_REPO 检出状态不变）→ 取该 PR 提交清单 → **逐提交复用 §4 的单条多模型链路**（一次现算特征、逐模型打分落 `prediction`）；本端点 MUST NOT 引入新的预测口径。
+- `SOURCE_REPO` 未配置或失效 → `40400`；单 PR fetch 失败、单提交预测失败计入 `skipped` 不中断整批；PR 清单来自 GitHub REST API（`GITHUB_REPO`，未配 `GITHUB_TOKEN` 时受匿名限额约束）。
+- **耗时口径同 §5**：不适用 500ms 靶子；单 PR 即多条提交 × 8 模型，`limit=30` 必然超过 10s，调用方必须放宽超时。
+
+### 7. `GET /api/prs` —— open PR 聚合风险列表（change `realtime-pr-prediction`）
+请求：`limit`（默认 20，上限 50）/ `model_name`（默认取全局默认模型，不在清单 → `40001`）。
+响应 `data`：`items[]`（每项 `number` `title` `author` `state` `html_url` `updated_at` `risk_score` `commit_count` `predicted_count` `predicted_at`）/ `model_name` / `skipped`（聚合失败的 PR 数）。
+- `risk_score` = 该 PR 各提交在指定模型下的**最高**风险分（无预测为 `null`，不得用 0.0 冒充）；`predicted_at` 为该 PR 最新一条预测的时间，ISO 8601 带 `Z`。
+- **纯只读**：数据来自 GitHub API + `prediction` 表，**不依赖 `SOURCE_REPO`** —— 未配置历史索引时本端点照常返回库内已有数据，不得 40400。
+- 单个 PR 的提交清单拉取失败只计入 `skipped`，其余 PR 照常返回，不整端 50000。
+
+### 8. `GET /api/prs/{number}` —— 单个 PR 的提交级风险明细（change `realtime-pr-prediction`）
+请求：`model_name`（口径同 §7）。
+响应 `data`：`number` `title` `author` `state` `html_url` `updated_at` `model_name` / `commits[]`（每项 `sha` `message` `author` `risk_score` `predicted_at`，按 PR 内提交时间正序）。
+- `commits[]` 与 GitHub 返回的提交清单一对应：库内无预测的提交 `risk_score`/`predicted_at` 为 `null`（「尚未预测」，不得 40400、不得用 0.0 冒充）；`message` 截断至 200 字符。
+- 同 §7：纯只读，不依赖 `SOURCE_REPO`；PR 不存在按上游 404 映射 `50000`（不回显 GitHub 细节）。
 
 ## 四、非功能要求与验证（必须有可出示证据）
 
@@ -87,4 +107,5 @@
 | 日期 | 版本 | 变更人 | 主要变更 |
 |---|---|---|---|
 | 2026-10-25 | 1.6 | 蒋励（组长，代后端线起草，吕建江复核） | **§三「四个接口」→「五个接口」，新增 §5 `POST /api/sync` 批量同步**（change `realtime-commit-sync`）：fetch SOURCE_REPO → 挑新哈希 → 逐条复用 §4 单条链路；错误码用冻结集合；幂等 `new=0`；并发互斥；`SYNC_ON_STARTUP` 可选启动同步。**不做 PR 状态清理**（另行 change）、不承诺 500ms 靶子。§四安全行改为「全部接口」 |
+| 2026-10-25 | 1.7 | 蒋励（组长，代后端线起草，吕建江复核） | **§三「五个接口」→「八个接口」，新增 §6~§8 PR 实时预测三条端点**（change `realtime-pr-prediction`）：`POST /api/sync-prs` 拉 open PR 逐提交复用 §4 多模型链路；`GET /api/prs` / `GET /api/prs/{number}` 只读查询（不依赖 SOURCE_REPO、逐 PR 失败隔离、`predicted_at` 带 Z）。**§4 在线模型清单口径回填为 #153 后的 8 模型**（原写 3 个，与 `feature_order.txt` 不一致）。§四安全行已覆盖「全部接口」，不再另改 |
 | 2026-10-11 | 1.5 | 吕建江 | **补记时间区间语义（口径补充，0.1 步进）**：§一 新增「时间范围语义」行（闭区间 + 纯日期串 end 含结束日全天 + 紧凑基本格式拒收 40001 + 前端 MUST NOT 调用侧补丁及理由）。修复 Issue #61（结束日丢数据）。行为变化：end 纯日期串查询结果含结束日全天；紧凑格式由静默 00:00 改拒收。PR #62。1.5 以前的历史见 `docs/contracts/api-format.md` 的 git 历史（该目录已于 #55 重组移除） |

@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app import config, model_registry
-from app.api import commits, predict, sync, trends
+from app.api import commits, predict, prs, sync, trends
 from app.db import get_engine
 from app.errors import register_error_handlers
 
@@ -51,6 +51,7 @@ def create_app() -> FastAPI:
     app.include_router(trends.router)
     app.include_router(predict.router)
     app.include_router(sync.router)
+    app.include_router(prs.router)
     return app
 
 

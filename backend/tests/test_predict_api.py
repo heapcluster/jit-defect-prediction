@@ -1,6 +1,8 @@
 import os
 import subprocess
 
+from sqlalchemy import func, select
+
 from app import config, model_registry
 from app.db import SessionLocal
 from app.models import Commit, CommitFeature, Prediction
@@ -130,7 +132,23 @@ def test_predict_uppercase_hash_uses_normalized_key(client):
     resp = client.post("/api/predict", json={"commit_hash": C1.upper()}, headers=HEADERS)
     assert resp.status_code == 200
     assert resp.json()["data"]["commit_hash"] == C1
-    # 大写与小写必须落在同一个 (commit_hash, model_name) 键上：库里只留一行、且是小写哈希
+    # 大写与小写必须落在同一个 (commit_hash, model_name) 键上：库里只留一行、且是小写哈希。
+    # 注意：MySQL 默认 utf8mb4_0900_ai_ci 排序规则下 `=` 比较大小写不敏感，
+    # 「按大写查得 0 行」这种大小写敏感断言在 MySQL 上永远不成立（SQLite 上才成立），
+    # 故用 BINARY 比较单独验大写不落行、再验落库值全为小写。
     client.post("/api/predict", json={"commit_hash": C1}, headers=HEADERS)
     assert _rows_for(C1, "fixture_v2") == 1
-    assert _rows_for(C1.upper(), "fixture_v2") == 0
+    with SessionLocal() as session:
+        upper_rows = session.execute(
+            select(func.count()).select_from(Prediction).where(
+                func.binary(Prediction.commit_hash) == C1.upper(),
+                Prediction.model_name == "fixture_v2",
+            )
+        ).scalar_one()
+        stored = session.execute(
+            select(Prediction.commit_hash).where(
+                Prediction.commit_hash == C1, Prediction.model_name == "fixture_v2"
+            )
+        ).scalars().all()
+    assert upper_rows == 0, "大写哈希不得单独落一行"
+    assert stored and all(h == h.lower() for h in stored), "落库哈希必须归一化为小写"

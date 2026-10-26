@@ -44,7 +44,7 @@
 
 **目标**：前端能在浏览器里把「列表 → 详情 → 重新预测 → 趋势」跑通，中间不出现 500。
 
-1. **建表**：演示 / 验收库名固定 **`jit_demo`**（Issue #130 更正裁定、#142），一条命令建好库与四张表 —— `mysql -u root -p < backend/scripts/schema_mysql.sql`（cwd = **仓库根**；脚本 = 建库 + `USE jit_demo` + `SOURCE infra/schema.sql`，权限与常见报错见 `docs/backend/mysql-setup.md` §2）。四表 DDL 的**单一来源仍是 `infra/schema.sql`**：它必须保持「纯四表、可导入任意目标库」，**不要往里加 `CREATE DATABASE` / `USE`** —— 加了会静默改写调用方指定的目标库（本条命令与 Issue #121 的 `jit_schema_probe` / `jit_orm_probe` 两个探针库都走这一份文件），并被 `backend/tests/test_schema_sql.py` 判红。`python -m app.db init` 作为等价性校验，两条路径都必须通过索引自检。日常**联调**库不是它：见 `docs/frontend/integration-log.md` §0（SQLite `backend/dev.db`）。
+1. **建表**：演示 / 验收库名固定 **`jit_demo`**（Issue #130 更正裁定、#142），一条命令建好库与四张表 —— `python infra/setup_mysql.py`（一键建库 + 建表，权限与常见报错见 `docs/backend/mysql-setup.md` §2）。四表 DDL 的**单一来源仍是 `infra/schema.sql`**：它必须保持「纯四表、可导入任意目标库」，**不要往里加 `CREATE DATABASE` / `USE`** —— 加了会静默改写调用方指定的目标库（本条命令与 Issue #121 的 `jit_schema_probe` / `jit_orm_probe` 两个探针库都走这一份文件），并被 `backend/tests/test_schema_sql.py` 判红。`python -m app.db init` 作为等价性校验，两条路径都必须通过索引自检。日常**联调**库也是它（`jit_demo`，与演示/验收同一套）：见 `docs/frontend/integration-log.md` §0。
 2. **数据**：依次执行 4 次 `python -m app.ingest {commits|labels|features|predictions} <csv>`，打印并留档每类入库行数。
 3. **模型**：`MODEL_DIR` 指向 `data_model/pipelines/expert/models/`；**在线模型集 = 该目录 `feature_order.txt` 的 `[models]` 段**（已合并的 #96 定义的唯一来源，当前声明 `lr_v1` / `rf_v1` / `xgb_v1`）。清单内声明的模型必须全部加载成功，启动日志不得出现 `model load failed` 或 `failed models:`。
    - 目录内另有 5 个权重（`lgbm_v1` / `et_v1` / `svm_v1` / `mlp_deep_v1` / `tabnet_v1`），登记在 `feature_order.txt` 的 **`[evaluated]` 段**（#98）：只进评估、不进交付，按冻结规格 `openspec/specs/model-coverage` R6「新增模型 MUST NOT 进入后端加载清单」不参与在线加载，**不属于本板块验收对象**。
