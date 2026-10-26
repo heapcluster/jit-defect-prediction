@@ -25,6 +25,7 @@ from app.api.predict import predict_commit_all_models
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import INTERNAL_ERROR_MESSAGE, AppError, ok
+from app.explain import explain_label
 from app.models import Commit, CommitFeature, Prediction
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
@@ -106,22 +107,7 @@ def get_pr_risk_level(risk_score: float | None) -> str | None:
     return "低"
 
 
-_FEATURE_LABELS = {
-    "la": "代码改动量大",
-    "nf": "改动文件多",
-    "ld": "删除代码多",
-    "lt": "测试改动少",
-    "exp": "作者历史经验低",
-    "sexp": "作者近期经验低",
-    "rexp": "作者项目经验低",
-    "ns": "变更子系统多",
-    "nd": "变更目录多",
-    "entropy": "改动分散",
-    "nuc": "近期改动频繁",
-    "ndev": "涉及开发者多",
-    "age": "文件陈旧",
-    "fix": "历史修复标记",
-}
+# 因子中文名统一取自 app.explain.FEATURE_LABELS（MUST NOT 各处各维护一份字典）
 
 
 def build_pr_reason(explanation: list[dict]) -> str | None:
@@ -131,7 +117,7 @@ def build_pr_reason(explanation: list[dict]) -> str | None:
         return None
     inc.sort(key=lambda e: -e["contribution"])
     picks = inc[:2]
-    return "、".join(_FEATURE_LABELS.get(e["feature"], e["feature"]) for e in picks) + "（风险偏高）"
+    return "、".join(explain_label(e["feature"]) for e in picks) + "（风险偏高）"
 
 
 def _pr_reason(pr_number: int, model_name: str, top_hash: str | None) -> str | None:

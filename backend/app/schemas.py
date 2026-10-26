@@ -9,6 +9,16 @@ class ExplanationItem(BaseModel):
     feature: str
     contribution: float
     direction: str
+    # 因子中文名（app.explain.FEATURE_LABELS）；未知因子回退原名
+    label: str = ""
+
+
+class LabelData(BaseModel):
+    """人工反馈标签（feedback capability）：`label_method="manual"` 的那一行。"""
+
+    commit_hash: str
+    is_defect: bool
+    labeled_at: str | None
 
 
 class CommitItem(BaseModel):
@@ -42,6 +52,7 @@ class DetailData(BaseModel):
     model_name: str | None
     features: dict[str, float | int] | None
     explanation: list[ExplanationItem]
+    label: LabelData | None = None
 
 
 class DetailResponse(BaseModel):
@@ -164,3 +175,29 @@ class PrDetailResponse(BaseModel):
     code: int
     message: str
     data: PrDetailData
+
+
+class LabelResponse(BaseModel):
+    code: int
+    message: str
+    data: LabelData
+
+
+class HealthData(BaseModel):
+    """健康检查与运行状态（observability capability）。"""
+
+    status: str
+    db: str
+    models_loaded: int
+    model_names: list[str]
+    commit_count: int
+    prediction_count: int
+    labeled_count: int
+    last_sync_at: str | None
+    server_time: str
+
+
+class HealthResponse(BaseModel):
+    code: int
+    message: str
+    data: HealthData

@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app import config, feature_source, model_registry, schemas
+from app.explain import with_labels
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import INTERNAL_ERROR_MESSAGE, AppError, ok
@@ -99,7 +100,7 @@ def predict_commit(body: PredictRequest, repo=None) -> dict:
 
         vector = [float(getattr(feature, name)) for name in config.FEATURE_COLUMNS]
         risk = model_registry.predict_proba(entry.model, vector)
-        explanation = model_registry.explain(entry, vector)
+        explanation = with_labels(model_registry.explain(entry, vector))
         predicted_at = datetime.now(UTC).replace(tzinfo=None)
 
         # design D7：聊天第三条「A 与 C 写同一张 prediction 表」+ 契约三「只保留最新一行」

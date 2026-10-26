@@ -99,6 +99,46 @@
         </span>
       </div>
 
+      <!-- 人工反馈闭环：把「这条提交到底有没有引入缺陷」回流成标签（feedback capability）。
+           撤销 = 再次提交 is_defect=false（保留「已确认非缺陷」的事实，不删历史标签行） -->
+      <div class="feedback-bar">
+        <span class="k">人工确认</span>
+        <el-tag
+          v-if="label"
+          :type="label.is_defect ? 'danger' : 'success'"
+        >
+          {{ label.is_defect ? '已确认：引入缺陷' : '已确认：非缺陷' }}
+        </el-tag>
+        <el-tag
+          v-else
+          type="info"
+        >
+          未标记
+        </el-tag>
+        <el-button
+          size="small"
+          :type="label && label.is_defect ? 'default' : 'danger'"
+          :loading="labeling"
+          @click="mark(true)"
+        >
+          标记为引入缺陷
+        </el-button>
+        <el-button
+          v-if="label"
+          size="small"
+          :loading="labeling"
+          @click="mark(false)"
+        >
+          撤销标记
+        </el-button>
+        <span
+          v-if="label && label.labeled_at"
+          class="predicted-at"
+        >
+          标记于 {{ formatDateTime(label.labeled_at) }}
+        </span>
+      </div>
+
       <!-- 元信息：label 固定宽度、值自动换行（提交信息常有换行，表格布局会被压成竖排） -->
       <div class="meta">
         <div class="row">
@@ -131,7 +171,13 @@
             :key="e.feature"
             class="e"
           >
-            <span class="f">{{ e.feature }}</span>
+            <!-- 因子中文名（app.explain.FEATURE_LABELS）；hover tooltip 保留原始缩写 -->
+            <el-tooltip
+              :content="e.feature"
+              placement="top"
+            >
+              <span class="f">{{ e.label || e.feature }}</span>
+            </el-tooltip>
             <div class="track">
               <i
                 :class="e.direction"
@@ -174,7 +220,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { getCommitDetail, postPredict } from '../api'
+import { getCommitDetail, postPredict, putCommitLabel } from '../api'
 import { ElMessage } from 'element-plus'
 import { riskColor, riskTag, riskLabel } from '../utils/risk'
 import { MODELS } from '../utils/models'
@@ -196,6 +242,10 @@ const models = MODELS
 const predictModel = ref('')
 const predicting = ref(false)
 const forbidden = ref(false)
+
+// 人工反馈闭环（feedback capability）：把预测的事后确认回流成标签
+const labeling = ref(false)
+const label = computed(() => detail.value?.label || null)
 
 const featureGroups = FEATURE_GROUPS
 
@@ -272,6 +322,21 @@ async function predict() {
   }
 }
 
+// 人工反馈：标记为引入缺陷 / 撤销（撤销 = is_defect=false，保留「已确认非缺陷」事实）
+async function mark(isDefect) {
+  if (!detail.value) return
+  labeling.value = true
+  try {
+    const data = await putCommitLabel(detail.value.commit_hash, isDefect)
+    detail.value = { ...detail.value, label: data }
+    ElMessage.success(isDefect ? '已标记为引入缺陷' : '已撤销标记')
+  } catch (e) {
+    ElMessage.error(errText(e))
+  } finally {
+    labeling.value = false
+  }
+}
+
 onMounted(load)
 // 路由参数变化时重载：/commit/:hash 换 hash 时组件会复用，
 // 不重载就会显示上一条提交的详情（2026-10-25 修复）
@@ -327,9 +392,19 @@ watch(() => props.hash, () => {
   align-items: center;
   gap: 10px;
 }
+.feedback-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+}
+.feedback-bar .k {
+  color: #6b7280;
+  font-size: 13px;
+}
 .e .f {
-  width: 90px;
-  font-family: monospace;
+  width: 110px;
+  font-size: 13px;
 }
 .e .track {
   flex: 1;
