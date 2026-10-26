@@ -54,6 +54,7 @@ cd data_model; python -m pipelines.verify_all_weights --check
 ```bash
 python infra/setup_mysql.py            # 读 backend/.env，建 jit_demo + 测试库 jit_test 并跑 schema.sql
 python infra/setup_mysql.py --seed     # 额外灌 3 提交 / 3 特征 / 3 预测起步数据
+python infra/bootstrap_dev.py          # 用仓库内 CSV 灌 3000 条真实提交并预跑预测（三页立刻有数据）
 ```
 
 脚本会先尝试启动本机 MySQL 服务（Windows / Linux / macOS 各自一行命令），再建库、建应用用户 `jit`、执行 `infra/schema.sql` 建四张表。若 `jit` 无建库权限，加 `--root-password <pwd>` 由 root 代建并授权。

@@ -1,7 +1,5 @@
 <template>
   <div>
-    <h2>风险列表</h2>
-
     <!-- 筛选栏 -->
     <el-form
       :inline="true"
@@ -83,7 +81,7 @@
     >
       <el-table-column
         label="风险"
-        width="130"
+        width="150"
       >
         <template #default="{ row }">
           <div class="risk-cell">
@@ -125,7 +123,8 @@
       <el-table-column
         prop="author_name"
         label="作者"
-        width="110"
+        width="140"
+        show-overflow-tooltip
       />
       <el-table-column
         label="提交时间"
@@ -296,7 +295,8 @@ watch(() => route.query, applyQueryAndLoad)
 .risk-pct {
   font-family: monospace;
   font-weight: 600;
-  min-width: 44px;
+  min-width: 52px;
+  white-space: nowrap;
 }
 .mono {
   font-family: monospace;

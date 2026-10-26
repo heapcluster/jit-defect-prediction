@@ -7,7 +7,6 @@
       >
         ← 返回列表
       </el-button>
-      <h2>提交详情</h2>
     </div>
 
     <!-- 请求失败 -->
@@ -92,29 +91,33 @@
         >
           重新预测
         </el-button>
-        <span class="predicted-at">
+        <span
+          v-if="detail.predicted_at"
+          class="predicted-at"
+        >
           预测时间 {{ formatDateTime(detail.predicted_at) }}
         </span>
       </div>
 
-      <!-- 元信息 -->
-      <el-descriptions
-        :column="2"
-        border
-      >
-        <el-descriptions-item label="提交哈希">
-          <span class="mono">{{ detail.commit_hash }}</span>
-        </el-descriptions-item>
-        <el-descriptions-item label="作者">
-          {{ detail.author_name }}
-        </el-descriptions-item>
-        <el-descriptions-item label="提交时间">
-          {{ formatTime(detail.committed_at) }}
-        </el-descriptions-item>
-        <el-descriptions-item label="提交信息">
-          {{ detail.message }}
-        </el-descriptions-item>
-      </el-descriptions>
+      <!-- 元信息：label 固定宽度、值自动换行（提交信息常有换行，表格布局会被压成竖排） -->
+      <div class="meta">
+        <div class="row">
+          <span class="k">提交哈希</span>
+          <span class="v mono">{{ detail.commit_hash }}</span>
+        </div>
+        <div class="row">
+          <span class="k">作者</span>
+          <span class="v">{{ detail.author_name }}</span>
+        </div>
+        <div class="row">
+          <span class="k">提交时间</span>
+          <span class="v">{{ formatTime(detail.committed_at) }}</span>
+        </div>
+        <div class="row">
+          <span class="k">提交信息</span>
+          <span class="v msg">{{ detail.message }}</span>
+        </div>
+      </div>
 
       <!-- 风险解释：尚未预测时整区不显示（「未提供解释」空态只在 risk_score 非空时出） -->
       <template v-if="!isNotPredicted">
@@ -161,7 +164,7 @@
             class="feat"
           >
             <span class="k">{{ f }}</span>
-            <span class="v">{{ features[f] ?? '—' }}</span>
+            <span class="v">{{ featureValue(features[f]) }}</span>
           </div>
         </div>
       </div>
@@ -207,14 +210,27 @@ const explanation = computed(() => {
     .slice(0, 8)
 })
 
-// 0.3 是解释条最大贡献度的可视化刻度（归一用），与风险阈值 0.3 无关
+// 按本次展示项的最大 |contribution| 归一：固定刻度（如 0.3）会让真实贡献值全部顶格，
+// 条长就失去区分度（本机实测 nf=+2.30 时前 8 项全是 100%）。
+const maxContribution = computed(() =>
+  Math.max(...explanation.value.map((e) => Math.abs(e.contribution)), 0.000001)
+)
+
 function barWidth(contribution) {
-  const pct = Math.min(Math.abs(contribution) / 0.3, 1) * 100
+  const pct = (Math.abs(contribution) / maxContribution.value) * 100
   return pct.toFixed(0) + '%'
 }
 
 function signed(v) {
   return (v > 0 ? '+' : '') + v.toFixed(2)
+}
+
+// 特征值保留 4 位小数：契约二的 ln/归一化值有 10 位以上，全量显示只会干扰阅读
+function featureValue(value) {
+  if (value === null || value === undefined) return '—'
+  const number = Number(value)
+  if (Number.isNaN(number)) return String(value)
+  return Number.isInteger(number) ? String(number) : number.toFixed(4)
 }
 
 async function load() {
@@ -334,10 +350,39 @@ watch(() => props.hash, () => {
   background: #4e9b68;
 }
 .e .val {
-  width: 56px;
+  width: 68px;
   text-align: right;
+  white-space: nowrap;
   font-family: monospace;
   color: #6b7280;
+}
+.meta {
+  border: 1px solid #e2e5ea;
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 0 0 20px;
+}
+.meta .row {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #eef0f4;
+}
+.meta .row:last-child {
+  border-bottom: none;
+}
+.meta .k {
+  color: #6b7280;
+  font-size: 13px;
+}
+.meta .v {
+  min-width: 0;
+  word-break: break-word;
+}
+.meta .msg {
+  white-space: pre-wrap;
+  line-height: 1.6;
 }
 .group {
   margin-bottom: 12px;

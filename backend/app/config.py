@@ -12,7 +12,7 @@ load_dotenv()
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# ── 数据库连接：分字段配置（推荐），显式 DATABASE_URL 仍可整段覆盖 ──
+# ── 数据库连接：MySQL，分字段配置（口令单独一格、免转义）─────────────────────
 # 为什么要分字段：`mysql+pymysql://user:pwd@host/db` 里口令只要含 `@ : / # ? %` 就必须做
 # 百分号编码，手写几乎必错（写错的表现是「连不上」或「连上了别的库」）。分开填则原样写入，
 # 由本模块负责编码 —— 用户只关心「账号是什么、口令是什么」。
@@ -36,7 +36,7 @@ def _with_database(url: str, database: str) -> str:
 
 
 def build_database_url(database: str | None = None) -> str:
-    """按分字段拼 DSN；显式 `DATABASE_URL` 优先（CI / 容器一行搞定）。缺字段返回空串。
+    """按分字段拼 MySQL DSN；显式 `DATABASE_URL` 优先（CI / 容器一行搞定）。缺字段返回空串。
 
     `database` 非空时覆盖库名：pytest 用它把 `DB_NAME` 换成 `DB_TEST_NAME`。
     """

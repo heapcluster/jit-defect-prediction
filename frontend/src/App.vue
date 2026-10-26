@@ -20,7 +20,10 @@
       </el-menu>
     </el-header>
     <el-main class="main">
-      <h1 class="page-title">
+      <h1
+        v-if="pageTitle"
+        class="page-title"
+      >
         {{ pageTitle }}
       </h1>
       <router-view />
@@ -45,13 +48,16 @@ const activeMenu = computed(() => {
   return '/'
 })
 
+// 页头标题由布局统一提供，页面内不再重复写 h2（2026-10-26 去重）
 const pageTitle = computed(() => {
   const path = route.path
   if (path.startsWith('/prs/')) return 'PR 详情'
   if (path.startsWith('/prs')) return 'PR 列表'
   if (path.startsWith('/commit/')) return '提交详情'
   if (path.startsWith('/trend')) return '缺陷引入趋势'
-  return '风险列表'
+  if (path === '/') return '风险列表'
+  // 未知路径交给 404 页自己说明，布局层不再冒出一个不相干的标题
+  return ''
 })
 </script>
 
@@ -74,7 +80,7 @@ const pageTitle = computed(() => {
   border-bottom: none;
 }
 .main {
-  max-width: 1100px;
+  max-width: 1280px;
   margin: 0 auto;
   width: 100%;
 }
@@ -82,5 +88,7 @@ const pageTitle = computed(() => {
   font-size: 18px;
   font-weight: 600;
   margin: 0 0 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 </style>

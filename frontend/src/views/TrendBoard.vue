@@ -1,7 +1,5 @@
 <template>
   <div>
-    <h2>缺陷引入趋势看板</h2>
-
     <!-- 筛选栏 -->
     <el-form
       :inline="true"
