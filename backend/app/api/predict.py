@@ -15,11 +15,12 @@ from app.explain import with_labels
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import INTERNAL_ERROR_MESSAGE, AppError, ok
+from app.timeutil import iso_z
+from app.validate import normalize_commit_hash
 from app.models import Commit, CommitFeature, Prediction
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
 
-HASH_HEX = "0123456789abcdef"
 logger = logging.getLogger("backend.predict")
 
 
@@ -31,7 +32,7 @@ class PredictRequest(BaseModel):
 def predict_commit(body: PredictRequest, repo=None) -> dict:
     # 校验口径与 predict_commit_all_models 共用一份（_normalize_hash），
     # 避免两处各写一遍导致行为漂移（大写归一化、40 位十六进制 → 40001）。
-    commit_hash = _normalize_hash(body.commit_hash)
+    commit_hash = normalize_commit_hash(body.commit_hash)
 
     with SessionLocal() as session:
         commit = session.execute(
@@ -143,23 +144,14 @@ def predict_commit(body: PredictRequest, repo=None) -> dict:
             "commit_hash": commit_hash,
             "model_name": entry.name,
             "risk_score": round(risk, 5),
-            "predicted_at": stored_predicted_at.replace(tzinfo=UTC)
-            .isoformat()
-            .replace("+00:00", "Z"),
+            "predicted_at": iso_z(stored_predicted_at),
             "features": features,
             "explanation": explanation,
         }
     )
 
 
-def _normalize_hash(commit_hash: str) -> str:
-    if (
-        not commit_hash
-        or len(commit_hash) != 40
-        or any(c not in HASH_HEX for c in commit_hash.lower())
-    ):
-        raise AppError(40001, "参数非法：commit_hash 需为 40 位十六进制")
-    return commit_hash.lower()
+
 
 
 def predict_commit_all_models(commit_hash: str, repo=None) -> list[dict]:
@@ -168,7 +160,7 @@ def predict_commit_all_models(commit_hash: str, repo=None) -> list[dict]:
     与 `predict_commit` 共用同一套「缺失即现算 + 幂等 upsert」逻辑，但只提取一次特征、
     逐模型打分，避免对同一条提交重复跑 `git log --numstat`。
     """
-    commit_hash = _normalize_hash(commit_hash)
+    commit_hash = normalize_commit_hash(commit_hash)
     with SessionLocal() as session:
         commit = session.execute(
             select(Commit).where(Commit.commit_hash == commit_hash)

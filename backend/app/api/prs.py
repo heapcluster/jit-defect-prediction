@@ -20,7 +20,7 @@ from sqlalchemy import select
 
 from app import config, github, model_registry, schemas
 from app.api import sync
-from app.api.commits import _iso_z
+from app.timeutil import iso_z
 from app.api.predict import predict_commit_all_models
 from app.auth import require_api_key
 from app.db import SessionLocal
@@ -200,7 +200,7 @@ def list_prs(
                 "reason": reason,
                 "commit_count": commit_count,
                 "predicted_count": predicted_count,
-                "predicted_at": _iso_z(predicted_at) if predicted_at else None,
+                "predicted_at": iso_z(predicted_at) if predicted_at else None,
             }
         )
     return ok({"items": items, "model_name": model, "skipped": skipped})
@@ -242,7 +242,7 @@ def pr_detail(number: int, model_name: str | None = Query(default=None)) -> dict
                 "risk_level": get_pr_risk_level(
                     float(pred.risk_score) if pred and pred.risk_score is not None else None
                 ),
-                "predicted_at": _iso_z(pred.predicted_at) if pred and pred.predicted_at else None,
+                "predicted_at": iso_z(pred.predicted_at) if pred and pred.predicted_at else None,
             }
         )
     return ok(

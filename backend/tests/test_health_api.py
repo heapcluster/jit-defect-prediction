@@ -30,7 +30,7 @@ def test_health_does_not_leak_connection_details(client):
 
 
 def test_health_degraded_when_db_unreachable(client, monkeypatch):
-    from app.api import health as health_module
+    from app.services import health as health_module
 
     class _BrokenSession:
         def __enter__(self):

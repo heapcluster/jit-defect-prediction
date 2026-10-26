@@ -1,4 +1,9 @@
-"""查询接口 1–2：风险列表与提交详情（契约三 1.5 第 1、2 节）。"""
+"""查询接口 1–2：风险列表与提交详情（契约三 1.5 第 1、2 节）。
+
+本文件只做入参校验与响应编排；查询与字段组装收在 `app/services/commits.py`，
+时间格式收在 `app/timeutil.py`，哈希校验收在 `app/validate.py` —— 三者此前
+在各路由里各写一份，集中后同一口径只有一个定义点。
+"""
 
 from __future__ import annotations
 
@@ -7,24 +12,17 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
 
-from app import config, model_registry, schemas
+from app import model_registry, schemas
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import AppError, ok
-from app.explain import with_labels
-from app.models import Commit, CommitFeature, CommitLabel, Prediction
+from app.models import Commit, CommitFeature, Prediction
+from app.services import commits as commit_service
+from app.timeutil import iso_z
+from app.validate import normalize_commit_hash
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
-
-HASH_HEX = "0123456789abcdef"
-# 人工反馈标签的 label_method 取值：与 SZZ 自动标签靠唯一约束隔离
-MANUAL_LABEL_METHOD = "manual"
-
-
-def _iso_z(value: datetime) -> str:
-    return value.replace(tzinfo=UTC).isoformat().replace("+00:00", "Z")
 
 
 def _parse_time(value: str, param: str, role: str = "start") -> datetime:
@@ -45,53 +43,6 @@ def _parse_time(value: str, param: str, role: str = "start") -> datetime:
     if role == "end" and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
         parsed = parsed.replace(hour=23, minute=59, second=59, microsecond=999999)
     return parsed
-
-
-def _check_hash(commit_hash: str) -> str:
-    """校验并归一化 40 位十六进制哈希；调用方必须用返回值查库（D-09）。"""
-    if len(commit_hash) != 40 or any(c not in HASH_HEX for c in commit_hash.lower()):
-        raise AppError(40001, "参数非法：commit_hash 需为 40 位十六进制")
-    return commit_hash.lower()
-
-
-def default_model_in_table(session: Session) -> str | None:
-    """「默认最新」单一定义（审 2）：表内模型按 version_key 版本序取最大者。"""
-    names = session.execute(select(Prediction.model_name).distinct()).scalars().all()
-    return max(names, key=model_registry.version_key) if names else None
-
-
-def _feature_dict(feature: CommitFeature | None) -> dict | None:
-    if feature is None:
-        return None
-    out = {}
-    for name in config.FEATURE_COLUMNS:
-        value = getattr(feature, name)
-        out[name] = int(value) if name == "fix" else float(value)
-    return out
-
-
-def _explanation_for(model_name: str | None, feature: CommitFeature | None) -> list[dict]:
-    if not model_name or feature is None or not model_registry.has(model_name):
-        return []
-    vector = [float(getattr(feature, name)) for name in config.FEATURE_COLUMNS]
-    return with_labels(model_registry.explain(model_registry.get_model(model_name), vector))
-
-
-def _label_for(session: Session, commit_hash: str) -> dict | None:
-    """人工反馈标签（`label_method="manual"`）；未标记返回 None（MUST NOT 返回占位空对象）。"""
-    row = session.execute(
-        select(CommitLabel).where(
-            CommitLabel.commit_hash == commit_hash,
-            CommitLabel.label_method == MANUAL_LABEL_METHOD,
-        )
-    ).scalar_one_or_none()
-    if row is None:
-        return None
-    return {
-        "commit_hash": commit_hash,
-        "is_defect": bool(row.is_bug_inducing),
-        "labeled_at": _iso_z(row.labeled_at),
-    }
 
 
 @router.get("/api/commits", response_model=schemas.CommitsResponse)
@@ -117,7 +68,7 @@ def list_commits(
     end = _parse_time((until or end_time), "end_time", "end") if (until or end_time) else None
 
     with SessionLocal() as session:
-        model = model_name or default_model_in_table(session)
+        model = model_name or commit_service.default_model_in_table(session)
         stmt = select(Prediction, Commit).join(Commit, Commit.commit_hash == Prediction.commit_hash)
         if model is not None:
             stmt = stmt.where(Prediction.model_name == model)
@@ -129,10 +80,7 @@ def list_commits(
             stmt = stmt.where(Commit.committed_at <= end)
         if has_label:
             # 仅查看过滤：已人工确认（存在 manual 标签）的提交，MUST NOT 触发预测
-            labeled = select(CommitLabel.commit_hash).where(
-                CommitLabel.label_method == MANUAL_LABEL_METHOD
-            )
-            stmt = stmt.where(Commit.commit_hash.in_(labeled))
+            stmt = stmt.where(Commit.commit_hash.in_(commit_service.labeled_hashes_stmt()))
         total = session.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
         window = session.execute(
             # risk_score 相同时按 commit_hash 兜底排序：等值分页跨页才不会重复/漏行
@@ -144,7 +92,7 @@ def list_commits(
             {
                 "commit_hash": commit.commit_hash,
                 "author_name": commit.author_name,
-                "committed_at": _iso_z(commit.committed_at),
+                "committed_at": iso_z(commit.committed_at),
                 "message": commit.message,
                 "risk_score": float(prediction.risk_score),
                 "model_name": prediction.model_name,
@@ -156,7 +104,7 @@ def list_commits(
 
 @router.get("/api/commits/coverage")
 def commits_coverage() -> dict:
-    """已预测时间覆盖区间：每个 model_name 的 [min_committed_at, max_committed_at]，供前端展示缺口。
+    """已预测时间覆盖区间：每个 model_name 的 [min_committed_at, max_committed_at]。
 
     纯只读、不触发预测；前端据此显示「已预测覆盖：起 ~ 止」并引导用户用「补齐到最新」补齐缺口。
     """
@@ -173,8 +121,8 @@ def commits_coverage() -> dict:
         items = [
             {
                 "model_name": m,
-                "start": _iso_z(mn) if mn else None,
-                "end": _iso_z(mx) if mx else None,
+                "start": iso_z(mn) if mn else None,
+                "end": iso_z(mx) if mx else None,
             }
             for m, mn, mx in rows
         ]
@@ -184,7 +132,7 @@ def commits_coverage() -> dict:
 @router.get("/api/commits/{commit_hash}", response_model=schemas.DetailResponse)
 def commit_detail(commit_hash: str) -> dict:
     # 库内哈希是小写：校验放行大写形式，查询就必须用归一化值，否则误报 commit not found（D-09）
-    commit_hash = _check_hash(commit_hash)
+    commit_hash = normalize_commit_hash(commit_hash)
     with SessionLocal() as session:
         commit = session.execute(
             select(Commit).where(Commit.commit_hash == commit_hash)
@@ -197,7 +145,7 @@ def commit_detail(commit_hash: str) -> dict:
         prediction = session.execute(
             select(Prediction).where(
                 Prediction.commit_hash == commit_hash,
-                Prediction.model_name == default_model_in_table(session),
+                Prediction.model_name == commit_service.default_model_in_table(session),
             )
         ).scalar_one_or_none()
         if prediction is None:
@@ -216,12 +164,14 @@ def commit_detail(commit_hash: str) -> dict:
         data = {
             "commit_hash": commit.commit_hash,
             "author_name": commit.author_name,
-            "committed_at": _iso_z(commit.committed_at),
+            "committed_at": iso_z(commit.committed_at),
             "message": commit.message,
             "risk_score": float(prediction.risk_score) if prediction else None,
             "model_name": prediction.model_name if prediction else None,
-            "features": _feature_dict(feature),
-            "explanation": _explanation_for(prediction.model_name if prediction else None, feature),
-            "label": _label_for(session, commit_hash),
+            "features": commit_service.feature_dict(feature),
+            "explanation": commit_service.explanation_for(
+                prediction.model_name if prediction else None, feature
+            ),
+            "label": commit_service.label_for(session, commit_hash),
         }
     return ok(data)
