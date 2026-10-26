@@ -78,6 +78,9 @@ SOURCE_REPO = Path(os.environ["SOURCE_REPO"]) if os.getenv("SOURCE_REPO") else N
 # change realtime-commit-sync：启动时后台预同步一次最新提交（默认关）。
 # 开启后启动会 fetch SOURCE_REPO 并可能建临时 worktree；失败只记日志，不阻塞启动。
 SYNC_ON_STARTUP = os.getenv("SYNC_ON_STARTUP", "") == "1"
+# 启动同步分级：首启（空库）取最新 N 条建基线；日常增量追到 HEAD 的安全上限
+SYNC_INITIAL_LIMIT = int(os.getenv("SYNC_INITIAL_LIMIT", "10"))
+SYNC_CATCHUP_LIMIT = int(os.getenv("SYNC_CATCHUP_LIMIT", "500"))
 
 # 实时 PR 数据来源（GitHub REST API，只读）。公开仓库可不带 GITHUB_TOKEN（60 req/h 限流），
 # 带令牌升到 5000 req/h。拉取的是「apache/camel 当前 open 的 PR 及其提交」。
@@ -102,4 +105,6 @@ FEATURE_COLUMNS = (
     "sexp",
 )
 
-HIGH_RISK_THRESHOLD = 0.5
+HIGH_RISK_THRESHOLD = float(os.getenv("HIGH_RISK_THRESHOLD", "0.5"))
+# PR 风险等级阈值：>= HIGH 为高；介于 MID~HIGH 之间为中；否则低（可配）
+MID_RISK_THRESHOLD = float(os.getenv("MID_RISK_THRESHOLD", "0.2"))

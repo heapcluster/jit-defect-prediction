@@ -26,9 +26,9 @@ os.environ["MODEL_DIR"] = str(MODEL_DIR)
 from app import config, model_registry
 from app.db import Base, configure_engine
 from app.main import create_app
-from app.models import Commit, CommitFeature, Prediction
+from app.models import Commit, CommitFeature, CommitLabel, Prediction
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 
 HEADERS = {"X-API-Key": "test-token"}
 
@@ -90,7 +90,12 @@ def engine():
             pytrace=False,
         )
     eng = create_engine(url, pool_pre_ping=True)
-    Base.metadata.create_all(eng)  # 幂等：表已存在则跳过
+    # 重建表以匹配当前 models.py（schema 随模型演进；jit_test 为专用测试库，可安全重建）
+    with eng.begin() as conn:
+        conn.execute(text("SET FOREIGN_KEY_CHECKS=0"))
+        Base.metadata.drop_all(eng)
+        Base.metadata.create_all(eng)
+        conn.execute(text("SET FOREIGN_KEY_CHECKS=1"))
     configure_engine(eng)
     return eng
 
@@ -100,7 +105,8 @@ def client(engine):
     from app.db import SessionLocal
 
     with SessionLocal() as session:
-        for table in (Prediction, CommitFeature, Commit):
+        # BCNF 迁移后四表之间存在外键，需先删子表（prediction/feature/label）再删父表（commit）
+        for table in (Prediction, CommitFeature, CommitLabel, Commit):
             session.query(table).delete()
         session.add_all(
             [

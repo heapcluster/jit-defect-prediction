@@ -96,6 +96,8 @@ def test_list_prs_aggregates_max_risk_and_counts(client, monkeypatch):
     assert item["risk_score"] == 0.9, "取该 PR 各提交的最高风险分"
     assert item["commit_count"] == 3 and item["predicted_count"] == 3
     assert item["predicted_at"] == "2026-10-25T10:00:00Z", "ISO 8601 必须带时区后缀 Z"
+    assert item["risk_level"] == "高"  # max risk 0.9
+    assert isinstance(item["reason"], str)  # 有特征时给出理由
     assert body["data"]["skipped"] == 0
 
 
@@ -131,6 +133,7 @@ def test_pr_detail_returns_commit_rows_with_prediction(client, monkeypatch):
     assert data["number"] == 11 and data["model_name"] == "fixture_v2"
     by_sha = {row["sha"]: row for row in data["commits"]}
     assert by_sha["a" * 40]["risk_score"] == 0.42
+    assert by_sha["a" * 40]["risk_level"] == "中"  # 0.2 <= 0.42 < 0.5
     assert by_sha["a" * 40]["predicted_at"] == "2026-10-25T10:00:00Z"
     # 未预测的提交：risk_score 是 None（不得用 0.0 冒充）
     assert by_sha["d" * 40]["risk_score"] is None
@@ -201,3 +204,18 @@ def test_sync_prs_single_commit_failure_does_not_stop_the_pr(client, monkeypatch
     assert data["skipped"] == [
         {"pr": 15, "commit": "a" * 40, "code": 40400, "message": "commit not found", "reason": None}
     ]
+
+
+def test_list_prs_risk_level_low_mid_high(client, monkeypatch):
+    """risk_level 按阈值映射：低/中/高（与后端 config.HIGH/MID_RISK_THRESHOLD 一致）。"""
+    _seed_predictions({"a" * 40: 0.1, "b" * 40: 0.3, "c" * 40: 0.7})
+    _wire_github(
+        monkeypatch,
+        [_pr(20), _pr(21), _pr(22)],
+        {20: ["a" * 40], 21: ["b" * 40], 22: ["c" * 40]},
+    )
+    items = client.get("/api/prs", headers=HEADERS).json()["data"]["items"]
+    levels = {it["number"]: it["risk_level"] for it in items}
+    assert levels[20] == "低"
+    assert levels[21] == "中"
+    assert levels[22] == "高"

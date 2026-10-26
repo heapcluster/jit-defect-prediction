@@ -82,6 +82,8 @@ def list_commits(
     model_name: str | None = Query(default=None),
     start_time: str | None = Query(default=None),
     end_time: str | None = Query(default=None),
+    since: str | None = Query(default=None),
+    until: str | None = Query(default=None),
 ) -> dict:
     if page < 1:
         raise AppError(40001, "参数非法：page 需 >= 1")
@@ -89,8 +91,9 @@ def list_commits(
         raise AppError(40001, "参数非法：size 超过上限 100")
     if min_risk is not None and not 0.0 <= min_risk <= 1.0:
         raise AppError(40001, "参数非法：min_risk 需在 0.0 ~ 1.0")
-    start = _parse_time(start_time, "start_time") if start_time else None
-    end = _parse_time(end_time, "end_time", "end") if end_time else None
+    # 查看过滤：since/until 与 start_time/end_time 同为按 committed_at 过滤的别名，均不触发预测
+    start = _parse_time((since or start_time), "start_time") if (since or start_time) else None
+    end = _parse_time((until or end_time), "end_time", "end") if (until or end_time) else None
 
     with SessionLocal() as session:
         model = model_name or default_model_in_table(session)
@@ -122,6 +125,33 @@ def list_commits(
             for prediction, commit in window
         ]
     return ok({"total": total, "page": page, "size": size, "items": items})
+
+
+@router.get("/api/commits/coverage")
+def commits_coverage() -> dict:
+    """已预测时间覆盖区间：每个 model_name 的 [min_committed_at, max_committed_at]，供前端展示缺口。
+
+    纯只读、不触发预测；前端据此显示「已预测覆盖：起 ~ 止」并引导用户用「补齐到最新」补齐缺口。
+    """
+    with SessionLocal() as session:
+        rows = session.execute(
+            select(
+                Prediction.model_name,
+                func.min(Commit.committed_at),
+                func.max(Commit.committed_at),
+            )
+            .join(Commit, Commit.commit_hash == Prediction.commit_hash)
+            .group_by(Prediction.model_name)
+        ).all()
+        items = [
+            {
+                "model_name": m,
+                "start": _iso_z(mn) if mn else None,
+                "end": _iso_z(mx) if mx else None,
+            }
+            for m, mn, mx in rows
+        ]
+    return ok({"items": items})
 
 
 @router.get("/api/commits/{commit_hash}", response_model=schemas.DetailResponse)

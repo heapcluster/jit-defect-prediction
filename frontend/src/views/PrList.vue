@@ -94,7 +94,7 @@
       </el-table-column>
       <el-table-column
         label="风险"
-        width="160"
+        width="210"
       >
         <template #default="{ row }">
           <el-tooltip
@@ -104,12 +104,28 @@
           >
             <span style="color: #909399">未预测</span>
           </el-tooltip>
-          <span
+          <div
             v-else
-            :style="{ color: riskColor(row.risk_score), fontWeight: 600 }"
+            style="display: flex; align-items: center; gap: 6px"
           >
-            {{ (row.risk_score * 100).toFixed(1) }}%
-          </span>
+            <el-tag
+              :type="riskTag(row.risk_score)"
+              effect="dark"
+              size="small"
+            >
+              {{ row.risk_level || riskLevel(row.risk_score) }}
+            </el-tag>
+            <span :style="{ color: riskColor(row.risk_score), fontWeight: 600 }">
+              {{ (row.risk_score * 100).toFixed(1) }}%
+            </span>
+            <el-tooltip
+              v-if="row.reason"
+              :content="row.reason"
+              placement="top"
+            >
+              <span style="color: #909399; cursor: help">ⓘ</span>
+            </el-tooltip>
+          </div>
         </template>
       </el-table-column>
       <el-table-column
@@ -142,7 +158,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getPrs, postSyncPrs } from '../api'
 import { MODELS } from '../utils/models'
-import { riskColor } from '../utils/risk'
+import { riskColor, riskLevel, riskTag } from '../utils/risk'
 import { errText } from '../utils/errors'
 import { formatTime } from '../utils/datetime'
 

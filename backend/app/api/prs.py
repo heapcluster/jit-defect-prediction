@@ -25,7 +25,7 @@ from app.api.predict import predict_commit_all_models
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import INTERNAL_ERROR_MESSAGE, AppError, ok
-from app.models import Commit, Prediction
+from app.models import Commit, CommitFeature, Prediction
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
 logger = logging.getLogger("backend.prs")
@@ -95,8 +95,64 @@ def sync_prs(limit: int = 10) -> dict:
     }
 
 
-def _pr_risk(pr_number: int, model_name: str) -> tuple[int, int, float | None, object | None]:
-    """返回 (commit_count, predicted_count, max_risk, latest_predicted_at)。"""
+def get_pr_risk_level(risk_score: float | None) -> str | None:
+    """聚合风险等级：>= 高阈值=高；中阈值~高=中；否则低（阈值可配）。"""
+    if risk_score is None:
+        return None
+    if risk_score >= config.HIGH_RISK_THRESHOLD:
+        return "高"
+    if risk_score >= config.MID_RISK_THRESHOLD:
+        return "中"
+    return "低"
+
+
+_FEATURE_LABELS = {
+    "la": "代码改动量大",
+    "nf": "改动文件多",
+    "ld": "删除代码多",
+    "lt": "测试改动少",
+    "exp": "作者历史经验低",
+    "sexp": "作者近期经验低",
+    "rexp": "作者项目经验低",
+    "ns": "变更子系统多",
+    "nd": "变更目录多",
+    "entropy": "改动分散",
+    "nuc": "近期改动频繁",
+    "ndev": "涉及开发者多",
+    "age": "文件陈旧",
+    "fix": "历史修复标记",
+}
+
+
+def build_pr_reason(explanation: list[dict]) -> str | None:
+    """由 SHAP 因子模板拼一句话理由（无 LLM）。取正向贡献最高的 1~2 个因子。"""
+    inc = [e for e in explanation if e.get("direction") == "increase"]
+    if not inc:
+        return None
+    inc.sort(key=lambda e: -e["contribution"])
+    picks = inc[:2]
+    return "、".join(_FEATURE_LABELS.get(e["feature"], e["feature"]) for e in picks) + "（风险偏高）"
+
+
+def _pr_reason(pr_number: int, model_name: str, top_hash: str | None) -> str | None:
+    """最高风险提交的风险因子理由；缺特征或 SHAP 不可用时返回 None。"""
+    if top_hash is None:
+        return None
+    with SessionLocal() as session:
+        feature = session.execute(
+            select(CommitFeature).where(CommitFeature.commit_hash == top_hash)
+        ).scalar_one_or_none()
+        if feature is None:
+            return None
+        vector = [float(getattr(feature, name)) for name in config.FEATURE_COLUMNS]
+    if not model_registry.has(model_name):
+        return None
+    explanation = model_registry.explain(model_registry.get_model(model_name), vector)
+    return build_pr_reason(explanation)
+
+
+def _pr_risk(pr_number: int, model_name: str) -> tuple[int, int, float | None, object | None, str | None]:
+    """返回 (commit_count, predicted_count, max_risk, latest_predicted_at, top_commit_hash)。"""
     shas = github.list_pr_commit_shas(pr_number)
     with SessionLocal() as session:
         rows = (
@@ -108,9 +164,11 @@ def _pr_risk(pr_number: int, model_name: str) -> tuple[int, int, float | None, o
             .scalars()
             .all()
         )
-    risks = [p.risk_score for p in rows if p.risk_score is not None]
+    risks = [(p.commit_hash, p.risk_score) for p in rows if p.risk_score is not None]
     times = [p.predicted_at for p in rows if p.predicted_at is not None]
-    return len(shas), len(risks), (max(risks) if risks else None), (max(times) if times else None)
+    max_risk = max((r for _, r in risks), default=None)
+    top_hash = max(risks, key=lambda x: x[1])[0] if risks else None
+    return len(shas), len(risks), max_risk, (max(times) if times else None), top_hash
 
 
 @router.post("/api/sync-prs", response_model=schemas.SyncPrsResponse)
@@ -137,11 +195,12 @@ def list_prs(
         # list_pr_commit_shas 是 API 形态决定的（limit≤50 → 最多 50 次调用）；
         # 未带 token 时 60 req/h 限额下单个 PR 失败不该让整端 50000。
         try:
-            commit_count, predicted_count, risk, predicted_at = _pr_risk(pr.number, model)
+            commit_count, predicted_count, risk, predicted_at, top_hash = _pr_risk(pr.number, model)
         except RuntimeError as exc:
             logger.warning("pr %s 风险聚合失败，跳过该 PR：%s", pr.number, exc)
             skipped += 1
             continue
+        reason = _pr_reason(pr.number, model, top_hash)
         items.append(
             {
                 "number": pr.number,
@@ -151,6 +210,8 @@ def list_prs(
                 "html_url": pr.html_url,
                 "updated_at": pr.updated_at,
                 "risk_score": risk,
+                "risk_level": get_pr_risk_level(risk),
+                "reason": reason,
                 "commit_count": commit_count,
                 "predicted_count": predicted_count,
                 "predicted_at": _iso_z(predicted_at) if predicted_at else None,
@@ -192,6 +253,9 @@ def pr_detail(number: int, model_name: str | None = Query(default=None)) -> dict
                 "risk_score": float(pred.risk_score)
                 if pred and pred.risk_score is not None
                 else None,
+                "risk_level": get_pr_risk_level(
+                    float(pred.risk_score) if pred and pred.risk_score is not None else None
+                ),
                 "predicted_at": _iso_z(pred.predicted_at) if pred and pred.predicted_at else None,
             }
         )

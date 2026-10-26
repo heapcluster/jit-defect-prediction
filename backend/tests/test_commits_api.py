@@ -130,3 +130,34 @@ def test_compact_basic_format_rejected(client):
         body = resp.json()
         assert body["code"] == 40001
         assert param in body["message"]
+
+
+def test_commits_coverage_reports_time_ranges(client):
+    """GET /api/commits/coverage 返回各模型已预测的时间覆盖区间（start 含结束日全天口径）。"""
+    body = client.get("/api/commits/coverage", headers=HEADERS).json()
+    assert body["code"] == 0
+    items = body["data"]["items"]
+    # conftest 已为 C1(07-20)/C2(08-03) 以 xgb_v1 灌 prediction
+    by_model = {it["model_name"]: it for it in items}
+    assert "xgb_v1" in by_model
+    cov = by_model["xgb_v1"]
+    assert cov["start"] is not None and cov["end"] is not None
+    assert cov["start"] <= cov["end"]
+
+
+def test_commits_view_filter_does_not_trigger_prediction(client, monkeypatch, tmp_path):
+    """日期（since/until）仅过滤已预测结果，不触发新预测（startup-baseline-sync）。"""
+    repo = tmp_path / "camelv"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    # 若同步被触发会访问 SOURCE_REPO；这里断言仅查询返回，未触碰 git
+    monkeypatch.setattr("app.api.commits.config.SOURCE_REPO", None)
+    body = client.get(
+        "/api/commits",
+        params={"since": "2026-07-01", "until": "2026-07-31"},
+        headers=HEADERS,
+    ).json()
+    assert body["code"] == 0
+    # C1 在 07-20，落在区间内；C2 在 08-03 不在
+    assert body["data"]["total"] == 1
+    assert body["data"]["items"][0]["commit_hash"] == C1

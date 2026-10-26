@@ -3,18 +3,26 @@
 
 export function riskColor(score) {
   if (score >= 0.5) return '#d9484a'
-  if (score >= 0.3) return '#d98a2b'
+  if (score >= 0.2) return '#d98a2b'
   return '#4e9b68'
 }
 
 export function riskTag(score) {
   if (score >= 0.5) return 'danger'
-  if (score >= 0.3) return 'warning'
+  if (score >= 0.2) return 'warning'
   return 'success'
 }
 
 export function riskLabel(score) {
   if (score >= 0.5) return '高风险'
-  if (score >= 0.3) return '中等风险'
+  if (score >= 0.2) return '中等风险'
   return '常规'
+}
+
+// 与后端 config.HIGH/MID_RISK_THRESHOLD 一致（0.5 / 0.2）
+export function riskLevel(score) {
+  if (score == null) return null
+  if (score >= 0.5) return '高'
+  if (score >= 0.2) return '中'
+  return '低'
 }

@@ -12,9 +12,13 @@ from tests.conftest import HEADERS
 CONTRACT_PATHS = {
     "/api/commits",
     "/api/commits/{commit_hash}",
+    "/api/commits/coverage",
     "/api/trends",
     "/api/predict",
     "/api/sync",
+    "/api/sync/catchup",
+    "/api/sync/status",
+    "/api/sync/stream",
 }
 PR_PATHS = {"/api/sync-prs", "/api/prs", "/api/prs/{number}"}
 
@@ -79,6 +83,8 @@ def test_prs_response_fields_match_contract(client):
         "html_url",
         "updated_at",
         "risk_score",
+        "risk_level",
+        "reason",
         "commit_count",
         "predicted_count",
         "predicted_at",
@@ -102,6 +108,7 @@ def test_pr_detail_response_fields_match_contract(client):
         "message",
         "author",
         "risk_score",
+        "risk_level",
         "predicted_at",
     }
 
