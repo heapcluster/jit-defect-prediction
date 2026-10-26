@@ -37,6 +37,20 @@
       </el-form-item>
     </el-form>
 
+    <!-- 加载台：现算很贵，把成本和进度讲清楚 -->
+    <el-alert
+      v-if="syncing"
+      type="info"
+      :closable="false"
+      class="sync-tip"
+    >
+      <p class="sync-msg">
+        正在逐条现算特征并用真实模型预测（每条提交约 15 秒），已处理 {{ syncDone }} 条…
+        <br>
+        页面数据会在同步完成后自动刷新；期间可以切到别的页面，不用守着。
+      </p>
+    </el-alert>
+
     <el-alert
       v-if="error"
       :title="error"
@@ -83,10 +97,13 @@
         width="160"
       >
         <template #default="{ row }">
-          <span
+          <el-tooltip
             v-if="row.risk_score == null"
-            style="color: #909399"
-          >未预测</span>
+            content="该 PR 的提交尚未预测：点上方「同步最新 PR 预测」按需现算"
+            placement="top"
+          >
+            <span style="color: #909399">未预测</span>
+          </el-tooltip>
           <span
             v-else
             :style="{ color: riskColor(row.risk_score), fontWeight: 600 }"
@@ -134,6 +151,7 @@ const models = MODELS
 const items = ref([])
 const loading = ref(false)
 const syncing = ref(false)
+const syncDone = ref(0)
 const error = ref('')
 const filters = reactive({ model_name: '' })
 
@@ -158,9 +176,14 @@ async function load() {
 
 async function sync() {
   syncing.value = true
+  syncDone.value = 0
   error.value = ''
   try {
-    await postSyncPrs(30)
+    // 分批触发：一次 30 个 PR 的提交现算会顶到前端 300s 超时，改成 3 批 × 10
+    for (let done = 0; done < 30; done += 10) {
+      await postSyncPrs(10)
+      syncDone.value = done + 10
+    }
   } catch (e) {
     error.value = errText(e)
   } finally {
@@ -181,5 +204,12 @@ onMounted(load)
 <style scoped>
 .filters {
   margin-bottom: 16px;
+}
+.sync-tip {
+  margin-bottom: 12px;
+}
+.sync-msg {
+  margin: 0;
+  line-height: 1.7;
 }
 </style>

@@ -20,13 +20,14 @@ def _extractor():
     return module.extract_single_commit
 
 
-def extract(commit_hash: str, repo: Path | None = None) -> dict:
+def extract(commit_hash: str, repo: Path | str | None = None) -> dict:
     """现算单条提交的 14 项特征。
 
     `repo` 默认取 `config.SOURCE_REPO`；批量同步（/api/sync）在远端 tip 不是
-    SOURCE_REPO 当前 HEAD 祖先时，传入专用临时工作树路径，避免改动用户的检出状态。
+    SOURCE_REPO 当前 HEAD 祖先时，传入专用临时工作树路径（str），这里统一转 Path，
+    避免调用方传字符串时在 `source / ".git"` 处炸出 `str / str`（2026-10-26 修复）。
     """
-    source: Path | None = repo if repo is not None else config.SOURCE_REPO
+    source: Path | None = Path(repo) if repo is not None else config.SOURCE_REPO
     if source is None or not (source / ".git").exists():
         raise RuntimeError("source repository unavailable")
     return _extractor()(source, commit_hash)
