@@ -1,4 +1,4 @@
-"""expert 线全量推理（原 data_model/07_predict_all.py 移植），产出交付后端线的
+﻿"""expert 线全量推理（由根目录 07_predict_all.py 移植（该文件已不存在）），产出交付后端线的
 `prediction_result.csv`。
 
 字段口径: 契约一表三 `prediction`
@@ -28,6 +28,7 @@ import joblib
 import numpy as np
 import pandas as pd
 
+from .. import repo_paths
 from . import config
 
 # 契约一表三 `prediction` 的字段（去掉自增主键 `id`），**顺序即 CSV 列顺序**
@@ -128,11 +129,11 @@ def main() -> int:
     args.report.write_text(
         PREDICTION_REPORT.format(
             model_name=model_name,
-            model_path=args.model,
+            model_path=repo_paths.rel_to_data_model(args.model),
             rows=len(dataset),
             feature_version=feature_version,
             predicted_at=predicted_at,
-            out=args.out,
+            out=repo_paths.rel_to_data_model(args.out),
             mean=float(np.mean(proba)),
             median=float(np.median(proba)),
             p95=float(np.percentile(proba, 95)),

@@ -13,7 +13,7 @@ except AttributeError:  # numpy < 2.0
     _trapz = np.trapz
 from sklearn.metrics import roc_curve
 
-from .. import text_source
+from .. import repo_paths, text_source
 from . import config
 from .metrics import cumulative_curve
 
@@ -84,7 +84,7 @@ def render(args, results, n_train, n_test, y_test, coverage=None, text_stats=Non
         "## 数据与参数\n",
         "| 项 | 值 |\n|---|---|\n",
         f"| 输入维度 | {config.EXPECTED_DIM}（Kamei 14 + 语义 768） |\n",
-        f"| 语义缓存 | `{config.EMBEDDINGS_NPZ}` |\n",
+        f"| 语义缓存 | `{repo_paths.rel_to_data_model(config.EMBEDDINGS_NPZ)}` |\n",
         f"| 训练/检验 | {n_train} / {n_test} 条（共享切分，内连接对齐） |\n",
     ]
     if coverage:

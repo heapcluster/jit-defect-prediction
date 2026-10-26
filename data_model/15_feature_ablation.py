@@ -206,7 +206,9 @@ def main(argv=None) -> int:
     out.write_text(
         render_report(base, loo_rows, perm_rows, base_auc, args.model, args.seed,
                       time.time() - started, args.limit),
-        encoding="utf-8",
+        # 显式写 \n：Windows 上 write_text 默认把 \n 转成 os.linesep（CRLF），
+        # 与仓库其余报告写盘端（05/04/expert-predict）一律 LF 不一致
+        encoding="utf-8", newline="\n",
     )
     print(f"[ablation] -> {out}")
     return 0

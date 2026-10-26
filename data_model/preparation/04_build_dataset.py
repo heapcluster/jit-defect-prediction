@@ -58,6 +58,15 @@ FORBIDDEN_FIELDS = {"split", "is_train", "is_test", "train", "test", "fold", "pa
 ABNORMAL_LOW, ABNORMAL_HIGH = 0.40, 0.60
 
 
+def _rel(path: Path) -> str:
+    """报告里只写相对 data_model/ 的路径：`reports/` 可入库，绝对路径会把本机盘符
+    写进入库证据（2026-10-25 修：dataset_stats.md 曾带本机全路径）。"""
+    try:
+        return path.resolve().relative_to(BASE.parent).as_posix()
+    except (ValueError, OSError):
+        return path.name
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="汇总提交清单 + 标签 + 特征，产出可训练样本集并报出七项统计",
@@ -308,7 +317,7 @@ def write_report(path: Path, ctx: dict, results: list[dict], labels: list[Path])
 
     L.append("\n## 产出\n")
     for r in results:
-        L.append(f"- `{r['path']}` —— {r['pos'] + r['neg']} 行 × {len(DATASET_FIELDS)} 列（14 项特征 + 标签），`label_method = {r['method']}`")
+        L.append(f"- `{_rel(r['path'])}` —— {r['pos'] + r['neg']} 行 × {len(DATASET_FIELDS)} 列（14 项特征 + 标签），`label_method = {r['method']}`")
     L.append("\n## 说明\n")
     L.append("- 样本集**不含任何切分列，也不产出切分文件**：按 `committed_at` 前 70%/后 30% 的时间序切分属下游 change（`AGENTS.md` 禁止随机切分）")
     L.append("- 标签来源：`docs/model/data-pipeline.md` 第 7 节判据 D4（缺陷编号 且 修复语义双命中）+ 决策 D5（回溯未命中者不入样本、不记 0）")

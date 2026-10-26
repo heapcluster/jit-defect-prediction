@@ -65,11 +65,11 @@ conda activate jit-defect-prediction
 | 包 | 线名 | 训练入口 | 状态 |
 |---|---|---|---|
 | `pipelines/expert/` | `expert` | `python -m pipelines.expert.train` | ✅ 可跑（8 模型已训、报告/图/全量预测齐；`--from-saved` 探索性产物已隔离） |
-| `pipelines/semantic/` | `semantic` | `python -m pipelines.semantic.train` | ⏸ 代码就绪、产物未出 —— 全量编码需 GPU（CPU 6–15h），顺延至游戏本到位 |
-| `pipelines/fused/` | `fused` | `python -m pipelines.fused.train` | ⏸ 代码就绪、产物未出 —— 前置是 semantic 的 `semantic_embeddings.npz`，同上顺延 |
-| `pipelines/e2e/` | `e2e` | `python -m pipelines.e2e.train` + `predict` | ⏸ 代码就绪、产物未出 —— 微调需 GPU；无 GPU 时按 `--limit` 抽样降级并如实登记 |
+| `pipelines/semantic/` | `semantic` | `python -m pipelines.semantic.train` | ✅ 已交付（2026-10-25 交接包：8 模型 + 报告 + 证据，`evidence/` 有校验日志） |
+| `pipelines/fused/` | `fused` | `python -m pipelines.fused.train` | ✅ 已交付（同上；另含 `reports_prev_run_20261023/` 上一轮报告） |
+| `pipelines/e2e/` | `e2e` | `python -m pipelines.e2e.train` + `predict` | ✅ 已交付（CodeBERT 微调权重 + 全量预测 + 报告 + 证据） |
 
-> 10/23 口径：**MVP 只交付 expert 线**（模型 + 报告 + 全量预测结果）；semantic / fused / e2e 等 GPU（后端同学的游戏本）到位后按 1023 周报本周计划第 13–15 行补齐。三线**不进后端热加载**，结果走 `app.ingest predictions` 灌库。
+> 10/23 口径：**MVP 在线交付只有 expert 线**（模型 + 报告 + 全量预测结果）；semantic / fused / e2e 为**离线对照**（2026-10-25 交接包已补齐产物），结论用于答辩的「融合对照读法」。三线**不进后端热加载**；离线 CSV 灌库（`app.ingest`）已移除，需要入库走实时同步（`POST /api/sync` / `/api/sync-prs`）。
 
 **为什么分包**：原先四类共用 `models/` 与 `reports/`，产物同名即互相覆盖（`06` 的报告名固定，四条线各跑一遍就互相盖掉），且看不出某个 `.pkl` 属于哪条线。分包后产出归属一目了然，`git status` 也能按线审阅。
 

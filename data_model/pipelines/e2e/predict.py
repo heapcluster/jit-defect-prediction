@@ -1,4 +1,4 @@
-"""e2e 线 ⑦ 等价：全量推理，产出对齐契约一表三的 `prediction_result.csv`。
+﻿"""e2e 线 ⑦ 等价：全量推理，产出对齐契约一表三的 `prediction_result.csv`。
 
 字段与 `data_model/07_predict_all.py` 逐字一致（不许多一个字段、顺序一致、不连数据库），
 目的是让 e2e 的预测结果能直接喂后端 `prediction` 表做对照。区别：本线吃代码文本而非
@@ -27,12 +27,12 @@ from torch.utils.data import DataLoader, Dataset
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 try:
-    from .. import text_source
+    from .. import repo_paths, text_source
     from .build_text_dataset import commit_text, detect_repo
 except ImportError:
     from build_text_dataset import commit_text, detect_repo
 
-    from pipelines import text_source
+    from pipelines import repo_paths, text_source
 
 BASE = Path(__file__).resolve().parent
 DATA_DIR = BASE.parent.parent / "data"
@@ -193,7 +193,7 @@ def main() -> int:
         f"| 项 | 值 |\n|---|---|\n| 模型 | `{args.model_name}` |\n"
         f"| 推理条数 | {len(df)}（全量，含检验集） |\n"
         f"| `feature_version` | `{args.feature_version}` |\n"
-        f"| `predicted_at` | {predicted_at} |\n| 输出文件 | `{args.out}` |\n\n"
+        f"| `predicted_at` | {predicted_at} |\n| 输出文件 | `{repo_paths.rel_to_data_model(args.out)}` |\n\n"
         "## 风险分数分布\n\n"
         f"| 统计量 | 值 |\n|---|---|\n| 均值 | {float(np.mean(proba)):.5f} |\n"
         f"| 中位数 | {float(np.median(proba)):.5f} |\n| p95 | {float(np.percentile(proba, 95)):.5f} |\n"
