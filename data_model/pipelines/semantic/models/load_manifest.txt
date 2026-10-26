@@ -1,0 +1,15 @@
+[encoder]
+microsoft/codebert-base（冻结，mean-pool，768 维）
+
+[models]
+lr_semantic_v1.pkl	逻辑回归
+rf_semantic_v1.pkl	随机森林
+xgb_semantic_v1.pkl	XGBoost
+lgbm_semantic_v1.pkl	LightGBM
+et_semantic_v1.pkl	极端随机树（Extra Trees）
+svm_semantic_v1.pkl	RBF 核支持向量机
+mlp_deep_semantic_v1.pkl	多层感知机（3 隐藏层 + 早停）
+tabnet_semantic_v1.pkl	TabNet（深度表格）
+
+[split]
+data/split_szz_{train,test}.csv（与 expert 同一切分）

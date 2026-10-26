@@ -20,8 +20,8 @@
 2. 生成 / 校验 `models/manifest.txt`（纯文本，`.gitignore` 已白名单，可入库）：
    `--write-manifest` 生成，`--check` 与清单逐项比对，漂移即退出码 2。
 3. 守住交付边界：**不写库、不进后端进程、不动 `feature_order.txt`**。在线模型集
-   仍是 `[models]` 段声明的 3 个（`specs/model-coverage` R6），8 个权重只是
-   「评估可用」，不等于「在线可切换」。
+   由 `[models]` 段声明（#153 起 expert 全量 8 个），权重「可加载」只证明评估可用，
+   不改变 `[models]` 段决定的交付边界。
 
 用法
 ----
@@ -246,6 +246,15 @@ def parse_manifest(text: str) -> list[tuple[str, str, str, str, str]]:
         line = raw.strip()
         if not line or line.startswith(HEADER_PREFIX):
             continue
+        if line.startswith("["):
+            # 撞名防护：#159 之前各线的在线加载清单叫 manifest.txt（首行是 [encoder]/[input]）；
+            # 那个名字现在归本脚本的 5 列 md5 清单。遇到 section 头就是拿错了文件，
+            # 给一句人能看懂的错，而不是甩「行列数不对」。
+            raise ValueError(
+                f"这是在线加载清单（[section] 形态，如 {line}），不是 5 列 md5 清单。"
+                "在线加载清单的正确文件名是 load_manifest.txt（#159 起）；"
+                "请把误命名为 manifest.txt 的旧产物删掉或改名，再用 --write-manifest 生成本清单。"
+            )
         parts = line.split()
         if len(parts) != 5:
             raise ValueError(f"清单行列数不对（应 5 列）：{line}")
@@ -287,7 +296,15 @@ def main(argv: list[str] | None = None) -> int:
     started = time.time()
     records = scan(models_dir, with_load=not args.no_load)
     if not records:
-        print(f"[verify] 目录里没有 *.pkl：{models_dir}", file=sys.stderr)
+        if args.line == "e2e":
+            # e2e 是 HF safetensors 权重（models/codebert_e2e_v1/），本脚本只扫 *.pkl。
+            # 已裁定不是缺陷（e2e 的可加载取证走 safetensors_integrity.log），
+            # 但 CLI 要一句话说清，别让人以为目录坏了。
+            print(f"[verify] e2e 线的权重是 safetensors（{models_dir}/codebert_e2e_v1/），"
+                  "本脚本只校验 *.pkl，对该线不适用；可加载性取证见该线 evidence/ 下的"
+                  "safetensors_integrity.log", file=sys.stderr)
+        else:
+            print(f"[verify] 目录里没有 *.pkl：{models_dir}", file=sys.stderr)
         return 2
 
     if args.json:

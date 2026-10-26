@@ -79,6 +79,38 @@ def test_unknown_model_is_rejected_with_clear_error(mod):
         mod.build_model("not-a-model", seed=0)
 
 
+# expert 的 rf 是 D-14 收敛版（min_samples_leaf=100、max_depth=15），semantic/fused
+# 沿用默认容量（min_samples_leaf=2、不限深度）。这是**已登记的偏差**
+# （config-and-output-spec.md §0「分类器族」行注）：四线对照里 rf 一行同时差
+# 「特征模态」与「模型容量」两个变量，报告读者必须知道；除该偏差外任何超参漂移
+# 都会让对比不再只差特征模态，故在此钉死。
+RF_DOCUMENTED_DEVIATION = {
+    "expert": {"n_estimators": 300, "min_samples_leaf": 100, "max_depth": 15},
+    "semantic": {"n_estimators": 300, "min_samples_leaf": 2, "max_depth": None},
+    "fused": {"n_estimators": 300, "min_samples_leaf": 2, "max_depth": None},
+}
+
+
+def _rf_params(mod):
+    model = mod.build_model("rf", seed=0)
+    est = model.steps[-1][1] if hasattr(model, "steps") else model
+    return {
+        "n_estimators": est.n_estimators,
+        "min_samples_leaf": est.min_samples_leaf,
+        "max_depth": est.max_depth,
+    }
+
+
+def test_rf_hyperparameters_match_except_the_documented_expert_d14_deviation():
+    params = {"expert": _rf_params(expert_m), "semantic": _rf_params(semantic_m),
+              "fused": _rf_params(fused_m)}
+    for line, expected in RF_DOCUMENTED_DEVIATION.items():
+        for key, value in expected.items():
+            assert params[line][key] == value, (
+                f"{line} rf 的 {key}={params[line][key]}，与登记值 {value} 不符 —— "
+                "无意变更请改回；有意变更必须同步 config-and-output-spec.md §0 的偏差登记与本表")
+
+
 def _tiny(n=40, d=14):
     rng = np.random.default_rng(0)
     X = rng.normal(size=(n, d)).astype(np.float32)

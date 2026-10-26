@@ -1,4 +1,4 @@
-# 样本集统计（04_build_dataset.py 产出）—— 第 6 项交付物的证据
+﻿# 样本集统计（04_build_dataset.py 产出）—— 第 6 项交付物的证据
 
 > 本文件可入库，七项统计的定义与验收标准见 `docs/model/data-pipeline.md` 第 6 节
 
@@ -38,8 +38,8 @@
 
 ## 产出
 
-- `D:\workspace\code\course\jit-defect-prediction\data_model\data\dataset_szz.csv` —— 83943 行 × 20 列（14 项特征 + 标签），`label_method = szz`
-- `D:\workspace\code\course\jit-defect-prediction\data_model\data\dataset_szz_lite.csv` —— 83887 行 × 20 列（14 项特征 + 标签），`label_method = szz_lite`
+- `data_model\data\dataset_szz.csv` —— 83943 行 × 20 列（14 项特征 + 标签），`label_method = szz`
+- `data_model\data\dataset_szz_lite.csv` —— 83887 行 × 20 列（14 项特征 + 标签），`label_method = szz_lite`
 
 ## 说明
 

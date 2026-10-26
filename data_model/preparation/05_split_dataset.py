@@ -40,6 +40,15 @@ DEFAULT_RATIO = 0.70
 TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
+def _rel(path: Path) -> str:
+    """报告里只写相对 data_model/ 的路径：`reports/` 可入库，绝对路径会把本机盘符
+    写进入库证据（2026-10-25 修：split_stats_*.md 曾带本机全路径）。"""
+    try:
+        return path.resolve().relative_to(BASE.parent).as_posix()
+    except (ValueError, OSError):
+        return path.name
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="按 committed_at 时间序把样本集切成训练集 / 检验集（前 70% / 后 30%）",
@@ -162,7 +171,7 @@ def main() -> int:
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(
         SPLIT_REPORT_TEMPLATE.format(
-            dataset=args.dataset,
+            dataset=_rel(args.dataset),
             total=total,
             ratio=args.train_ratio,
             n_train=len(train),
@@ -173,8 +182,8 @@ def main() -> int:
             rate_train="%.2f%%" % (pos_train / len(train) * 100),
             pos_test=pos_test,
             rate_test="%.2f%%" % (pos_test / len(test) * 100),
-            train_out=train_out,
-            test_out=test_out,
+            train_out=_rel(train_out),
+            test_out=_rel(test_out),
             gap_days=(test_min - train_max).total_seconds() / 86400.0,
             first_feature=fields[3] if len(fields) > 3 else "",
         ),

@@ -1,4 +1,4 @@
-# 全量预测结果统计（07_predict_all.py 产出）
+﻿# 全量预测结果统计（pipelines/expert/predict.py 产出）
 
 > 本文件可入库。字段口径见 `docs/design/data-fields.md` 表三 `prediction`。
 > **产出文件本身不入库**（`data/` 在 `.gitignore` 里）—— 它随包交付后端线，由后端导入。

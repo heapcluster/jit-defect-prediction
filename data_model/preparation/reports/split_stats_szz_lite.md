@@ -1,4 +1,4 @@
-# 时间序切分统计（05_split_dataset.py 产出）
+﻿# 时间序切分统计（05_split_dataset.py 产出）
 
 > 本文件可入库。切分口径见 `data_model/README.md` 铁规矩 1 与 `docs/model/feature-columns.md` 第二节。
 
@@ -40,8 +40,8 @@
 
 ## 产出
 
-- `D:\workspace\code\course\jit-defect-prediction\data_model\data\split_szz_lite_train.csv`
-- `D:\workspace\code\course\jit-defect-prediction\data_model\data\split_szz_lite_test.csv`
+- `data_model\data\split_szz_lite_train.csv`
+- `data_model\data\split_szz_lite_test.csv`
 
 两份文件列结构与样本集完全一致（含 `ns` 起 14 项特征 + 标签），**不新增任何切分列** ——
 切分结果由文件名区分，样本集本身保持干净。

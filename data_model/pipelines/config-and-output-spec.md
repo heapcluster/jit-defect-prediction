@@ -1,4 +1,4 @@
-# semantic / fused / e2e 配置说明与输出规范
+﻿# semantic / fused / e2e 配置说明与输出规范
 
 > 适用范围：`pipelines/` 下**除 `expert/` 外**的三条对照线。
 > 本文是三条线的**配置契约**与**产物契约**——改 `config.py` 默认值、改产物路径或字段、
@@ -13,7 +13,7 @@
 | 指标口径 | 与 `expert/` 逐字一致：Effort-unaware（AUC/F1/Precision/Recall/Accuracy）+ Effort-aware（LOC 为工作量代理，P_norm / Recall@20% / Recall@50%） | 各包 `metrics.py` |
 | 随机基线 | 200 次抽样，种子 0 | `RANDOM_BASELINE_REPEATS` / `RANDOM_BASELINE_SEED` |
 | 判定阈值 | 0.5（仅用于统计正例数，不参与 AUC / P_norm 计算） | `DECISION_THRESHOLD` |
-| 分类器族 | **训练口径 8 个**：`lr` `rf` `xgb` `lgbm` `et` `svm` `mlp_deep` `tabnet`（见 §0.1）；注册表 `MODEL_NAMES` 另有 `nb` `dt` `knn` `mlp` 4 个历史模型，**只兼容旧产物、默认不训**；三线 `build_model` 超参必须逐字相同 | `data_model/tests/test_model_registry_parity.py` |
+| 分类器族 | **训练口径 8 个**：`lr` `rf` `xgb` `lgbm` `et` `svm` `mlp_deep` `tabnet`（见 §0.1）；注册表 `MODEL_NAMES` 另有 `nb` `dt` `knn` `mlp` 4 个历史模型，**只兼容旧产物、默认不训**；三线 `build_model` 超参必须逐字相同，**唯一已登记例外：`rf` 的 expert 版是 D-14 收敛版**（`min_samples_leaf=100`、`max_depth=15`，semantic/fused 为 `min_samples_leaf=2`、不限深度；容量差是 expert 线为收敛主动调的，`test_model_registry_parity.py` 钉死该偏差、不许悄悄扩散）—— 读四线对照时，rf 一行同时差「特征模态」与「模型容量」两个变量 | `data_model/tests/test_model_registry_parity.py` |
 | 模型命名 | 落盘文件与报告内 `model_name` 统一带线别后缀：`<name>_semantic_v1` / `<name>_fused_v1` / `codebert_e2e_v1` | 各包 `train.py` |
 | 入库规则 | **模型目录默认忽略**（`data_model/pipelines/*/models/**`），仅 `feature_order.txt` 与 `manifest.txt` 两个**文本清单例外入库**（见各线产物表「是」）；权重按 `*.pkl` / `*.joblib` / `*.pt` / `*.pth` / `*.ckpt` / `*.onnx` / `*.h5` / `*.safetensors` / `*.bin` 全局忽略；`reports/*.md` 与 `figs/*.png` **入库**；`data/` 不入库 | `.gitignore` |
 | 包间衔接 | 只通过**数据文件**衔接，禁止跨包 `import` | 各包 `data.py` |
@@ -22,9 +22,9 @@
 
 > 入库规则复核（`git check-ignore --quiet <path>`，退出码 0 = 被忽略 / 1 = 可入库）：
 > `.../models/lr_semantic_v1.pkl` → 0、`.../e2e/models/codebert_e2e_v1/model.safetensors` → 0；
-> `.../models/manifest.txt` → 1、`.../expert/models/feature_order.txt` → 1（命中 `!` 例外）。
+> `.../models/load_manifest.txt` → 1、`.../expert/models/feature_order.txt` → 1（命中 `!` 例外）。
 
-三条线都**不进交付链**，产物仅用于评估与横向对照。交付清单以 `expert/models/feature_order.txt` 的 `[models]` 为准（`lr_v1` + `rf_v1` + `xgb_v1`，与后端 `model_registry.load_models()` 对 `MODEL_DIR` 下全部 `*.pkl` 的加载范围一致），见 `data_model/ENVIRONMENT.md` §7。
+三条线都**不进交付链**，产物仅用于评估与横向对照。交付清单以 `expert/models/feature_order.txt` 的 `[models]` 为准（#153 起 expert 全量 8 个，与后端 `model_registry.load_models()` 按清单加载的范围一致），见 `data_model/ENVIRONMENT.md` §7。
 
 ## 0.1 四条线各训哪些模型（唯一口径）
 
@@ -65,7 +65,7 @@ python -m pipelines.e2e.train        # 端到端微调，独立跑（CPU 很慢�
 
 1. 报告第一节「Effort-unaware」表格应有 **8 行模型**（`e2e` 为 1 行）；
 2. 标题里的「N 分类器」应等于你 `--models` 的个数，**显示 12 就说明用了旧配置或显式传了 12 个**；
-3. `models/manifest.txt` 的 `[models]` 段行数应等于报告模型行数。
+3. `models/load_manifest.txt` 的 `[models]` 段行数应等于报告模型行数。
 
 > `budget`（LOC ≥ 10 再按密度）这一对照列目前**只有 `expert` 线实现**；三条对照线报告暂时只有「模型排序 / 密度排序」两行，跨线对比请用这两行（口径一致）。后续同步时按 `expert/metrics.py::budget_order` 移植，不要另写一套公式。
 
@@ -84,7 +84,7 @@ python -m pipelines.e2e.train        # 端到端微调，独立跑（CPU 很慢�
 | `ENCODE_DEVICE` | `auto` | 有 CUDA 用 CUDA，否则 CPU | 全量编码建议 CUDA（CPU 约 50–150ms/条） |
 | `MAX_CHARS` | `4000` | 单条提交文本字符上限 | 512 token ≈ 2000 字符，4000 为留余量；截断须在报告登记 |
 | `SEED` | `42` | 分类器随机种子 | 三线一致，用于跨线可比 |
-| `DEFAULT_MODELS` | 12 个（见 §0） | 默认训练的模型子集 | 用 `--models` 覆盖；报告只列实际训练的 |
+| `DEFAULT_MODELS` | 8 个（见 §0） | 默认训练的模型子集 | 用 `--models` 覆盖；报告只列实际训练的 |
 | `DECISION_THRESHOLD` | `0.5` | 阈值 | 仅统计用 |
 | `RANDOM_BASELINE_REPEATS` / `_SEED` | `200` / `0` | Effort-aware 随机基线 | 改动会破坏与 expert 的可比性 |
 
@@ -99,7 +99,7 @@ python -m pipelines.e2e.train        # 端到端微调，独立跑（CPU 很慢�
 | `--embeddings` | `semantic/data/semantic_embeddings.npz` | 编码缓存位置 |
 | `--force-encode` | 关 | 忽略缓存重新编码 |
 | `--train` / `--test` / `--features-raw` | 共享切分与原始特征 | 正常不应改 |
-| `--models` | 12 个 | 逗号分隔子集，如 `lr,xgb` |
+| `--models` | 8 个 | 逗号分隔子集，如 `lr,xgb` |
 | `--seed` / `--model-dir` / `--report` | 见 `config.py` | 产物落点 |
 | `--no-export` / `--no-charts` | 关 | 只出报告 / 不出图 |
 
@@ -133,7 +133,7 @@ python -m pipelines.e2e.train        # 端到端微调，独立跑（CPU 很慢�
 |---|---|---|---|
 | 编码缓存 | `semantic/data/semantic_embeddings.npz` | npz（见 §1.3） | 否 |
 | 分类器 | `semantic/models/<name>_semantic_v1.pkl` ×N | joblib | 否 |
-| 模型清单 | `semantic/models/manifest.txt` | `[encoder]` 编码器与维度 / `[models]` 每行 `pkl<TAB>中文名` / `[split]` 切分来源；**只列本次实际训练的模型** | 是 |
+| 模型清单 | `semantic/models/load_manifest.txt` | `[encoder]` 编码器与维度 / `[models]` 每行 `pkl<TAB>中文名` / `[split]` 切分来源；**只列本次实际训练的模型** | 是 |
 | 指标报告 | `semantic/reports/model_metrics.md` | 见下 | 是 |
 | 图表 | `semantic/reports/figs/{roc_curves,effort_curves_loc,metric_bars}.png` | 150 dpi | 是 |
 
@@ -172,7 +172,7 @@ python -m pipelines.e2e.train        # 端到端微调，独立跑（CPU 很慢�
 | `EXPECTED_DIM` | `len(FEATURE_FIELDS) + 768` = **782** | 拼接维度 | 由前两项推导，不手写 |
 | `EMBEDDINGS_NPZ` | `semantic/data/semantic_embeddings.npz` | 模态 B 来源 | 包间唯一数据衔接，路径不可指向副本 |
 | `SEED` / `DECISION_THRESHOLD` / 随机基线 | 同 §0 | 与 expert 一致 | 见 §0 |
-| `DEFAULT_MODELS` | 12 个 | 同 semantic | 用 `--models` 覆盖 |
+| `DEFAULT_MODELS` | 8 个 | 同 semantic | 用 `--models` 覆盖 |
 
 ### 2.2 CLI 覆盖（`python -m pipelines.fused.train`）
 
@@ -189,7 +189,7 @@ python -m pipelines.e2e.train        # 端到端微调，独立跑（CPU 很慢�
 | 产物 | 路径 | 格式 | 入库 |
 |---|---|---|---|
 | 分类器 | `fused/models/<name>_fused_v1.pkl` ×N | joblib | 否 |
-| 模型清单 | `fused/models/manifest.txt` | `[input]` 拼接口径（`Kamei 14 ⊕ 冻结语义 768 = 782 维` + 缓存路径）/ `[models]` 每行 `pkl<TAB>中文名`；只列本次训练的模型 | 是 |
+| 模型清单 | `fused/models/load_manifest.txt` | `[input]` 拼接口径（`Kamei 14 ⊕ 冻结语义 768 = 782 维` + 缓存路径）/ `[models]` 每行 `pkl<TAB>中文名`；只列本次训练的模型 | 是 |
 | 指标报告 | `fused/reports/model_metrics.md` | 结构同 §1.4，差异见下 | 是 |
 | 图表 | `fused/reports/figs/{roc_curves,effort_curves_loc,metric_bars}.png` | 150 dpi | 是 |
 
@@ -257,7 +257,7 @@ python -m pipelines.e2e.train        # 端到端微调，独立跑（CPU 很慢�
 
 `model_metrics.md` 固定结构：`## 数据与参数`（骨干 / `feature_version` / 训练-验证-检验条数 / 最大长度-轮数-学习率 / 有效 batch / 种子 / 阈值 / 正样本比例 / 设备）→ `## 一、Effort-unaware`（单模型一行）→ `## 二、Effort-aware`（模型排序 / 密度排序 / 真实密度上界 / 随机基线；缺 `commit_features_raw.csv` 时整节替换为告警）→ `## 与 baseline 对照（读法）` → `## 文本来源与覆盖率`（与 semantic 同构；e2e **不因占位重训**，只登记来源条数与占比，并在稳健性附注写明「模型未重训」）→ `## 图表`。
 
-**`prediction_result.csv` 字段规范（与 `data_model/07_predict_all.py` 逐字一致，不多不少、顺序固定）**
+**`prediction_result.csv` 字段规范（与 `pipelines/expert/predict.py`（07_predict_all.py 的移植版）逐字一致，不多不少、顺序固定）**
 
 | 顺序 | 字段 | 取值 |
 |---|---|---|
@@ -286,9 +286,9 @@ python -m pipelines.e2e.train        # 端到端微调，独立跑（CPU 很慢�
 | 项 | semantic | fused | e2e |
 |---|---|---|---|
 | 输入 | diff 文本 → 冻结 768 维 | Kamei 14 ⊕ 语义 768 = 782 | diff 文本 → 端到端微调 |
-| 训练对象 | 12 个 sklearn/xgb 分类器 | 同左 | CodeBERT + 二分类头 |
+| 训练对象 | 8 个 sklearn/xgb 分类器 | 同左 | CodeBERT + 二分类头 |
 | 算力 | 编码建议 GPU（CPU 仅够 `--limit` 冒烟） | CPU | **必须 GPU**（8GB 显存可跑） |
-| 主要产物 | `*_semantic_v1.pkl` + `manifest.txt` + 报告 + 3 图 | `*_fused_v1.pkl` + `manifest.txt` + 报告 + 3 图 | `codebert_e2e_v1/` + 报告 + 2 图 + `prediction_result.csv` + `prediction_stats.md` |
+| 主要产物 | `*_semantic_v1.pkl` + `load_manifest.txt` + 报告 + 3 图 | `*_fused_v1.pkl` + `load_manifest.txt` + 报告 + 3 图 | `codebert_e2e_v1/` + 报告 + 2 图 + `prediction_result.csv` + `prediction_stats.md` |
 | 前置 | 文本（自建或复用 e2e） | 先跑 semantic | 先跑 `build_text_dataset.py` |
 | 交付链 | 否 | 否 | 否（是否进前端 switch 由后续契约变更决定） |
 

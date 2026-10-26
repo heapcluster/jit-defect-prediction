@@ -1,0 +1,13 @@
+[input]
+Kamei 14（契约二第三节顺序）⊕ 冻结语义 768 = 782 维
+
+[models]
+lr_fused_v1.pkl	逻辑回归
+rf_fused_v1.pkl	随机森林
+xgb_fused_v1.pkl	XGBoost
+lgbm_fused_v1.pkl	LightGBM
+et_fused_v1.pkl	极端随机树（Extra Trees）
+svm_fused_v1.pkl	RBF 核支持向量机
+mlp_deep_fused_v1.pkl	多层感知机（3 隐藏层 + 早停）
+tabnet_fused_v1.pkl	TabNet（深度表格）
+
