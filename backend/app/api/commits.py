@@ -13,11 +13,14 @@ from app import config, model_registry, schemas
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import AppError, ok
-from app.models import Commit, CommitFeature, Prediction
+from app.explain import with_labels
+from app.models import Commit, CommitFeature, CommitLabel, Prediction
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
 
 HASH_HEX = "0123456789abcdef"
+# 人工反馈标签的 label_method 取值：与 SZZ 自动标签靠唯一约束隔离
+MANUAL_LABEL_METHOD = "manual"
 
 
 def _iso_z(value: datetime) -> str:
@@ -71,7 +74,24 @@ def _explanation_for(model_name: str | None, feature: CommitFeature | None) -> l
     if not model_name or feature is None or not model_registry.has(model_name):
         return []
     vector = [float(getattr(feature, name)) for name in config.FEATURE_COLUMNS]
-    return model_registry.explain(model_registry.get_model(model_name), vector)
+    return with_labels(model_registry.explain(model_registry.get_model(model_name), vector))
+
+
+def _label_for(session: Session, commit_hash: str) -> dict | None:
+    """人工反馈标签（`label_method="manual"`）；未标记返回 None（MUST NOT 返回占位空对象）。"""
+    row = session.execute(
+        select(CommitLabel).where(
+            CommitLabel.commit_hash == commit_hash,
+            CommitLabel.label_method == MANUAL_LABEL_METHOD,
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        return None
+    return {
+        "commit_hash": commit_hash,
+        "is_defect": bool(row.is_bug_inducing),
+        "labeled_at": _iso_z(row.labeled_at),
+    }
 
 
 @router.get("/api/commits", response_model=schemas.CommitsResponse)
@@ -84,6 +104,7 @@ def list_commits(
     end_time: str | None = Query(default=None),
     since: str | None = Query(default=None),
     until: str | None = Query(default=None),
+    has_label: bool | None = Query(default=None),
 ) -> dict:
     if page < 1:
         raise AppError(40001, "参数非法：page 需 >= 1")
@@ -106,6 +127,12 @@ def list_commits(
             stmt = stmt.where(Commit.committed_at >= start)
         if end is not None:
             stmt = stmt.where(Commit.committed_at <= end)
+        if has_label:
+            # 仅查看过滤：已人工确认（存在 manual 标签）的提交，MUST NOT 触发预测
+            labeled = select(CommitLabel.commit_hash).where(
+                CommitLabel.label_method == MANUAL_LABEL_METHOD
+            )
+            stmt = stmt.where(Commit.commit_hash.in_(labeled))
         total = session.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
         window = session.execute(
             # risk_score 相同时按 commit_hash 兜底排序：等值分页跨页才不会重复/漏行
@@ -195,5 +222,6 @@ def commit_detail(commit_hash: str) -> dict:
             "model_name": prediction.model_name if prediction else None,
             "features": _feature_dict(feature),
             "explanation": _explanation_for(prediction.model_name if prediction else None, feature),
+            "label": _label_for(session, commit_hash),
         }
     return ok(data)

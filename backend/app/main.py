@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI
 
 from app import config, db, model_registry
-from app.api import commits, predict, prs, sync, trends
+from app.api import commits, feedback, health, predict, prs, sync, trends
 from app.errors import register_error_handlers
 
 logging.basicConfig(level=logging.INFO)
@@ -78,6 +78,8 @@ def create_app() -> FastAPI:
     app.include_router(predict.router)
     app.include_router(sync.router)
     app.include_router(prs.router)
+    app.include_router(feedback.router)
+    app.include_router(health.router)
     return app
 
 

@@ -32,7 +32,7 @@
 | 40400 | 404 | 目标不存在 | `commit not found` |
 | 50000 | 500 | 服务内部错误 | `internal error`（**不得回显堆栈/SQL/路径**） |
 
-## 三、八个接口
+## 三、接口清单
 
 ### 1. `GET /api/commits` —— 风险列表
 请求：`page` `size` `min_risk` `model_name` `start_time` `end_time`
@@ -91,6 +91,27 @@
 - `commits[]` 与 GitHub 返回的提交清单一对应：库内无预测的提交 `risk_score`/`predicted_at` 为 `null`（「尚未预测」，不得 40400、不得用 0.0 冒充）；`message` 截断至 200 字符。
 - 同 §7：纯只读，不依赖 `SOURCE_REPO`；PR 不存在按上游 404 映射 `50000`（不回显 GitHub 细节）。
 
+### 9. `GET /api/commits/coverage` —— 已预测时间覆盖（change `startup-baseline-sync`）
+请求：无参数。响应 `data`：`items[]`（每项 `model_name` `start` `end`，为该模型已预测 commit 的 `committed_at` 最小/最大值，ISO 8601 带 Z）。
+- 纯只读，`MUST NOT` 触发预测；前端据此展示「已预测覆盖」并引导至「补齐到最新」。
+
+### 10. `POST /api/sync/catchup` —— 补齐到最新（change `startup-baseline-sync`）
+请求：`MUST NOT` 接受日期参数。响应 `data`：`mode` `new` `predicted[]` `skipped[]`。
+- 补齐「git 有而 DB 无 prediction」的提交，受 `SYNC_CATCHUP_LIMIT` 安全上限约束，幂等。
+
+### 11. `GET /api/sync/status` / `GET /api/sync/stream` —— 同步状态与进度（change `startup-baseline-sync`）
+- `status` 返回 `running` `mode` `scope` `total` `done` `current_hash` `started_at` `last_error` 快照。
+- `stream` 为 SSE（`text/event-stream`），状态变化时推送 `data: {...}`。
+
+### 12. `PUT /api/commits/{commit_hash}/label` —— 人工反馈标签（change `feedback-observability`）
+请求体：`{"is_defect": bool}`。响应 `data`：`commit_hash` `is_defect` `labeled_at`。
+- 以 `label_method="manual"` 写入/更新 `commit_label`，与 SZZ 自动标签靠唯一约束 `(commit_hash, label_method)` 隔离。
+- `commit_hash` 不存在 → `40400`；请求体非法 → `40001`；撤销 = 再次提交 `is_defect=false`（保留「已确认非缺陷」事实），`MUST NOT` 物理删除标签行。
+
+### 13. `GET /api/health` —— 健康检查与运行状态（change `feedback-observability`）
+响应 `data`：`status`（`ok`/`degraded`）`db`（`up`/`down`）`models_loaded` `model_names` `commit_count` `prediction_count` `labeled_count` `last_sync_at` `server_time`。
+- DB 不可达或模型数为 0 → `status="degraded"`，HTTP 仍为 200（`MUST NOT` 抛 50000）；响应 `MUST NOT` 回显连接串、口令、堆栈。
+
 ## 四、非功能要求与验证（必须有可出示证据）
 
 | 要求 | 指标 | 验证 | 证据 |
@@ -106,6 +127,7 @@
 
 | 日期 | 版本 | 变更人 | 主要变更 |
 |---|---|---|---|
+| 2026-10-27 | 1.8 | 后端线（吕建江） | **§三「八个接口」→「接口清单」，补记 §9~§11 并新增 §12~§13**（change `feedback-observability`）：§9 coverage / §10 catchup / §11 sync status·stream（上一 change `startup-baseline-sync` 遗漏登记，一并补齐）；§12 人工反馈标签、§13 健康检查。§12 只用冻结错误码 40001/40400；§13 降级不抛 50000 且不回显连接细节 |
 | 2026-10-25 | 1.6 | 蒋励（组长，代后端线起草，吕建江复核） | **§三「四个接口」→「五个接口」，新增 §5 `POST /api/sync` 批量同步**（change `realtime-commit-sync`）：fetch SOURCE_REPO → 挑新哈希 → 逐条复用 §4 单条链路；错误码用冻结集合；幂等 `new=0`；并发互斥；`SYNC_ON_STARTUP` 可选启动同步。**不做 PR 状态清理**（另行 change）、不承诺 500ms 靶子。§四安全行改为「全部接口」 |
 | 2026-10-25 | 1.7 | 蒋励（组长，代后端线起草，吕建江复核） | **§三「五个接口」→「八个接口」，新增 §6~§8 PR 实时预测三条端点**（change `realtime-pr-prediction`）：`POST /api/sync-prs` 拉 open PR 逐提交复用 §4 多模型链路；`GET /api/prs` / `GET /api/prs/{number}` 只读查询（不依赖 SOURCE_REPO、逐 PR 失败隔离、`predicted_at` 带 Z）。**§4 在线模型清单口径回填为 #153 后的 8 模型**（原写 3 个，与 `feature_order.txt` 不一致）。§四安全行已覆盖「全部接口」，不再另改 |
 | 2026-10-11 | 1.5 | 吕建江 | **补记时间区间语义（口径补充，0.1 步进）**：§一 新增「时间范围语义」行（闭区间 + 纯日期串 end 含结束日全天 + 紧凑基本格式拒收 40001 + 前端 MUST NOT 调用侧补丁及理由）。修复 Issue #61（结束日丢数据）。行为变化：end 纯日期串查询结果含结束日全天；紧凑格式由静默 00:00 改拒收。PR #62。1.5 以前的历史见 `docs/contracts/api-format.md` 的 git 历史（该目录已于 #55 重组移除） |

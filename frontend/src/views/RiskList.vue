@@ -1,5 +1,20 @@
 <template>
   <div>
+    <!-- 运行状态（observability）：DB / 已加载模型 / 已预测条数，一眼看出服务是否可用 -->
+    <el-alert
+      v-if="health"
+      :type="health.status === 'ok' ? 'success' : 'warning'"
+      :closable="false"
+      class="mb"
+    >
+      <span>
+        运行状态：{{ health.status === 'ok' ? '正常' : '降级' }} ・
+        数据库 {{ health.db === 'up' ? '已连接' : '不可用' }} ・
+        已加载模型 {{ health.models_loaded }} 个 ・ 已预测 {{ health.prediction_count }} 条 ・
+        提交 {{ health.commit_count }} 条 ・ 标签 {{ health.labeled_count }} 条
+      </span>
+    </el-alert>
+
     <!-- 筛选栏 -->
     <el-form
       :inline="true"
@@ -39,6 +54,9 @@
           end-placeholder="结束"
           style="width: 240px"
         />
+      </el-form-item>
+      <el-form-item label="仅看已确认">
+        <el-switch v-model="filters.has_label" />
       </el-form-item>
       <el-form-item>
         <el-button
@@ -244,7 +262,14 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { getCommits, postSync, getCommitsCoverage, postSyncCatchup, subscribeSyncProgress } from '../api'
+import {
+  getCommits,
+  postSync,
+  getCommitsCoverage,
+  postSyncCatchup,
+  subscribeSyncProgress,
+  getHealth
+} from '../api'
 import { ElMessage } from 'element-plus'
 import { riskColor, riskLevel } from '../utils/risk'
 import { MODELS } from '../utils/models'
@@ -260,6 +285,7 @@ const models = MODELS
 const filters = reactive({
   model_name: '',
   min_risk: null,
+  has_label: false,
   page: 1,
   size: 20
 })
@@ -269,6 +295,16 @@ const total = ref(0)
 const loading = ref(false)
 const error = ref('')
 const retryable = ref(false)
+
+// ── 运行状态（observability）：DB / 模型 / 已预测条数 ──
+const health = ref(null)
+function loadHealth() {
+  getHealth()
+    .then((d) => {
+      health.value = d
+    })
+    .catch(() => {})
+}
 
 // ── 已预测覆盖 + 补齐到最新（change startup-baseline-sync）──
 const catching = ref(false)
@@ -316,7 +352,12 @@ const syncMsg = ref('')
 
 const hasFilter = computed(
   () =>
-    !!(filters.model_name || filters.min_risk != null || (timeRange.value && timeRange.value.length))
+    !!(
+      filters.model_name ||
+      filters.min_risk != null ||
+      filters.has_label ||
+      (timeRange.value && timeRange.value.length)
+    )
 )
 const showBootstrap = computed(
   () => !loading.value && !error.value && !hasFilter.value && items.value.length === 0
@@ -362,7 +403,8 @@ async function load(page = filters.page) {
       model_name: filters.model_name || undefined,
       min_risk: filters.min_risk ?? undefined,
       start_time: timeRange.value?.[0] || undefined,
-      end_time: timeRange.value?.[1] || undefined
+      end_time: timeRange.value?.[1] || undefined,
+      has_label: filters.has_label || undefined
     })
     if (id !== requestId) return
     items.value = data.items || []
@@ -381,6 +423,7 @@ async function load(page = filters.page) {
 function reset() {
   filters.model_name = ''
   filters.min_risk = null
+  filters.has_label = false
   timeRange.value = []
   load(1)
 }
@@ -410,6 +453,7 @@ function applyQueryAndLoad() {
 onMounted(() => {
   applyQueryAndLoad()
   loadCoverage()
+  loadHealth()
 })
 
 // 响应同路由 query 变化：query 变化重新查；query 移除清日期 + 重置分页

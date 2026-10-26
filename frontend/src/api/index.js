@@ -61,6 +61,16 @@ export function postSyncCatchup() {
   return request.post('/sync/catchup', null, { timeout: SYNC_TIMEOUT })
 }
 
+// 人工反馈：PUT /api/commits/{commit_hash}/label（标记 / 撤销「是否真的引入缺陷」）
+export function putCommitLabel(hash, isDefect) {
+  return request.put(`/commits/${hash}/label`, { is_defect: isDefect })
+}
+
+// 健康检查与运行状态：GET /api/health（observability）
+export function getHealth() {
+  return request.get('/health')
+}
+
 // SSE 订阅同步进度（fetch streaming，便于带 X-API-Key 鉴权；EventSource 不支持自定义头）
 export function subscribeSyncProgress(onUpdate) {
   const token = import.meta.env.VITE_API_KEY

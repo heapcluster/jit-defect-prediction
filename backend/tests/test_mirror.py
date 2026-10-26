@@ -13,6 +13,8 @@ CONTRACT_PATHS = {
     "/api/commits",
     "/api/commits/{commit_hash}",
     "/api/commits/coverage",
+    "/api/commits/{commit_hash}/label",
+    "/api/health",
     "/api/trends",
     "/api/predict",
     "/api/sync",
@@ -158,6 +160,7 @@ def test_detail_response_fields_match_contract(client):
         "model_name",
         "features",
         "explanation",
+        "label",
     }
 
 
