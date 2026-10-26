@@ -16,9 +16,9 @@ from sqlalchemy import (
 from sqlalchemy.dialects.mysql import TINYINT
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-# 契约一/二要求 MySQL TINYINT(1)；SQLite 测试环境落 SMALLINT
+# 契约一/二要求 MySQL TINYINT(1)；用 with_variant 在 MySQL 方言下映射为 TINYINT(1)
 TINYINT1 = SmallInteger().with_variant(TINYINT(1), "mysql")
-# SQLite 只有 INTEGER PRIMARY KEY 才自增；MySQL 落契约要求的 BIGINT
+# MySQL 自增主键用 BIGINT（契约要求）
 ID_TYPE = Integer().with_variant(BigInteger, "mysql")
 
 

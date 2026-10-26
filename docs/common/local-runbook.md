@@ -12,7 +12,7 @@
 |---|---|---|
 | Python | 3.12.x | 权重由 sklearn 1.9.1 训练，主版本别跨 |
 | Node | 20.x | 前端 `npm run dev` |
-| MySQL | 8.x | 想用 MySQL 建库才需要；SQLite 开箱可用 |
+| MySQL | 8.x | 联调 / 演示 / 验收统一数据库，本机必须安装（建库见 `infra/setup_mysql.py`）|
 | Git | 任意 | 现算特征要对本地 Camel 副本执行 `git log` |
 
 依赖安装以 `docs/model/ENVIRONMENT.md`（data_model 侧）与 `backend/README.md`（后端侧）为准，本文件不重复列包名。
@@ -45,54 +45,70 @@ cd data_model; python -m pipelines.verify_all_weights --check
 
 ## 2. 建库
 
-两条路都能建出同样的四张表（`commit` / `commit_label` / `commit_feature` / `prediction`）。**先选定一条，别在同一个库上混用**：两条路径的等价性已在本机 MySQL `jit_demo` 实测（DDL 与 ORM 双路径幂等 + `_assert_indexes` 通过，2026-10-25 组长复测）；**Issue #121 是真库验收的探针库，与本演示库无关**。
+统一用 MySQL（联调 / 演示 / 验收同一套 `jit_demo`），不再保留 SQLite 联调库。两种建表路径（ORM / DDL）等价且幂等，已在本机 MySQL `jit_demo` 实测（2026-10-25 组长复测）；**Issue #121 是真库验收的探针库，与本演示库无关**。
 
-### 2.1 建库建号（MySQL，本机自建）
+### 2.1 一键建库（推荐）
+
+克隆后配好 `backend/.env` 的 `DATABASE_URL`（指向本机 MySQL 的 `jit_demo`，账密自己设），然后：
 
 ```bash
+python infra/setup_mysql.py            # 读 backend/.env，建 jit_demo + 测试库 jit_test 并跑 schema.sql
+python infra/setup_mysql.py --seed     # 额外灌 3 提交 / 3 特征 / 3 预测起步数据
+```
+
+脚本会先尝试启动本机 MySQL 服务（Windows / Linux / macOS 各自一行命令），再建库、建应用用户 `jit`、执行 `infra/schema.sql` 建四张表。若 `jit` 无建库权限，加 `--root-password <pwd>` 由 root 代建并授权。
+
+### 2.2 手动分步（可选，等价于一键）
+
+```bash
+# 1) 建库建号（MySQL 8 普通账号默认无 CREATE DATABASE，建库用 root）
 mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS jit_demo CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 mysql -u root -p -e "CREATE USER IF NOT EXISTS 'jit'@'127.0.0.1' IDENTIFIED BY '<自己设的密码>';"
 mysql -u root -p -e "GRANT ALL PRIVILEGES ON jit_demo.* TO 'jit'@'127.0.0.1'; FLUSH PRIVILEGES;"
-```
 
-> `jit` 这类普通账号通常无 `CREATE DATABASE`（MySQL 8 报 1044），建库步用 root。一条命令建库+建表的包装脚本见 PR #150（`backend/scripts/schema_mysql.sql`，PowerShell 下用 `-e "SOURCE ..."`）。
-
-### 2.2 建表（二选一）
-
-```bash
+# 2) 建表（二选一）
 # A. ORM 路径（推荐，会顺带跑 _assert_indexes 自检）
-# 连接串写 backend/.env（DATABASE_URL=mysql+pymysql://jit:<密码>@127.0.0.1:3306/jit_demo?charset=utf8mb4），
-# 命令不带行内前缀 —— load_dotenv() 不覆盖已有环境变量，行内前缀会压过 .env，且口令会进 shell 历史
+#    连接串写 backend/.env（DATABASE_URL=mysql+pymysql://jit:<密码>@127.0.0.1:3306/jit_demo?charset=utf8mb4）
 cd backend && python -m app.db init
 
-# B. DDL 路径（部署形态；先按 §2.1 建库，schema.sql 只建四表，目标库在命令行指定）
+# B. DDL 路径（部署形态）
 mysql -u jit -p jit_demo < ../infra/schema.sql
 ```
 
-两种都要满足：**连跑两次不报错（幂等）**，且下面这条自检通过：
+两种路径都要满足：**连跑两次不报错（幂等）**，且下面这条自检通过：
 
 ```bash
 cd backend
 python -c "from app.db import get_engine, _assert_indexes; _assert_indexes(get_engine()); print('indexes ok')"
 ```
 
-> 索引自检只覆盖 `INDEX_ASSERTIONS` 里的核心索引，不等于完整列/键对照；完整验收按 `docs/backend/acceptance.md` 板块 B1。
+> 索引自检只覆盖核心索引，不等于完整列/键对照；完整验收按 `docs/backend/acceptance.md` 板块 B1。
 
-### 2.3 不装 MySQL 的退路
+### 2.3 建 Camel blobless 历史索引（实时预测必需）
 
-SQLite 开箱可用，也是**联调基线的库形态**：
+实时预测 Camel 的 PR 需要一份**只读历史索引**来算 14 维特征里的历史类（`ndev/age/nuc/exp/rexp/sexp`）。它用 blobless 克隆（只取提交+树、不含 blob，几十 MB），**不是开发库、不进工作流**：
 
 ```bash
-cd backend && python -m scripts.seed_dev_data   # 建 backend/dev.db 并灌 3 提交 / 3 特征 / 3 预测
+python infra/clone_camel_history.py --repo apache/camel --path ../camel-history
+# 之后在 backend/.env 设 SOURCE_REPO=<该路径>
 ```
+
+脚本内部执行 `git clone --filter=blob:none --no-checkout` 建索引，并提供 `fetch` 子命令增量更新；`SOURCE_REPO` 指向它即可，预测时只跑 `git log --numstat` / `git cat-file`，不碰工作区。
 
 ---
 
-## 3. 灌真实数据（可选；历史口径，逐步退出）
+## 3. 灌数据：实时同步 Camel 最新 PR（唯一入口）
 
-不灌也能验收「模型加载 + 单条在线预测」；要三页面有真实规模数据才灌。CSV 来自数据线产物（`01–04 + 07`），或用交付包 `deliver_data_20261024.zip`（18,006,911 B / md5 `601f5fceac3105273d98fb7eedfcb360`）。
+系统**只走实时预测**：不再有离线 CSV 灌库。数据来源是 GitHub 上 `apache/camel` 的 open PR，特征在本地 blobless 历史索引上现算、逐模型打分入库。
 
-> **口径预告（2026-10-25 蒋励裁定，见 #147/#149）**：演示数据入口将切换为「实时同步 Camel 最新提交」（见 §3.1，随本 PR 合入生效）；CSV 灌数保留为现行可用路径，收口时间由组长另裁，两节会长期并存到切换完成。
+```bash
+# 1) 启动后端后，拉取最新 open PR 并逐条现算预测（默认 10 个 PR，上限 50）
+curl -X POST "http://127.0.0.1:8000/api/sync-prs?limit=20" -H "X-API-Key: $API_TOKEN"
+
+# 2) 前端「PR 列表」页即可看到各 PR 的聚合风险；点进 PR 看每个 commit 的风险
+```
+
+> 离线 CSV 灌库（`python -m app.ingest`）已于 2026-10-25 裁定**彻底移除**；历史口径的 CSV 产物仅作数据线归档，不再进入运行时。
 
 ```bash
 # cwd=backend，顺序不能换（commits → features → predictions）

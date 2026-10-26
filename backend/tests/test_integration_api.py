@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import csv
 from datetime import datetime
 
 import joblib
@@ -8,12 +7,10 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 from sklearn.tree import DecisionTreeClassifier
-from sqlalchemy import create_engine, func, inspect, select
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app import config, db, model_registry
-from app.ingest import ingest
 from app.main import create_app
 from app.models import Commit, CommitFeature, CommitLabel, Prediction
 from tests.conftest import C1, C2, C3, FEATURE_VALUES, HEADERS
@@ -23,9 +20,8 @@ C4 = "e" * 40
 
 @pytest.fixture()
 def integration_db(tmp_path, monkeypatch):
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    # 读 config.DATABASE_URL（指向本机 MySQL 测试库 jit_test）；不再用 SQLite 内存库
+    engine = db.get_engine()
     previous_bind = db.SessionLocal.kw.get("bind")
     monkeypatch.setattr(db, "_engine", engine)
     monkeypatch.setattr(model_registry, "_REGISTRY", {})
@@ -49,75 +45,57 @@ def integration_db(tmp_path, monkeypatch):
     db.SessionLocal.configure(bind=engine)
     try:
         db.init_db()
+        # MySQL 下库是持久的，测试前清掉四表，避免跨测试串扰
+        with db.SessionLocal() as s:
+            for t in (Prediction, CommitFeature, CommitLabel, Commit):
+                s.query(t).delete()
+            s.commit()
         yield engine, tmp_path
     finally:
         db.SessionLocal.configure(bind=previous_bind)
         engine.dispose()
 
 
-@pytest.fixture()
-def csv_paths(integration_db):
-    _, folder = integration_db
-    times = {C1: "2026-07-31T09:00:00Z", C2: "2026-08-02T09:00:00Z",
-             C3: "2026-08-03T09:00:00Z", C4: "2026-08-04T09:00:00Z"}
-    rows = {
-        "commits": [
-            {"repo_name": "camel", "commit_hash": h, "author_name": "fixture-author",
-             "committed_at": t, "message": "fixture commit"}
-            for h, t in times.items()
-        ],
-        "labels": [
-            {"commit_hash": h, "is_bug_inducing": i % 2, "label_method": "szz",
-             "labeled_at": "2026-09-01T00:00:00Z"}
-            for i, h in enumerate(times)
-        ],
-        "features": [
-            {"commit_hash": h, "committed_at": times[h], "feature_version": "v1",
-             **FEATURE_VALUES}
-            for h in (C1, C2, C4)
-        ],
-        "predictions": [
-            {"commit_hash": h, "model_name": "integration_v2", "risk_score": score,
-             "predicted_at": "2026-09-01T00:00:00Z", "feature_version": "v1"}
-            for h, score in ((C1, 0.8), (C2, 0.2))
-        ],
-    }
-    paths = {}
-    for kind, records in rows.items():
-        path = folder / f"{kind}.csv"
-        with path.open("w", encoding="utf-8", newline="") as stream:
-            writer = csv.DictWriter(stream, fieldnames=list(records[0]))
-            writer.writeheader()
-            writer.writerows(records)
-        paths[kind] = path
-    return paths
+SEED_TIMES = {
+    C1: "2026-07-31T09:00:00Z",
+    C2: "2026-08-02T09:00:00Z",
+    C3: "2026-08-03T09:00:00Z",
+    C4: "2026-08-04T09:00:00Z",
+}
+
+
+def seed_db(engine) -> None:
+    """用 ORM 直接落四表种子数据（取代已删除的离线 ingest 路径）。"""
+    with sessionmaker(bind=engine)() as s:
+        for h, t in SEED_TIMES.items():
+            s.add(Commit(
+                commit_hash=h, repo_name="camel", author_name="fixture-author",
+                committed_at=datetime.fromisoformat(t.replace("Z", "")), message="fixture commit",
+            ))
+        for i, h in enumerate(SEED_TIMES):
+            s.add(CommitLabel(
+                commit_hash=h, is_bug_inducing=i % 2, label_method="szz",
+                labeled_at=datetime.fromisoformat("2026-09-01T00:00:00Z"),
+            ))
+        for h in (C1, C2, C4):
+            s.add(CommitFeature(
+                commit_hash=h, committed_at=datetime.fromisoformat(SEED_TIMES[h].replace("Z", "")),
+                feature_version="v1", **FEATURE_VALUES,
+            ))
+        for h, score in ((C1, 0.8), (C2, 0.2)):
+            s.add(Prediction(
+                commit_hash=h, model_name="integration_v2", risk_score=score,
+                predicted_at=datetime.fromisoformat("2026-09-01T00:00:00Z"), feature_version="v1",
+            ))
+        s.commit()
 
 
 @pytest.fixture()
-def populated_api(integration_db, csv_paths):
+def populated_api(integration_db):
     engine, _ = integration_db
-    for kind, path in csv_paths.items():
-        assert ingest(kind, str(path)) == 0
+    seed_db(engine)
     with TestClient(create_app()) as client:
         yield client, engine
-
-
-def test_four_csv_ingests_are_idempotent(integration_db, csv_paths):
-    engine, _ = integration_db
-    assert set(inspect(engine).get_table_names()) == {
-        "commit", "commit_label", "commit_feature", "prediction"
-    }
-    for _ in range(2):
-        db.init_db()
-        for kind, path in csv_paths.items():
-            assert ingest(kind, str(path)) == 0
-        with sessionmaker(bind=engine)() as session:
-            for model, count in ((Commit, 4), (CommitLabel, 4), (CommitFeature, 3), (Prediction, 2)):
-                assert session.scalar(select(func.count()).select_from(model)) == count
-            assert session.scalar(select(Commit.message).where(Commit.commit_hash == C1)) == "fixture commit"
-            feature = session.get(CommitFeature, C1)
-            assert feature.feature_version == "v1"
-            assert float(feature.la) == pytest.approx(FEATURE_VALUES["la"])
 
 
 def test_predict_then_query_and_repeat_keeps_one_row(populated_api):

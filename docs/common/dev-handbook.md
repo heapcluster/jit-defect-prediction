@@ -36,7 +36,7 @@ python -m pipelines.expert.calibrate
 
 ## 5. 后端（吕建江线）
 
-FastAPI+SQLAlchemy+MySQL（开发期可 SQLite）；`create_all()` 建四表；四接口照 `docs/backend/api-spec.md`；`50000` 不回显内部。
+FastAPI+SQLAlchemy+MySQL（统一数据库，开发 / 联调 / 演示同一套）；`create_all()` 建四表；四接口照 `docs/backend/api-spec.md`；`50000` 不回显内部。
 
 ## 6. 文档
 

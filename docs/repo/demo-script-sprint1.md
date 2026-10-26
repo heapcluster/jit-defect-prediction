@@ -30,19 +30,18 @@ python -m app.ingest predictions ../data_model/pipelines/expert/data/prediction_
 - **`backend/.env` 的 `API_TOKEN` 必须等于 `frontend/.env.local` 的 `VITE_API_KEY`**，否则前端全部 40100。
 - **实时同步（新入口，随 PR #149 合入生效）**：起后端后 `POST /api/sync?limit=50` —— fetch SOURCE_REPO 最新提交 → 逐条现算特征 → 预测入库（口径见 `docs/common/local-runbook.md` §3.1）。#149 未合入前，本节灌数是唯一数据路径。
 
-### 0.0.1 演示库 vs 联调库（2026-10-24 蒋励裁定；**数据库敲定：演示与验收一律 MySQL**）
+### 0.0.1 联调库与演示库统一为 MySQL（2026-10-25 裁定：废除双库，全项目一套 MySQL）
 
-**演示、录屏、T-ST-01~05 与系统层验收一律走 MySQL 演示库；日常联调与已归档的截图取证走 SQLite 联调库。** 两份都登记在案，用途不同，不要混用：
+**联调、演示、录屏、T-ST-01~05 与系统层验收统一走 MySQL `jit_demo`。** 不再保留 SQLite 联调库（`dev.db`）；双库策略已废除，所有人 clone 后配好 `backend/.env` 的 `DATABASE_URL` 指向本机 `jit_demo` 即可。
 
-| 库 | 连接 / 文件 | 生成方式 | 数据规模 | 用在哪 |
+| 库 | 连接 | 生成方式 | 数据规模 | 用在哪 |
 |---|---|---|---|---|
-| **联调库**（唯一） | SQLite `backend/dev.db` | `cd backend` → `python -m scripts.seed_dev_data` | 3 提交 / 3 特征 / 3 预测，hash `000…001`~`000…003`，`model_name` 全 `seed_v1`，`risk_score` = 0.1 / 0.2 / 0.3 | 日常联调、T-FE-01 三态截图取证（9 张已在此口径下取证并入 main） |
-| **演示库**（唯一） | **MySQL `jit_demo`** | `mysql -u<user> -p jit_demo < ../infra/schema.sql`（或 `python -m app.db init`）→ 上面 4× `python -m app.ingest`；#149 合入后改用 `POST /api/sync` | 灌数口径：commits **84,461** / labels **83,943** / features **83,943** / predictions **83,943**，其中 `risk_score ≥ 0.5` 有 **14,596** 条（17.39%）；同步口径：窗口内 Camel 最新提交逐条现场预测 | **演示、录屏、T-ST-01~05、系统层验收** |
+| **`jit_demo`**（联调 / 演示 / 验收共用） | **MySQL `jit_demo`** | `python infra/setup_mysql.py` 一键建库建表（或 `mysql -u<user> -p jit_demo < ../infra/schema.sql` + `python -m app.db init`）→ 上面 4× `python -m app.ingest`；#149 合入后改用 `POST /api/sync` | 灌数口径：commits **84,461** / labels **83,943** / features **83,943** / predictions **83,943**，其中 `risk_score ≥ 0.5` 有 **14,596** 条（17.39%）；同步口径：窗口内 Camel 最新提交逐条现场预测 | 联调、演示、录屏、T-ST-01~05、系统层验收 |
 
-- **演示与验收数据库敲定为 MySQL**：`DATABASE_URL=mysql+pymysql://jit:<pwd>@127.0.0.1:3306/jit_demo?charset=utf8mb4`。不用 SQLite —— 演示要的是「真库 + 真实规模」，MySQL 也是课程验收与 Issue #121 的既定方向。
-- **为什么联调库仍是 SQLite**（不改）：`integration-log.md` §0 定它是为了零外部依赖，且 **#117 的 9 张三态截图已在这个口径下取证并合入 main**；改成 MySQL 会让已归档的取证全部作废、刘帅华要重截。两者用途不同，**不是两套联调库**，`§0` 硬规矩 2 对本库继续有效。
-- **为什么不能拿 `dev.db` 上台**：§0.3 的自检 `min_risk=0.5&size=5` 在 `dev.db` 下**必为空**（seed 三行最高 0.3），演示步骤 1 会演成空态，T-ST-01 直接判不过。行数与 ≥0.5 条数见 `backend/scripts/evidence/integration-2026-10-24.md`。
-- **前置阻塞（先解这个，否则演示开不了）**：每人本机 MySQL，root 建 `jit_demo` 并授权 `jit@127.0.0.1`（`jit` 账号通常**无 `CREATE DATABASE`**，MySQL 8 报 1044）。一条命令建库脚本见 Issue **#142** / PR **#150**（`backend/scripts/schema_mysql.sql` + `docs/backend/mysql-setup.md`）。该 issue 与 Issue #121 并列而不同：#121 是后端真库验收用的**探针库**（`jit_schema_probe` / `jit_orm_probe`），#142 是**演示库**，照 #121 执行不会产生演示库。现有 `jit_defect` 里的 2 提交 / 4 预测是**占位脏数据**（假哈希 `1111…`/`2222…`、`repo_name=activemq`、`smoke_v1`/`tree_placeholder_v0`），按 §5 第 4 条「演示 `commit_hash` 必须与库中真实数据一致」**不能上台**；演示走新建的干净库 `jit_demo`，`jit_defect` 的存量由 infra 处置，不在演示路径上。
+- **数据库敲定为 MySQL**：`DATABASE_URL=mysql+pymysql://jit:<pwd>@127.0.0.1:3306/jit_demo?charset=utf8mb4`。不用 SQLite —— 演示要的是「真库 + 真实规模」，MySQL 也是课程验收与 Issue #121 的既定方向。
+- **为什么废除 SQLite 联调库**：原 `integration-log.md` §0 定 SQLite 是为了零外部依赖，且 #117 的 9 张三态截图曾在该口径下取证；现统一 MySQL 后，新联调直接走 `jit_demo`，避免两套库带来的口径分裂。
+- **历史说明（不影响现口径）**：早期 seed 三行 `risk_score` 最高 0.3，若用极小 seed 库跑 `min_risk=0.5&size=5` 自检会为空；联调与演示现都用 `jit_demo` 的真实规模数据，不踩此坑。
+- **前置（先解，否则跑不起来）**：每人本机 MySQL，配好 `jit` 账号与库（一键脚本 `infra/setup_mysql.py` 会建 `jit_demo` 与测试库 `jit_test` 并授权；`jit` 通常无 `CREATE DATABASE`，脚本支持 `--root-password` 由 root 代建）。现有 `jit_defect` 里的 2 提交 / 4 预测是**占位脏数据**（假哈希 `1111…`/`2222…`、`repo_name=activemq`、`smoke_v1`/`tree_placeholder_v0`），按 §5 第 4 条「演示 `commit_hash` 必须与库中真实数据一致」**不能上台**；用新建的干净库 `jit_demo`，`jit_defect` 的存量由 infra 处置，不在演示路径上。
 - 灌数只走 `app.ingest`，**不许手工改库**。#149 合入后切到 `/api/sync` 时，同样只走接口、不手工改库。
 - 录屏前跑一次 `backend/scripts/demo_preflight.py`（Issue #138，后端线；PR #151 起支持 `--init-db --ingest` 一条命令建库+灌数）：按本节口径逐项自检，任一不满足退出码 1 并打印实际值。注意其六条判据**不比对 `commit_feature` 的值**——灌错特征表（raw 那份）也会全绿，判别方法见 `docs/backend/mysql-setup.md` §4。
 

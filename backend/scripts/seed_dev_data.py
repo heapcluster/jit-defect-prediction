@@ -1,8 +1,10 @@
-"""种子数据（仅联调与测试用，命名带 seed；只进本地库，不入库，见 design D5）。"""
+"""种子数据：灌入当前 DATABASE_URL 指向的 MySQL 库（默认 jit_demo），用于联调 / 演示 / 测试起步数据。命名带 seed；只进本地库，不入库，见 design D5。"""
 
 from __future__ import annotations
 
 from datetime import datetime
+
+from sqlalchemy.exc import IntegrityError
 
 from app.db import SessionLocal, init_db
 from app.models import Commit, CommitFeature, Prediction
@@ -21,7 +23,9 @@ def seed() -> None:
     with SessionLocal() as session:
         for i in range(1, 4):
             hash_ = f"{i:040x}"
-            if session.get(Commit, 1) and session.query(Commit).filter_by(commit_hash=hash_).first():
+            # 幂等判据用自然键 commit_hash，不用自增主键 id —— id=1 是否存在取决于
+            # 历史灌库顺序，半灌/自增偏移的场景会误判成「已灌过」或漏判后撞唯一索引。
+            if session.query(Commit).filter_by(commit_hash=hash_).first() is not None:
                 continue
             session.add(
                 Commit(
@@ -49,7 +53,16 @@ def seed() -> None:
                     feature_version="v1",
                 )
             )
-        session.commit()
+        try:
+            session.commit()
+        except IntegrityError:
+            # 半灌状态（例如 commit 在、feature 缺）会撞唯一索引：回滚并说清原因，
+            # 不留一个事务失败、连接却挂着半改状态的会话。
+            session.rollback()
+            raise SystemExit(
+                "seed 失败：库内已有部分冲突行（半灌状态）。请先清理冲突数据或重建库再跑；"
+                "本脚本不做任何删除。"
+            ) from None
     print("seed 数据写入完成（3 提交 / 3 特征 / 3 预测）")
 
 

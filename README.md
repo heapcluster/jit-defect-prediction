@@ -145,14 +145,14 @@ python -V                                               # 必须是 3.12.x
 
 - conda 环境 `jit-defect-prediction`（Python **3.12.14**），依赖唯一清单 `data_model/environment.yml`
   （仓库不再维护第二份依赖清单）。
-- MySQL 8（部署/演示）或 SQLite（本地零依赖）；Node 18+（前端）。
+- MySQL 8（联调 / 演示 / 验收统一数据库，本机必须安装）；Node 18+（前端）。
 - `backend/.env` —— **不入库**，从 `backend/.env.example` 复制后按本机改。
 
 ### 7.2 `backend/.env` 关键项
 
 | 变量 | 说明 |
 |---|---|
-| `DATABASE_URL` | 本地默认 `sqlite:///./dev.db`；部署换 `mysql+pymysql://user:pass@127.0.0.1:3306/jit_defect` |
+| `DATABASE_URL` | `mysql+pymysql://jit:<密码>@127.0.0.1:3306/jit_demo?charset=utf8mb4`（联调 / 演示 / 验收同一套）；建库见 `infra/setup_mysql.py` |
 | `API_TOKEN` | 接口令牌，请求头 `x-api-key`；**未配置时一律拒绝**（fail closed） |
 | `MODEL_DIR` | 留空即回落 `<repo>/data_model/pipelines/expert/models/`；禁止写个人绝对路径 |
 | `SOURCE_REPO` | 本地 Apache Camel 克隆根目录（含 `.git`）。留空 = `POST /api/predict` 只查库，库里没有的哈希返回 40400 |

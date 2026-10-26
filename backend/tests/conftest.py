@@ -1,4 +1,8 @@
-"""测试公共夹具：SQLite 内存库 + fixture 决策树模型（design D9）。"""
+"""测试公共夹具：本机 MySQL 测试库 jit_test + fixture 决策树模型（design D9）。
+
+所有测试依赖本机 MySQL：DATABASE_URL 必须指向已建好的测试库 jit_test
+（由仓库 infra/setup_mysql.py 一键建好）。代码里不再写死 SQLite 内存库。
+"""
 
 from __future__ import annotations
 
@@ -11,18 +15,17 @@ from pathlib import Path
 import numpy as np
 import pytest
 from sklearn.tree import DecisionTreeClassifier
-from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
 
 MODEL_DIR = Path(tempfile.mkdtemp(prefix="jit-models-"))
 os.environ["API_TOKEN"] = "test-token"
-os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["MODEL_DIR"] = str(MODEL_DIR)
+# DATABASE_URL 不在此写死：由 backend/.env（指向 jit_test）或环境变量提供。
+# 跑 pytest 前请确保 jit_test 已建好（见 infra/setup_mysql.py）。
 
 from fastapi.testclient import TestClient
 
 from app import model_registry
-from app.db import Base, configure_engine
+from app.db import Base, configure_engine, get_engine
 from app.main import create_app
 from app.models import Commit, CommitFeature, Prediction
 
@@ -65,12 +68,9 @@ os.utime(MODEL_DIR / "fixture_v2.pkl", (2_000_000, 2_000_000))
 
 @pytest.fixture(scope="session")
 def engine():
-    eng = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(eng)
+    # 读 config.DATABASE_URL（指向本机 MySQL 测试库 jit_test）；不再用 SQLite 内存库
+    eng = get_engine()
+    Base.metadata.create_all(eng)  # 幂等：表已存在则跳过
     configure_engine(eng)
     return eng
 

@@ -136,6 +136,11 @@ def has(name: str) -> bool:
     return name in _REGISTRY
 
 
+def all_models() -> list[ModelEntry]:
+    """已加载的全部模型（供「一次现算特征、逐模型打分」的批量场景使用，如 PR 同步）。"""
+    return list(_REGISTRY.values())
+
+
 def default_model() -> ModelEntry | None:
     if not _REGISTRY:
         return None

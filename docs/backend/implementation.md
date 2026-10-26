@@ -6,7 +6,7 @@
 
 ## 0. 技术选型
 
-FastAPI + SQLAlchemy + MySQL（或 SQLite 开发期）；模型用 `joblib.load` 加载 `data_model/pipelines/expert/models/*.pkl`；解释用 SHAP（树模型 `TreeExplainer`）。
+FastAPI + SQLAlchemy + MySQL（联调 / 演示 / 验收统一 MySQL，不再保留 SQLite 开发库）；模型用 `joblib.load` 加载 `data_model/pipelines/expert/models/*.pkl`；解释用 SHAP（树模型 `TreeExplainer`）。
 
 ## 1. 系统架构图
 

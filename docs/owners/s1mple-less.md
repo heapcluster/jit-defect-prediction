@@ -8,7 +8,7 @@
 - `backend/.env.example`（模板值必须与 `integration-log.md` §0 一致）
 - `backend/scripts/evidence/**`：性能与安全自测证据
 - `docs/backend/**`：`api-spec.md`、`implementation.md`、`acceptance.md`
-- 联调库结构（SQLite 四张表）与 seed 脚本口径
+- 联调库结构（MySQL `jit_demo` 四张表）与 seed 脚本口径
 - `infra/schema.sql`：MySQL 建表 DDL，必须与 `python -m app.db init` 的 ORM 路径等价（两边都过 `_assert_indexes`）。**文件在 infra 目录，改动需苏哲勋会签**；等价性判据与索引断言由后端线维护
 
 ## 2. 不越界（这些必须找别人）
@@ -24,7 +24,7 @@
 
 - **接口**：契约三所列路径全部可用；仓库侧唯一出处是 `docs/backend/api-spec.md` §三，当前 **4 条**（`GET /api/commits`、`GET /api/commits/{commit_hash}`、`GET /api/trends`、`POST /api/predict`）。`GET /api/models` **不做**（`docs/backend/acceptance.md` 第 5 条：前端维护静态清单）。鉴权 `X-API-Key` fail-closed：`API_TOKEN` 未配置一律拒绝（`backend/app/auth.py`）
 - **错误码**：`40001` 参数、`40100` 鉴权、`40400` 不存在、`50000` 内部错误；**不把服务端 message 原文吐给前端**，`50000` 不回显堆栈/SQL/路径
-- **联调库**：按 `integration-log.md` §0 的口径 —— `cd backend` → `python -m scripts.seed_dev_data` 一条命令建库灌数（3 提交 / 3 特征 / 3 预测，`commit_hash` = `000…001`~`000…003`）。2026-10-24 实跑核对：不带 `PYTHONPATH` 也 rc=0、重跑幂等、库内 3/0/3/3 行。**联调库只有 `backend/dev.db` 一份**；后端验收跑用的一次性隔离库（全量 83,943 行）不是联调库，不许混用
+- **联调库**：统一 MySQL `jit_demo`（与演示 / 验收同一套），由 `python infra/setup_mysql.py --seed`（或 `python -m scripts.seed_dev_data`，读 `backend/.env` 的 `DATABASE_URL`）一键建库灌数（3 提交 / 3 特征 / 3 预测，`commit_hash` = `000…001`~`000…003`）。后端验收跑用的一次性隔离库（全量 83,943 行）是另一份，不许与联调库混用
 - **压测**：登记口径是 `python scripts/perf_loop.py --n 100`（`test-plan.md` T-NF-01、`non-functional.md` §2）；`acceptance.md` 第 6 条另要 20 次的 P50/P95。脚本**没有 `--model-name` 参数**（POST body 只带 `commit_hash`），要测单个模型就构造只含该 `.pkl` + 对应 `feature_order.txt` 的单模型 `MODEL_DIR` 起服务
 - **自测**：`security_cases.py` 与 `perf_loop.py` 的每一行结论都必须是脚本真跑出来的，且脚本自己能在假数据上复现（回归测试不依赖外部服务）
 
