@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 
 from app import config, schemas
-from app.api.commits import _parse_time, default_model_in_table
+from app.api.commits import _parse_time
+from app.services.commits import default_model_in_table
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import AppError, ok
