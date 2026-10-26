@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import subprocess
 import tempfile
@@ -42,13 +43,22 @@ MAX_LIMIT = 50
 
 
 def _run_git(repo: str, *args: str) -> str:
-    """执行 git 命令；代理经命令行参数禁用，不读全局配置。
+    """执行 git 命令；代理只认 `GIT_PROXY`（其次 `HTTPS_PROXY`），不让全局 git 配置掺进来。
+
+    - 有值：`-c http.proxy=<值> -c https.proxy=<值>`（本机访问 GitHub 必须走代理的场景）；
+    - 留空：显式置空（维持原行为：直连环境不被全局配置干扰）。
 
     `encoding="utf-8"` 显式指定：Windows 默认按 locale（cp936）解码，Camel 的
     中文提交信息会乱码并最终写进 `commit.message`。
     失败一律映射为契约内 50000 + `internal error`（细节只进 logger，不回显调用方）。
     """
-    cmd = ["git", "-C", repo, "-c", "http.proxy=", "-c", "https.proxy=", *args]
+    cmd = ["git", "-C", repo]
+    proxy = os.getenv("GIT_PROXY", "").strip() or os.getenv("HTTPS_PROXY", "").strip()
+    if proxy:
+        cmd += ["-c", f"http.proxy={proxy}", "-c", f"https.proxy={proxy}"]
+    else:
+        cmd += ["-c", "http.proxy=", "-c", "https.proxy="]
+    cmd += [*args]
     try:
         proc = subprocess.run(
             cmd,
@@ -104,7 +114,7 @@ def _is_ancestor(repo: str, commit: str, base: str = "HEAD") -> bool:
     return check.returncode == 0
 
 
-def ensure_extractable(repo: str, tip: str) -> tuple[str, Callable[[], None]]:
+def ensure_extractable(repo: str, tip: str) -> tuple[Path, Callable[[], None]]:
     """返回 (特征提取用仓库路径, 释放函数)。
 
     tip 已从 HEAD 可达：直接用 SOURCE_REPO 本身，释放为空操作；
@@ -115,7 +125,7 @@ def ensure_extractable(repo: str, tip: str) -> tuple[str, Callable[[], None]]:
     之后 `git worktree` 命令会警告 —— 在 SOURCE_REPO 里跑一次 `git worktree prune` 即可。
     """
     if _is_ancestor(repo, tip):
-        return repo, lambda: None
+        return Path(repo), lambda: None
 
     tmp = Path(tempfile.mkdtemp(prefix="jit-sync-"))
     try:

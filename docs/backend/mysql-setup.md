@@ -267,15 +267,12 @@ python infra/clone_camel_history.py --path <本机路径>/camel-history --fetch 
 
 - **灌入幂等**：同一文件重跑不增行（按表幂等键 upsert：`commit=commit_hash`、`label=(commit_hash, label_method)`、`feature=commit_hash`、`prediction=(commit_hash, model_name)`）；缺主键字段的行整批回滚并报行号。该幂等性在 MySQL `jit_demo` 四类各灌两遍实测通过（组长本机 #147）。
 
-## 4.4 让页面先有数据（本地开发初始化）
+## 4.4 让页面先有数据（空库 → 界面同步）
 
-```bash
-# cwd = 仓库根；把仓库内已有的数据线产物灌进开发库并预跑预测（约 1 分钟）
-python infra/bootstrap_dev.py --limit 3000 --models xgb_v1,lr_v1
-# 幂等：重复执行不产生重复行；--reset 清空重建；--skip-predict 只导数据
-```
+四表为空是**正常初始状态**：数据一律由前端触发 `POST /api/sync` / `POST /api/sync-prs` 逐条现算（git 历史 → 14 项特征 → 真实权重预测）后落库，实测每条约 15 秒 —— **不存在也不允许任何预先批量灌库步骤**。
 
-这是**本地开发初始化**，不是运行时数据入口（增量仍走 `POST /api/sync` / `POST /api/sync-prs`，规格见 `openspec/specs/db-schema`）。
+- 前端风险列表/PR 列表的空态即同步加载台：选数量 → 开始同步 → 进度反馈，完成后自动刷新；
+- 前提是 `backend/.env` 已配 `SOURCE_REPO`（本地 Camel 索引：`python infra/clone_camel_history.py --repo apache/camel --path <目录>`）。
 
 ## 5. 验收清单
 

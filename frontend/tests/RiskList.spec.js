@@ -13,9 +13,12 @@ vi.mock('element-plus', () => ({
   ElMessage: { success: vi.fn(), error: vi.fn() }
 }))
 
+// routeQuery 供各用例注入路由参数（useRoute 的 mock 读取它）
+let routeQuery = {}
+
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
-  useRoute: () => ({ query: {} })
+  useRoute: () => ({ query: routeQuery })
 }))
 
 const stubs = {
@@ -31,7 +34,9 @@ const stubs = {
   'el-tooltip': true,
   'el-empty': { template: '<div class="empty"><slot/><span>{{description}}</span></div>', props: ['description'] },
   'el-alert': { template: '<div class="alert"><slot/><span>{{title}}</span></div>', props: ['title'] },
-  'el-pagination': true
+  'el-pagination': true,
+  'el-card': { template: '<div class="card"><slot/></div>' },
+  'el-progress': true
 }
 
 function bizErr(code) {
@@ -44,10 +49,20 @@ function bizErr(code) {
 describe('RiskList 三态', () => {
   beforeEach(() => {
     getCommits.mockReset()
+    routeQuery = {}
   })
 
-  it('空数据：无提交显示空态文案（不是错误）', async () => {
+  it('空库：显示同步加载台（按需现算的引导，不是错误）', async () => {
     getCommits.mockResolvedValue({ items: [], total: 0 })
+    const wrapper = mount(RiskList, { global: { stubs } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('数据库里还没有提交')
+    expect(wrapper.text()).toContain('开始同步')
+  })
+
+  it('空数据（带筛选）：显示空态文案（不是错误）', async () => {
+    getCommits.mockResolvedValue({ items: [], total: 0 })
+    routeQuery = { start_time: '2026-01-01', end_time: '2026-02-01' }
     const wrapper = mount(RiskList, { global: { stubs } })
     await flushPromises()
     expect(wrapper.text()).toContain('当前筛选条件下没有提交')

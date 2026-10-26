@@ -159,7 +159,7 @@ python -V                                               # 必须是 3.12.x
 | `SOURCE_REPO` | 本地 Apache Camel 克隆根目录（含 `.git`）。留空 = `POST /api/predict` 只查库，库里没有的哈希返回 40400 |
 | `SYNC_ON_STARTUP` | `=1` 时启动后台预同步一次（需先配 `SOURCE_REPO`） |
 
-### 7.3 三步跑起来（本机已实测）
+### 7.3 两步跑起来（本机已实测）
 
 ```bash
 # 1) 配连接：复制模板，只填 DB_PASSWORD（口令单独一格，不用转义）
@@ -168,21 +168,29 @@ cp backend/.env.example backend/.env
 # 2) 建库建表：jit_demo（演示/验收） + jit_test（pytest 自动用）
 python infra/setup_mysql.py
 
-# 3) 灌历史数据并预跑预测（约 1 分钟；默认最新 5000 条，可 --limit / --models）
-python infra/bootstrap_dev.py
-
-# 起后端（启动日志应出现 8 个已加载模型）
+# 3) 起后端（启动日志应出现 8 个已加载模型）
 cd backend && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 # 另开一个终端起前端
 cd frontend && npm run dev        # http://127.0.0.1:5173
+```n
+**四表为空是正常初始状态**：到前端风险列表/PR 列表的同步加载台点一下，数据就会按需现算、逐条落库
+（实测每条约 15 秒，一次 10 条约 2.6 分钟）。**不存在也不允许任何预先批量灌库步骤**——这是 owner 裁定，
+也已写进规格（`openspec/specs/db-schema`：空库首启 Scenario）。
+
+- 想手动建表：`cd backend && python -m app.db init`；
+- 同步的前提是本地 Camel 索引：`python infra/clone_camel_history.py --repo apache/camel --path <目录>`；
+- PR 页要调 GitHub：受限流影响时在 `backend/.env` 加 `GITHUB_TOKEN`；本机需要代理时加 `GIT_PROXY` / `HTTPS_PROXY`。
+
+```bash
+# 另开一个终端起前端
+cd frontend && npm run dev        # http://127.0.0.1:5173
 ```
 
-- `bootstrap_dev.py` 是**本地开发初始化**：只把仓库里已有的数据线产物（`data_model/data/*.csv`）灌进开发库，
-  运行时数据入口仍然只有 `POST /api/sync` / `POST /api/sync-prs`（规格见 `openspec/specs/db-schema`）。
-- 想手动建表：`cd backend && python -m app.db init`；只想灌数据不预测：加 `--skip-predict`。
-- PR 页要调 GitHub：受限流影响时在 `backend/.env` 加 `GITHUB_TOKEN`（公开仓库可留空）；
-  本机需要代理时加 `HTTPS_PROXY=http://127.0.0.1:<端口>`（`urllib` 会自动使用）。
+- 数据一律**按需现算**：在前端同步加载台触发，逐条落库；禁止任何预先批量灌库（规格见 `openspec/specs/db-schema`）。
+- 想手动建表：`cd backend && python -m app.db init`。
+- 同步依赖本地 Camel 索引：`python infra/clone_camel_history.py --repo apache/camel --path <目录>`，并在 `backend/.env` 配 `SOURCE_REPO` 与 `GIT_PROXY`。
+- PR 页要调 GitHub：受限流影响时在 `backend/.env` 加 `GITHUB_TOKEN`（公开仓库可留空）。
 
 ### 7.4 冒烟自测
 

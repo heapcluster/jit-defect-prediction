@@ -80,7 +80,8 @@ def _init_repo_with_two_commits(tmp_path):
 def test_ensure_extractable_uses_repo_when_tip_is_head_reachable(tmp_path):
     repo, _first, second = _init_repo_with_two_commits(tmp_path)
     extract_repo, release = sync_module.ensure_extractable(str(repo), second)
-    assert extract_repo == str(repo)
+    # 返回值收窄为 Path（feature_source 统一吃 Path，str 会在路径拼接处炸 str/str）
+    assert str(extract_repo) == str(repo)
     release()  # 空操作，不报错
     # HEAD 未被改动
     head = subprocess.run(

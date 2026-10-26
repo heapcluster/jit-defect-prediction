@@ -141,9 +141,57 @@
       />
     </el-table>
 
-    <!-- 空数据：三态之一，不是错误 -->
+    <!-- 空库 / 空筛选：给「按需现算」的加载台，杜绝任何提前灌库 -->
+    <el-card
+      v-if="showBootstrap"
+      class="boot"
+      shadow="never"
+    >
+      <h3>数据库里还没有提交</h3>
+      <p class="boot-desc">
+        数据来自 Camel git 历史：<b>逐条现算 14 项特征 → 真实模型预测 → 落库</b>，
+        实测每条约 15 秒。不会预先批量灌库，你同步多少条，页面就有多少条。
+      </p>
+      <p class="boot-desc">
+        前提：backend/.env 已配 SOURCE_REPO（本地 Camel 索引，命令：python infra/clone_camel_history.py --repo apache/camel --path &lt;目录&gt;）。
+      </p>
+      <div class="boot-row">
+        <el-select
+          v-model="syncCount"
+          style="width: 150px"
+          :disabled="syncing"
+        >
+          <el-option
+            v-for="n in [10, 30, 50]"
+            :key="n"
+            :label="`最新 ${n} 条（约 ${Math.round(n * 15 / 60)} 分钟）`"
+            :value="n"
+          />
+        </el-select>
+        <el-button
+          type="primary"
+          :loading="syncing"
+          @click="runSync"
+        >
+          开始同步
+        </el-button>
+      </div>
+      <el-progress
+        v-if="syncing"
+        :percentage="syncPct"
+        class="boot-progress"
+      />
+      <p
+        v-if="syncMsg"
+        class="sync-msg"
+      >
+        {{ syncMsg }}
+      </p>
+    </el-card>
+
+    <!-- 空数据（有筛选时）：三态之一，不是错误 -->
     <el-empty
-      v-if="!loading && !error && items.length === 0"
+      v-else-if="!loading && !error && items.length === 0"
       description="当前筛选条件下没有提交"
     >
       <el-button
@@ -168,9 +216,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { getCommits } from '../api'
+import { getCommits, postSync } from '../api'
 import { ElMessage } from 'element-plus'
 import { riskColor } from '../utils/risk'
 import { MODELS } from '../utils/models'
@@ -195,6 +243,43 @@ const total = ref(0)
 const loading = ref(false)
 const error = ref('')
 const retryable = ref(false)
+
+// ── 按需现算（加载台）：空库时引导用户分批同步，绝不提前灌库 ──
+const syncing = ref(false)
+const syncCount = ref(10)
+const syncPct = ref(0)
+const syncMsg = ref('')
+
+const hasFilter = computed(
+  () =>
+    !!(filters.model_name || filters.min_risk != null || (timeRange.value && timeRange.value.length))
+)
+const showBootstrap = computed(
+  () => !loading.value && !error.value && !hasFilter.value && items.value.length === 0
+)
+
+// 分批触发 POST /api/sync：实测现算约 15s/条，一批 10 条控制在 3 分钟内（前端超时 300s）
+async function runSync() {
+  syncing.value = true
+  syncPct.value = 0
+  let done = 0
+  try {
+    while (done < syncCount.value) {
+      const batch = Math.min(10, syncCount.value - done)
+      await postSync(batch)
+      done += batch
+      syncPct.value = Math.round((done / syncCount.value) * 100)
+      syncMsg.value = `已落库 ${done}/${syncCount.value} 条`
+    }
+    ElMessage.success(`同步完成，共 ${done} 条提交已现算并预测落库`)
+    await load(1)
+  } catch (e) {
+    ElMessage.error(errText(e))
+    syncMsg.value = `同步中断：${errText(e)}（已落库 ${done} 条，可再次点击继续）`
+  } finally {
+    syncing.value = false
+  }
+}
 
 // 最新请求标识：并发时丢弃过期响应，避免快速翻页时旧响应覆盖新结果
 // （2026-10-25 修复：此前 RiskList 无守卫，TrendBoard 有）
@@ -267,6 +352,30 @@ watch(() => route.query, applyQueryAndLoad)
 <style scoped>
 .filters {
   margin-bottom: 4px;
+}
+.boot {
+  margin-bottom: 16px;
+}
+.boot h3 {
+  margin: 0 0 10px;
+}
+.boot-desc {
+  margin: 0 0 8px;
+  color: #555;
+  line-height: 1.6;
+}
+.boot-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0 10px;
+}
+.boot-progress {
+  margin-bottom: 8px;
+}
+.sync-msg {
+  margin: 0;
+  color: #6b7280;
 }
 .mb {
   margin-bottom: 12px;
