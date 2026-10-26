@@ -9,7 +9,7 @@
 
 | # | 规矩 | 怎么检查 | 谁负责拦 |
 |---|---|---|---|
-| 1 | **提交前 CI 必绿**：`ruff` / `pytest`（backend+data_model）/ `openspec validate --specs --strict` / `check_spec_references links` 本地先跑一遍 | CI 红着推 = 把问题转给别人，PR 直接不合 | 组长 + 审阅人 |
+| 1 | **提交前 CI 必绿**：`ruff check` + `ruff format --check` / `pytest`（backend+data_model）/ `openspec validate --specs --strict` / `check_spec_references links` 本地先跑一遍 | CI 红着推 = 把问题转给别人，PR 直接不合 | 组长 + 审阅人 |
 | 2 | **联调只认 `docs/frontend/integration-log.md` §0**：库、`API_TOKEN`、`MODEL_DIR`、端口一张表 | `.env` / `.env.local` 与 §0 不一致即视为环境错 | 审阅人 |
 | 3 | **不写个人绝对路径进任何入库文件**（含文档） | 目录写死个人路径 = 别人必然 50000 | 审阅人 |
 | 4 | **口径单点**：同一事实只允许一个权威位置，别处只引用 | 出现第二份正文即视为缺陷，改或降级为指针 | 各线负责人 |
@@ -96,12 +96,12 @@
 
 ## 4. 开发规范（全组统一）
 
-- 风格：Python `ruff`；前端 ESLint+Prettier；Markdown 不强制。
+- 风格：Python 用 `ruff check`（lint）与 `ruff format`（排版），配置只有仓库根一份 `ruff.toml`；前端用 ESLint（`npm run lint`，未接 Prettier，避免 Vue 模板被二次排版）；Markdown 不强制。
 - 标识符英文、注释中文且只写「为什么」。
 - `.env` 不入库、`.env.example` 入库；密钥误提交 = 立刻改密钥 + 历史处理，不是 `git rm` 了事。
 - 禁止静默吞异常；对外错误码只用契约那 5 个，`50000` 不回显内部。
 - 测试底线：修缺陷带回归测试；新增接口至少 1 正常 + 1 异常路径。
-- 提交前自检：`ruff check`/`pytest`/`npm run lint`/`git status --short`/`git diff --cached`。
+- 提交前自检：`ruff check`/`ruff format --check`/`pytest`/`npm run lint`/`git status --short`/`git diff --cached`。
 
 ## 5. Issue 与看板
 

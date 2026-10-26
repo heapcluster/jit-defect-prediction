@@ -274,7 +274,7 @@ python -m scripts.demo_preflight --init-db --out scripts/evidence/preflight-<日
 | 四份 CSV 的**文件名与产出口径**、演示脚本与判据 | `docs/repo/demo-script-sprint1.md` §0.0 / §0.0.1 |
 | 联调库（MySQL `jit_demo`）、`API_TOKEN`、端口等**联调基线** | `docs/frontend/integration-log.md` §0 |
 | 四表 DDL 本体、字段与索引要求 | `infra/schema.sql` + `docs/design/data-fields.md` |
-| 接口路径、错误码、非功能靶子 | `docs/backend/api-spec.md`（契约三 v1.5，冻结） |
+| 接口路径、错误码、非功能靶子 | `docs/backend/api-spec.md`（契约三 v1.7，冻结） |
 | 后端验收板块（B1 建表、B4 在线预测、B5/B6 非功能） | `docs/backend/acceptance.md` |
 | 已在库上跑过的实测记录（SQLite 全量、T-ST 后端半边 43 项断言） | `backend/scripts/evidence/integration-2026-10-24.md`、`backend/scripts/evidence/system-layer-backend-2026-10-24.md` |
 

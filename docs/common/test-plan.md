@@ -2,7 +2,7 @@
 
 > 归属：课程《项目要求》Sprint 2「单元测试报告等」/ Sprint 3「完成功能、集成、系统等测试 + 问题/缺陷处置记录 + 至少两项已验证的非功能需求测试」
 > 维护：蒋励（统稿）｜ 供稿：吕建江（后端/集成）、刘帅华（前端/联调）、蒋励（模型）、苏哲勋（工程/缺陷）
-> 依据：`common/acceptance-overview.md`（验收板块）、`design/non-functional.md`（NFR）、`repo/defect-management.md`（缺陷流程）、`backend/api-spec.md`（契约三 v1.4）
+> 依据：`common/acceptance-overview.md`（验收板块）、`design/non-functional.md`（NFR）、`repo/defect-management.md`（缺陷流程）、`backend/api-spec.md`（契约三 v1.7）
 > **本文件是测试唯一入口**：各包 `acceptance.md` 只做本线细化，不重复总纲；飞书《产品设计文档》「六、测试方案」为本文件的指针。
 
 ---
