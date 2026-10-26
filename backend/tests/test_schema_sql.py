@@ -45,13 +45,19 @@ def _assert_schema_matches_metadata(sql: str) -> None:
     sql = "\n".join(line for line in sql.splitlines() if not line.lstrip().startswith("-- "))
     statements = [_normalize_sql(part) for part in sql.split(";") if part.strip()]
     expected = _mysql_statements(Base.metadata)
-    assert len(statements) == len(expected) == 4, "expected exactly four CREATE TABLE statements"
+    assert len(statements) == len(expected), "CREATE TABLE statements count mismatch"
     for statement, (table_name, ddl) in zip(statements, expected.items(), strict=True):
         assert statement == _normalize_sql(ddl), f"metadata drift: {table_name}"
 
 
 def test_schema_sql_matches_complete_mysql_metadata():
-    assert set(Base.metadata.tables) == {"commit", "commit_label", "commit_feature", "prediction"}
+    assert set(Base.metadata.tables) == {
+        "commit",
+        "commit_label",
+        "commit_feature",
+        "prediction",
+        "model",
+    }
     _assert_schema_matches_metadata(SCHEMA_SQL.read_text(encoding="utf-8"))
 
 
@@ -173,5 +179,5 @@ def test_drift_check_rejects_mutated_schema(original, replacement, table_name):
 def test_rejects_data_permissions_destructive_and_standalone_index_statements(extra_statement):
     sql = SCHEMA_SQL.read_text(encoding="utf-8")
     _assert_schema_matches_metadata(sql)
-    with pytest.raises(AssertionError, match="exactly four CREATE TABLE statements"):
+    with pytest.raises(AssertionError, match="CREATE TABLE statements"):
         _assert_schema_matches_metadata(sql + "\n" + extra_statement + ";\n")

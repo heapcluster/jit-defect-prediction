@@ -42,6 +42,13 @@
       </el-form-item>
       <el-form-item>
         <el-button
+          type="success"
+          :loading="catching"
+          @click="catchup"
+        >
+          补齐到最新
+        </el-button>
+        <el-button
           type="primary"
           @click="load(1)"
         >
@@ -68,6 +75,25 @@
         @click="load(filters.page)"
       >
         重试
+      </el-button>
+    </el-alert>
+
+    <!-- 已预测覆盖：让用户知晓缺口，通过「补齐到最新」由系统补齐（日期筛选只用于查看，不触发预测） -->
+    <el-alert
+      v-if="coverageText"
+      type="info"
+      :closable="false"
+      class="mb"
+    >
+      <span>{{ coverageText }}</span>
+      <el-button
+        size="small"
+        text
+        type="success"
+        :loading="catching"
+        @click="catchup"
+      >
+        补齐到最新
       </el-button>
     </el-alert>
 
@@ -218,9 +244,9 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { getCommits, postSync } from '../api'
+import { getCommits, postSync, getCommitsCoverage, postSyncCatchup, subscribeSyncProgress } from '../api'
 import { ElMessage } from 'element-plus'
-import { riskColor } from '../utils/risk'
+import { riskColor, riskLevel } from '../utils/risk'
 import { MODELS } from '../utils/models'
 import { errText, isRetryable } from '../utils/errors'
 import { formatTime } from '../utils/datetime'
@@ -243,6 +269,44 @@ const total = ref(0)
 const loading = ref(false)
 const error = ref('')
 const retryable = ref(false)
+
+// ── 已预测覆盖 + 补齐到最新（change startup-baseline-sync）──
+const catching = ref(false)
+const coverage = ref([])
+const coverageText = computed(() => {
+  if (!coverage.value.length) return ''
+  const parts = coverage.value.map(
+    (c) => `${c.model_name}: ${c.start ? c.start.slice(0, 10) : '—'} ~ ${c.end ? c.end.slice(0, 10) : '—'}`
+  )
+  return '已预测覆盖：' + parts.join('；')
+})
+function loadCoverage() {
+  getCommitsCoverage()
+    .then((d) => {
+      coverage.value = d.items || []
+    })
+    .catch(() => {})
+}
+function catchup() {
+  catching.value = true
+  const ctrl = subscribeSyncProgress((s) => {
+    if (s.total) syncPct.value = Math.round((s.done / s.total) * 100)
+    syncMsg.value = `补齐中 ${s.done}/${s.total}`
+  })
+  postSyncCatchup()
+    .then(() => {
+      ElMessage.success('已补齐到最新')
+      loadCoverage()
+      load(1)
+    })
+    .catch((e) => {
+      ElMessage.error(errText(e))
+    })
+    .finally(() => {
+      catching.value = false
+      ctrl.abort()
+    })
+}
 
 // ── 按需现算（加载台）：空库时引导用户分批同步，绝不提前灌库 ──
 const syncing = ref(false)
@@ -343,7 +407,10 @@ function applyQueryAndLoad() {
   load(1)
 }
 
-onMounted(applyQueryAndLoad)
+onMounted(() => {
+  applyQueryAndLoad()
+  loadCoverage()
+})
 
 // 响应同路由 query 变化：query 变化重新查；query 移除清日期 + 重置分页
 watch(() => route.query, applyQueryAndLoad)

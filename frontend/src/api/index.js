@@ -45,3 +45,56 @@ export function postSyncPrs(limit) {
 export function postSync(limit) {
   return request.post('/sync', null, { params: { limit }, timeout: SYNC_TIMEOUT })
 }
+
+// 同步状态快照：GET /api/sync/status
+export function getSyncStatus() {
+  return request.get('/sync/status')
+}
+
+// 已预测时间覆盖：GET /api/commits/coverage（每个 model_name 的起止 committed_at）
+export function getCommitsCoverage() {
+  return request.get('/commits/coverage')
+}
+
+// 补齐到最新：POST /api/sync/catchup（无日期参数，补齐 DB→HEAD 缺口，不触发历史区间预测）
+export function postSyncCatchup() {
+  return request.post('/sync/catchup', null, { timeout: SYNC_TIMEOUT })
+}
+
+// SSE 订阅同步进度（fetch streaming，便于带 X-API-Key 鉴权；EventSource 不支持自定义头）
+export function subscribeSyncProgress(onUpdate) {
+  const token = import.meta.env.VITE_API_KEY
+  const ctrl = new AbortController()
+  ;(async () => {
+    try {
+      const resp = await fetch('/api/sync/stream', {
+        headers: { 'X-API-Key': token },
+        signal: ctrl.signal,
+      })
+      if (!resp.ok || !resp.body) return
+      const reader = resp.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        const parts = buf.split('\n\n')
+        buf = parts.pop() || ''
+        for (const part of parts) {
+          const line = part.trim()
+          if (line.startsWith('data: ')) {
+            try {
+              onUpdate(JSON.parse(line.slice(6)))
+            } catch {
+              // 忽略坏帧
+            }
+          }
+        }
+      }
+    } catch {
+      // 终止或网络错误：静默
+    }
+  })()
+  return ctrl
+}

@@ -160,7 +160,7 @@ def _stub_extract(monkeypatch):
 
 
 def test_sync_predicts_existing_commit_without_prediction(client, monkeypatch, tmp_path):
-    """C3 在 commit 表已有行但无 prediction：sync 必须补预测（审阅意见 3）。"""
+    """C3 在 commit 表已有行但无 prediction：sync 必须补预测，且统一落全部模型（startup-baseline-sync）。"""
     repo = tmp_path / "camel3"
     repo.mkdir()
     (repo / ".git").mkdir()
@@ -178,21 +178,18 @@ def test_sync_predicts_existing_commit_without_prediction(client, monkeypatch, t
     assert resp.status_code == 200
     body = resp.json()
     assert body["code"] == 0
-    assert body["data"]["new"] == 3  # 三条都没有 fixture_v2 的 prediction
-    assert len(body["data"]["predicted"]) == 3
+    assert body["data"]["new"] == 3  # 三条 commit 都无 prediction 行
     assert {r["commit_hash"] for r in body["data"]["predicted"]} == set(hashes)
-    assert all(r["model_name"] == "fixture_v2" for r in body["data"]["predicted"])
+    # 全模型落库：每个 commit 在 prediction 表各注册模型各一行
+    with SessionLocal() as session:
+        rows = session.query(Prediction).filter(Prediction.commit_hash == C3).all()
+        assert {r.model_name for r in rows} == {"fixture_v1", "fixture_v2"}
 
-    # 二次调用：三条都已有 fixture_v2 prediction → new=0（幂等）
+    # 二次调用：三条都已有 prediction → new=0（幂等）
     second = client.post("/api/sync?limit=3", headers=HEADERS)
     assert second.status_code == 200
     assert second.json()["data"]["new"] == 0
     assert second.json()["data"]["predicted"] == []
-
-    with SessionLocal() as session:
-        rows = session.query(Prediction).filter(Prediction.commit_hash == C3).all()
-        assert len(rows) == 1
-        assert rows[0].model_name == "fixture_v2"
 
 
 def test_sync_requires_source_repo(monkeypatch):
@@ -246,3 +243,51 @@ def test_sync_concurrent_calls_rejected(monkeypatch):
         assert exc.value.code == 50000
     finally:
         sync_module._sync_lock.release()
+
+
+def test_catchup_predicts_uncovered_commits(client, monkeypatch, tmp_path):
+    """catchup 补齐 DB 有而 git 无 prediction 的 commit，且统一落全部模型（startup-baseline-sync）。"""
+    repo = tmp_path / "camel4"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    monkeypatch.setattr(sync_module.config, "SOURCE_REPO", repo)
+
+    hashes = [UNKNOWN, C3, "e" * 40]
+    monkeypatch.setattr(sync_module, "fetch_latest_tip", lambda repo_dir: hashes[0])
+    monkeypatch.setattr(sync_module, "list_all_hashes", lambda repo_dir, ref="FETCH_HEAD": hashes)
+    monkeypatch.setattr(
+        sync_module, "ensure_extractable", lambda repo_dir, tip: (repo_dir, lambda: None)
+    )
+    _stub_extract(monkeypatch)
+
+    resp = client.post("/api/sync/catchup", headers=HEADERS)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["code"] == 0
+    assert body["data"]["new"] == 3  # 三条 commit 在 DB 均无 prediction 行
+    with SessionLocal() as session:
+        rows = session.query(Prediction).filter(Prediction.commit_hash == C3).all()
+        assert {r.model_name for r in rows} == {"fixture_v1", "fixture_v2"}
+
+
+def test_sync_status_reports_idle_and_after_catchup(client, monkeypatch, tmp_path):
+    """status 快照：空闲 running=false；catchup 结束后状态复原且 mode=catchup。"""
+    idle = client.get("/api/sync/status", headers=HEADERS)
+    assert idle.status_code == 200
+    assert idle.json()["data"]["running"] is False
+
+    repo = tmp_path / "camel5"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    monkeypatch.setattr(sync_module.config, "SOURCE_REPO", repo)
+    monkeypatch.setattr(sync_module, "fetch_latest_tip", lambda repo_dir: UNKNOWN)
+    monkeypatch.setattr(sync_module, "list_all_hashes", lambda repo_dir, ref="FETCH_HEAD": [UNKNOWN])
+    monkeypatch.setattr(
+        sync_module, "ensure_extractable", lambda repo_dir, tip: (repo_dir, lambda: None)
+    )
+    _stub_extract(monkeypatch)
+    resp = client.post("/api/sync/catchup", headers=HEADERS)
+    assert resp.status_code == 200
+    after = client.get("/api/sync/status", headers=HEADERS).json()["data"]
+    assert after["running"] is False
+    assert after["mode"] == "catchup"

@@ -121,6 +121,8 @@ class PrListItem(BaseModel):
     html_url: str
     updated_at: str
     risk_score: float | None
+    risk_level: str | None = None
+    reason: str | None = None
     commit_count: int
     predicted_count: int
     predicted_at: str | None
@@ -143,6 +145,7 @@ class PrCommitItem(BaseModel):
     message: str
     author: str
     risk_score: float | None
+    risk_level: str | None = None
     predicted_at: str | None
 
 

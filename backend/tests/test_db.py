@@ -146,7 +146,7 @@ def test_db_cli_covers_usage_config_error_and_success(tmp_path, monkeypatch, eng
         monkeypatch.setattr(db, "_engine", None)
         monkeypatch.setattr(db.config, "DATABASE_URL", original_url)
         assert db.main(["app.db", "init"]) == 0
-        assert "四张表建表完成" in capsys.readouterr().out
+        assert "表建表完成" in capsys.readouterr().out
     finally:
         db.configure_engine(original)
 
