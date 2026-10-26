@@ -17,13 +17,18 @@ from app.db import SessionLocal
 from app.errors import AppError
 from app.github import PullRequest
 from app.models import Commit, Prediction
+
 from tests.conftest import HEADERS
 
 
 def _pr(number: int, title: str = "fix: camel") -> PullRequest:
     return PullRequest(
-        number=number, title=title, author="octocat", state="open",
-        head_sha="f" * 40, html_url=f"https://github.com/apache/camel/pull/{number}",
+        number=number,
+        title=title,
+        author="octocat",
+        state="open",
+        head_sha="f" * 40,
+        html_url=f"https://github.com/apache/camel/pull/{number}",
         updated_at="2026-10-25T12:00:00Z",
     )
 
@@ -37,24 +42,39 @@ def _seed_predictions(scores: dict[str, float], model: str = "fixture_v2") -> No
     with SessionLocal() as session:
         for commit_hash, score in scores.items():
             if session.query(Commit).filter_by(commit_hash=commit_hash).first() is None:
-                session.add(Commit(commit_hash=commit_hash, repo_name="camel",
-                                   author_name="dev",
-                                   committed_at=datetime(2026, 10, 20, 9, 0, 0),
-                                   message="CAMEL-1 fix"))
-            if (session.query(Prediction)
-                    .filter_by(commit_hash=commit_hash, model_name=model).first() is None):
-                session.add(Prediction(commit_hash=commit_hash, model_name=model,
-                                       risk_score=score,
-                                       predicted_at=datetime(2026, 10, 25, 10, 0, 0),
-                                       feature_version="v1"))
+                session.add(
+                    Commit(
+                        commit_hash=commit_hash,
+                        repo_name="camel",
+                        author_name="dev",
+                        committed_at=datetime(2026, 10, 20, 9, 0, 0),
+                        message="CAMEL-1 fix",
+                    )
+                )
+            if (
+                session.query(Prediction)
+                .filter_by(commit_hash=commit_hash, model_name=model)
+                .first()
+                is None
+            ):
+                session.add(
+                    Prediction(
+                        commit_hash=commit_hash,
+                        model_name=model,
+                        risk_score=score,
+                        predicted_at=datetime(2026, 10, 25, 10, 0, 0),
+                        feature_version="v1",
+                    )
+                )
         session.commit()
 
 
 def _wire_github(monkeypatch, prs, shas_by_pr, get_pr=None, fail_shas_for=()):
     """把 app.github 的三个只读调用换成可控假实现。"""
     monkeypatch.setattr(prs_module.github, "list_open_prs", lambda limit=20, repo=None: prs)
-    monkeypatch.setattr(prs_module.github, "get_pr",
-                        lambda number, repo=None: get_pr or _pr(number))
+    monkeypatch.setattr(
+        prs_module.github, "get_pr", lambda number, repo=None: get_pr or _pr(number)
+    )
 
     def fake_shas(number, repo=None):
         if number in fail_shas_for:
@@ -66,8 +86,7 @@ def _wire_github(monkeypatch, prs, shas_by_pr, get_pr=None, fail_shas_for=()):
 
 def test_list_prs_aggregates_max_risk_and_counts(client, monkeypatch):
     _seed_predictions({"a" * 40: 0.2, "b" * 40: 0.9, "c" * 40: 0.1})
-    _wire_github(monkeypatch, [_pr(7, "CAMEL-7 fix")],
-                 {7: ["a" * 40, "b" * 40, "c" * 40]})
+    _wire_github(monkeypatch, [_pr(7, "CAMEL-7 fix")], {7: ["a" * 40, "b" * 40, "c" * 40]})
     resp = client.get("/api/prs", headers=HEADERS)
     assert resp.status_code == 200
     body = resp.json()
@@ -157,8 +176,9 @@ def test_sync_prs_predicts_each_pr_and_reports_skipped(client, monkeypatch, tmp_
     assert data["commits_predicted"] == 2 and predicted == ["a" * 40, "b" * 40]
     assert data["prs"][0] == {"pr": 13, "title": "fix: camel", "commits_predicted": 2}
     # 响应经 schemas.SyncPrsSkippedItem 序列化：两种失败形态共用字段并集，缺的字段为 null
-    assert data["skipped"] == [{"pr": 14, "reason": "fetch failed: boom",
-                                "commit": None, "code": None, "message": None}]
+    assert data["skipped"] == [
+        {"pr": 14, "reason": "fetch failed: boom", "commit": None, "code": None, "message": None}
+    ]
 
 
 def test_sync_prs_single_commit_failure_does_not_stop_the_pr(client, monkeypatch, tmp_path):
@@ -178,5 +198,6 @@ def test_sync_prs_single_commit_failure_does_not_stop_the_pr(client, monkeypatch
     data = resp.json()["data"]
     assert data["commits_predicted"] == 1
     assert data["prs"][0]["commits_predicted"] == 1
-    assert data["skipped"] == [{"pr": 15, "commit": "a" * 40, "code": 40400,
-                                "message": "commit not found", "reason": None}]
+    assert data["skipped"] == [
+        {"pr": 15, "commit": "a" * 40, "code": 40400, "message": "commit not found", "reason": None}
+    ]

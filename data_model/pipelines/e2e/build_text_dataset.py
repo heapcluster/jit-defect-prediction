@@ -40,7 +40,7 @@ except ImportError:  # 直接以脚本方式跑（python build_text_dataset.py�
     from pipelines import text_source
 
 BASE = Path(__file__).resolve().parent
-DATA_DIR = BASE.parent.parent / "data"          # data_model/data
+DATA_DIR = BASE.parent.parent / "data"  # data_model/data
 OUT_CSV = BASE / "data" / "commit_text.csv"
 MAX_CHARS = 4000
 
@@ -81,29 +81,46 @@ def commit_text(repo: Repo, commit_hash: str, max_chars: int) -> tuple[str, str]
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="构造 e2e 线每段提交的 diff 文本数据集（对齐 SZZ 标签）",
-        formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--dataset", type=Path,
-                   default=DATA_DIR / "dataset_szz.csv",
-                   help="04 产出的样本集（含标签）")
-    p.add_argument("--repo", type=Path, default=None,
-                   help="克隆仓库路径；默认自动探测 data/camel 或 data/activemq")
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument(
+        "--dataset",
+        type=Path,
+        default=DATA_DIR / "dataset_szz.csv",
+        help="04 产出的样本集（含标签）",
+    )
+    p.add_argument(
+        "--repo",
+        type=Path,
+        default=None,
+        help="克隆仓库路径；默认自动探测 data/camel 或 data/activemq",
+    )
     p.add_argument("--out", type=Path, default=OUT_CSV)
-    p.add_argument("--max-chars", type=int, default=MAX_CHARS,
-                   help="单条提交文本上限字符数（CodeBERT 512 token ≈ 2000 字符）")
-    p.add_argument("--limit", type=int, default=0,
-                   help="只处理前 N 条（冒烟测试用；0=全量）")
+    p.add_argument(
+        "--max-chars",
+        type=int,
+        default=MAX_CHARS,
+        help="单条提交文本上限字符数（CodeBERT 512 token ≈ 2000 字符）",
+    )
+    p.add_argument("--limit", type=int, default=0, help="只处理前 N 条（冒烟测试用；0=全量）")
     return p.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     if not args.dataset.is_file():
-        print(f"[build_text] 找不到样本集：{args.dataset}（先跑 04_build_dataset.py）", file=sys.stderr)
+        print(
+            f"[build_text] 找不到样本集：{args.dataset}（先跑 04_build_dataset.py）",
+            file=sys.stderr,
+        )
         return 2
     repo_path = detect_repo(BASE.parent.parent, args.repo)
     if repo_path is None:
-        print("[build_text] 找不到克隆仓库：请先按 docs/model/data-pipeline.md 克隆并固定版本，"
-              "或传 --repo", file=sys.stderr)
+        print(
+            "[build_text] 找不到克隆仓库：请先按 docs/model/data-pipeline.md 克隆并固定版本，"
+            "或传 --repo",
+            file=sys.stderr,
+        )
         return 2
     print(f"[build_text] 使用仓库：{repo_path}")
 
@@ -124,8 +141,11 @@ def main() -> int:
             unreachable += 1
             continue
         text, source = got
-        out_rows.append(text_source.make_row(r["commit_hash"], text, source,
-                                             int(r["is_bug_inducing"]), r["feature_version"]))
+        out_rows.append(
+            text_source.make_row(
+                r["commit_hash"], text, source, int(r["is_bug_inducing"]), r["feature_version"]
+            )
+        )
 
     if not out_rows:
         print("[build_text] 0 条有效文本（全部取不到提交），未产出文件", file=sys.stderr)
@@ -136,18 +156,26 @@ def main() -> int:
     out_df.to_csv(args.out, index=False, quoting=__import__("csv").QUOTE_ALL)
 
     stats = text_source.summarize(out_df["text_source"])
-    positives = {name: int(((out_df["text_source"] == name) & (out_df["label"] == 1)).sum())
-                 for name in text_source.SOURCES}
+    positives = {
+        name: int(((out_df["text_source"] == name) & (out_df["label"] == 1)).sum())
+        for name in text_source.SOURCES
+    }
     pos = int(out_df["label"].sum())
     print(f"[build_text] 已写 {len(out_df)} 条（正样本 {pos} / 负样本 {len(out_df) - pos}）")
     print("[build_text] 文本来源：" + "，".join(f"{k}={v}" for k, v in stats.items()))
-    print("[build_text] 占位行中的正样本：" + "，".join(
-        f"{k}={positives[k]}" for k in (text_source.SOURCE_NO_TEXT_CHANGE,
-                                        text_source.SOURCE_ROOT_COMMIT)))
+    print(
+        "[build_text] 占位行中的正样本："
+        + "，".join(
+            f"{k}={positives[k]}"
+            for k in (text_source.SOURCE_NO_TEXT_CHANGE, text_source.SOURCE_ROOT_COMMIT)
+        )
+    )
     if unreachable:
         # 取不到的提交不等于「无文本变更」，必须显式报警：切分文件与克隆版本可能不一致
-        print(f"[build_text] ⚠ 跳过 {unreachable} 条在克隆仓库里取不到的提交（未落占位串）",
-              file=sys.stderr)
+        print(
+            f"[build_text] ⚠ 跳过 {unreachable} 条在克隆仓库里取不到的提交（未落占位串）",
+            file=sys.stderr,
+        )
     print(f"[build_text] -> {args.out}")
     return 0
 

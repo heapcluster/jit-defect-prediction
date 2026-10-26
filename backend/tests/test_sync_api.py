@@ -11,12 +11,12 @@ from __future__ import annotations
 import subprocess
 
 import pytest
-
 from app import feature_source
 from app.api import sync as sync_module
 from app.db import SessionLocal
 from app.errors import AppError
 from app.models import Prediction
+
 from tests.conftest import C3, HEADERS, UNKNOWN
 
 
@@ -51,7 +51,10 @@ def test_git_failure_maps_to_50000(monkeypatch, tmp_path):
 def _git(repo, *args):
     subprocess.run(
         ["git", "-C", str(repo), "-c", "user.email=t@e.com", "-c", "user.name=t", *args],
-        capture_output=True, text=True, timeout=60, check=True,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=True,
     )
 
 
@@ -100,7 +103,10 @@ def test_ensure_extractable_uses_temp_worktree_without_touching_checkout(tmp_pat
         assert extract_repo != str(repo)
         # 工作树的 HEAD 就是 tip
         wt_head = subprocess.run(
-            ["git", "-C", extract_repo, "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+            ["git", "-C", extract_repo, "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout.strip()
         assert wt_head == second
     finally:
@@ -108,6 +114,7 @@ def test_ensure_extractable_uses_temp_worktree_without_touching_checkout(tmp_pat
 
     # 释放后：工作树目录没了、git worktree 列表回到 1 个、原仓库 HEAD 未动
     import os
+
     assert not os.path.exists(extract_repo)
     listed = subprocess.run(
         ["git", "-C", str(repo), "worktree", "list"], capture_output=True, text=True, check=True
@@ -121,7 +128,8 @@ def test_ensure_extractable_uses_temp_worktree_without_touching_checkout(tmp_pat
 
 def _stub_extract(monkeypatch):
     monkeypatch.setattr(
-        feature_source, "extract",
+        feature_source,
+        "extract",
         lambda h, repo=None: {
             "repo_name": "camel",
             "author_name": "tester",
@@ -131,10 +139,20 @@ def _stub_extract(monkeypatch):
             "parent_hash": None,
             "feature_version": "test-v1",
             "features": {
-                "ns": 1.0, "nd": 1.0, "nf": 1.0, "entropy": 1.0,
-                "la": 1.0, "ld": 1.0, "lt": 1.0, "fix": 0,
-                "ndev": 1.0, "age": 1.0, "nuc": 1.0,
-                "exp": 1.0, "rexp": 1.0, "sexp": 1.0,
+                "ns": 1.0,
+                "nd": 1.0,
+                "nf": 1.0,
+                "entropy": 1.0,
+                "la": 1.0,
+                "ld": 1.0,
+                "lt": 1.0,
+                "fix": 0,
+                "ndev": 1.0,
+                "age": 1.0,
+                "nuc": 1.0,
+                "exp": 1.0,
+                "rexp": 1.0,
+                "sexp": 1.0,
             },
         },
     )
@@ -150,7 +168,9 @@ def test_sync_predicts_existing_commit_without_prediction(client, monkeypatch, t
     hashes = [UNKNOWN, C3, "e" * 40]
     monkeypatch.setattr(sync_module, "fetch_latest_tip", lambda repo_dir: hashes[0])
     monkeypatch.setattr(sync_module, "list_recent_hashes", lambda repo_dir, limit: hashes[:limit])
-    monkeypatch.setattr(sync_module, "ensure_extractable", lambda repo_dir, tip: (repo_dir, lambda: None))
+    monkeypatch.setattr(
+        sync_module, "ensure_extractable", lambda repo_dir, tip: (repo_dir, lambda: None)
+    )
     _stub_extract(monkeypatch)
 
     resp = client.post("/api/sync?limit=3", headers=HEADERS)
@@ -200,7 +220,9 @@ def test_sync_endpoint_unreachable_commit_counts_as_skipped(client, monkeypatch,
     hashes = [UNKNOWN]
     monkeypatch.setattr(sync_module, "fetch_latest_tip", lambda repo_dir: hashes[0])
     monkeypatch.setattr(sync_module, "list_recent_hashes", lambda repo_dir, limit: hashes)
-    monkeypatch.setattr(sync_module, "ensure_extractable", lambda repo_dir, tip: (repo_dir, lambda: None))
+    monkeypatch.setattr(
+        sync_module, "ensure_extractable", lambda repo_dir, tip: (repo_dir, lambda: None)
+    )
 
     def _boom(_hash: str, repo=None):
         raise ValueError("目标不是当前 HEAD 可达的非合并提交")

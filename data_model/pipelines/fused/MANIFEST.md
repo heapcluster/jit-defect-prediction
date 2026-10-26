@@ -24,6 +24,9 @@
 | `7ecf3be189c7b11b01aedad004e30930` | 26,464 | `fused/reports/figs/metric_bars.png` |
 | `16f56f5884fe4ffb1f13265906eaadd3` | 94,788 | `fused/reports/figs/roc_curves.png` |
 | `679cea1636f2038ad1693513e1655a30` | 4,401 | `fused/reports/model_metrics.md` |
-| `fee80ff06153a46c808bb1ef7e655b1b` | 230,394 | `fused/reports_prev_run_20261023.zip` |
 
-合计 20 个条目（不含本文件与 README.md）。
+合计 19 个条目（不含本文件与 README.md）。
+
+> 2026-10-26：原第 20 项 `fused/reports_prev_run_20261023.zip`（230,394 B）已从仓库移除 ——
+> 它是一个嵌套的二进制包，内容与同目录 `reports_prev_run_20261023/reports/` 下的松散文件重复，
+> 仓库不再保留任何 `.zip`（见 `.gitignore`）。

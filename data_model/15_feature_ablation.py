@@ -41,7 +41,9 @@ def _fit_eval(model_name: str, seed: int, X_tr, y_tr, X_te, y_te) -> dict:
     proba = model.predict_proba(X_te)[:, 1]
     return {
         "auc": float(roc_auc_score(y_te, proba)),
-        "f1": float(f1_score(y_te, (proba >= config.DECISION_THRESHOLD).astype(int), zero_division=0)),
+        "f1": float(
+            f1_score(y_te, (proba >= config.DECISION_THRESHOLD).astype(int), zero_division=0)
+        ),
     }
 
 
@@ -52,12 +54,14 @@ def leave_one_out(model_name, seed, X_tr, y_tr, X_te, y_te, features) -> list[di
     for idx, name in enumerate(features):
         keep = [i for i in range(X_tr.shape[1]) if i != idx]
         m = _fit_eval(model_name, seed, X_tr[:, keep], y_tr, X_te[:, keep], y_te)
-        rows.append({
-            "feature": name,
-            "auc_without": m["auc"],
-            "delta_auc": m["auc"] - base["auc"],
-            "delta_f1": m["f1"] - base["f1"],
-        })
+        rows.append(
+            {
+                "feature": name,
+                "auc_without": m["auc"],
+                "delta_auc": m["auc"] - base["auc"],
+                "delta_f1": m["f1"] - base["f1"],
+            }
+        )
     return base, rows
 
 
@@ -72,11 +76,13 @@ def permutation_importance(model, X_te, y_te, features, repeats: int, seed: int)
             X_perm = X_te.copy()
             rng.shuffle(X_perm[:, idx])
             drops.append(base_auc - float(roc_auc_score(y_te, model.predict_proba(X_perm)[:, 1])))
-        rows.append({
-            "feature": name,
-            "drop_mean": float(np.mean(drops)),
-            "drop_std": float(np.std(drops, ddof=1)) if repeats > 1 else 0.0,
-        })
+        rows.append(
+            {
+                "feature": name,
+                "drop_mean": float(np.mean(drops)),
+                "drop_std": float(np.std(drops, ddof=1)) if repeats > 1 else 0.0,
+            }
+        )
     return base_auc, rows
 
 
@@ -88,21 +94,23 @@ def _rank(rows, key, reverse=True) -> dict[str, int]:
 def render_report(base, loo_rows, perm_rows, base_auc, model_name, seed, elapsed, limit) -> str:
     # 留一法的 delta 是「删掉后的 AUC − 全量 AUC」，**越负越重要**，故升序排名（最小者第 1）
     loo_rank = _rank(loo_rows, "delta_auc", reverse=False)
-    perm_rank = _rank(perm_rows, "drop_mean")          # 打乱后掉得多 → 重要
+    perm_rank = _rank(perm_rows, "drop_mean")  # 打乱后掉得多 → 重要
     by_name = {r["feature"]: r for r in loo_rows}
     perm_by = {r["feature"]: r for r in perm_rows}
 
     merged = []
     for name in by_name:
-        merged.append({
-            "feature": name,
-            "loo_delta": by_name[name]["delta_auc"],
-            "loo_rank": loo_rank[name],
-            "perm_drop": perm_by[name]["drop_mean"],
-            "perm_std": perm_by[name]["drop_std"],
-            "perm_rank": perm_rank[name],
-            "avg_rank": (loo_rank[name] + perm_rank[name]) / 2,
-        })
+        merged.append(
+            {
+                "feature": name,
+                "loo_delta": by_name[name]["delta_auc"],
+                "loo_rank": loo_rank[name],
+                "perm_drop": perm_by[name]["drop_mean"],
+                "perm_std": perm_by[name]["drop_std"],
+                "perm_rank": perm_rank[name],
+                "avg_rank": (loo_rank[name] + perm_rank[name]) / 2,
+            }
+        )
     merged.sort(key=lambda r: r["avg_rank"])
 
     top = [r for r in merged if r["avg_rank"] <= 5]
@@ -135,23 +143,36 @@ def render_report(base, loo_rows, perm_rows, base_auc, model_name, seed, elapsed
 
     lines += ["", "## 3. 结论（按证据写，不做修辞）", ""]
     if top:
-        lines.append("- **两口径都靠前（Top-5）**：" + "、".join(f"`{r['feature']}`" for r in top)
-                     + " —— 可视为该模型的主要判据。")
+        lines.append(
+            "- **两口径都靠前（Top-5）**："
+            + "、".join(f"`{r['feature']}`" for r in top)
+            + " —— 可视为该模型的主要判据。"
+        )
     if bottom:
-        lines.append("- **两口径都靠后（后 5 位）**：" + "、".join(f"`{r['feature']}`" for r in bottom)
-                     + " —— 在当前模型容量下边际贡献小；**不等于**该特征无业务意义（可能与其他列共线）。")
+        lines.append(
+            "- **两口径都靠后（后 5 位）**："
+            + "、".join(f"`{r['feature']}`" for r in bottom)
+            + " —— 在当前模型容量下边际贡献小；**不等于**该特征无业务意义（可能与其他列共线）。"
+        )
     if negative:
-        lines.append("- **负贡献（删除后 AUC 上升）**：" + "、".join(
-            f"`{r['feature']}`（{r['loo_delta']:+.4f}）" for r in negative)
-                     + " —— 如实登记，可能是噪声列或与其它列强共线；不据此直接删列（契约二的 14 项仍在交付清单内）。")
+        lines.append(
+            "- **负贡献（删除后 AUC 上升）**："
+            + "、".join(f"`{r['feature']}`（{r['loo_delta']:+.4f}）" for r in negative)
+            + " —— 如实登记，可能是噪声列或与其它列强共线；不据此直接删列（契约二的 14 项仍在交付清单内）。"
+        )
     if not negative:
         lines.append("- 未观察到「删除后 AUC 上升」的列，14 项在留一法口径下均非负贡献。")
 
     disagree = [r for r in merged if abs(r["loo_rank"] - r["perm_rank"]) >= 6]
     if disagree:
-        lines.append("- **两口径分歧较大**：" + "、".join(
-            f"`{r['feature']}`（留一 {r['loo_rank']} / 置换 {r['perm_rank']}）" for r in disagree)
-                     + " —— 通常说明该列被其它列替代（训练侧可替代）但推理时模型仍依赖它，需在答辩里说明，不可只报单一口径。")
+        lines.append(
+            "- **两口径分歧较大**："
+            + "、".join(
+                f"`{r['feature']}`（留一 {r['loo_rank']} / 置换 {r['perm_rank']}）"
+                for r in disagree
+            )
+            + " —— 通常说明该列被其它列替代（训练侧可替代）但推理时模型仍依赖它，需在答辩里说明，不可只报单一口径。"
+        )
 
     lines += [
         "",
@@ -198,17 +219,28 @@ def main(argv=None) -> int:
 
     model = build_model(args.model, args.seed)
     model.fit(X_tr, y_tr)
-    base_auc, perm_rows = permutation_importance(model, X_te, y_te, features, args.perm_repeats, args.seed)
+    base_auc, perm_rows = permutation_importance(
+        model, X_te, y_te, features, args.perm_repeats, args.seed
+    )
     print(f"[ablation] 置换重要性完成（repeats={args.perm_repeats}）")
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(
-        render_report(base, loo_rows, perm_rows, base_auc, args.model, args.seed,
-                      time.time() - started, args.limit),
+        render_report(
+            base,
+            loo_rows,
+            perm_rows,
+            base_auc,
+            args.model,
+            args.seed,
+            time.time() - started,
+            args.limit,
+        ),
         # 显式写 \n：Windows 上 write_text 默认把 \n 转成 os.linesep（CRLF），
         # 与仓库其余报告写盘端（05/04/expert-predict）一律 LF 不一致
-        encoding="utf-8", newline="\n",
+        encoding="utf-8",
+        newline="\n",
     )
     print(f"[ablation] -> {out}")
     return 0

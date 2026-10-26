@@ -11,9 +11,8 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pytest
-from sklearn.tree import DecisionTreeClassifier
-
 from app import config, model_registry
+from sklearn.tree import DecisionTreeClassifier
 
 
 def _fit(n_features: int = 14) -> DecisionTreeClassifier:
@@ -25,7 +24,8 @@ def _fit(n_features: int = 14) -> DecisionTreeClassifier:
 
 def _manifest(directory, *names):
     (directory / "feature_order.txt").write_text(
-        "[models]\n" + "\n".join(f"{name}.pkl" for name in names)
+        "[models]\n"
+        + "\n".join(f"{name}.pkl" for name in names)
         + "\n[feature_order]\n"
         + "\n".join(f"{i}. {name}" for i, name in enumerate(config.FEATURE_COLUMNS, 1))
         + "\n",
@@ -94,15 +94,11 @@ def test_explain_random_forest(tmp_path, monkeypatch, restore_registry):
     rng = np.random.RandomState(5)
     X = rng.rand(60, 14)
     y = (X[:, 3] > 0.5).astype(int)
-    forest = RandomForestClassifier(
-        n_estimators=10, min_samples_leaf=2, random_state=5
-    ).fit(X, y)
+    forest = RandomForestClassifier(n_estimators=10, min_samples_leaf=2, random_state=5).fit(X, y)
     _explain_of(tmp_path, monkeypatch, forest, "forest_v1")
 
 
-def test_explain_linear_pipeline_shap_additivity(
-    tmp_path, monkeypatch, restore_registry
-):
+def test_explain_linear_pipeline_shap_additivity(tmp_path, monkeypatch, restore_registry):
     """SHAP 可加性：线性 Pipeline 的贡献和 == margin(x)−margin(background)，禁止再折算（#52 复审 10-06）。"""
     from sklearn.linear_model import LogisticRegression
     from sklearn.pipeline import Pipeline
@@ -122,9 +118,7 @@ def test_explain_linear_pipeline_shap_additivity(
     monkeypatch.setattr(config, "MODEL_DIR", tmp_path)
     model_registry.load_models()
     rows = model_registry.explain(model_registry.get_model("pipe_v1"), [0.5] * 14)
-    signed = sum(
-        r["contribution"] * (1 if r["direction"] == "increase" else -1) for r in rows
-    )
+    signed = sum(r["contribution"] * (1 if r["direction"] == "increase" else -1) for r in rows)
     sc = pipe.named_steps["scaler"]
     lr = pipe.named_steps["lr"]
     expected = float(
@@ -144,21 +138,23 @@ def test_only_declared_delivery_models_load(tmp_path, monkeypatch, restore_regis
     assert sorted(model_registry._REGISTRY) == ["lr_v1", "rf_v1", "xgb_v1"]
 
 
-def test_manifest_missing_or_wrong_feature_order_loads_nothing(tmp_path, monkeypatch, restore_registry):
+def test_manifest_missing_or_wrong_feature_order_loads_nothing(
+    tmp_path, monkeypatch, restore_registry
+):
     joblib.dump(_fit(), tmp_path / "lr_v1.pkl")
     monkeypatch.setattr(config, "MODEL_DIR", tmp_path)
     model_registry.load_models()
     assert not model_registry._REGISTRY
     _manifest(tmp_path, "lr_v1")
     manifest = tmp_path / "feature_order.txt"
-    manifest.write_text(manifest.read_text(encoding="utf-8").replace("1. ns", "1. wrong"), encoding="utf-8")
+    manifest.write_text(
+        manifest.read_text(encoding="utf-8").replace("1. ns", "1. wrong"), encoding="utf-8"
+    )
     model_registry.load_models()
     assert not model_registry._REGISTRY
 
 
-def test_manifest_rejects_invalid_or_duplicate_model_entry(
-    tmp_path, monkeypatch, restore_registry
-):
+def test_manifest_rejects_invalid_or_duplicate_model_entry(tmp_path, monkeypatch, restore_registry):
     """[models] 段：带路径分隔符的文件名、以及重复条目，都必须让整份清单失效。
 
     覆盖 `model_registry._read_manifest` 的两个拒收分支（此前只有「列序不符」被覆盖）。
@@ -206,29 +202,50 @@ def test_repository_model_module_loads_in_clean_process(tmp_path):
     env = dict(os.environ)
     env.pop("PYTHONPATH", None)
     producer = subprocess.run(
-        [sys.executable, "-c",
-         ("import sys, joblib; sys.path.insert(0, sys.argv[1]); "
-          "import pipelines.delivery_fixture as delivery; "
-          "joblib.dump(delivery.DeliveryModel(), sys.argv[2])"),
-         str(code_dir), str(weights / "custom_v1.pkl")],
-        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=60, check=False,
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys, joblib; sys.path.insert(0, sys.argv[1]); "
+                "import pipelines.delivery_fixture as delivery; "
+                "joblib.dump(delivery.DeliveryModel(), sys.argv[2])"
+            ),
+            str(code_dir),
+            str(weights / "custom_v1.pkl"),
+        ],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
     )
     assert producer.returncode == 0, producer.stderr
     consumer = subprocess.run(
-        [sys.executable, "-c",
-         ("import sys, importlib.util; from pathlib import Path; "
-          "from app import config, model_registry; "
-          "assert importlib.util.find_spec('pipelines') is None; "
-          "config.REPO_ROOT = Path(sys.argv[1]); "
-          "config.MODEL_DIR = Path(sys.argv[2]); "
-          "model_registry.load_models(); "
-          "assert model_registry.has('custom_v1'); "
-          "assert model_registry.get_model('custom_v1').model.n_features_in_ == 14; "
-          "model_registry.load_models(); "
-          "assert sys.path.count(str((config.REPO_ROOT / 'data_model').resolve())) == 1"),
-         str(tmp_path), str(weights)],
-        cwd=Path(__file__).resolve().parents[1], env=env,
-        capture_output=True, text=True, timeout=60, check=False,
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys, importlib.util; from pathlib import Path; "
+                "from app import config, model_registry; "
+                "assert importlib.util.find_spec('pipelines') is None; "
+                "config.REPO_ROOT = Path(sys.argv[1]); "
+                "config.MODEL_DIR = Path(sys.argv[2]); "
+                "model_registry.load_models(); "
+                "assert model_registry.has('custom_v1'); "
+                "assert model_registry.get_model('custom_v1').model.n_features_in_ == 14; "
+                "model_registry.load_models(); "
+                "assert sys.path.count(str((config.REPO_ROOT / 'data_model').resolve())) == 1"
+            ),
+            str(tmp_path),
+            str(weights),
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
     )
     assert consumer.returncode == 0, consumer.stderr
 
@@ -299,12 +316,20 @@ def test_main_module_model_is_reported_without_alias(
     tmp_path, monkeypatch, caplog, restore_registry
 ):
     producer = subprocess.run(
-        [sys.executable, "-c",
-         ("import sys, joblib\n"
-          "class TabNetWithEarlyStop:\n    n_features_in_ = 14\n"
-          "joblib.dump(TabNetWithEarlyStop(), sys.argv[1])\n"),
-         str(tmp_path / "tabnet_v1.pkl")],
-        capture_output=True, text=True, timeout=60, check=False,
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys, joblib\n"
+                "class TabNetWithEarlyStop:\n    n_features_in_ = 14\n"
+                "joblib.dump(TabNetWithEarlyStop(), sys.argv[1])\n"
+            ),
+            str(tmp_path / "tabnet_v1.pkl"),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
     )
     assert producer.returncode == 0, producer.stderr
     _manifest(tmp_path, "tabnet_v1")
@@ -345,11 +370,15 @@ def test_explain_lightgbm_uses_tree_explainer(tmp_path, monkeypatch, restore_reg
     rng = np.random.RandomState(11)
     X = rng.rand(80, 14)
     y = (X[:, 3] > 0.5).astype(int)
-    model = lightgbm.LGBMClassifier(n_estimators=20, min_child_samples=2, random_state=11, verbose=-1).fit(X, y)
+    model = lightgbm.LGBMClassifier(
+        n_estimators=20, min_child_samples=2, random_state=11, verbose=-1
+    ).fit(X, y)
     _explain_of(tmp_path, monkeypatch, model, "lgbm_v1")
 
 
-def test_explain_kernel_model_degrades_to_empty_without_raising(tmp_path, monkeypatch, restore_registry):
+def test_explain_kernel_model_degrades_to_empty_without_raising(
+    tmp_path, monkeypatch, restore_registry
+):
     """svm/mlp_deep/tabnet 的设计内降级：核/深度模型无高效精确 SHAP 解释器，
     explain() 返回空数组且不抛异常（契约三 §4 允许这三个模型归因为空，见 #139 裁定）。"""
     from sklearn.pipeline import Pipeline
@@ -359,7 +388,12 @@ def test_explain_kernel_model_degrades_to_empty_without_raising(tmp_path, monkey
     rng = np.random.RandomState(13)
     X = rng.rand(60, 14)
     y = (X[:, 3] > 0.5).astype(int)
-    pipe = Pipeline([("scaler", StandardScaler()), ("svc", SVC(kernel="rbf", probability=True, random_state=13))]).fit(X, y)
+    pipe = Pipeline(
+        [
+            ("scaler", StandardScaler()),
+            ("svc", SVC(kernel="rbf", probability=True, random_state=13)),
+        ]
+    ).fit(X, y)
     joblib.dump(pipe, tmp_path / "svm_v1.pkl")
     _manifest(tmp_path, "svm_v1")
     monkeypatch.setattr(config, "MODEL_DIR", tmp_path)

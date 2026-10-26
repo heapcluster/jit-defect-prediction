@@ -24,7 +24,7 @@ from app.api.commits import _iso_z
 from app.api.predict import predict_commit_all_models
 from app.auth import require_api_key
 from app.db import SessionLocal
-from app.errors import INTERNAL_ERROR_MESSAGE, AppError
+from app.errors import INTERNAL_ERROR_MESSAGE, AppError, ok
 from app.models import Commit, Prediction
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
@@ -37,7 +37,9 @@ MAX_COMMITS_PER_PR = 50
 def _repo_path() -> Path:
     repo = config.SOURCE_REPO
     if repo is None or not (repo / ".git").exists():
-        raise AppError(40400, "history index repository unavailable (set SOURCE_REPO to a blobless clone)")
+        raise AppError(
+            40400, "history index repository unavailable (set SOURCE_REPO to a blobless clone)"
+        )
     return repo
 
 
@@ -81,7 +83,9 @@ def sync_prs(limit: int = 10) -> dict:
                 done += 1
                 commits_predicted += 1
             except AppError as exc:
-                skipped.append({"pr": pr.number, "commit": sha, "code": exc.code, "message": exc.message})
+                skipped.append(
+                    {"pr": pr.number, "commit": sha, "code": exc.code, "message": exc.message}
+                )
         pr_results.append({"pr": pr.number, "title": pr.title, "commits_predicted": done})
     return {
         "prs_scanned": len(prs),
@@ -95,9 +99,15 @@ def _pr_risk(pr_number: int, model_name: str) -> tuple[int, int, float | None, o
     """返回 (commit_count, predicted_count, max_risk, latest_predicted_at)。"""
     shas = github.list_pr_commit_shas(pr_number)
     with SessionLocal() as session:
-        rows = session.execute(
-            select(Prediction).where(Prediction.commit_hash.in_(shas), Prediction.model_name == model_name)
-        ).scalars().all()
+        rows = (
+            session.execute(
+                select(Prediction).where(
+                    Prediction.commit_hash.in_(shas), Prediction.model_name == model_name
+                )
+            )
+            .scalars()
+            .all()
+        )
     risks = [p.risk_score for p in rows if p.risk_score is not None]
     times = [p.predicted_at for p in rows if p.predicted_at is not None]
     return len(shas), len(risks), (max(risks) if risks else None), (max(times) if times else None)
@@ -107,7 +117,7 @@ def _pr_risk(pr_number: int, model_name: str) -> tuple[int, int, float | None, o
 def sync_prs_endpoint(limit: int = Query(default=10, ge=1, le=MAX_LIMIT)) -> dict:
     """实时拉取 Camel 最新 open PR 并逐条现算预测入库；无待预测时幂等返回 0。"""
     data = sync_prs(limit)
-    return {"code": 0, "message": "ok", "data": data}
+    return ok(data)
 
 
 @router.get("/api/prs", response_model=schemas.PrsResponse)
@@ -132,20 +142,21 @@ def list_prs(
             logger.warning("pr %s 风险聚合失败，跳过该 PR：%s", pr.number, exc)
             skipped += 1
             continue
-        items.append({
-            "number": pr.number,
-            "title": pr.title,
-            "author": pr.author,
-            "state": pr.state,
-            "html_url": pr.html_url,
-            "updated_at": pr.updated_at,
-            "risk_score": risk,
-            "commit_count": commit_count,
-            "predicted_count": predicted_count,
-            "predicted_at": _iso_z(predicted_at) if predicted_at else None,
-        })
-    return {"code": 0, "message": "ok",
-            "data": {"items": items, "model_name": model, "skipped": skipped}}
+        items.append(
+            {
+                "number": pr.number,
+                "title": pr.title,
+                "author": pr.author,
+                "state": pr.state,
+                "html_url": pr.html_url,
+                "updated_at": pr.updated_at,
+                "risk_score": risk,
+                "commit_count": commit_count,
+                "predicted_count": predicted_count,
+                "predicted_at": _iso_z(predicted_at) if predicted_at else None,
+            }
+        )
+    return ok({"items": items, "model_name": model, "skipped": skipped})
 
 
 @router.get("/api/prs/{number}", response_model=schemas.PrDetailResponse)
@@ -156,26 +167,36 @@ def pr_detail(number: int, model_name: str | None = Query(default=None)) -> dict
     pr = github.get_pr(number)
     shas = github.list_pr_commit_shas(number)
     with SessionLocal() as session:
-        preds = session.execute(
-            select(Prediction).where(Prediction.commit_hash.in_(shas), Prediction.model_name == model)
-        ).scalars().all()
-        commits = session.execute(select(Commit).where(Commit.commit_hash.in_(shas))).scalars().all()
+        preds = (
+            session.execute(
+                select(Prediction).where(
+                    Prediction.commit_hash.in_(shas), Prediction.model_name == model
+                )
+            )
+            .scalars()
+            .all()
+        )
+        commits = (
+            session.execute(select(Commit).where(Commit.commit_hash.in_(shas))).scalars().all()
+        )
     by_sha = {p.commit_hash: p for p in preds}
     meta = {c.commit_hash: c for c in commits}
     commit_rows = []
     for sha in shas:
         pred = by_sha.get(sha)
-        commit_rows.append({
-            "sha": sha,
-            "message": (meta[sha].message if sha in meta else "")[:200],
-            "author": meta[sha].author_name if sha in meta else "",
-            "risk_score": float(pred.risk_score) if pred and pred.risk_score is not None else None,
-            "predicted_at": _iso_z(pred.predicted_at) if pred and pred.predicted_at else None,
-        })
-    return {
-        "code": 0,
-        "message": "ok",
-        "data": {
+        commit_rows.append(
+            {
+                "sha": sha,
+                "message": (meta[sha].message if sha in meta else "")[:200],
+                "author": meta[sha].author_name if sha in meta else "",
+                "risk_score": float(pred.risk_score)
+                if pred and pred.risk_score is not None
+                else None,
+                "predicted_at": _iso_z(pred.predicted_at) if pred and pred.predicted_at else None,
+            }
+        )
+    return ok(
+        {
             "number": pr.number,
             "title": pr.title,
             "author": pr.author,
@@ -184,8 +205,8 @@ def pr_detail(number: int, model_name: str | None = Query(default=None)) -> dict
             "updated_at": pr.updated_at,
             "model_name": model,
             "commits": commit_rows,
-        },
-    }
+        }
+    )
 
 
 __all__ = ["MAX_LIMIT", "fetch_pr_ref", "router", "sync_prs"]

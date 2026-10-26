@@ -16,7 +16,7 @@ from __future__ import annotations
 import argparse
 import csv
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from git import Repo
@@ -44,7 +44,9 @@ REPO_NAME = "camel"
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="从固定版本的 Apache Camel 仓库抽取提交清单")
-    p.add_argument("--repo", type=Path, default=DEFAULT_REPO, help=f"仓库副本路径（默认 {DEFAULT_REPO}）")
+    p.add_argument(
+        "--repo", type=Path, default=DEFAULT_REPO, help=f"仓库副本路径（默认 {DEFAULT_REPO}）"
+    )
     p.add_argument("--out", type=Path, default=DEFAULT_OUT, help=f"输出 CSV（默认 {DEFAULT_OUT}）")
     p.add_argument("--since", default=None, help="只取此日期之后的提交，如 2018-01-01；不传=全量")
     p.add_argument(
@@ -57,14 +59,17 @@ def parse_args() -> argparse.Namespace:
 
 def to_utc(ts: int) -> str:
     """统一 UTC，格式与契约的 DATETIME 对齐（时间字段一律 UTC，见命名约定）。"""
-    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.fromtimestamp(ts, tz=UTC).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def main() -> int:
     args = parse_args()
 
     if not (args.repo / ".git").exists():
-        print(f"[失败] 找不到仓库：{args.repo}（先按 docs/model/data-pipeline.md 第 2 节克隆并固定版本）", file=sys.stderr)
+        print(
+            f"[失败] 找不到仓库：{args.repo}（先按 docs/model/data-pipeline.md 第 2 节克隆并固定版本）",
+            file=sys.stderr,
+        )
         return 2
 
     repo = Repo(str(args.repo))

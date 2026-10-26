@@ -200,8 +200,13 @@ def render_manifest(records: list[WeightRecord], line: str, generated_at: str) -
     return "\n".join(lines) + "\n"
 
 
-def render_report(records: list[WeightRecord], line: str, generated_at: str,
-                  problems: list[str], expect_width: int) -> str:
+def render_report(
+    records: list[WeightRecord],
+    line: str,
+    generated_at: str,
+    problems: list[str],
+    expect_width: int,
+) -> str:
     """验收用的 markdown 证据：md5 + 顶层/内层类路径 + 判定。"""
     total = len(records)
     ok = total - len({p.split(":")[0] for p in problems})
@@ -235,8 +240,16 @@ def render_report(records: list[WeightRecord], line: str, generated_at: str,
         )
     if problems:
         lines += ["", "## 问题", ""] + [f"- {p}" for p in problems]
-    lines += ["", "## 复现命令", "", "```bash", "cd data_model",
-              "python -m pipelines.verify_all_weights --check", "```", ""]
+    lines += [
+        "",
+        "## 复现命令",
+        "",
+        "```bash",
+        "cd data_model",
+        "python -m pipelines.verify_all_weights --check",
+        "```",
+        "",
+    ]
     return "\n".join(lines)
 
 
@@ -273,16 +286,32 @@ def _rows(records: list[WeightRecord]) -> list[tuple[str, str, str, str, str]]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="权重交付校验与 md5 清单（离线）")
     parser.add_argument("--line", default="expert", choices=sorted(LINES))
-    parser.add_argument("--models-dir", type=Path, default=None,
-                        help="覆盖默认权重目录（相对 data_model 或绝对路径）")
-    parser.add_argument("--expect-width", type=int, default=None,
-                        help="期望特征宽度；默认按线取（expert 14 / semantic 768 / fused 782 / e2e 0）")
+    parser.add_argument(
+        "--models-dir",
+        type=Path,
+        default=None,
+        help="覆盖默认权重目录（相对 data_model 或绝对路径）",
+    )
+    parser.add_argument(
+        "--expect-width",
+        type=int,
+        default=None,
+        help="期望特征宽度；默认按线取（expert 14 / semantic 768 / fused 782 / e2e 0）",
+    )
     parser.add_argument("--write-manifest", action="store_true", help="生成 models/manifest.txt")
-    parser.add_argument("--check", action="store_true", help="与 models/manifest.txt 比对，漂移即失败")
-    parser.add_argument("--no-load", action="store_true", help="只算 md5，不回读权重（无依赖环境用）")
+    parser.add_argument(
+        "--check", action="store_true", help="与 models/manifest.txt 比对，漂移即失败"
+    )
+    parser.add_argument(
+        "--no-load", action="store_true", help="只算 md5，不回读权重（无依赖环境用）"
+    )
     parser.add_argument("--json", action="store_true", help="以 JSON 输出，便于流水线消费")
-    parser.add_argument("--report", type=Path, default=None,
-                        help="另存一份 markdown 证据（含内层估计器类路径），供验收归档")
+    parser.add_argument(
+        "--report",
+        type=Path,
+        default=None,
+        help="另存一份 markdown 证据（含内层估计器类路径），供验收归档",
+    )
     args = parser.parse_args(argv)
 
     default_dir, default_width = LINES[args.line]
@@ -300,9 +329,12 @@ def main(argv: list[str] | None = None) -> int:
             # e2e 是 HF safetensors 权重（models/codebert_e2e_v1/），本脚本只扫 *.pkl。
             # 已裁定不是缺陷（e2e 的可加载取证走 safetensors_integrity.log），
             # 但 CLI 要一句话说清，别让人以为目录坏了。
-            print(f"[verify] e2e 线的权重是 safetensors（{models_dir}/codebert_e2e_v1/），"
-                  "本脚本只校验 *.pkl，对该线不适用；可加载性取证见该线 evidence/ 下的"
-                  "safetensors_integrity.log", file=sys.stderr)
+            print(
+                f"[verify] e2e 线的权重是 safetensors（{models_dir}/codebert_e2e_v1/），"
+                "本脚本只校验 *.pkl，对该线不适用；可加载性取证见该线 evidence/ 下的"
+                "safetensors_integrity.log",
+                file=sys.stderr,
+            )
         else:
             print(f"[verify] 目录里没有 *.pkl：{models_dir}", file=sys.stderr)
         return 2
@@ -314,8 +346,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{'file':<22}{'md5':<34}{'size':>12}  module")
         for rec in records:
             size_mb = rec.size / (1 << 20)
-            print(f"{rec.file:<22}{rec.md5:<34}{size_mb:>9.1f}MB  {rec.module or '-':<44}"
-                  f"{'' if rec.loaded or args.no_load else '  [LOAD FAILED]'}")
+            print(
+                f"{rec.file:<22}{rec.md5:<34}{size_mb:>9.1f}MB  {rec.module or '-':<44}"
+                f"{'' if rec.loaded or args.no_load else '  [LOAD FAILED]'}"
+            )
             for dotted in rec.inner:
                 print(f"{'':<22}{'':<34}{'':>12}    └ {dotted}")
 
@@ -324,13 +358,16 @@ def main(argv: list[str] | None = None) -> int:
 
     manifest_path = models_dir / MANIFEST_NAME
     if args.write_manifest:
-        manifest_path.write_text(render_manifest(records, args.line, generated_at), encoding="utf-8")
+        manifest_path.write_text(
+            render_manifest(records, args.line, generated_at), encoding="utf-8"
+        )
         print(f"[verify] 已写清单：{manifest_path}")
 
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(
-            render_report(records, args.line, generated_at, problems, expect_width), encoding="utf-8"
+            render_report(records, args.line, generated_at, problems, expect_width),
+            encoding="utf-8",
         )
         print(f"[verify] 已写证据：{args.report}")
 
@@ -345,9 +382,14 @@ def main(argv: list[str] | None = None) -> int:
             act_map = {r[4]: r for r in actual}
             for name in sorted(set(exp_map) | set(act_map)):
                 if exp_map.get(name) != act_map.get(name):
-                    print(f"[verify] 清单漂移 {name}: 清单={exp_map.get(name)} 实况={act_map.get(name)}",
-                          file=sys.stderr)
-            print("[verify] 清单与实况不一致 —— 权重被替换或重新导出过，须核对后重新生成", file=sys.stderr)
+                    print(
+                        f"[verify] 清单漂移 {name}: 清单={exp_map.get(name)} 实况={act_map.get(name)}",
+                        file=sys.stderr,
+                    )
+            print(
+                "[verify] 清单与实况不一致 —— 权重被替换或重新导出过，须核对后重新生成",
+                file=sys.stderr,
+            )
             return 2
         print(f"[verify] 清单一致（{len(actual)} 项）")
 
@@ -358,14 +400,20 @@ def main(argv: list[str] | None = None) -> int:
     if problems:
         for item in problems:
             print(f"[verify] {item}", file=sys.stderr)
-        print(f"[verify] 未通过：{len(problems)} 项（{time.time() - started:.1f}s）", file=sys.stderr)
+        print(
+            f"[verify] 未通过：{len(problems)} 项（{time.time() - started:.1f}s）", file=sys.stderr
+        )
         return 1
 
     widths = {r.n_features for r in records if r.n_features is not None}
-    print(f"[verify] 全部通过：{len(records)}/{len(records)} 可加载"
-          f"{'，特征宽度 ' + str(sorted(widths)) if widths else ''}（{time.time() - started:.1f}s）")
-    print("[verify] 注意：本结论只覆盖「评估可用」，在线加载清单仍由 feature_order.txt "
-          "的 [models] 段决定（R6），本脚本不改交付边界。")
+    print(
+        f"[verify] 全部通过：{len(records)}/{len(records)} 可加载"
+        f"{'，特征宽度 ' + str(sorted(widths)) if widths else ''}（{time.time() - started:.1f}s）"
+    )
+    print(
+        "[verify] 注意：本结论只覆盖「评估可用」，在线加载清单仍由 feature_order.txt "
+        "的 [models] 段决定（R6），本脚本不改交付边界。"
+    )
     return 0
 
 

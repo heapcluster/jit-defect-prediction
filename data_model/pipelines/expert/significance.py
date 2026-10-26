@@ -37,7 +37,7 @@ from .model import MODEL_NAMES, build_model
 
 BOOTSTRAP_REPEATS = 1000
 EFFORT_FRACTION = 0.2
-NULL_REPEATS = 20000        # 随机基线的蒙特卡洛重抽次数
+NULL_REPEATS = 20000  # 随机基线的蒙特卡洛重抽次数
 AUC_TARGET = 0.7
 # 交付清单 = 训练口径：8 个分类器全部在线交付（Issue #139 组长裁定 /
 # change online-eight-model-selection）。取 config 而非写死，训练口径变了这里不漂。
@@ -56,16 +56,17 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--models", default=",".join(DELIVERY_MODELS))
     p.add_argument("--seed", type=int, default=config.SEED)
     p.add_argument("--bootstrap-repeats", type=int, default=BOOTSTRAP_REPEATS)
-    p.add_argument("--null-repeats", type=int, default=NULL_REPEATS,
-                   help="随机基线（置换检验）的重抽次数")
+    p.add_argument(
+        "--null-repeats", type=int, default=NULL_REPEATS, help="随机基线（置换检验）的重抽次数"
+    )
     p.add_argument("--effort-fraction", type=float, default=EFFORT_FRACTION)
-    p.add_argument("--report", type=Path,
-                   default=config.REPORTS_DIR / "statistical_test.md")
+    p.add_argument("--report", type=Path, default=config.REPORTS_DIR / "statistical_test.md")
     return p.parse_args()
 
 
-def bootstrap_ci(y: np.ndarray, proba: np.ndarray, n_repeats: int,
-                 seed: int) -> dict[str, tuple[float, float, float]]:
+def bootstrap_ci(
+    y: np.ndarray, proba: np.ndarray, n_repeats: int, seed: int
+) -> dict[str, tuple[float, float, float]]:
     """重抽 n_repeats 次，返回 {指标: (均值, 下限, 上限)}。"""
     rng = np.random.default_rng(seed)
     n = len(y)
@@ -84,13 +85,15 @@ def bootstrap_ci(y: np.ndarray, proba: np.ndarray, n_repeats: int,
     out = {}
     for k, vals in metrics.items():
         arr = np.asarray(vals)
-        out[k] = (float(arr.mean()), float(np.percentile(arr, 2.5)),
-                  float(np.percentile(arr, 97.5)))
+        out[k] = (
+            float(arr.mean()),
+            float(np.percentile(arr, 2.5)),
+            float(np.percentile(arr, 97.5)),
+        )
     return out
 
 
-def top_by_effort(p: np.ndarray, effort: np.ndarray,
-                  effort_fraction: float) -> np.ndarray:
+def top_by_effort(p: np.ndarray, effort: np.ndarray, effort_fraction: float) -> np.ndarray:
     """Commits reviewable within an LOC budget, taken in score order.
 
     Budget = ``effort.sum() * effort_fraction``. Selection walks the
@@ -101,23 +104,22 @@ def top_by_effort(p: np.ndarray, effort: np.ndarray,
     """
     order = np.argsort(-p, kind="stable")
     cum = np.cumsum(effort[order])
-    within = int(np.searchsorted(cum, effort.sum() * effort_fraction,
-                                 side="right"))
-    return order[:max(1, within)]
+    within = int(np.searchsorted(cum, effort.sum() * effort_fraction, side="right"))
+    return order[: max(1, within)]
 
 
-def hits_for_order(order: np.ndarray, y: np.ndarray, effort: np.ndarray,
-                   effort_fraction: float) -> int:
+def hits_for_order(
+    order: np.ndarray, y: np.ndarray, effort: np.ndarray, effort_fraction: float
+) -> int:
     """Defects caught when reviewing a given ordering under the LOC budget."""
     cum = np.cumsum(effort[order])
-    within = max(1, int(np.searchsorted(
-        cum, effort.sum() * effort_fraction, side="right")))
+    within = max(1, int(np.searchsorted(cum, effort.sum() * effort_fraction, side="right")))
     return int(y[order[:within]].sum())
 
 
-def effort_null_distribution(y: np.ndarray, effort: np.ndarray,
-                             effort_fraction: float, repeats: int,
-                             seed: int) -> np.ndarray:
+def effort_null_distribution(
+    y: np.ndarray, effort: np.ndarray, effort_fraction: float, repeats: int, seed: int
+) -> np.ndarray:
     """Random-baseline hits under the SAME LOC budget and stopping rule.
 
     A random ordering does NOT review each defect with probability
@@ -132,8 +134,7 @@ def effort_null_distribution(y: np.ndarray, effort: np.ndarray,
     rng = np.random.default_rng(seed)
     out = np.empty(repeats, dtype=np.int64)
     for i in range(repeats):
-        out[i] = hits_for_order(rng.permutation(len(y)), y, effort,
-                                effort_fraction)
+        out[i] = hits_for_order(rng.permutation(len(y)), y, effort, effort_fraction)
     return out
 
 
@@ -141,19 +142,22 @@ def main() -> int:
     args = parse_args()
     for path in (args.train, args.test):
         if not path.is_file():
-            print(f"[expert-significance] 找不到切分文件：{path}（先跑 preparation/05_split_dataset.py）", file=sys.stderr)
+            print(
+                f"[expert-significance] 找不到切分文件：{path}（先跑 preparation/05_split_dataset.py）",
+                file=sys.stderr,
+            )
             return 2
 
     train = pd.read_csv(args.train)
     test = pd.read_csv(args.test)
-    missing = [c for c in config.FEATURE_FIELDS + [config.LABEL_COL]
-               if c not in train.columns]
+    missing = [c for c in config.FEATURE_FIELDS + [config.LABEL_COL] if c not in train.columns]
     if missing:
         print(f"[expert-significance] 训练集缺列：{missing}", file=sys.stderr)
         return 2
     if config.LABEL_COL not in test.columns:
-        print(f"[expert-significance] 检验集缺 `{config.LABEL_COL}`：只认主标签 szz",
-              file=sys.stderr)
+        print(
+            f"[expert-significance] 检验集缺 `{config.LABEL_COL}`：只认主标签 szz", file=sys.stderr
+        )
         return 2
 
     X_train = train[config.FEATURE_FIELDS].to_numpy(dtype=float)
@@ -170,8 +174,10 @@ def main() -> int:
     wanted = [m.strip() for m in args.models.split(",") if m.strip()]
     unknown = [m for m in wanted if m not in MODEL_NAMES]
     if unknown:
-        print("[expert-significance] 未知模型：{}；可选 {}".format(unknown, ",".join(MODEL_NAMES)),
-              file=sys.stderr)
+        print(
+            "[expert-significance] 未知模型：{}；可选 {}".format(unknown, ",".join(MODEL_NAMES)),
+            file=sys.stderr,
+        )
         return 2
 
     # 训练 + 全量预测概率（Bootstrap 与配对检验共用，保证口径一致）
@@ -182,8 +188,10 @@ def main() -> int:
         probas[name] = model.predict_proba(X_test)[:, 1]
         print(f"[expert-significance] {name:<8} 拟合完成")
 
-    bootstrap = {name: bootstrap_ci(y_test, p, args.bootstrap_repeats, args.seed)
-                 for name, p in probas.items()}
+    bootstrap = {
+        name: bootstrap_ci(y_test, p, args.bootstrap_repeats, args.seed)
+        for name, p in probas.items()
+    }
 
     # Effort-aware 配额：预算 = 检验集总 LOC 的 effort_fraction，
     # 按模型分数降序「花」预算，累计 LOC 不超过预算的提交都在审阅范围内。
@@ -193,8 +201,9 @@ def main() -> int:
 
     # 随机基线置换检验：Recall@effort_fraction（按 LOC 预算）
     # 零分布只依赖 (y, effort, budget)，与模型无关 —— 算一次三线共用。
-    null_hits = effort_null_distribution(y_test, effort, args.effort_fraction,
-                                         args.null_repeats, args.seed)
+    null_hits = effort_null_distribution(
+        y_test, effort, args.effort_fraction, args.null_repeats, args.seed
+    )
     binom_rows = []
     for name, p in probas.items():
         top = top_by_effort(p, effort, args.effort_fraction)
@@ -225,15 +234,37 @@ def main() -> int:
 
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(
-        render(args, train, test, wanted, bootstrap, binom_rows, wilcoxon_rows,
-               y_test, effort_budget, null_hits),
-        encoding="utf-8", newline="\n")
+        render(
+            args,
+            train,
+            test,
+            wanted,
+            bootstrap,
+            binom_rows,
+            wilcoxon_rows,
+            y_test,
+            effort_budget,
+            null_hits,
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
     print(f"[expert-significance] 显著性检验报告：{args.report}")
     return 0
 
 
-def render(args, train, test, wanted, bootstrap, binom_rows, wilcoxon_rows,
-           y_test, effort_budget, null_hits) -> str:
+def render(
+    args,
+    train,
+    test,
+    wanted,
+    bootstrap,
+    binom_rows,
+    wilcoxon_rows,
+    y_test,
+    effort_budget,
+    null_hits,
+) -> str:
     L: list[str] = []
     L.append(f"""# 交付模型统计显著性检验（pipelines/expert/significance.py 产出）
 
@@ -246,7 +277,7 @@ def render(args, train, test, wanted, bootstrap, binom_rows, wilcoxon_rows,
 |---|---|
 | 训练集 | `{args.train.name}` —— {len(train)} 条 |
 | 检验集 | `{args.test.name}` —— {len(test)} 条 |
-| 模型 | {', '.join(f'`{m}_v1`' for m in wanted)} |
+| 模型 | {", ".join(f"`{m}_v1`" for m in wanted)} |
 | Bootstrap 重复次数 | {args.bootstrap_repeats}（种子 {args.seed}） |
 | Effort-aware 预算 | 检验集总 LOC 的 {args.effort_fraction:.0%}（{effort_budget:.0f} LOC） |
 | 随机基线重抽次数 | {args.null_repeats}（同一 LOC/标签/停规则的置换检验，种子 {args.seed}） |
@@ -278,10 +309,12 @@ def render(args, train, test, wanted, bootstrap, binom_rows, wilcoxon_rows,
 | 模型 | 审阅条数 | 抓到缺陷 | 随机期望 | p 值 | 结论（α=0.05） |
 |---|---|---|---|---|---|
 """)
-    for name, hit, k_pos, p_value, n_reviewed in binom_rows:
+    for name, hit, _k_pos, p_value, n_reviewed in binom_rows:
         expected = float(null_hits.mean())
         conclusion = "**拒绝 H0（显著优于随机）**" if p_value < 0.05 else "不能拒绝 H0"
-        L.append(f"| `{name}_v1` | {n_reviewed} | {hit} | {expected:.2f} | {p_value:.2e} | {conclusion} |\n")
+        L.append(
+            f"| `{name}_v1` | {n_reviewed} | {hit} | {expected:.2f} | {p_value:.2e} | {conclusion} |\n"
+        )
     L.append(f"""
 > **随机期望**取自零分布均值（{args.null_repeats} 次随机排序 = {null_hits.mean():.2f} 条缺陷），
 > **p 值** = (1 + 零分布中 ≥ 实测命中数的次数) / ({args.null_repeats} + 1)。

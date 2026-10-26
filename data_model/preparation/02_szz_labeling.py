@@ -62,7 +62,7 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
@@ -84,7 +84,11 @@ FIX_WORD_RE = re.compile(r"\b(fix|bug|patch)", re.IGNORECASE)
 # 来自 866b7dc 的 reports/commit_extract_stats.md、reports/szz_labeling_stats.md；
 # 这是已提交的上游全量证据，不代表本次回归测试重新执行了全量打标。
 # 将来换固定版本时可置 None，报告必须明确表示「尚未登记」，不能当作自检通过。
-EXPECTED_OUTER: dict[str, int | None] = {"has_id": 38716, "id_and_fix_word": 7787, "id_and_fix_form": 6631}
+EXPECTED_OUTER: dict[str, int | None] = {
+    "has_id": 38716,
+    "id_and_fix_word": 7787,
+    "id_and_fix_form": 6631,
+}
 FULL_COMMIT_COUNT: int | None = 84461
 FIX_FORM_RE = re.compile(r"\bfix", re.IGNORECASE)  # 与 FIX_WORD_RE 同一套词首语义
 
@@ -110,8 +114,15 @@ def parse_args() -> argparse.Namespace:
         description="SZZ 打标：识别修缺陷提交并回溯引入缺陷的提交",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument("--repo", type=Path, default=DEFAULT_REPO, help=f"仓库副本路径（默认 {DEFAULT_REPO}）")
-    p.add_argument("--commits", type=Path, default=DEFAULT_COMMITS, help=f"01 产出的提交清单（默认 {DEFAULT_COMMITS}）")
+    p.add_argument(
+        "--repo", type=Path, default=DEFAULT_REPO, help=f"仓库副本路径（默认 {DEFAULT_REPO}）"
+    )
+    p.add_argument(
+        "--commits",
+        type=Path,
+        default=DEFAULT_COMMITS,
+        help=f"01 产出的提交清单（默认 {DEFAULT_COMMITS}）",
+    )
     p.add_argument(
         "--method",
         choices=(*METHODS, "both"),
@@ -213,7 +224,9 @@ def merge_ranges(ranges: list[tuple[int, int]], gap: int = MERGE_GAP) -> list[tu
     return [(a, b) for a, b in out]
 
 
-def blame_lines(repo_dir: Path, rev: str, path: str, ranges: list[tuple[int, int]]) -> dict[int, str]:
+def blame_lines(
+    repo_dir: Path, rev: str, path: str, ranges: list[tuple[int, int]]
+) -> dict[int, str]:
     """在 rev 上对 path 的指定行区间做 blame，返回 {行号: 提交哈希}。"""
     result: dict[int, str] = {}
     for start, end in merge_ranges(ranges):
@@ -297,10 +310,10 @@ def run_method(
     blame_memo: dict = {}
     touch_memo: dict = {}
 
-    labels: dict[str, str] = {}       # 引入方提交哈希 -> 触发它的修复提交哈希
-    unresolved: set[str] = set()      # 回溯未命中的修复提交（不入样本）
-    out_of_window = 0                 # 其中「引入方落在窗口/版本之外」的条数
-    no_parent = 0                     # 其中「根提交无父提交」的条数
+    labels: dict[str, str] = {}  # 引入方提交哈希 -> 触发它的修复提交哈希
+    unresolved: set[str] = set()  # 回溯未命中的修复提交（不入样本）
+    out_of_window = 0  # 其中「引入方落在窗口/版本之外」的条数
+    no_parent = 0  # 其中「根提交无父提交」的条数
     diff_failed = 0
 
     todo = fix_rows[:limit] if limit > 0 else fix_rows
@@ -313,7 +326,9 @@ def run_method(
             unresolved.add(fix_hash)
             continue
         try:
-            diff_text = _git(repo_dir, "diff", "-U0", "--no-color", "--no-renames", parent_hash, fix_hash)
+            diff_text = _git(
+                repo_dir, "diff", "-U0", "--no-color", "--no-renames", parent_hash, fix_hash
+            )
         except RuntimeError:
             # 单个提交的 diff 取不到不该拖停整条流程，计入统计继续
             diff_failed += 1
@@ -336,7 +351,10 @@ def run_method(
             labels.setdefault(c, fix_hash)  # 修复提交按时间序，先到先得 ⇒ 记最早的那次修复
 
         if i % 100 == 0:
-            print(f"    [{method}] {i}/{len(todo)} 条修复提交，已用 {time.time() - t0:.0f}s", flush=True)
+            print(
+                f"    [{method}] {i}/{len(todo)} 条修复提交，已用 {time.time() - t0:.0f}s",
+                flush=True,
+            )
 
     elapsed = time.time() - t0
 
@@ -348,7 +366,9 @@ def run_method(
     ratio = pos / len(sample) if sample else 0.0
 
     if pos == 0:
-        raise RuntimeError(f"[{method}] 正样本数为 0，打标逻辑有问题，终止（继续跑只会产出空训练集）")
+        raise RuntimeError(
+            f"[{method}] 正样本数为 0，打标逻辑有问题，终止（继续跑只会产出空训练集）"
+        )
 
     return {
         "method": method,
@@ -421,7 +441,9 @@ def judge_selfcheck(commits: list[dict[str, str]]) -> tuple[dict[str, int], bool
         "has_id": sum(1 for r in commits if BUG_ID_RE.search(r["message"])),
         "id_and_fix_word": sum(1 for r in commits if is_fix_commit(r["message"])),
         "id_and_fix_form": sum(
-            1 for r in commits if BUG_ID_RE.search(r["message"]) and FIX_FORM_RE.search(r["message"])
+            1
+            for r in commits
+            if BUG_ID_RE.search(r["message"]) and FIX_FORM_RE.search(r["message"])
         ),
     }
     comparable = baseline_registered() and len(commits) == FULL_COMMIT_COUNT
@@ -441,7 +463,9 @@ def write_report(
     got, ok, comparable = selfcheck
     L: list[str] = []
     L.append("# SZZ 打标统计（02_szz_labeling.py 产出）\n")
-    L.append("> 本文件可入库，是链路可复现与标签可信度的证据（见 `docs/model/data-pipeline.md` 第 3、6 节）\n")
+    L.append(
+        "> 本文件可入库，是链路可复现与标签可信度的证据（见 `docs/model/data-pipeline.md` 第 3、6 节）\n"
+    )
     L.append("## 输入与判据\n")
     L.append("| 项 | 值 |\n|---|---|")
     L.append(f"| 样本提交数（01 产出） | {len(commits)} |")
@@ -483,9 +507,13 @@ def write_report(
     L.append(f"\n自检结论：**{selfcheck_verdict(ok, comparable)}**\n")
 
     L.append("## 各方法结果\n")
-    L.append("| 指标 | " + " | ".join(r["method"] for r in results) + " |\n|---|" + "---|" * len(results))
+    L.append(
+        "| 指标 | " + " | ".join(r["method"] for r in results) + " |\n|---|" + "---|" * len(results)
+    )
+
     def row(name: str, fn) -> str:
         return f"| {name} | " + " | ".join(str(fn(r)) for r in results) + " |"
+
     L.append(row("打标成功数（进样本集）", lambda r: len(r["sample"])))
     L.append(row("**正样本数**（引入缺陷）", lambda r: r["pos"]))
     L.append(row("负样本数", lambda r: r["neg"]))
@@ -501,9 +529,13 @@ def write_report(
     L.append("\n### 正样本比例是否落在合理区间（规格 szz-labeling）\n")
     for r in results:
         if ABNORMAL_LOW <= r["ratio"] <= ABNORMAL_HIGH:
-            L.append(f"- ❌ **`{r['method']}` 正样本比例 {r['ratio']:.2%} 落在 {ABNORMAL_LOW:.0%}–{ABNORMAL_HIGH:.0%} 异常区间**，先复核打标逻辑，不要进入下游")
+            L.append(
+                f"- ❌ **`{r['method']}` 正样本比例 {r['ratio']:.2%} 落在 {ABNORMAL_LOW:.0%}–{ABNORMAL_HIGH:.0%} 异常区间**，先复核打标逻辑，不要进入下游"
+            )
         else:
-            L.append(f"- ✅ `{r['method']}` 正样本比例 {r['ratio']:.2%} 不在异常区间（判据见 docs/model/data-pipeline.md 第 6 节：落在 {ABNORMAL_LOW:.0%}–{ABNORMAL_HIGH:.0%} 才需自查）")
+            L.append(
+                f"- ✅ `{r['method']}` 正样本比例 {r['ratio']:.2%} 不在异常区间（判据见 docs/model/data-pipeline.md 第 6 节：落在 {ABNORMAL_LOW:.0%}–{ABNORMAL_HIGH:.0%} 才需自查）"
+            )
 
     if len(results) == 2:
         a, b = results
@@ -521,16 +553,24 @@ def write_report(
         L.append(f"| 标签不一致总数 | {diff} |")
         L.append(f"| 正样本分歧率 | {diff / base:.2%}（不一致数 ÷ 两法正样本并集） |")
         if only_b:
-            L.append(f"\n`{b['method']}` 多认出的前 10 条（粒度粗 ⇒ 容易把「只是同一个文件被改过」也算成引入方）：\n")
+            L.append(
+                f"\n`{b['method']}` 多认出的前 10 条（粒度粗 ⇒ 容易把「只是同一个文件被改过」也算成引入方）：\n"
+            )
             L.append("| commit_hash |\n|---|")
             for h in only_b[:10]:
                 L.append(f"| `{h}` |")
 
     L.append("\n## 说明\n")
-    L.append("- 本产物是**带标签样本集，不含特征列**；特征见下一步 `03_*.py` 产出的 `commit_feature`")
-    L.append("- `szz` 为自研标准行级 SZZ 实现：PySZZ 不在 PyPI（404），按兜底策略自研替代；契约一已于 1.2 版同步该口径（表二括注改为「标准行级 SZZ，自研实现」）")
+    L.append(
+        "- 本产物是**带标签样本集，不含特征列**；特征见下一步 `03_*.py` 产出的 `commit_feature`"
+    )
+    L.append(
+        "- `szz` 为自研标准行级 SZZ 实现：PySZZ 不在 PyPI（404），按兜底策略自研替代；契约一已于 1.2 版同步该口径（表二括注改为「标准行级 SZZ，自研实现」）"
+    )
     L.append("- `szz_lite` 为文件级回溯简化版：粒度粗、快一个量级，差异见上方对照表")
-    L.append("- 回溯未命中的修复提交按 D5 排除出样本集，不当负样本；三个数字（总数 / 打标成功数 / 未判定数）在此表同时出示")
+    L.append(
+        "- 回溯未命中的修复提交按 D5 排除出样本集，不当负样本；三个数字（总数 / 打标成功数 / 未判定数）在此表同时出示"
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(L) + "\n", encoding="utf-8")
 
@@ -545,7 +585,10 @@ def main() -> int:
         print("[失败] 找不到 git 可执行文件（blame/log 回溯需要它）", file=sys.stderr)
         return 2
     if not (args.repo / ".git").exists():
-        print(f"[失败] 找不到仓库：{args.repo}（先按 docs/model/data-pipeline.md 第 2 节克隆并固定版本）", file=sys.stderr)
+        print(
+            f"[失败] 找不到仓库：{args.repo}（先按 docs/model/data-pipeline.md 第 2 节克隆并固定版本）",
+            file=sys.stderr,
+        )
         return 2
 
     commits = load_commits(args.commits)
@@ -564,18 +607,23 @@ def main() -> int:
         f"编号+fix词形 {got['id_and_fix_form']} —— {verdict}"
     )
     if comparable and not ok:
-        print("[失败] Camel 判据外沿与登记基准不一致，停止回溯和写入；先核对输入版本与判据。", file=sys.stderr)
+        print(
+            "[失败] Camel 判据外沿与登记基准不一致，停止回溯和写入；先核对输入版本与判据。",
+            file=sys.stderr,
+        )
         return 5
     if not fix_rows:
         print("[失败] 没有识别到任何修缺陷提交，判据或输入有问题", file=sys.stderr)
         return 4
 
-    labeled_at = args.labeled_at or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    labeled_at = args.labeled_at or datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
     methods = METHODS if args.method == "both" else (args.method,)
 
     results = []
     for m in methods:
-        print(f"[进行] 打标方法 {m} —— 处理 {min(args.limit or len(fix_rows), len(fix_rows))} 条修复提交")
+        print(
+            f"[进行] 打标方法 {m} —— 处理 {min(args.limit or len(fix_rows), len(fix_rows))} 条修复提交"
+        )
         res = run_method(m, args.repo, commits, fix_rows, args.limit)
         results.append(res)
         stem = f"commit_labels_{args.tag}_{m}" if args.tag else f"commit_labels_{m}"

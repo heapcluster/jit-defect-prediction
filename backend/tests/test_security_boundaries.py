@@ -11,7 +11,6 @@
 from __future__ import annotations
 
 import pytest
-
 from app.errors import INTERNAL_ERROR_MESSAGE
 
 HEADERS = {"X-API-Key": "test-token"}
@@ -28,10 +27,13 @@ ALL_ENDPOINTS = [
 
 # ────────────────────────── 鉴权边界 ──────────────────────────
 
+
 @pytest.mark.parametrize("method,path", ALL_ENDPOINTS)
 def test_all_four_endpoints_require_token(client, method, path):
     """缺令牌时四个接口都必须 40100，预测接口不例外。"""
-    resp = client.request(method, path, json={"commit_hash": GOOD_HASH} if method == "POST" else None)
+    resp = client.request(
+        method, path, json={"commit_hash": GOOD_HASH} if method == "POST" else None
+    )
     assert resp.status_code == 401
     assert resp.json()["code"] == 40100
 
@@ -41,11 +43,11 @@ def test_all_four_endpoints_require_token(client, method, path):
     [
         "",
         " ",
-        " test-token",          # 前导空白不算通过
-        "test-token ",          # 尾随空白不算通过
-        "TEST-TOKEN",           # 大小写敏感
-        "test-token-extra",     # 超长
-        "test",                 # 前缀
+        " test-token",  # 前导空白不算通过
+        "test-token ",  # 尾随空白不算通过
+        "TEST-TOKEN",  # 大小写敏感
+        "test-token-extra",  # 超长
+        "test",  # 前缀
     ],
 )
 def test_token_must_match_exactly(client, bad_token):
@@ -64,16 +66,17 @@ def test_token_error_does_not_reveal_which_char_is_wrong(client):
 
 # ────────────────────────── 查询参数边界（GET /api/commits） ──────────────────────────
 
+
 @pytest.mark.parametrize(
     "query",
     [
         "page=0",
         "page=-1",
-        "page=abc",             # 非整数 → RequestValidationError → 40001
+        "page=abc",  # 非整数 → RequestValidationError → 40001
         "size=0",
-        "size=101",             # 超过上限 100
+        "size=101",  # 超过上限 100
         "size=-5",
-        "min_risk=1.5",         # 超出 0.0~1.0
+        "min_risk=1.5",  # 超出 0.0~1.0
         "min_risk=-0.1",
         "start_time=not-a-time",
         "end_time=2026-13-45",  # 月/日越界
@@ -90,9 +93,9 @@ def test_commits_query_boundaries_return_40001(client, query):
 @pytest.mark.parametrize(
     "query",
     [
-        "page=1&size=100",      # 上限值本身合法
-        "min_risk=0.0",         # 下界值合法
-        "min_risk=1.0",         # 上界值合法
+        "page=1&size=100",  # 上限值本身合法
+        "min_risk=0.0",  # 下界值合法
+        "min_risk=1.0",  # 上界值合法
         "start_time=2026-09-16T08:30:00Z",  # 合法 ISO 8601 带时区
     ],
 )
@@ -105,15 +108,16 @@ def test_commits_query_boundary_values_are_accepted(client, query):
 
 # ────────────────────────── 详情 / 预测 / 趋势 边界 ──────────────────────────
 
+
 @pytest.mark.parametrize(
     "bad_hash",
     [
-        "short",                       # 长度不足
-        "a" * 39,                      # 39 位
-        "a" * 41,                      # 41 位
-        "g" * 40,                      # 非十六进制
-        "G" * 40,                      # 非十六进制（大写形式同样拒收，归一化不放宽校验）
-        "A" * 40 + "!",                # 含符号
+        "short",  # 长度不足
+        "a" * 39,  # 39 位
+        "a" * 41,  # 41 位
+        "g" * 40,  # 非十六进制
+        "G" * 40,  # 非十六进制（大写形式同样拒收，归一化不放宽校验）
+        "A" * 40 + "!",  # 含符号
     ],
 )
 def test_detail_hash_boundaries_return_40001(client, bad_hash):
@@ -152,10 +156,10 @@ def test_detail_unknown_hash_stays_40400_after_normalization(client):
 @pytest.mark.parametrize(
     "payload",
     [
-        {},                                  # 缺 commit_hash
-        {"commit_hash": ""},                 # 空哈希
-        {"commit_hash": "short"},            # 非 40 位
-        {"commit_hash": "z" * 40},           # 非十六进制
+        {},  # 缺 commit_hash
+        {"commit_hash": ""},  # 空哈希
+        {"commit_hash": "short"},  # 非 40 位
+        {"commit_hash": "z" * 40},  # 非十六进制
         {"commit_hash": GOOD_HASH, "model_name": "nope_v1"},  # 模型不在清单
     ],
 )
@@ -179,6 +183,7 @@ def test_trends_time_boundary_return_40001(client):
 
 
 # ────────────────────────── 信息泄露断言 ──────────────────────────
+
 
 @pytest.mark.parametrize(
     "method,path,payload",

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from app import config, feature_source, model_registry, schemas
 from app.auth import require_api_key
 from app.db import SessionLocal
-from app.errors import INTERNAL_ERROR_MESSAGE, AppError
+from app.errors import INTERNAL_ERROR_MESSAGE, AppError, ok
 from app.models import Commit, CommitFeature, Prediction
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
@@ -33,12 +33,16 @@ def predict_commit(body: PredictRequest, repo=None) -> dict:
     commit_hash = _normalize_hash(body.commit_hash)
 
     with SessionLocal() as session:
-        commit = session.execute(select(Commit).where(Commit.commit_hash == commit_hash)).scalar_one_or_none()
+        commit = session.execute(
+            select(Commit).where(Commit.commit_hash == commit_hash)
+        ).scalar_one_or_none()
         feature = session.execute(
             select(CommitFeature).where(CommitFeature.commit_hash == commit_hash)
         ).scalar_one_or_none()
         if commit is None or feature is None:
-            missing_message = "commit not found" if commit is None else "features not found for this commit"
+            missing_message = (
+                "commit not found" if commit is None else "features not found for this commit"
+            )
             if config.SOURCE_REPO is None:
                 raise AppError(40400, missing_message)
             try:
@@ -73,7 +77,9 @@ def predict_commit(body: PredictRequest, repo=None) -> dict:
                 session.flush()
             except IntegrityError:
                 session.rollback()
-                commit = session.execute(select(Commit).where(Commit.commit_hash == commit_hash)).scalar_one_or_none()
+                commit = session.execute(
+                    select(Commit).where(Commit.commit_hash == commit_hash)
+                ).scalar_one_or_none()
                 feature = session.execute(
                     select(CommitFeature).where(CommitFeature.commit_hash == commit_hash)
                 ).scalar_one_or_none()
@@ -83,19 +89,24 @@ def predict_commit(body: PredictRequest, repo=None) -> dict:
         if body.model_name is not None and not model_registry.has(body.model_name):
             # 契约三错误码表：枚举值不存在 → 40001；注册表整体为空才是 50000
             raise AppError(40001, "参数非法：model_name 不在已加载模型清单")
-        entry = model_registry.get_model(body.model_name) if body.model_name else model_registry.default_model()
+        entry = (
+            model_registry.get_model(body.model_name)
+            if body.model_name
+            else model_registry.default_model()
+        )
         if entry is None:
             raise AppError(50000, INTERNAL_ERROR_MESSAGE)
 
         vector = [float(getattr(feature, name)) for name in config.FEATURE_COLUMNS]
         risk = model_registry.predict_proba(entry.model, vector)
         explanation = model_registry.explain(entry, vector)
-        predicted_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        predicted_at = datetime.now(UTC).replace(tzinfo=None)
 
         # design D7：聊天第三条「A 与 C 写同一张 prediction 表」+ 契约三「只保留最新一行」
         row = session.execute(
-            select(Prediction)
-            .where(Prediction.commit_hash == commit_hash, Prediction.model_name == entry.name)
+            select(Prediction).where(
+                Prediction.commit_hash == commit_hash, Prediction.model_name == entry.name
+            )
         ).scalar_one_or_none()
         if row is None:
             row = Prediction(commit_hash=commit_hash, model_name=entry.name)
@@ -109,8 +120,9 @@ def predict_commit(body: PredictRequest, repo=None) -> dict:
             # 审 4：并发双插被唯一索引挡住时回落为 update，保证幂等成功而非 500
             session.rollback()
             row = session.execute(
-                select(Prediction)
-                .where(Prediction.commit_hash == commit_hash, Prediction.model_name == entry.name)
+                select(Prediction).where(
+                    Prediction.commit_hash == commit_hash, Prediction.model_name == entry.name
+                )
             ).scalar_one()
             row.risk_score = risk
             row.predicted_at = predicted_at
@@ -125,22 +137,26 @@ def predict_commit(body: PredictRequest, repo=None) -> dict:
             name: (int(getattr(feature, name)) if name == "fix" else float(getattr(feature, name)))
             for name in config.FEATURE_COLUMNS
         }
-    return {
-        "code": 0,
-        "message": "ok",
-        "data": {
+    return ok(
+        {
             "commit_hash": commit_hash,
             "model_name": entry.name,
             "risk_score": round(risk, 5),
-            "predicted_at": stored_predicted_at.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z"),
+            "predicted_at": stored_predicted_at.replace(tzinfo=UTC)
+            .isoformat()
+            .replace("+00:00", "Z"),
             "features": features,
             "explanation": explanation,
-        },
-    }
+        }
+    )
 
 
 def _normalize_hash(commit_hash: str) -> str:
-    if not commit_hash or len(commit_hash) != 40 or any(c not in HASH_HEX for c in commit_hash.lower()):
+    if (
+        not commit_hash
+        or len(commit_hash) != 40
+        or any(c not in HASH_HEX for c in commit_hash.lower())
+    ):
         raise AppError(40001, "参数非法：commit_hash 需为 40 位十六进制")
     return commit_hash.lower()
 
@@ -153,7 +169,9 @@ def predict_commit_all_models(commit_hash: str, repo=None) -> list[dict]:
     """
     commit_hash = _normalize_hash(commit_hash)
     with SessionLocal() as session:
-        commit = session.execute(select(Commit).where(Commit.commit_hash == commit_hash)).scalar_one_or_none()
+        commit = session.execute(
+            select(Commit).where(Commit.commit_hash == commit_hash)
+        ).scalar_one_or_none()
         feature = session.execute(
             select(CommitFeature).where(CommitFeature.commit_hash == commit_hash)
         ).scalar_one_or_none()
@@ -193,7 +211,9 @@ def predict_commit_all_models(commit_hash: str, repo=None) -> list[dict]:
                 session.flush()
             except IntegrityError:
                 session.rollback()
-                commit = session.execute(select(Commit).where(Commit.commit_hash == commit_hash)).scalar_one_or_none()
+                commit = session.execute(
+                    select(Commit).where(Commit.commit_hash == commit_hash)
+                ).scalar_one_or_none()
                 feature = session.execute(
                     select(CommitFeature).where(CommitFeature.commit_hash == commit_hash)
                 ).scalar_one_or_none()
@@ -201,7 +221,7 @@ def predict_commit_all_models(commit_hash: str, repo=None) -> list[dict]:
                     raise AppError(50000, INTERNAL_ERROR_MESSAGE) from None
 
         vector = [float(getattr(feature, name)) for name in config.FEATURE_COLUMNS]
-        predicted_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        predicted_at = datetime.now(UTC).replace(tzinfo=None)
         entries = model_registry.all_models()
         results: list[dict] = []
         for entry in entries:

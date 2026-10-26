@@ -58,15 +58,14 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
-from sqlalchemy import create_engine, func, select
-from sqlalchemy.exc import SQLAlchemyError
-
 from app import config
 from app.models import Commit, CommitFeature, CommitLabel, Prediction
+from sqlalchemy import create_engine, func, select
+from sqlalchemy.exc import SQLAlchemyError
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = BACKEND_DIR.parent
@@ -76,8 +75,14 @@ LOADED_RE = re.compile(r"loaded models:\s*(\[[^\]]*\])")
 COUNT_MODELS = (Commit, CommitLabel, CommitFeature, Prediction)
 TABLES = tuple(model.__tablename__ for model in COUNT_MODELS)
 STAGE_NAMES = ("0a 建库建表",)
-CRITERION_NAMES = ("1 令牌一致", "2 库行数", "3 存在高风险行",
-                   "4 交付模型全部加载", "5 四接口 200", "6 同 hash 两次预测只留一行")
+CRITERION_NAMES = (
+    "1 令牌一致",
+    "2 库行数",
+    "3 存在高风险行",
+    "4 交付模型全部加载",
+    "5 四接口 200",
+    "6 同 hash 两次预测只留一行",
+)
 DEFAULT_EXPECT_PREDICTIONS = 83943
 DEFAULT_EXPECT_MODELS = "lr_v1,rf_v1,xgb_v1,lgbm_v1,et_v1,svm_v1,mlp_deep_v1,tabnet_v1"
 DEFAULT_HOST = "127.0.0.1"
@@ -93,7 +98,7 @@ def parse_dotenv(path: Path) -> dict[str, str]:
         if not line or line.startswith("#") or "=" not in line:
             continue
         if line.startswith("export "):
-            line = line[len("export "):].lstrip()
+            line = line[len("export ") :].lstrip()
         key, _, value = line.partition("=")
         value = value.strip()
         if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
@@ -140,7 +145,11 @@ def local_replacements(*values: str | Path | None) -> dict[str, str]:
     out: dict[str, str] = {}
     for value in values:
         text = str(value) if value else ""
-        if text and (":///" in text or re.search(r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]", text) or text.startswith("/")):
+        if text and (
+            ":///" in text
+            or re.search(r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]", text)
+            or text.startswith("/")
+        ):
             out[text] = "<本机路径>"
     return out
 
@@ -164,8 +173,12 @@ def count_rows(url: str) -> dict[str, int]:
     engine = create_engine(url)
     try:
         with engine.connect() as conn:
-            return {model.__tablename__: int(conn.execute(select(func.count()).select_from(model)).scalar_one())
-                    for model in COUNT_MODELS}
+            return {
+                model.__tablename__: int(
+                    conn.execute(select(func.count()).select_from(model)).scalar_one()
+                )
+                for model in COUNT_MODELS
+            }
     finally:
         engine.dispose()
 
@@ -175,11 +188,19 @@ def db_snapshot(url: str, threshold: float) -> tuple[dict[str, int], int]:
     engine = create_engine(url)
     try:
         with engine.connect() as conn:
-            counts = {model.__tablename__: int(conn.execute(select(func.count()).select_from(model)).scalar_one())
-                      for model in COUNT_MODELS}
-            high = int(conn.execute(
-                select(func.count()).select_from(Prediction).where(Prediction.risk_score >= threshold)
-            ).scalar_one())
+            counts = {
+                model.__tablename__: int(
+                    conn.execute(select(func.count()).select_from(model)).scalar_one()
+                )
+                for model in COUNT_MODELS
+            }
+            high = int(
+                conn.execute(
+                    select(func.count())
+                    .select_from(Prediction)
+                    .where(Prediction.risk_score >= threshold)
+                ).scalar_one()
+            )
         return counts, high
     finally:
         engine.dispose()
@@ -189,10 +210,15 @@ def count_pair(url: str, commit_hash: str, model_name: str) -> int:
     engine = create_engine(url)
     try:
         with engine.connect() as conn:
-            return int(conn.execute(
-                select(func.count()).select_from(Prediction).where(
-                    Prediction.commit_hash == commit_hash, Prediction.model_name == model_name)
-            ).scalar_one())
+            return int(
+                conn.execute(
+                    select(func.count())
+                    .select_from(Prediction)
+                    .where(
+                        Prediction.commit_hash == commit_hash, Prediction.model_name == model_name
+                    )
+                ).scalar_one()
+            )
     finally:
         engine.dispose()
 
@@ -212,16 +238,20 @@ def init_database(db_url: str) -> tuple[bool, str]:
     except (SQLAlchemyError, RuntimeError, OSError) as exc:
         detail = f"{type(exc).__name__}: {exc}"
         if "unknown database" in str(exc).lower() or "1049" in str(exc):
-            detail += (" ｜ ORM 路径只建表不建库：先用有 CREATE DATABASE 权限的账号跑 "
-                       "`mysql -u root -p < backend/scripts/schema_mysql.sql`（cwd=仓库根；"
-                       "该脚本与权限/常见报错说明见 docs/backend/mysql-setup.md §2 与 §6，Issue #142）")
+            detail += (
+                " ｜ ORM 路径只建表不建库：先用有 CREATE DATABASE 权限的账号跑 "
+                "`mysql -u root -p < backend/scripts/schema_mysql.sql`（cwd=仓库根；"
+                "该脚本与权限/常见报错说明见 docs/backend/mysql-setup.md §2 与 §6，Issue #142）"
+            )
         return False, detail
     try:
         counts = count_rows(db_url)
     except (SQLAlchemyError, OSError) as exc:
         return False, f"建表没报错，但随后读不到四表：{type(exc).__name__}: {exc}"
-    return True, ("四表建好且索引自检通过（`CREATE TABLE IF NOT EXISTS`，连跑两次即验证幂等）："
-                  + " ".join(f"{name}={counts[name]}" for name in TABLES))
+    return True, (
+        "四表建好且索引自检通过（`CREATE TABLE IF NOT EXISTS`，连跑两次即验证幂等）："
+        + " ".join(f"{name}={counts[name]}" for name in TABLES)
+    )
 
 
 def run_build_stages(args, db_url: str) -> tuple[list[tuple[str, bool, str]], list[str], list[str]]:
@@ -250,7 +280,9 @@ def pick_target(url: str, models: list[str]) -> tuple[str, str, float] | None:
     try:
         with engine.connect() as conn:
             for model in models:
-                row = conn.execute(select(*columns).where(Prediction.model_name == model).limit(1)).first()
+                row = conn.execute(
+                    select(*columns).where(Prediction.model_name == model).limit(1)
+                ).first()
                 if row is not None:
                     return row[0], row[1], float(row[2])
             row = conn.execute(select(*columns).limit(1)).first()
@@ -266,11 +298,16 @@ def start_service(host: str, port: int, log_handle, env: dict[str, str]) -> subp
     """
     return subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "app.main:app", "--host", host, "--port", str(port)],
-        cwd=str(BACKEND_DIR), env=env, stdout=log_handle, stderr=subprocess.STDOUT,
+        cwd=str(BACKEND_DIR),
+        env=env,
+        stdout=log_handle,
+        stderr=subprocess.STDOUT,
     )
 
 
-def wait_ready(client: httpx.Client, base_url: str, proc: subprocess.Popen, timeout: float) -> tuple[bool, str]:
+def wait_ready(
+    client: httpx.Client, base_url: str, proc: subprocess.Popen, timeout: float
+) -> tuple[bool, str]:
     """轮询到服务能应答为止；进程先死就把日志尾巴当实际值报出来。"""
     deadline = time.time() + timeout
     last = "尚无响应"
@@ -292,7 +329,9 @@ def parse_startup_log(log_text: str) -> tuple[list[str] | None, bool, str]:
     loaded = ast.literal_eval(match.group(1)) if match else None
     failed = "failed models:" in log_text
     marks = ("loaded models:", "failed models:", "model dir not found")
-    raw = " ｜ ".join(line.strip() for line in log_text.splitlines() if any(m in line for m in marks))
+    raw = " ｜ ".join(
+        line.strip() for line in log_text.splitlines() if any(m in line for m in marks)
+    )
     return loaded, failed, raw or "（启动日志里没有模型加载行）"
 
 
@@ -303,17 +342,26 @@ def log_tail(log_path: Path, limit: int = 400) -> str:
         return f"（日志读不出来：{exc}）"
 
 
-def run_service_checks(args, base_url: str, db_url: str, token: str, model_dir, target,
-                       expect_models: list[str], results: list[tuple[str, bool, str]],
-                       infos: list[str]) -> None:
+def run_service_checks(
+    args,
+    base_url: str,
+    db_url: str,
+    token: str,
+    model_dir,
+    target,
+    expect_models: list[str],
+    results: list[tuple[str, bool, str]],
+    infos: list[str],
+) -> None:
     """判据 4/5/6：自己起一个 uvicorn 子进程（判据 4 要读的就是它的启动日志），跑完立刻收掉。
 
     结果直接 append 进 `results`；任何一步跑不下去都写成 FAIL 行返回，**不静默跳过**。
     """
     commit_hash, model_name, stored_score = target
     log_path = Path(tempfile.mkdtemp(prefix="demo-preflight-")) / f"uvicorn-{args.port}.log"
-    env = dict(os.environ, PYTHONUTF8="1", DATABASE_URL=db_url, API_TOKEN=token,
-               MODEL_DIR=str(model_dir))
+    env = dict(
+        os.environ, PYTHONUTF8="1", DATABASE_URL=db_url, API_TOKEN=token, MODEL_DIR=str(model_dir)
+    )
     env.pop("PYTHONPATH", None)
     print(f"信息 服务日志：{log_path}（临时目录，不入库；证据文件里这一项一律掩码）")
     with log_path.open("wb") as log_handle:
@@ -322,76 +370,144 @@ def run_service_checks(args, base_url: str, db_url: str, token: str, model_dir, 
             with httpx.Client(timeout=30) as client:
                 ready, ready_detail = wait_ready(client, base_url, proc, args.timeout)
                 infos.append(f"服务就绪探测：{ready_detail}")
-                log_text = log_path.read_text(encoding="utf-8", errors="replace") if log_path.is_file() else ""
+                log_text = (
+                    log_path.read_text(encoding="utf-8", errors="replace")
+                    if log_path.is_file()
+                    else ""
+                )
                 if not ready:
-                    results.append(("4 交付模型全部加载", False,
-                                    f"服务没起来：{ready_detail}；日志尾巴：{log_tail(log_path)}"))
+                    results.append(
+                        (
+                            "4 交付模型全部加载",
+                            False,
+                            f"服务没起来：{ready_detail}；日志尾巴：{log_tail(log_path)}",
+                        )
+                    )
                     for name in ("5 四接口 200", "6 同 hash 两次预测只留一行"):
                         results.append((name, False, f"服务未就绪，未执行：{ready_detail}"))
                     return
 
                 loaded, has_failed, raw = parse_startup_log(log_text)
-                ok4 = loaded is not None and sorted(loaded) == sorted(expect_models) and not has_failed
-                results.append((
-                    "4 交付模型全部加载", ok4,
-                    (f"启动日志：{raw}；期望清单 {sorted(expect_models)}、实际 {sorted(loaded or [])}"
-                     + ("；且出现 failed models: 行" if has_failed else "")),
-                ))
+                ok4 = (
+                    loaded is not None
+                    and sorted(loaded) == sorted(expect_models)
+                    and not has_failed
+                )
+                results.append(
+                    (
+                        "4 交付模型全部加载",
+                        ok4,
+                        (
+                            f"启动日志：{raw}；期望清单 {sorted(expect_models)}、实际 {sorted(loaded or [])}"
+                            + ("；且出现 failed models: 行" if has_failed else "")
+                        ),
+                    )
+                )
 
                 headers = {"X-API-Key": token}
                 calls: list[tuple[str, int, object]] = []
                 try:
-                    r_list = client.get(f"{base_url}/api/commits", params={"size": 1}, headers=headers)
-                    calls.append(("GET /api/commits", r_list.status_code, r_list.json().get("code")))
+                    r_list = client.get(
+                        f"{base_url}/api/commits", params={"size": 1}, headers=headers
+                    )
+                    calls.append(
+                        ("GET /api/commits", r_list.status_code, r_list.json().get("code"))
+                    )
                     r_detail = client.get(f"{base_url}/api/commits/{commit_hash}", headers=headers)
-                    calls.append(("GET /api/commits/{commit_hash}", r_detail.status_code,
-                                  r_detail.json().get("code")))
-                    r_trends = client.get(f"{base_url}/api/trends", params={"granularity": "week"},
-                                          headers=headers)
-                    calls.append(("GET /api/trends", r_trends.status_code, r_trends.json().get("code")))
+                    calls.append(
+                        (
+                            "GET /api/commits/{commit_hash}",
+                            r_detail.status_code,
+                            r_detail.json().get("code"),
+                        )
+                    )
+                    r_trends = client.get(
+                        f"{base_url}/api/trends", params={"granularity": "week"}, headers=headers
+                    )
+                    calls.append(
+                        ("GET /api/trends", r_trends.status_code, r_trends.json().get("code"))
+                    )
                     pair_before = count_pair(db_url, commit_hash, model_name)
                     total_before = count_rows(db_url)["prediction"]
                     first_predict = client.post(
                         f"{base_url}/api/predict",
-                        json={"commit_hash": commit_hash, "model_name": model_name}, headers=headers)
-                    calls.append(("POST /api/predict", first_predict.status_code,
-                                  first_predict.json().get("code")))
+                        json={"commit_hash": commit_hash, "model_name": model_name},
+                        headers=headers,
+                    )
+                    calls.append(
+                        (
+                            "POST /api/predict",
+                            first_predict.status_code,
+                            first_predict.json().get("code"),
+                        )
+                    )
                 except (httpx.HTTPError, SQLAlchemyError, ValueError) as exc:
-                    results.append(("5 四接口 200", False, f"请求异常：{type(exc).__name__}: {exc}"))
-                    results.append(("6 同 hash 两次预测只留一行", False, f"判据 5 的请求没跑完：{exc}"))
+                    results.append(
+                        ("5 四接口 200", False, f"请求异常：{type(exc).__name__}: {exc}")
+                    )
+                    results.append(
+                        ("6 同 hash 两次预测只留一行", False, f"判据 5 的请求没跑完：{exc}")
+                    )
                     return
 
                 ok5 = len(calls) == 4 and all(s == 200 and c == 0 for _, s, c in calls)
-                results.append((
-                    "5 四接口 200", ok5,
-                    ("；".join(f"{n} → HTTP {s} code={c}" for n, s, c in calls)
-                     + ("" if ok5 else "（契约三只有这四条路径，少一条或多一条都不算过）")),
-                ))
+                results.append(
+                    (
+                        "5 四接口 200",
+                        ok5,
+                        (
+                            "；".join(f"{n} → HTTP {s} code={c}" for n, s, c in calls)
+                            + ("" if ok5 else "（契约三只有这四条路径，少一条或多一条都不算过）")
+                        ),
+                    )
+                )
 
                 try:
-                    r_p2 = client.post(f"{base_url}/api/predict",
-                                       json={"commit_hash": commit_hash, "model_name": model_name},
-                                       headers=headers)
-                    second = (r_p2.status_code, r_p2.json().get("code"),
-                              (r_p2.json().get("data") or {}).get("risk_score"))
+                    r_p2 = client.post(
+                        f"{base_url}/api/predict",
+                        json={"commit_hash": commit_hash, "model_name": model_name},
+                        headers=headers,
+                    )
+                    second = (
+                        r_p2.status_code,
+                        r_p2.json().get("code"),
+                        (r_p2.json().get("data") or {}).get("risk_score"),
+                    )
                     pair_after = count_pair(db_url, commit_hash, model_name)
                     total_after = count_rows(db_url)["prediction"]
                 except (httpx.HTTPError, SQLAlchemyError, ValueError) as exc:
-                    results.append(("6 同 hash 两次预测只留一行", False,
-                                    f"第二次 POST 异常：{type(exc).__name__}: {exc}"))
+                    results.append(
+                        (
+                            "6 同 hash 两次预测只留一行",
+                            False,
+                            f"第二次 POST 异常：{type(exc).__name__}: {exc}",
+                        )
+                    )
                     return
 
                 first_score = (first_predict.json().get("data") or {}).get("risk_score")
-                ok6 = (first_predict.status_code == 200 and second[0] == 200
-                       and pair_before == 1 and pair_after == 1 and total_before == total_after)
-                results.append((
-                    "6 同 hash 两次预测只留一行", ok6,
-                    (f"两次 POST → HTTP {first_predict.status_code}/{second[0]}；"
-                     f"(hash, {model_name}) 行数 {pair_before} → {pair_after}（应恒为 1）；"
-                     f"prediction 总行数 {total_before} → {total_after}（应不变，证明 upsert 没插新行）"),
-                ))
-                infos.append(f"两次返回的 risk_score：{first_score} / {second[2]}；库内原值 {stored_score}"
-                             "（信息行，不计入判定：判据 6 按 Issue #138 只钉「只留一行」）")
+                ok6 = (
+                    first_predict.status_code == 200
+                    and second[0] == 200
+                    and pair_before == 1
+                    and pair_after == 1
+                    and total_before == total_after
+                )
+                results.append(
+                    (
+                        "6 同 hash 两次预测只留一行",
+                        ok6,
+                        (
+                            f"两次 POST → HTTP {first_predict.status_code}/{second[0]}；"
+                            f"(hash, {model_name}) 行数 {pair_before} → {pair_after}（应恒为 1）；"
+                            f"prediction 总行数 {total_before} → {total_after}（应不变，证明 upsert 没插新行）"
+                        ),
+                    )
+                )
+                infos.append(
+                    f"两次返回的 risk_score：{first_score} / {second[2]}；库内原值 {stored_score}"
+                    "（信息行，不计入判定：判据 6 按 Issue #138 只钉「只留一行」）"
+                )
         finally:
             if proc.poll() is None:
                 proc.terminate()
@@ -407,14 +523,24 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="本脚本自己起服务用的端口")
     parser.add_argument("--backend-env", default=str(DEFAULT_BACKEND_ENV))
     parser.add_argument("--frontend-env", default=str(DEFAULT_FRONTEND_ENV))
-    parser.add_argument("--expect-predictions", type=int, default=DEFAULT_EXPECT_PREDICTIONS,
-                        help="判据 2 的期望 prediction 行数；演示库 83943，联调库 3")
-    parser.add_argument("--expect-models", default=DEFAULT_EXPECT_MODELS,
-                        help="判据 4 的期望加载清单，逗号分隔；默认 = 交付清单八个（expert 全量，#153）")
+    parser.add_argument(
+        "--expect-predictions",
+        type=int,
+        default=DEFAULT_EXPECT_PREDICTIONS,
+        help="判据 2 的期望 prediction 行数；演示库 83943，联调库 3",
+    )
+    parser.add_argument(
+        "--expect-models",
+        default=DEFAULT_EXPECT_MODELS,
+        help="判据 4 的期望加载清单，逗号分隔；默认 = 交付清单八个（expert 全量，#153）",
+    )
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT, help="等服务就绪的秒数")
     parser.add_argument("--out", default="", help="可选：把结果写成证据 markdown")
-    parser.add_argument("--init-db", action="store_true",
-                        help="可选前置阶段 0a：先建表（等价 python -m app.db init，含索引自检）")
+    parser.add_argument(
+        "--init-db",
+        action="store_true",
+        help="可选前置阶段 0a：先建表（等价 python -m app.db init，含索引自检）",
+    )
     args = parser.parse_args()
 
     backend_env = Path(args.backend_env)
@@ -435,20 +561,27 @@ def main() -> int:
     frontend_values = parse_dotenv(frontend_env) if frontend_env.is_file() else None
     if backend_values is None or frontend_values is None:
         missing = display_path(backend_env if backend_values is None else frontend_env)
-        results.append((
-            "1 令牌一致", False,
-            (f"配置文件不存在：{missing} —— 缺 backend/.env 则服务无令牌可校验，"
-             "缺 frontend/.env.local 则前端发空令牌、四接口全部 40100"),
-        ))
+        results.append(
+            (
+                "1 令牌一致",
+                False,
+                (
+                    f"配置文件不存在：{missing} —— 缺 backend/.env 则服务无令牌可校验，"
+                    "缺 frontend/.env.local 则前端发空令牌、四接口全部 40100"
+                ),
+            )
+        )
         backend_token = (backend_values or {}).get("API_TOKEN", "")
         frontend_token = (frontend_values or {}).get("VITE_API_KEY", "")
     else:
         backend_token = backend_values.get("API_TOKEN", "")
         frontend_token = frontend_values.get("VITE_API_KEY", "")
         ok = bool(backend_token) and backend_token == frontend_token
-        detail = (f"backend/.env API_TOKEN={mask_secret(backend_token)} vs "
-                  f"frontend/.env.local VITE_API_KEY={mask_secret(frontend_token)} → "
-                  + ("逐字相等" if ok else "不相等（前端会全部 40100）"))
+        detail = (
+            f"backend/.env API_TOKEN={mask_secret(backend_token)} vs "
+            f"frontend/.env.local VITE_API_KEY={mask_secret(frontend_token)} → "
+            + ("逐字相等" if ok else "不相等（前端会全部 40100）")
+        )
         if not backend_token:
             detail = "backend/.env 里没有 API_TOKEN（服务会因缺令牌拒绝所有请求）"
         results.append(("1 令牌一致", ok, detail))
@@ -456,14 +589,18 @@ def main() -> int:
     # 服务实际用的令牌可能来自 shell 环境变量（load_dotenv 不覆盖已有环境变量），如实报出来
     env_token = os.environ.get("API_TOKEN", "")
     if env_token and backend_token and env_token != backend_token:
-        infos.append(f"shell 环境变量 API_TOKEN={mask_secret(env_token)} 与 backend/.env 不同，"
-                     "服务用的是环境变量那一份（load_dotenv 不覆盖已有环境变量）")
+        infos.append(
+            f"shell 环境变量 API_TOKEN={mask_secret(env_token)} 与 backend/.env 不同，"
+            "服务用的是环境变量那一份（load_dotenv 不覆盖已有环境变量）"
+        )
 
     token = env_token or backend_token
     replacements = local_replacements(db_url, model_dir, backend_env, frontend_env, *stage_paths)
     infos.append(f"库：{mask_database_url(db_url)}")
     infos.append(f"模型目录：{display_path(model_dir)}")
-    infos.append(f"高风险阈值：{threshold}（取自 app/config.py::HIGH_RISK_THRESHOLD，不在本脚本另立）")
+    infos.append(
+        f"高风险阈值：{threshold}（取自 app/config.py::HIGH_RISK_THRESHOLD，不在本脚本另立）"
+    )
     infos.append(f"服务：{base_url}（本脚本自己起，判据 4 要读它的启动日志）")
 
     # 阶段 0a/0b 任一 FAIL：判据 2~6 一律记「未执行」并进 rc=1，不拿后面的绿掩盖前面的红。
@@ -471,8 +608,9 @@ def main() -> int:
     if stage_results and not all(ok for _, ok, _ in stage_results):
         failed = "、".join(name for name, ok, _ in stage_results if not ok)
         for name in CRITERION_NAMES[1:]:
-            results.append((name, False,
-                            f"前置阶段未通过（{failed}），未执行；实际值见上面该阶段那一行的输出"))
+            results.append(
+                (name, False, f"前置阶段未通过（{failed}），未执行；实际值见上面该阶段那一行的输出")
+            )
         return finish(stage_results + results, infos, args, base_url, replacements)
 
     # ── 判据 2、3：库行数与高风险行 ──────────────────────────────────
@@ -491,14 +629,27 @@ def main() -> int:
     else:
         counts, high = snapshot
         got = counts["prediction"]
-        results.append(("2 库行数", got == args.expect_predictions,
-                        f"prediction={got}（期望 {args.expect_predictions}）；其余三表只报数不判定："
-                        + " ".join(f"{name}={counts[name]}" for name in TABLES if name != "prediction")))
-        hint = ("；若这里是联调库 dev.db（seed 三行 0.1/0.2/0.3），说明**拿错库上台**了 —— "
-                "演示与 T-ST-01~05 一律用演示库（Issue #130 更正裁定：MySQL jit_demo）"
-                if high == 0 else "")
-        results.append(("3 存在高风险行", high > 0,
-                        f"risk_score >= {threshold} 的行 = {high}（演示库口径应为 14596）" + hint))
+        results.append(
+            (
+                "2 库行数",
+                got == args.expect_predictions,
+                f"prediction={got}（期望 {args.expect_predictions}）；其余三表只报数不判定："
+                + " ".join(f"{name}={counts[name]}" for name in TABLES if name != "prediction"),
+            )
+        )
+        hint = (
+            "；若这里是联调库 dev.db（seed 三行 0.1/0.2/0.3），说明**拿错库上台**了 —— "
+            "演示与 T-ST-01~05 一律用演示库（Issue #130 更正裁定：MySQL jit_demo）"
+            if high == 0
+            else ""
+        )
+        results.append(
+            (
+                "3 存在高风险行",
+                high > 0,
+                f"risk_score >= {threshold} 的行 = {high}（演示库口径应为 14596）" + hint,
+            )
+        )
 
     # ── 判据 4、5、6：要起服务，前置不齐就三条一起 FAIL（不 skip） ────
     target = None
@@ -512,7 +663,9 @@ def main() -> int:
     elif snapshot is None or db_error:
         blocker = db_error or "库不可用"
     elif target is None:
-        blocker = "库内没有任何 prediction 行，挑不出 (commit_hash, model_name) 来发判据 5/6 的 POST"
+        blocker = (
+            "库内没有任何 prediction 行，挑不出 (commit_hash, model_name) 来发判据 5/6 的 POST"
+        )
     else:
         blocker = ""
 
@@ -522,15 +675,24 @@ def main() -> int:
         return finish(stage_results + results, infos, args, base_url, replacements)
 
     commit_hash, model_name, stored_score = target
-    infos.append(f"判据 5/6 用的样本：commit_hash={commit_hash}、model_name={model_name}、"
-                 f"库内 risk_score={stored_score}")
+    infos.append(
+        f"判据 5/6 用的样本：commit_hash={commit_hash}、model_name={model_name}、"
+        f"库内 risk_score={stored_score}"
+    )
 
-    run_service_checks(args, base_url, db_url, token, model_dir, target, expect_models, results, infos)
+    run_service_checks(
+        args, base_url, db_url, token, model_dir, target, expect_models, results, infos
+    )
     return finish(stage_results + results, infos, args, base_url, replacements)
 
 
-def finish(results: list[tuple[str, bool, str]], infos: list[str], args, base_url: str,
-           replacements: dict[str, str] | None = None) -> int:
+def finish(
+    results: list[tuple[str, bool, str]],
+    infos: list[str],
+    args,
+    base_url: str,
+    replacements: dict[str, str] | None = None,
+) -> int:
     for name, ok, detail in results:
         print(f"{'PASS' if ok else 'FAIL'} {name} :: {detail}")
     for line in infos:
@@ -568,12 +730,19 @@ def evidence_command(args) -> str:
     return " ".join(parts)
 
 
-def write_evidence(out: Path, results, infos, args, base_url: str, all_ok: bool,
-                   replacements: dict[str, str] | None = None) -> None:
+def write_evidence(
+    out: Path,
+    results,
+    infos,
+    args,
+    base_url: str,
+    all_ok: bool,
+    replacements: dict[str, str] | None = None,
+) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     command = sanitize_for_evidence(evidence_command(args), replacements)
     lines = [
-        f"# 录屏前自检 {datetime.now(timezone.utc).astimezone().date().isoformat()}",
+        f"# 录屏前自检 {datetime.now(UTC).astimezone().date().isoformat()}",
         "",
         f"- 命令：`{command}`（cwd=`backend`；令牌与库口令一律掩码）",
         "- 判据来源：Issue #138（裁定见 Issue #130 三）；演示库口径见 Issue #130 更正裁定（MySQL `jit_demo`）"
@@ -582,14 +751,17 @@ def write_evidence(out: Path, results, infos, args, base_url: str, all_ok: bool,
     if "<本机路径>" in command or "<仓库外路径>" in command:
         lines.append(
             "- ⚠️ 上面命令里的 `<本机路径>` / `<仓库外路径>` 是**掩码占位**（§0 硬规矩 1：个人绝对路径不入库）；"
-            "在本机复跑时要替换成自己的实际路径，其余参数照抄即可复现同一组判定")
+            "在本机复跑时要替换成自己的实际路径，其余参数照抄即可复现同一组判定"
+        )
     lines += [
         "",
         "| 判据 / 阶段 | 结果 | 实际值 |",
         "|---|---|---|",
     ]
-    lines += [f"| {name} | {'PASS' if ok else 'FAIL'} | {sanitize_for_evidence(detail, replacements)} |"
-              for name, ok, detail in results]
+    lines += [
+        f"| {name} | {'PASS' if ok else 'FAIL'} | {sanitize_for_evidence(detail, replacements)} |"
+        for name, ok, detail in results
+    ]
     passed = sum(1 for _, ok, _ in results if ok)
     if all_ok:
         verdict = f"**汇总：{passed}/{len(results)} 通过**"

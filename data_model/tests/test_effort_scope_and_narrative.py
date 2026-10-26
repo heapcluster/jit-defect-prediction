@@ -50,13 +50,29 @@ def test_floor_unit_follows_effort_unit():
 
 
 def _effort_block(p_norm: float, n20: int, recall20: float) -> dict:
-    row = {"area": 0.3, "p_norm": p_norm, "popt": p_norm,
-           "recall@20": recall20, "recall@50": recall20, "ce20": recall20,
-           "n_commits@20": n20}
-    return {"model": dict(row), "density": dict(row), "optimal": dict(row),
-            "random": {"area": 0.2, "area_std": 0.01, "p_norm": 0.0, "repeats": 200,
-                       "recall@20": 0.2, "recall@50": float("nan")},
-            "confound": {"spearman_risk_log_effort": 0.85, "median_effort": 8.0}}
+    row = {
+        "area": 0.3,
+        "p_norm": p_norm,
+        "popt": p_norm,
+        "recall@20": recall20,
+        "recall@50": recall20,
+        "ce20": recall20,
+        "n_commits@20": n20,
+    }
+    return {
+        "model": dict(row),
+        "density": dict(row),
+        "optimal": dict(row),
+        "random": {
+            "area": 0.2,
+            "area_std": 0.01,
+            "p_norm": 0.0,
+            "repeats": 200,
+            "recall@20": 0.2,
+            "recall@50": float("nan"),
+        },
+        "confound": {"spearman_risk_log_effort": 0.85, "median_effort": 8.0},
+    }
 
 
 def _results(p_norm_by_model: dict, with_budget: bool = True) -> dict:
@@ -65,42 +81,53 @@ def _results(p_norm_by_model: dict, with_budget: bool = True) -> dict:
         block = _effort_block(pn, 100, 0.2)
         if with_budget:
             block["budget"] = dict(block["model"])
-        out[name] = {"model_name": f"{name}_v1", "label": name,
-                     "auc": 0.8, "f1": 0.4, "precision": 0.4, "recall": 0.4,
-                     "accuracy": 0.8, "effort": {LOC: block}}
+        out[name] = {
+            "model_name": f"{name}_v1",
+            "label": name,
+            "auc": 0.8,
+            "f1": 0.4,
+            "precision": 0.4,
+            "recall": 0.4,
+            "accuracy": 0.8,
+            "effort": {LOC: block},
+        }
     return out
 
 
 def _args() -> SimpleNamespace:
-    return SimpleNamespace(train=Path("split_szz_train.csv"),
-                           test=Path("split_szz_test.csv"),
-                           seed=42, from_saved=False)
+    return SimpleNamespace(
+        train=Path("split_szz_train.csv"),
+        test=Path("split_szz_test.csv"),
+        seed=42,
+        from_saved=False,
+    )
 
 
 def _frame(n: int) -> pd.DataFrame:
-    return pd.DataFrame({
-        config.LABEL_COL: [0] * (n - 1) + [1],
-        "committed_at": pd.date_range("2024-01-01", periods=n, freq="D").astype(str),
-    })
+    return pd.DataFrame(
+        {
+            config.LABEL_COL: [0] * (n - 1) + [1],
+            "committed_at": pd.date_range("2024-01-01", periods=n, freq="D").astype(str),
+        }
+    )
 
 
 def test_narrative_does_not_claim_all_negative_when_results_are_positive():
-    text = report.render(_args(), _frame(10), _frame(10),
-                         _results({"lr": 0.12, "xgb": 0.30}))
+    text = report.render(_args(), _frame(10), _frame(10), _results({"lr": 0.12, "xgb": 0.30}))
     assert "全为负" not in text
     assert "svm" not in text, "结论里的模型名必须来自结果，不能写死"
     assert "2/2" in text or "0/2" in text
 
 
 def test_narrative_scales_to_model_subset():
-    text = report.render(_args(), _frame(10), _frame(10),
-                         _results({"lr": -0.2, "rf": -0.3, "xgb": -0.1}))
+    text = report.render(
+        _args(), _frame(10), _frame(10), _results({"lr": -0.2, "rf": -0.3, "xgb": -0.1})
+    )
     assert "3/3" in text
     assert "全为负" in text
 
 
 def test_report_without_budget_column_still_renders():
-    text = report.render(_args(), _frame(10), _frame(10),
-                         _results({"lr": -0.2}, with_budget=False))
+    text = report.render(_args(), _frame(10), _frame(10), _results({"lr": -0.2}, with_budget=False))
     assert "预算感知" not in text.split("## 三")[0] or "未启用" in text
     assert True  # 表头存在与否不作断言，只要不抛异常

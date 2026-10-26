@@ -198,7 +198,9 @@ class TestMergeRanges:
         """
         assert szz.merge_ranges([(1, 1), (szz.MERGE_GAP + 2, 1)]) == [(1, szz.MERGE_GAP + 2)]
         assert szz.merge_ranges([(1, 1), (szz.MERGE_GAP + 3, 1)]) == [
-            (1, 1), (szz.MERGE_GAP + 3, szz.MERGE_GAP + 3)]
+            (1, 1),
+            (szz.MERGE_GAP + 3, szz.MERGE_GAP + 3),
+        ]
 
 
 # ── 缓存键：blame_cache_key ──────────────────────────────────────────────────
@@ -226,7 +228,8 @@ class TestCamelSelfcheckReport:
     """合成输入仅验证报告/分支逻辑，不充当 Camel 全量运行证据。"""
 
     ROW: ClassVar[dict[str, str]] = {
-        "message": "CAMEL-1 fix regression", "committed_at": "2026-10-01 00:00:00",
+        "message": "CAMEL-1 fix regression",
+        "committed_at": "2026-10-01 00:00:00",
     }
 
     def report(self, tmp_path, commits):
@@ -242,10 +245,15 @@ class TestCamelSelfcheckReport:
     @pytest.mark.parametrize("missing", ["count", "outer"])
     def test_未登记基准不误报子集或失败(self, monkeypatch, tmp_path, missing):
         monkeypatch.setattr(szz, "FULL_COMMIT_COUNT", None if missing == "count" else 1)
-        monkeypatch.setattr(szz, "EXPECTED_OUTER", {
-            "has_id": None if missing == "outer" else 1,
-            "id_and_fix_word": 1, "id_and_fix_form": 1,
-        })
+        monkeypatch.setattr(
+            szz,
+            "EXPECTED_OUTER",
+            {
+                "has_id": None if missing == "outer" else 1,
+                "id_and_fix_word": 1,
+                "id_and_fix_form": 1,
+            },
+        )
         _, ok, comparable = szz.judge_selfcheck([self.ROW])
         assert ok is None and comparable is False
         text = self.report(tmp_path, [self.ROW])
@@ -256,9 +264,15 @@ class TestCamelSelfcheckReport:
     @pytest.mark.parametrize("size", [1, 3])
     def test_规模不等于完整版本时不可比(self, monkeypatch, tmp_path, size):
         monkeypatch.setattr(szz, "FULL_COMMIT_COUNT", 2)
-        monkeypatch.setattr(szz, "EXPECTED_OUTER", {
-            "has_id": 2, "id_and_fix_word": 2, "id_and_fix_form": 2,
-        })
+        monkeypatch.setattr(
+            szz,
+            "EXPECTED_OUTER",
+            {
+                "has_id": 2,
+                "id_and_fix_word": 2,
+                "id_and_fix_form": 2,
+            },
+        )
         rows = [self.ROW] * size
         _, ok, comparable = szz.judge_selfcheck(rows)
         assert ok is None and comparable is False
@@ -268,23 +282,43 @@ class TestCamelSelfcheckReport:
 
     def test_完整输入一致时报告通过(self, monkeypatch, tmp_path):
         monkeypatch.setattr(szz, "FULL_COMMIT_COUNT", 1)
-        monkeypatch.setattr(szz, "EXPECTED_OUTER", {
-            "has_id": 1, "id_and_fix_word": 1, "id_and_fix_form": 1,
-        })
+        monkeypatch.setattr(
+            szz,
+            "EXPECTED_OUTER",
+            {
+                "has_id": 1,
+                "id_and_fix_word": 1,
+                "id_and_fix_form": 1,
+            },
+        )
         assert szz.judge_selfcheck([self.ROW])[1:] == (True, True)
         assert "全部一致" in self.report(tmp_path, [self.ROW])
 
     def test_完整输入不一致时禁止回溯和写入(self, monkeypatch, tmp_path, capsys):
         (tmp_path / ".git").mkdir()
-        monkeypatch.setattr(szz, "parse_args", lambda: SimpleNamespace(
-            repo=tmp_path, commits=tmp_path / "commits.csv", labeled_at=None,
-            method="both", limit=0, tag="",
-        ))
+        monkeypatch.setattr(
+            szz,
+            "parse_args",
+            lambda: SimpleNamespace(
+                repo=tmp_path,
+                commits=tmp_path / "commits.csv",
+                labeled_at=None,
+                method="both",
+                limit=0,
+                tag="",
+            ),
+        )
         monkeypatch.setattr(szz, "load_commits", lambda _: [self.ROW])
         monkeypatch.setattr(szz, "FULL_COMMIT_COUNT", 1)
-        monkeypatch.setattr(szz, "EXPECTED_OUTER", {
-            "has_id": 1, "id_and_fix_word": 0, "id_and_fix_form": 1,
-        })
+        monkeypatch.setattr(
+            szz,
+            "EXPECTED_OUTER",
+            {
+                "has_id": 1,
+                "id_and_fix_word": 0,
+                "id_and_fix_form": 1,
+            },
+        )
         monkeypatch.setattr(szz, "run_method", lambda *a: pytest.fail("自检失败后不应回溯"))
         monkeypatch.setattr(szz, "write_labels", lambda *a: pytest.fail("自检失败后不应写标签"))
         monkeypatch.setattr(szz, "write_report", lambda *a: pytest.fail("自检失败后不应覆盖报告"))

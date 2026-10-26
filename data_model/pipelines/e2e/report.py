@@ -25,8 +25,9 @@ from .metrics import cumulative_curve
 FIG_DIR_NAME = "figs"
 
 
-def make_charts(y: np.ndarray, proba: np.ndarray, effort_loc: np.ndarray | None,
-                out_dir: Path) -> list[Path]:
+def make_charts(
+    y: np.ndarray, proba: np.ndarray, effort_loc: np.ndarray | None, out_dir: Path
+) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     written = []
     # ROC
@@ -34,10 +35,15 @@ def make_charts(y: np.ndarray, proba: np.ndarray, effort_loc: np.ndarray | None,
     fig, ax = plt.subplots(figsize=(6, 5))
     ax.plot(fpr, tpr, label=f"{config.MODEL_NAME} (AUC={float(_trapz(tpr, fpr)):.3f})")
     ax.plot([0, 1], [0, 1], "k--", lw=0.8)
-    ax.set_xlabel("False Positive Rate"); ax.set_ylabel("True Positive Rate")
+    ax.set_xlabel("False Positive Rate")
+    ax.set_ylabel("True Positive Rate")
     ax.set_title("ROC curve - e2e (fine-tuned CodeBERT)")
-    ax.legend(fontsize=8); ax.grid(alpha=0.3)
-    p = out_dir / "roc_curves.png"; fig.tight_layout(); fig.savefig(p, dpi=150); plt.close(fig)
+    ax.legend(fontsize=8)
+    ax.grid(alpha=0.3)
+    p = out_dir / "roc_curves.png"
+    fig.tight_layout()
+    fig.savefig(p, dpi=150)
+    plt.close(fig)
     written.append(p)
 
     # Effort 曲线
@@ -45,20 +51,24 @@ def make_charts(y: np.ndarray, proba: np.ndarray, effort_loc: np.ndarray | None,
         effort = np.maximum(np.asarray(effort_loc, dtype=float), 1.0)
         fig, ax = plt.subplots(figsize=(6, 5))
         for key, lbl, order in (
-                ("model", "model (risk_score desc)", np.argsort(-proba, kind="stable")),
-                ("density", "density (score/effort)", np.argsort(-(proba / effort), kind="stable")),
-                ("optimal", "optimal (oracle)", np.argsort(-(y / effort), kind="stable"))):
+            ("model", "model (risk_score desc)", np.argsort(-proba, kind="stable")),
+            ("density", "density (score/effort)", np.argsort(-(proba / effort), kind="stable")),
+            ("optimal", "optimal (oracle)", np.argsort(-(y / effort), kind="stable")),
+        ):
             xs, ys = cumulative_curve(order, effort, y)
-            ax.plot(xs, ys, "-" if key == "model" else "--" if key == "density" else ":",
-                    label=lbl)
+            ax.plot(xs, ys, "-" if key == "model" else "--" if key == "density" else ":", label=lbl)
         rng = np.random.default_rng(config.RANDOM_BASELINE_SEED)
         xs, ys = cumulative_curve(rng.permutation(len(y)), effort, y)
         ax.plot(xs, ys, "-.", label="random baseline")
-        ax.set_xlabel("Cumulative effort fraction"); ax.set_ylabel("Cumulative recall")
+        ax.set_xlabel("Cumulative effort fraction")
+        ax.set_ylabel("Cumulative recall")
         ax.set_title("Effort-aware curves - e2e (LOC)")
-        ax.legend(fontsize=8); ax.grid(alpha=0.3)
-        p = out_dir / "effort_curves_loc.png"; fig.tight_layout()
-        fig.savefig(p, dpi=150); plt.close(fig)
+        ax.legend(fontsize=8)
+        ax.grid(alpha=0.3)
+        p = out_dir / "effort_curves_loc.png"
+        fig.tight_layout()
+        fig.savefig(p, dpi=150)
+        plt.close(fig)
         written.append(p)
     return written
 
@@ -81,44 +91,73 @@ def render(args, n_train, n_val, n_test, y_test, res, text_stats=None) -> str:
         "| 设备 | %s |\n" % ("CUDA（fp16）" if torch.cuda.is_available() else "CPU"),
         "\n## 一、Effort-unaware 指标（检验集）\n",
         "| 模型 | AUC | F1 | Precision | Recall | Accuracy |\n|---|---|---|---|---|---|\n",
-        "| `{}` | {:.4f} | {:.4f} | {:.4f} | {:.4f} | {:.4f} |\n".format(config.MODEL_NAME, res["auc"], res["f1"], res["precision"],
-           res["recall"], res["accuracy"]),
+        "| `{}` | {:.4f} | {:.4f} | {:.4f} | {:.4f} | {:.4f} |\n".format(
+            config.MODEL_NAME,
+            res["auc"],
+            res["f1"],
+            res["precision"],
+            res["recall"],
+            res["accuracy"],
+        ),
     ]
     if eff:
         lines += [
             "\n## 二、Effort-aware 指标（检验集，LOC 工作量代理）\n\n",
             "| 排序方式 | 曲线下面积 | **P_norm** | Recall@20% | Recall@50% |\n|---|---|---|---|---|\n",
         ]
-        for key, lbl in (("model", "**模型排序**（契约三当前口径）"),
-                         ("density", "对照：按 `risk_score / 工作量` 降序"),
-                         ("optimal", "上界：真实缺陷密度降序")):
+        for key, lbl in (
+            ("model", "**模型排序**（契约三当前口径）"),
+            ("density", "对照：按 `risk_score / 工作量` 降序"),
+            ("optimal", "上界：真实缺陷密度降序"),
+        ):
             m = eff[key]
-            lines.append("| {} | {:.4f} | **{:.4f}** | {:.4f} | {:.4f} |\n".format(lbl, m["area"], m["p_norm"], m["recall@20"], m["recall@50"]))
+            lines.append(
+                "| {} | {:.4f} | **{:.4f}** | {:.4f} | {:.4f} |\n".format(
+                    lbl, m["area"], m["p_norm"], m["recall@20"], m["recall@50"]
+                )
+            )
         r_ = eff["random"]
-        lines.append("| 基线：随机排序（{} 次均值） | {:.4f} ± {:.4f} | {:.4f} | — | — |\n".format(
-            r_["repeats"], r_["area"], r_["area_std"], r_["p_norm"]))
+        lines.append(
+            "| 基线：随机排序（{} 次均值） | {:.4f} ± {:.4f} | {:.4f} | — | — |\n".format(
+                r_["repeats"], r_["area"], r_["area_std"], r_["p_norm"]
+            )
+        )
     else:
         lines.append("\n> ⚠️ 未计算 Effort-aware：缺 `commit_features_raw.csv` 或 hash 对不上。\n")
     lines += [
         "\n## 与 baseline 对照（读法）\n\n",
-        ("> 与 `pipelines/expert/reports/model_metrics.md` 并排：e2e 的 AUC/P_norm 高出"
-         " baseline 多少 = 端到端微调相对 Kamei14 手工特征的增益；不优时如实登记。\n"),
+        (
+            "> 与 `pipelines/expert/reports/model_metrics.md` 并排：e2e 的 AUC/P_norm 高出"
+            " baseline 多少 = 端到端微调相对 Kamei14 手工特征的增益；不优时如实登记。\n"
+        ),
     ]
     lines.append("\n")
     if text_stats:
-        lines.extend(text_source.registration_lines(
-            text_stats["counts"], text_stats["n_total"], text_stats.get("positives")))
+        lines.extend(
+            text_source.registration_lines(
+                text_stats["counts"], text_stats["n_total"], text_stats.get("positives")
+            )
+        )
         lines.append("\n")
-        lines.extend(text_source.robustness_lines(
-            text_stats["kept"], text_stats["dropped"], text_stats.get("deltas"),
-            text_stats.get("retrained", False)))
-        lines.append("- 占位样本**参与了微调**（它们是有标签的真实提交，输入是显式占位串，"
-                     "不是空串也不是伪造 diff）；本次未按剔除后样本重训，所以上面的剔除"
-                     "只是检验集口径的敏感性检查。\n")
+        lines.extend(
+            text_source.robustness_lines(
+                text_stats["kept"],
+                text_stats["dropped"],
+                text_stats.get("deltas"),
+                text_stats.get("retrained", False),
+            )
+        )
+        lines.append(
+            "- 占位样本**参与了微调**（它们是有标签的真实提交，输入是显式占位串，"
+            "不是空串也不是伪造 diff）；本次未按剔除后样本重训，所以上面的剔除"
+            "只是检验集口径的敏感性检查。\n"
+        )
     else:
-        lines.append("## 文本来源与覆盖率\n\n"
-                     "> **未登记**：文本数据集没有 `text_source` 列（旧版 `commit_text.csv`），"
-                     "不按 `diff` 冒充；用打过补丁的 `build_text_dataset.py` 重建文本后本段自动出现。\n")
+        lines.append(
+            "## 文本来源与覆盖率\n\n"
+            "> **未登记**：文本数据集没有 `text_source` 列（旧版 `commit_text.csv`），"
+            "不按 `diff` 冒充；用打过补丁的 `build_text_dataset.py` 重建文本后本段自动出现。\n"
+        )
     lines.append("\n## 图表\n\n")
     for fig in ("roc_curves", "effort_curves_loc"):
         lines.append(f"![{fig}](figs/{fig}.png)\n\n")

@@ -27,11 +27,13 @@ from data_model.pipelines.semantic.data import (
 @pytest.fixture()
 def sample():
     hashes = ["a" * 40, "b" * 40, "c" * 40]
-    df = pd.DataFrame({
-        "commit_hash": hashes,
-        "label": [1, 0, 1],
-        "feature_version": ["v2", "v2", "v3"],
-    })
+    df = pd.DataFrame(
+        {
+            "commit_hash": hashes,
+            "label": [1, 0, 1],
+            "feature_version": ["v2", "v2", "v3"],
+        }
+    )
     # the fused loader validates that the semantic cache is N x 768
     emb = np.arange(3 * 768, dtype=np.float32).reshape(3, 768)
     return df, emb, hashes

@@ -5,14 +5,14 @@ from datetime import datetime
 import joblib
 import numpy as np
 import pytest
+from app import config, db, model_registry
+from app.main import create_app
+from app.models import Commit, CommitFeature, CommitLabel, Prediction
 from fastapi.testclient import TestClient
 from sklearn.tree import DecisionTreeClassifier
 from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
-from app import config, db, model_registry
-from app.main import create_app
-from app.models import Commit, CommitFeature, CommitLabel, Prediction
 from tests.conftest import C1, C2, C3, FEATURE_VALUES, HEADERS
 
 C4 = "e" * 40
@@ -30,9 +30,7 @@ def integration_db(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "MODEL_DIR", weights)
     rng = np.random.RandomState(7)
     x = rng.rand(60, 14)
-    model = DecisionTreeClassifier(max_depth=3, random_state=7).fit(
-        x, (x[:, 3] > 0.5).astype(int)
-    )
+    model = DecisionTreeClassifier(max_depth=3, random_state=7).fit(x, (x[:, 3] > 0.5).astype(int))
     joblib.dump(model, weights / "integration_v1.pkl")
     joblib.dump(model, weights / "integration_v2.pkl")
     # 交付清单（#96）是在线模型的唯一来源：联调夹具也必须声明，否则注册表恒为空。
@@ -68,25 +66,43 @@ def seed_db(engine) -> None:
     """用 ORM 直接落四表种子数据（取代已删除的离线 ingest 路径）。"""
     with sessionmaker(bind=engine)() as s:
         for h, t in SEED_TIMES.items():
-            s.add(Commit(
-                commit_hash=h, repo_name="camel", author_name="fixture-author",
-                committed_at=datetime.fromisoformat(t.replace("Z", "")), message="fixture commit",
-            ))
+            s.add(
+                Commit(
+                    commit_hash=h,
+                    repo_name="camel",
+                    author_name="fixture-author",
+                    committed_at=datetime.fromisoformat(t.replace("Z", "")),
+                    message="fixture commit",
+                )
+            )
         for i, h in enumerate(SEED_TIMES):
-            s.add(CommitLabel(
-                commit_hash=h, is_bug_inducing=i % 2, label_method="szz",
-                labeled_at=datetime.fromisoformat("2026-09-01T00:00:00Z"),
-            ))
+            s.add(
+                CommitLabel(
+                    commit_hash=h,
+                    is_bug_inducing=i % 2,
+                    label_method="szz",
+                    labeled_at=datetime.fromisoformat("2026-09-01T00:00:00Z"),
+                )
+            )
         for h in (C1, C2, C4):
-            s.add(CommitFeature(
-                commit_hash=h, committed_at=datetime.fromisoformat(SEED_TIMES[h].replace("Z", "")),
-                feature_version="v1", **FEATURE_VALUES,
-            ))
+            s.add(
+                CommitFeature(
+                    commit_hash=h,
+                    committed_at=datetime.fromisoformat(SEED_TIMES[h].replace("Z", "")),
+                    feature_version="v1",
+                    **FEATURE_VALUES,
+                )
+            )
         for h, score in ((C1, 0.8), (C2, 0.2)):
-            s.add(Prediction(
-                commit_hash=h, model_name="integration_v2", risk_score=score,
-                predicted_at=datetime.fromisoformat("2026-09-01T00:00:00Z"), feature_version="v1",
-            ))
+            s.add(
+                Prediction(
+                    commit_hash=h,
+                    model_name="integration_v2",
+                    risk_score=score,
+                    predicted_at=datetime.fromisoformat("2026-09-01T00:00:00Z"),
+                    feature_version="v1",
+                )
+            )
         s.commit()
 
 
@@ -110,13 +126,17 @@ def test_predict_then_query_and_repeat_keeps_one_row(populated_api):
     assert set(predicted["features"]) == set(FEATURE_VALUES)
     assert predicted["predicted_at"].endswith("Z")
     with sessionmaker(bind=engine)() as session:
-        saved = session.scalars(select(Prediction).where(
-            Prediction.commit_hash == C1, Prediction.model_name == "integration_v2"
-        )).all()
+        saved = session.scalars(
+            select(Prediction).where(
+                Prediction.commit_hash == C1, Prediction.model_name == "integration_v2"
+            )
+        ).all()
         assert len(saved) == 1
         assert float(saved[0].risk_score) == predicted["risk_score"]
         assert saved[0].feature_version == "v1"
-        assert saved[0].predicted_at == datetime.fromisoformat(predicted["predicted_at"].removesuffix("Z"))
+        assert saved[0].predicted_at == datetime.fromisoformat(
+            predicted["predicted_at"].removesuffix("Z")
+        )
     detail = client.get(f"/api/commits/{C1}", headers=HEADERS)
     assert detail.status_code == 200
     assert detail.json()["data"]["risk_score"] == predicted["risk_score"]
@@ -177,8 +197,10 @@ def test_empty_database_queries_are_not_errors(integration_db):
 def test_auth_validation_and_failed_load_do_not_leak(populated_api, caplog):
     client, _ = populated_api
     for method, path, payload in (
-        ("GET", "/api/commits", None), ("GET", f"/api/commits/{C1}", None),
-        ("GET", "/api/trends", None), ("POST", "/api/predict", {"commit_hash": C1}),
+        ("GET", "/api/commits", None),
+        ("GET", f"/api/commits/{C1}", None),
+        ("GET", "/api/trends", None),
+        ("POST", "/api/predict", {"commit_hash": C1}),
     ):
         response = client.request(method, path, json=payload)
         assert response.status_code == 401

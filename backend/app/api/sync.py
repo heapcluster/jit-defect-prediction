@@ -29,7 +29,7 @@ from app import config, model_registry
 from app.api.predict import PredictRequest, predict_commit
 from app.auth import require_api_key
 from app.db import SessionLocal
-from app.errors import INTERNAL_ERROR_MESSAGE, AppError
+from app.errors import INTERNAL_ERROR_MESSAGE, AppError, ok
 from app.models import Prediction
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
@@ -51,8 +51,13 @@ def _run_git(repo: str, *args: str) -> str:
     cmd = ["git", "-C", repo, "-c", "http.proxy=", "-c", "https.proxy=", *args]
     try:
         proc = subprocess.run(
-            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
-            timeout=_GIT_TIMEOUT, check=True,
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=_GIT_TIMEOUT,
+            check=True,
         )
     except subprocess.TimeoutExpired as exc:
         logger.exception("sync git timeout: %s", args[:2])
@@ -90,8 +95,11 @@ def fetch_latest_tip(repo: str, retries: int = 3) -> str:
 def _is_ancestor(repo: str, commit: str, base: str = "HEAD") -> bool:
     check = subprocess.run(
         ["git", "-C", repo, "merge-base", "--is-ancestor", commit, base],
-        capture_output=True, encoding="utf-8", errors="replace",
-        timeout=_GIT_TIMEOUT, check=False,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=_GIT_TIMEOUT,
+        check=False,
     )
     return check.returncode == 0
 
@@ -192,7 +200,11 @@ def sync_recent(limit: int = 10) -> dict:
 
         logger.info(
             "sync done: tip=%s scanned=%s pending=%s predicted=%s skipped=%s",
-            tip[:10], len(hashes), len(pending), len(results), len(skipped),
+            tip[:10],
+            len(hashes),
+            len(pending),
+            len(results),
+            len(skipped),
         )
         return {
             "tip": tip,
@@ -209,7 +221,7 @@ def sync_recent(limit: int = 10) -> dict:
 def sync_endpoint(limit: int = Query(default=10, ge=1, le=MAX_LIMIT)) -> dict:
     """拉取 SOURCE_REPO 最新提交并逐条现算预测入库；无待预测提交时幂等返回 0。"""
     data = sync_recent(limit)
-    return {"code": 0, "message": "ok", "data": data}
+    return ok(data)
 
 
 __all__ = [

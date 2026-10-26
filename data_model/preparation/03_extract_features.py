@@ -62,7 +62,7 @@ import sys
 import threading
 import time
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
@@ -79,11 +79,20 @@ ID_FIELDS = ["commit_hash", "committed_at", "feature_version"]
 
 # docs/model/feature-columns.md 第三节：14 项特征列，顺序即契约中的出现顺序
 FEATURE_FIELDS = [
-    "ns", "nd", "nf", "entropy",          # 代码分布 Diffusion
-    "la", "ld", "lt",                     # 规模 Size
-    "fix",                                # 目的 Purpose
-    "ndev", "age", "nuc",                 # 历史 History
-    "exp", "rexp", "sexp",                # 开发者经验 Experience
+    "ns",
+    "nd",
+    "nf",
+    "entropy",  # 代码分布 Diffusion
+    "la",
+    "ld",
+    "lt",  # 规模 Size
+    "fix",  # 目的 Purpose
+    "ndev",
+    "age",
+    "nuc",  # 历史 History
+    "exp",
+    "rexp",
+    "sexp",  # 开发者经验 Experience
 ]
 
 FEATURE_VERSION = "v1"
@@ -99,13 +108,32 @@ def parse_args() -> argparse.Namespace:
         description="按 docs/model/feature-columns.md 抽取 Kamei 14 项特征",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument("--repo", type=Path, default=DEFAULT_REPO, help=f"仓库副本路径（默认 {DEFAULT_REPO}）")
-    p.add_argument("--commits", type=Path, default=DEFAULT_COMMITS, help=f"01 产出的提交清单（默认 {DEFAULT_COMMITS}）")
-    p.add_argument("--out", type=Path, default=DEFAULT_OUT, help=f"契约口径的特征表（默认 {DEFAULT_OUT}）")
-    p.add_argument("--raw", type=Path, default=DEFAULT_RAW, help=f"未变换的原值中间产物（默认 {DEFAULT_RAW}）")
-    p.add_argument("--since", default=None, help="只算此日期之后的提交，如 2023-01-01；不传=全量。历史特征仍用完整历史")
+    p.add_argument(
+        "--repo", type=Path, default=DEFAULT_REPO, help=f"仓库副本路径（默认 {DEFAULT_REPO}）"
+    )
+    p.add_argument(
+        "--commits",
+        type=Path,
+        default=DEFAULT_COMMITS,
+        help=f"01 产出的提交清单（默认 {DEFAULT_COMMITS}）",
+    )
+    p.add_argument(
+        "--out", type=Path, default=DEFAULT_OUT, help=f"契约口径的特征表（默认 {DEFAULT_OUT}）"
+    )
+    p.add_argument(
+        "--raw", type=Path, default=DEFAULT_RAW, help=f"未变换的原值中间产物（默认 {DEFAULT_RAW}）"
+    )
+    p.add_argument(
+        "--since",
+        default=None,
+        help="只算此日期之后的提交，如 2023-01-01；不传=全量。历史特征仍用完整历史",
+    )
     p.add_argument("--limit", type=int, default=0, help="只算前 N 条（烟雾测试用，0=不限）")
-    p.add_argument("--commit", default=None, help="单条模式：计算指定 40 位提交哈希，向 stdout 输出 JSON；不写批量产物")
+    p.add_argument(
+        "--commit",
+        default=None,
+        help="单条模式：计算指定 40 位提交哈希，向 stdout 输出 JSON；不写批量产物",
+    )
     return p.parse_args()
 
 
@@ -208,7 +236,8 @@ def scan_history(repo_dir: Path) -> dict[str, dict]:
         if line.startswith("@@"):
             h, ts, email, name = line[2:].split("|", 3)
             cur = commits.setdefault(
-                h, {"ts": int(ts), "email": email.strip().lower(), "name": name.strip(), "files": []}
+                h,
+                {"ts": int(ts), "email": email.strip().lower(), "name": name.strip(), "files": []},
             )
             continue
         if not line.strip() or cur is None:
@@ -355,7 +384,7 @@ def load_is_fix_commit():
 
 
 def to_epoch(committed_at: str) -> int:
-    return int(datetime.strptime(committed_at, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc).timestamp())
+    return int(datetime.strptime(committed_at, "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC).timestamp())
 
 
 def compute_raw(
@@ -394,7 +423,7 @@ def compute_raw(
 
     rows: list[dict] = []
     t0 = time.time()
-    for i, ((row, ts, files), ent) in enumerate(zip(plan, entropies), 1):
+    for i, ((row, ts, files), ent) in enumerate(zip(plan, entropies, strict=True), 1):
         h = row["commit_hash"]
         email = commits.get(h, {}).get("email", "")
         parent = row.get("parent_hash") or ""
@@ -460,21 +489,37 @@ def extract_single_commit(repo_dir: Path, commit_hash: str) -> dict:
     commits = scan_history(repo_dir)
     if commit_hash not in commits:
         raise ValueError("目标不是当前 HEAD 可达的非合并提交")
-    meta = run_git(
-        repo_dir,
-        "show", "-s", "--format=%H%x00%ct%x00%ae%x00%an%x00%B%x00%P", commit_hash,
-    ).rstrip("\n").split("\x00")
+    meta = (
+        run_git(
+            repo_dir,
+            "show",
+            "-s",
+            "--format=%H%x00%ct%x00%ae%x00%an%x00%B%x00%P",
+            commit_hash,
+        )
+        .rstrip("\n")
+        .split("\x00")
+    )
     if len(meta) != 6:
         raise RuntimeError("无法读取目标提交元信息")
     _, committed_ts, email, name, message, parents = meta
     row = {
         "commit_hash": commit_hash,
-        "committed_at": datetime.fromtimestamp(int(committed_ts), tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+        "committed_at": datetime.fromtimestamp(int(committed_ts), tz=UTC).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        ),
         "message": message.strip(),
         "parent_hash": parents.split(" ")[0] if parents else "",
     }
-    raw = compute_raw([row], commits, HistoryIndex(commits), load_is_fix_commit(), repo_dir,
-                      progress_every=0, verbose=False)
+    raw = compute_raw(
+        [row],
+        commits,
+        HistoryIndex(commits),
+        load_is_fix_commit(),
+        repo_dir,
+        progress_every=0,
+        verbose=False,
+    )
     values = apply_contract(raw)[0]
     return {
         "repo_name": repo_dir.name,
@@ -558,7 +603,9 @@ def write_report(
 ) -> None:
     L: list[str] = []
     L.append("# 特征抽取统计（03_extract_features.py 产出）\n")
-    L.append("> 本文件可入库，是特征口径落地的证据（见 `docs/model/data-pipeline.md` 第 4 节第 ④ 步）\n")
+    L.append(
+        "> 本文件可入库，是特征口径落地的证据（见 `docs/model/data-pipeline.md` 第 4 节第 ④ 步）\n"
+    )
     L.append("## 输入\n")
     L.append("| 项 | 值 |\n|---|---|")
     L.append(f"| 特征表口径版本 | `{FEATURE_VERSION}`（`docs/model/feature-columns.md` 已冻结） |")
@@ -568,7 +615,9 @@ def write_report(
         L.append(f"| **本次仅算前 N 条（烟雾测试）** | **{limit}** |")
     L.append(f"| 时间跨度 | {targets[0]['committed_at']} ~ {targets[-1]['committed_at']} |")
     L.append(f"| 输出列 | {len(ID_FIELDS)} 个标识列 + {len(FEATURE_FIELDS)} 项特征列 |")
-    L.append("\n> `entropy` 的窗口为两周（14 天）滚动窗口，其余历史类特征一律只使用**严格早于本次提交**的记录。\n")
+    L.append(
+        "\n> `entropy` 的窗口为两周（14 天）滚动窗口，其余历史类特征一律只使用**严格早于本次提交**的记录。\n"
+    )
 
     L.append("## 落库口径（契约第四节变换后的分布）\n")
     L.append("| 特征 | 最小 | 中位 | 平均 | 最大 | 取值为 0 的条数 |\n|---|---|---|---|---|---|")
@@ -598,8 +647,12 @@ def write_report(
         "| 4 | `nuc` 的聚合方式有歧义：按文件计数求和，还是对既往提交取并集 | 取**按文件计数求和**（依据：契约第四节把它除以 `nf`；原文表述为「count of commits that caused changes to specific files」）。`ndev` 数的是人，仍取并集，两者故意不对称 | 契约第四节补一行写明聚合方式 |\n"
     )
     L.append("## 说明\n")
-    L.append("- 本产物是**特征表**（`commit_feature`），不含标签列；标签在 `commit_label` / 02 的产出里，两者在 04 步按 `commit_hash` 汇总")
-    L.append("- `fix` 列是「本次提交的目的是不是修缺陷」（判据与 02 脚本同一份实现），**不是**预测目标 `is_bug_inducing`")
+    L.append(
+        "- 本产物是**特征表**（`commit_feature`），不含标签列；标签在 `commit_label` / 02 的产出里，两者在 04 步按 `commit_hash` 汇总"
+    )
+    L.append(
+        "- `fix` 列是「本次提交的目的是不是修缺陷」（判据与 02 脚本同一份实现），**不是**预测目标 `is_bug_inducing`"
+    )
     L.append("- 原值中间产物落在 `data_model/data/`，不入库；入库的只有本统计表")
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -613,7 +666,10 @@ def main() -> int:
     args = parse_args()
 
     if not (args.repo / ".git").exists():
-        print(f"[失败] 找不到仓库：{args.repo}（先按 docs/model/data-pipeline.md 第 2 节克隆并固定版本）", file=sys.stderr)
+        print(
+            f"[失败] 找不到仓库：{args.repo}（先按 docs/model/data-pipeline.md 第 2 节克隆并固定版本）",
+            file=sys.stderr,
+        )
         return 2
     if args.commit is not None:
         try:
@@ -624,7 +680,9 @@ def main() -> int:
         print(json.dumps(result, ensure_ascii=False))
         return 0
     if not args.commits.exists():
-        print(f"[失败] 找不到提交清单：{args.commits}（先跑 01_extract_commits.py）", file=sys.stderr)
+        print(
+            f"[失败] 找不到提交清单：{args.commits}（先跑 01_extract_commits.py）", file=sys.stderr
+        )
         return 2
     if not SZZ_SCRIPT.exists():
         print(f"[失败] 找不到判据来源：{SZZ_SCRIPT}", file=sys.stderr)
@@ -647,7 +705,10 @@ def main() -> int:
 
     missing = [r["commit_hash"] for r in targets if r["commit_hash"] not in commits]
     if missing:
-        print(f"[失败] {len(missing)} 条目标提交在历史明细里找不到，如 {missing[0]}；01 与 03 的过滤口径可能不一致", file=sys.stderr)
+        print(
+            f"[失败] {len(missing)} 条目标提交在历史明细里找不到，如 {missing[0]}；01 与 03 的过滤口径可能不一致",
+            file=sys.stderr,
+        )
         return 4
 
     index = HistoryIndex(commits)

@@ -16,7 +16,7 @@ import math
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -60,7 +60,9 @@ def main() -> int:
         errors = 0
         for _ in range(args.n):
             start = time.perf_counter()
-            r = client.post(f"{args.base_url}/api/predict", json={"commit_hash": target}, headers=headers)
+            r = client.post(
+                f"{args.base_url}/api/predict", json={"commit_hash": target}, headers=headers
+            )
             latencies.append((time.perf_counter() - start) * 1000)
             if r.status_code != 200:
                 errors += 1
@@ -76,7 +78,7 @@ def main() -> int:
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(
-        f"""# 性能压测证据 {datetime.now(timezone.utc).date().isoformat()}
+        f"""# 性能压测证据 {datetime.now(UTC).date().isoformat()}
 
 - 靶子：`POST /api/predict`（契约三 §4 指定，不用查询接口代替）
 - 服务：{args.base_url}（构建来源见提交记录）
@@ -95,7 +97,9 @@ def main() -> int:
 """,
         encoding="utf-8",
     )
-    print(f"p50={p50:.1f}ms p95={p95:.1f}ms p99={p99:.1f}ms max={mx:.1f}ms → {verdict}；证据写入 {out}")
+    print(
+        f"p50={p50:.1f}ms p95={p95:.1f}ms p99={p99:.1f}ms max={mx:.1f}ms → {verdict}；证据写入 {out}"
+    )
     return 0
 
 

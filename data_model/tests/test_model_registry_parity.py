@@ -32,8 +32,18 @@ from data_model.pipelines.semantic.config import (
 )
 
 EXPECTED = {
-    "lr", "rf", "xgb", "lgbm", "et", "svm",
-    "nb", "dt", "knn", "mlp", "mlp_deep", "tabnet",
+    "lr",
+    "rf",
+    "xgb",
+    "lgbm",
+    "et",
+    "svm",
+    "nb",
+    "dt",
+    "knn",
+    "mlp",
+    "mlp_deep",
+    "tabnet",
 }
 
 # 训练口径（config.DEFAULT_MODELS）只有 8 个：nb / dt / knn / mlp 留在注册表里
@@ -66,14 +76,14 @@ def test_all_three_lines_share_the_same_default_model_set():
 def test_every_registered_model_builds():
     """build_model must accept every name the registry advertises."""
     for name in sorted(EXPECTED):
-        for pkg, mod in (("expert", expert_m), ("semantic", semantic_m),
-                         ("fused", fused_m)):
+        for pkg, mod in (("expert", expert_m), ("semantic", semantic_m), ("fused", fused_m)):
             m = mod.build_model(name, seed=0)
             assert m is not None, f"{pkg}.{name} returned None"
 
 
-@pytest.mark.parametrize("mod", [expert_m, semantic_m, fused_m],
-                         ids=["expert", "semantic", "fused"])
+@pytest.mark.parametrize(
+    "mod", [expert_m, semantic_m, fused_m], ids=["expert", "semantic", "fused"]
+)
 def test_unknown_model_is_rejected_with_clear_error(mod):
     with pytest.raises(ValueError, match="未知模型"):
         mod.build_model("not-a-model", seed=0)
@@ -102,13 +112,17 @@ def _rf_params(mod):
 
 
 def test_rf_hyperparameters_match_except_the_documented_expert_d14_deviation():
-    params = {"expert": _rf_params(expert_m), "semantic": _rf_params(semantic_m),
-              "fused": _rf_params(fused_m)}
+    params = {
+        "expert": _rf_params(expert_m),
+        "semantic": _rf_params(semantic_m),
+        "fused": _rf_params(fused_m),
+    }
     for line, expected in RF_DOCUMENTED_DEVIATION.items():
         for key, value in expected.items():
             assert params[line][key] == value, (
                 f"{line} rf 的 {key}={params[line][key]}，与登记值 {value} 不符 —— "
-                "无意变更请改回；有意变更必须同步 config-and-output-spec.md §0 的偏差登记与本表")
+                "无意变更请改回；有意变更必须同步 config-and-output-spec.md §0 的偏差登记与本表"
+            )
 
 
 def _tiny(n=40, d=14):

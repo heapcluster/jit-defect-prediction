@@ -1,21 +1,17 @@
 import os
 import subprocess
 
-from sqlalchemy import func, select
-
 from app import config, model_registry
 from app.db import SessionLocal
 from app.models import Commit, CommitFeature, Prediction
+from sqlalchemy import func, select
+
 from tests.conftest import C1, C3, FEATURE_VALUES, HEADERS, UNKNOWN
 
 
 def _rows_for(hash_, model):
     with SessionLocal() as session:
-        return (
-            session.query(Prediction)
-            .filter_by(commit_hash=hash_, model_name=model)
-            .count()
-        )
+        return session.query(Prediction).filter_by(commit_hash=hash_, model_name=model).count()
 
 
 def test_predict_success(client):
@@ -61,13 +57,17 @@ def test_predict_idempotent_single_row(client):
 
 def test_predict_second_model_new_row(client):
     client.post("/api/predict", json={"commit_hash": C1}, headers=HEADERS)
-    client.post("/api/predict", json={"commit_hash": C1, "model_name": "fixture_v1"}, headers=HEADERS)
+    client.post(
+        "/api/predict", json={"commit_hash": C1, "model_name": "fixture_v1"}, headers=HEADERS
+    )
     assert _rows_for(C1, "fixture_v1") == 1
     assert _rows_for(C1, "fixture_v2") == 1
 
 
 def test_predict_unknown_model_name_is_40001(client):
-    resp = client.post("/api/predict", json={"commit_hash": C1, "model_name": "nope"}, headers=HEADERS)
+    resp = client.post(
+        "/api/predict", json={"commit_hash": C1, "model_name": "nope"}, headers=HEADERS
+    )
     assert resp.status_code == 400
     assert resp.json()["code"] == 40001
 
@@ -91,15 +91,31 @@ def test_predict_new_git_commit_extracts_and_persists_features(client, tmp_path,
     source.write_text("class A {}\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(repo), "add", "."], check=True, capture_output=True)
     env = os.environ.copy()
-    env.update(GIT_AUTHOR_DATE="2026-01-01T12:00:00+0000", GIT_COMMITTER_DATE="2026-01-01T12:00:00+0000")
+    env.update(
+        GIT_AUTHOR_DATE="2026-01-01T12:00:00+0000", GIT_COMMITTER_DATE="2026-01-01T12:00:00+0000"
+    )
     subprocess.run(
-        ["git", "-C", str(repo), "-c", "user.name=Example", "-c", "user.email=test@example.org",
-         "commit", "-m", "CAMEL-123 fix test"],
-        check=True, capture_output=True, env=env,
+        [
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "user.name=Example",
+            "-c",
+            "user.email=test@example.org",
+            "commit",
+            "-m",
+            "CAMEL-123 fix test",
+        ],
+        check=True,
+        capture_output=True,
+        env=env,
     )
     commit_hash = subprocess.run(
         ["git", "-C", str(repo), "rev-parse", "HEAD"],
-        check=True, capture_output=True, text=True,
+        check=True,
+        capture_output=True,
+        text=True,
     ).stdout.strip()
     monkeypatch.setattr(config, "SOURCE_REPO", repo)
 
@@ -140,15 +156,21 @@ def test_predict_uppercase_hash_uses_normalized_key(client):
     assert _rows_for(C1, "fixture_v2") == 1
     with SessionLocal() as session:
         upper_rows = session.execute(
-            select(func.count()).select_from(Prediction).where(
+            select(func.count())
+            .select_from(Prediction)
+            .where(
                 func.binary(Prediction.commit_hash) == C1.upper(),
                 Prediction.model_name == "fixture_v2",
             )
         ).scalar_one()
-        stored = session.execute(
-            select(Prediction.commit_hash).where(
-                Prediction.commit_hash == C1, Prediction.model_name == "fixture_v2"
+        stored = (
+            session.execute(
+                select(Prediction.commit_hash).where(
+                    Prediction.commit_hash == C1, Prediction.model_name == "fixture_v2"
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
     assert upper_rows == 0, "大写哈希不得单独落一行"
     assert stored and all(h == h.lower() for h in stored), "落库哈希必须归一化为小写"

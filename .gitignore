@@ -61,6 +61,24 @@ Thumbs.db
 logs/
 _tmp/
 
+# ===== 二进制包与备份（仓库只留可读的文本/图，不留压缩包）=====
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+*.orig
+*.rej
+*.bak
+*.tmp
+
+# ===== 类型检查与测试缓存 =====
+.mypy_cache/
+.dmypy.json
+coverage.xml
+
+
 # ===== 本地辅助脚本（个人工具，不入库；见 tools/）=====
 tools/
 

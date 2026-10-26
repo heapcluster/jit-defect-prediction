@@ -23,8 +23,12 @@ def _git(repo: Path, *args: str, when: str | None = None) -> str:
     if when:
         env.update(GIT_AUTHOR_DATE=when, GIT_COMMITTER_DATE=when)
     return subprocess.run(
-        ["git", "-C", str(repo), *args], check=True, capture_output=True,
-        text=True, encoding="utf-8", env=env,
+        ["git", "-C", str(repo), *args],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env=env,
     ).stdout.strip()
 
 
@@ -43,8 +47,17 @@ def tiny_repo(tmp_path: Path) -> tuple[Path, list[str]]:
     ):
         target.write_text(content, encoding="utf-8")
         _git(repo, "add", ".")
-        _git(repo, "-c", "user.name=Example", "-c", "user.email=test@example.org",
-             "commit", "-m", message, when=f"2026-01-{day}T12:00:00+0000")
+        _git(
+            repo,
+            "-c",
+            "user.name=Example",
+            "-c",
+            "user.email=test@example.org",
+            "commit",
+            "-m",
+            message,
+            when=f"2026-01-{day}T12:00:00+0000",
+        )
         hashes.append(_git(repo, "rev-parse", "HEAD"))
     return repo, hashes
 
@@ -60,11 +73,18 @@ def test_single_matches_batch_v1(tiny_repo):
         assert list(one["features"]) == extract.FEATURE_FIELDS
         assert one["vector"] == list(one["features"].values())
         targets.append(one)
-    rows = extract.apply_contract(extract.compute_raw(
-        targets, history, extract.HistoryIndex(history), extract.load_is_fix_commit(),
-        repo, progress_every=0, verbose=False,
-    ))
-    for one, batch in zip(targets, rows):
+    rows = extract.apply_contract(
+        extract.compute_raw(
+            targets,
+            history,
+            extract.HistoryIndex(history),
+            extract.load_is_fix_commit(),
+            repo,
+            progress_every=0,
+            verbose=False,
+        )
+    )
+    for one, batch in zip(targets, rows, strict=True):
         assert one["features"] == {name: batch[name] for name in extract.FEATURE_FIELDS}
     assert targets[1]["features"]["fix"] == 1
     assert targets[0]["features"]["exp"] == 0
@@ -74,7 +94,10 @@ def test_cli_emits_json_without_batch_files(tiny_repo):
     repo, hashes = tiny_repo
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "--repo", str(repo), "--commit", hashes[-1]],
-        check=True, capture_output=True, text=True, encoding="utf-8",
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
     )
     assert json.loads(result.stdout)["commit_hash"] == hashes[-1]
     assert not (repo / "commit_features.csv").exists()

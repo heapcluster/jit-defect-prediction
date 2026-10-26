@@ -179,11 +179,7 @@ def _linear_pipeline_parts(model: Any) -> tuple[Any, Any]:
     steps = getattr(model, "steps", None)
     if steps is not None and len(steps) == 2:
         scaler, inner = (step for _, step in steps)
-        if (
-            hasattr(scaler, "transform")
-            and hasattr(scaler, "scale_")
-            and hasattr(inner, "coef_")
-        ):
+        if hasattr(scaler, "transform") and hasattr(scaler, "scale_") and hasattr(inner, "coef_"):
             return inner, scaler
     return model, None
 
@@ -222,7 +218,9 @@ def explain(entry: ModelEntry, vector: list[float]) -> list[dict]:
             "contribution": round(abs(value), 6),
             "direction": "increase" if value > 0 else "decrease",
         }
-        for name, value in zip(config.FEATURE_COLUMNS, row)
+        # strict=False：SHAP 输出行与特征列等长由构造保证；万一不等，按最短截断并降级，
+        # 不让解释路径的边界情况把预测接口打成 50000（契约三：解释失败返回空数组）。
+        for name, value in zip(config.FEATURE_COLUMNS, row, strict=False)
         if value != 0
     ]
 
