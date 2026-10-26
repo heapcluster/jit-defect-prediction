@@ -19,6 +19,9 @@ const emit = defineEmits(['point-click'])
 
 const chartEl = ref(null)
 let chart = null
+// 容器尺寸变化（侧边栏折叠、窗口缩放）时 ECharts 不会自动重绘，
+// 只监听 window.resize 会漏掉布局变化 → 用 ResizeObserver 兜住（2026-10-25 修复）
+let resizeObserver = null
 
 function render() {
   if (!chart) return
@@ -78,10 +81,16 @@ onMounted(() => {
     if (s) emit('point-click', s)
   })
   window.addEventListener('resize', onResize)
+  if (typeof ResizeObserver !== 'undefined' && chartEl.value) {
+    resizeObserver = new ResizeObserver(() => chart?.resize())
+    resizeObserver.observe(chartEl.value)
+  }
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize)
+  resizeObserver?.disconnect()
+  resizeObserver = null
   chart?.dispose()
 })
 </script>

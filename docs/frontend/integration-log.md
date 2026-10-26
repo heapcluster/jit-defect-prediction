@@ -1,7 +1,7 @@
 # 前端联调记录（API-01/02/03 + 鉴权）
 
 > change `frontend-integration` ｜ 前端线 刘帅华 ｜ 记录 2026-10-13
-> 类型：本地真实后端联调（非 mock）；后端为 FastAPI + SQLite 种子数据
+> 类型：本地真实后端联调（非 mock）；后端为 FastAPI + MySQL 种子数据
 
 ## §0 联调基线（唯一出处，2026-10-24 蒋励定 / 2026-10-25 演示库口径随 #147 更新）
 
@@ -10,7 +10,7 @@
 
 | 项 | 基线值 | 维护线 |
 |---|---|---|
-| 数据库（联调） | SQLite，`backend/dev.db`；`DATABASE_URL=sqlite:///./dev.db` | 后端 |
+| 数据库（联调 / 演示 / 验收） | **MySQL `jit_demo`**；`DATABASE_URL=mysql+pymysql://jit:<pwd>@127.0.0.1:3306/jit_demo?charset=utf8mb4`（同一套库，每人本机建库见 `infra/setup_mysql.py`） | 后端 |
 | 数据库（演示 / 验收） | **MySQL `jit_demo`**；`DATABASE_URL=mysql+pymysql://jit:<pwd>@127.0.0.1:3306/jit_demo?charset=utf8mb4`。建库脚本见 Issue #142 / PR #150（每人本机 MySQL，root 建库）；数据入口现为灌数（演示脚本 §0.0），**#149 合入后切换为 `POST /api/sync` 实时同步**，判据见 `docs/repo/demo-script-sprint1.md` §0.0.1 | 后端 |
 | 建库灌数 | `cd backend` → `python -m scripts.seed_dev_data`（PowerShell / bash 同一写法；`PYTHONPATH=.` 前缀在 PowerShell 下不是有效命令，不要写） | 后端 |
 | 种子内容 | 3 提交 / 3 特征 / 3 预测；`commit_hash` = `000…001` ~ `000…003` | 后端 |
@@ -23,8 +23,7 @@
 ### 三条硬规矩
 
 1. **不写个人绝对路径。** `MODEL_DIR` 只允许留空或仓库内相对路径；个人机器路径**后端**写进 `backend/.env`（`backend/app/config.py` 只调用 `load_dotenv()`，读的是 `backend/.env`，**不会读 `.env.local`**），**前端**写进 `frontend/.env.local`（Vite 原生加载）。两处都不进 `.env.example`、不进任何入库文档。理由：写死个人路径的人能跑，其他人必然 `50000`；而写成后端读不到的文件名，等于没设。
-2. **不各自建库。** 联调库只有 `backend/dev.db` 一份，由 `seed_dev_data.py` 生成。要造空态/失败态，先用 query 参数（如 `min_risk`）或改 seed 脚本，**不许手工改库、不许另建一套联调库**。理由：各建一套后，"我这边有数据"会变成无法复现的口径。
-   **唯一例外：演示库 `jit_demo`（MySQL）** —— 它是登记在案、生成命令可复现的**第二份库**，用途是演示与系统层验收，不属本条禁止范围；联调与取证一律不碰它。建库脚本见 Issue #142 / PR #150（每人本机 MySQL，root 建库）；演示数据现走灌数（演示脚本 §0.0），**#149 合入后改走 `POST /api/sync` 实时同步**。
+2. **不各自手工建库。** 联调 / 演示 / 验收统一走 MySQL `jit_demo`，由 `python infra/setup_mysql.py` 一键建库建表（或 `mysql -u jit -p jit_demo < ../infra/schema.sql`）。要造空态/失败态，先用 query 参数（如 `min_risk`）或改 seed 脚本，**不许手工改库、不许另起一份数据库**。理由：各建一套后，"我这边有数据"会变成无法复现的口径；统一 `jit_demo` 后这条只要求「别另起第二份库」。
 3. **口径变更走 PR。** 改这张表必须同一个 PR 里同步 `backend/.env.example` 与 `frontend/.env.example`，描述带 `[联调基线]` 标记。理由：口径散落是三处改一处漏的直接来源。
 
 ### 落地方式
@@ -129,4 +128,4 @@
 
 ## 落地结论
 
-三查询接口（API-01/02/03）在真实后端 + SQLite 种子数据下，curl 层均返回 `code=0` 且字段齐全，鉴权失败按契约返回 401/40100；API-04 用真模型推理返回 risk_score + 非空 SHAP 归因。三页浏览器人工冒烟为操作清单 + 预期（待执行补截图）。前端送纯日期、错误码三态、粒度快照、requestId 防过期等行为与契约口径一致。#62 已合入，纯日期筛选的最后一天包含行为可做端到端复核。
+三查询接口（API-01/02/03）在真实后端 + MySQL 种子数据下，curl 层均返回 `code=0` 且字段齐全，鉴权失败按契约返回 401/40100；API-04 用真模型推理返回 risk_score + 非空 SHAP 归因。三页浏览器人工冒烟为操作清单 + 预期（待执行补截图）。前端送纯日期、错误码三态、粒度快照、requestId 防过期等行为与契约口径一致。#62 已合入，纯日期筛选的最后一天包含行为可做端到端复核。

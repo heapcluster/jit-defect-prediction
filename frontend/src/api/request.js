@@ -25,6 +25,11 @@ const request = axios.create({
   }
 })
 
+// 同步类端点（/api/sync、/api/sync-prs）的超时：实测单条提交 × 8 模型约 4.1s，
+// 一条 PR 动辄 20+ 提交，再加上从 GitHub 拉 PR 头与提交清单，默认的 10s 必然超时
+// （2026-10-25 修复：同步按钮此前 100% 报 "timeout of 10000ms exceeded"）。
+export const SYNC_TIMEOUT = 300000
+
 // 响应拦截：统一处理 { code, message, data } 包络
 // 成功（code === 0）返回 data；失败 reject 一个带 code 的错误，页面按 code 区分三态：
 //   40001 参数非法 → 指出是哪个参数（参数名取 err.detail，message 是通用文案）
