@@ -167,9 +167,11 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getTrends } from '../api'
 import RiskTrendChart from '../components/RiskTrendChart.vue'
+import { MODELS } from '../utils/models'
+import { errText } from '../utils/errors'
 
-// 模型清单前端维护（契约三冻结结论）
-const models = ['xgb_v1', 'rf_v1', 'lr_v1']
+// 模型清单与后端 feature_order.txt 的 [models] 段、utils/models.js 保持一致（8 种在线模型）
+const models = MODELS
 
 const filters = reactive({
   granularity: 'week',
@@ -229,15 +231,6 @@ async function load() {
   } finally {
     if (id === requestId) loading.value = false
   }
-}
-
-function errText(e) {
-  const code = e?.code
-  // 40001 要指出是哪个参数，参数名在 err.detail
-  if (code === 40001) return `参数有误：${e?.detail || e?.message || ''}`
-  if (code === 40100) return '登录已失效，请重新登录'
-  if (code === 50000) return '服务异常，请稍后重试'
-  return e?.message || '请求失败'
 }
 
 const router = useRouter()

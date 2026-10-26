@@ -174,12 +174,15 @@ import { useRouter, useRoute } from 'vue-router'
 import { getCommits } from '../api'
 import { ElMessage } from 'element-plus'
 import { riskColor } from '../utils/risk'
+import { MODELS } from '../utils/models'
+import { errText, isRetryable } from '../utils/errors'
+import { formatTime } from '../utils/datetime'
 
 const router = useRouter()
 const route = useRoute()
 
-// 模型清单前端维护（契约三冻结结论）
-const models = ['xgb_v1', 'rf_v1', 'lr_v1']
+// 模型清单与后端 feature_order.txt 的 [models] 段、utils/models.js 保持一致（8 种在线模型）
+const models = MODELS
 
 const filters = reactive({
   model_name: '',
@@ -194,12 +197,12 @@ const loading = ref(false)
 const error = ref('')
 const retryable = ref(false)
 
-function formatTime(iso) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('zh-CN', { hour12: false })
-}
+// 最新请求标识：并发时丢弃过期响应，避免快速翻页时旧响应覆盖新结果
+// （2026-10-25 修复：此前 RiskList 无守卫，TrendBoard 有）
+let requestId = 0
 
 async function load(page = filters.page) {
+  const id = ++requestId
   filters.page = page
   loading.value = true
   error.value = ''
@@ -213,27 +216,18 @@ async function load(page = filters.page) {
       start_time: timeRange.value?.[0] || undefined,
       end_time: timeRange.value?.[1] || undefined
     })
+    if (id !== requestId) return
     items.value = data.items || []
     total.value = data.total || 0
   } catch (e) {
+    if (id !== requestId) return
     items.value = []
     total.value = 0
     error.value = errText(e)
-    retryable.value = e?.code === 50000
+    retryable.value = isRetryable(e)
   } finally {
-    loading.value = false
+    if (id === requestId) loading.value = false
   }
-}
-
-// 错误码 → 提示（docs/pages.md 第 5 节）
-function errText(e) {
-  const code = e?.code
-  // 40001 要指出是哪个参数，参数名在 err.detail
-  if (code === 40001) return `参数有误：${e?.detail || e?.message || ''}`
-  if (code === 40100) return '登录已失效，请重新登录'
-  if (code === 40400) return '目标不存在'
-  if (code === 50000) return '服务异常，请稍后重试'
-  return e?.message || '请求失败'
 }
 
 function reset() {

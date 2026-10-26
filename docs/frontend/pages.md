@@ -1,17 +1,21 @@
 # 页面 ↔ 接口 ↔ 字段 映射
 
-> 来源：原 `docs/pages.md`（已并入本文件）v1.4（已裁定）｜ 维护：刘帅华 ｜ 审核：吕建江、蒋励
-> **前后端联调唯一依据。只有三个页面，不做第四个。**
+> 来源：原 `docs/pages.md`（已并入本文件）v1.5（已裁定）｜ 维护：刘帅华 ｜ 审核：吕建江、蒋励
+> **核心三页（风险列表 / 提交详情 / 趋势看板）之外，2026-10-25 起增补 PR 两页与 404 兜底页
+> （对应 openspec change `realtime-pr-prediction`）。**
 
 ## 1. 三页共用约定
 
 1. 字段名与契约完全一致，前端不改名、不驼峰转换（`risk_score` 就叫 `risk_score`）。
 2. 概率一律前端转百分比；后端返回 `0.0`~`1.0` 小数。
-3. 时间：ISO 8601 带时区 → 前端转本地时区。
+3. 时间：ISO 8601 带时区 → 前端转本地时区（实现：`src/utils/datetime.js`，**只此一处**）。
 4. 响应包络 `{code,message,data}`，前端只判 `code===0`。
 5. 技术栈：Vue 3 + Element Plus + ECharts。
 6. 每请求带 `X-API-Key`（构建期环境变量注入，不硬编码）；收到 `40100` 按三态处理。
 7. 时间范围筛选为闭区间：`end_time` 送纯日期串 `YYYY-MM-DD`，服务端含结束日全天；前端不自行拼接时间收尾（契约三 1.5 口径）。
+8. 错误文案只有一处实现（`src/utils/errors.js` 的 `errText`）：响应拦截器已把后端包络转成带 `code`/`detail`/`message` 的普通 Error，**页面不得再读 `e.response.data.message`**（那个字段不存在，读它等于三态分支全失效）。超时/网络异常统一显示「请求超时，请稍后重试」，不把 axios 技术文案甩给用户。
+9. 同步类端点（`POST /api/sync`、`POST /api/sync-prs`）走长超时（`SYNC_TIMEOUT = 300s`）：实测单条提交 × 8 模型约 4.1s，一条 PR 常有 20+ 提交，默认 10s 必然超时。
+10. 组件库文案走中文（Element Plus `zh-cn` locale），与 `index.html` 的 `lang="zh-CN"` 一致。
 
 | 页面 | 接口 |
 |---|---|
@@ -75,6 +79,27 @@
 | `explanation` 空 | 「该模型未提供特征解释」+保留特征值区 |
 
 **风险着色阈值只在这一处定义**：`≥0.5` 高（深色警示）/ `≥0.3` 中 / 其余常规。
+
+## 5.1 页面四 / 五：PR 列表与 PR 详情（2026-10-25 增补）
+
+对应接口与字段口径见 `docs/backend/api-spec.md` v1.7 §6~§8 与 openspec change `realtime-pr-prediction`。
+
+| 页面 | 接口 | 关键字段 |
+|---|---|---|
+| PR 列表 | `GET /api/prs` | `items[].number/title/author/state/risk_score/commit_count/predicted_count/updated_at` |
+| PR 详情 | `GET /api/prs/{number}` | `commits[].sha/message/author/risk_score/predicted_at` |
+| 同步动作 | `POST /api/sync-prs` | 长耗时端点，超时按 §1.9 |
+
+- **未预测的 PR/提交一律显「未预测」**（`risk_score === null`），**不用 `0.0` 冒充**。
+- 「已预测/总提交」用 `predicted_count`/`commit_count` 两个字段表达，不在前端推算。
+- 同步按钮：点了以后无论同步成功与否都重新拉一次列表（同步可能只完成一部分，单 PR 失败进 `skipped`）。
+- 表格不随错误提示卸载：出错时保留上一次拉到的数据。
+- PR 列表的模型下拉切换后立即重查（`@change`）。
+
+## 5.2 页面六：404 兜底
+
+- 未知路径走 `/:pathMatch(.*)*` 路由 → 「页面不存在」+ 回风险列表按钮（不留白屏）。
+- 路由切换后滚动位置回到顶部（`scrollBehavior`）。
 
 ## 6. 已裁定（牵动接口的项）
 

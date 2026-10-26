@@ -93,7 +93,7 @@
           重新预测
         </el-button>
         <span class="predicted-at">
-          预测时间 {{ formatPredictedAt(detail.predicted_at) }}
+          预测时间 {{ formatDateTime(detail.predicted_at) }}
         </span>
       </div>
 
@@ -170,12 +170,14 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { getCommitDetail, postPredict } from '../api'
 import { ElMessage } from 'element-plus'
 import { riskColor, riskTag, riskLabel } from '../utils/risk'
 import { MODELS } from '../utils/models'
 import { FEATURE_GROUPS } from '../utils/features'
+import { errText } from '../utils/errors'
+import { formatTime, formatDateTime } from '../utils/datetime'
 
 const props = defineProps({
   hash: { type: String, required: true }
@@ -215,19 +217,6 @@ function signed(v) {
   return (v > 0 ? '+' : '') + v.toFixed(2)
 }
 
-function formatTime(iso) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('zh-CN', { hour12: false })
-}
-
-// 预测时间：YYYY-MM-DD HH:mm（predict 响应有 predicted_at，GET 详情没有，首次加载显示「—」）
-function formatPredictedAt(iso) {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
 async function load() {
   loading.value = true
   error.value = ''
@@ -241,16 +230,6 @@ async function load() {
   } finally {
     loading.value = false
   }
-}
-
-function errText(e) {
-  const code = e?.code
-  // 40001 要指出是哪个参数，参数名在 err.detail（message 是通用文案）
-  if (code === 40001) return `参数有误：${e?.detail || e?.message || ''}`
-  if (code === 40100) return '登录已失效，请重新登录'
-  if (code === 40400) return '该提交不存在'
-  if (code === 50000) return '服务异常，请稍后重试'
-  return e?.message || '请求失败'
 }
 
 // 重新预测：POST /api/predict，刷新 risk_score / model_name / explanation / predicted_at
@@ -278,6 +257,13 @@ async function predict() {
 }
 
 onMounted(load)
+// 路由参数变化时重载：/commit/:hash 换 hash 时组件会复用，
+// 不重载就会显示上一条提交的详情（2026-10-25 修复）
+watch(() => props.hash, () => {
+  detail.value = null
+  errorCode.value = 0
+  load()
+})
 </script>
 
 <style scoped>
