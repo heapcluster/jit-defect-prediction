@@ -29,7 +29,11 @@ def live_markdown_files(root: Path) -> list[Path]:
 
 
 def _is_historical_line(line: str, in_history: bool) -> bool:
-    return in_history or line.lstrip().startswith(">") or bool(re.match(r"^\|\s*20\d\d-\d\d-\d\d\s*\|", line))
+    return (
+        in_history
+        or line.lstrip().startswith(">")
+        or bool(re.match(r"^\|\s*20\d\d-\d\d-\d\d\s*\|", line))
+    )
 
 
 def _candidate_path(raw: str, source: Path, root: Path, *, inline: bool) -> Path | None:
@@ -64,7 +68,9 @@ def broken_links(root: Path) -> list[str]:
         in_history = False
         for number, line in enumerate(source.read_text(encoding="utf-8").splitlines(), 1):
             if line.startswith("## "):
-                in_history = bool(re.search(r"变更日志|历史|Changelog|History", line, re.IGNORECASE))
+                in_history = bool(
+                    re.search(r"变更日志|历史|Changelog|History", line, re.IGNORECASE)
+                )
             if _is_historical_line(line, in_history):
                 continue
             candidates = [(match.group(1), False) for match in MARKDOWN_LINK.finditer(line)]

@@ -17,10 +17,19 @@ class CIContractTests(unittest.TestCase):
         self.assertNotRegex(job_header, r"(?m)^    if:")
 
     def test_stages_run_in_order(self):
-        stages = ["Lint frontend", "Lint Python", "Lint specifications",
-                  "Check live documentation links", "Check OpenSpec MODIFIED collisions",
-                  "Test CI contract", "Test backend", "Test frontend",
-                  "Test data model", "Build frontend", "Build Python"]
+        stages = [
+            "Lint frontend",
+            "Lint Python",
+            "Lint specifications",
+            "Check live documentation links",
+            "Check OpenSpec MODIFIED collisions",
+            "Test CI contract",
+            "Test backend",
+            "Test frontend",
+            "Test data model",
+            "Build frontend",
+            "Build Python",
+        ]
         positions = [WORKFLOW.index("- name: " + stage + "\n") for stage in stages]
         self.assertEqual(positions, sorted(positions))
 
