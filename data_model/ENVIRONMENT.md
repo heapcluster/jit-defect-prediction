@@ -161,7 +161,7 @@ git check-ignore -v data_model/pipelines/expert/reports/model_metrics.md # 应�
 | 类别 | 内容 | 体积 | 回传方式 |
 |---|---|---|---|
 | **必须传**：交付权重（`expert_models_20261024.zip`，包内平铺 10 个文件，不带目录层级） | 8 个 `.pkl` + `feature_order.txt` + `manifest.txt`，交付集仍是 `lr_v1` / `rf_v1` / `xgb_v1` | 10 个文件**未压缩合计 591,701,820 B（约 564MiB）**；其中 `et_v1.pkl` 572,936,009 B、`rf_v1.pkl` 收敛后 12,715,033 B（2026-10-24 前为 292,996,489 B） | **超飞书单文件 153MB 上限 → 走网盘（C）或分卷（B）**。包级体积与 MD5 须构建后实测回填（§7.2 / §7.4） |
-| 可选：灌库用数据（`deliver_data_20261024.zip`） | `commits.csv` / `commit_features.csv` / `prediction_result.csv` | **18,006,911 B（约 17MB）** | 仅在对方不想自己跑 01–04+07 却要看真实列表时发；默认不发 |
+| 可选：历史批量数据（`deliver_data_20261024.zip`，仅供离线评估对照；离线 CSV 灌库已移除） | `commits.csv` / `commit_features.csv` / `prediction_result.csv` | **18,006,911 B（约 17MB）** | 仅在对方不想自己跑 01–04+07 却要看真实列表时发；默认不发 |
 | 其余评估权重（已含在上面的 10 文件包里，勿重复索取） | `et_v1` 572,936,009 B、`svm_v1` 3,385,933 B、`lgbm_v1` 1,028,836 B、`tabnet_v1` 300,437 B、`mlp_deep_v1` 95,809 B | 约 551MiB | 不再单独走网盘；只需收 `expert_models_20261024.zip` 一个包 |
 | 报告 / 图表 / 清单 | `reports/*.md`、`figs/*.png`、`manifest.txt` | 小 | **走 git 提交** |
 

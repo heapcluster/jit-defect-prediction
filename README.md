@@ -119,7 +119,7 @@ python -V                                               # 必须是 3.12.x
 | 三条契约（数据字段 / 特征列名 / 接口格式） | ⚠️ 草案，**冻结时间见各文件头部** |
 | OpenSpec 目录与三套 AI 工具集成文件 | ✅ 已入库，`openspec/config.yaml` 的 `context:` 与 `rules:` 已填 |
 | AI 规则入口（`AGENTS.md` + `CLAUDE.md`） | ✅ 已入库 |
-| CI（代码风格检查 + 测试） | 未做 —— 有可测代码之后再接 |
+| CI（代码风格检查 + 测试） | ✅ 已入库：`.github/workflows/ci.yml`（Python lint + pytest + OpenSpec 校验 + 文档链接检查 + 前端 lint/单测）、`pr-auto-review-prototype.yml`（PR 自动审阅原型，只读）、`codeql.yml`（安全扫描）；**后端测试在 CI 里真正跑**（自 #160 起有 MySQL service 与建库步骤） |
 
 ---
 
@@ -143,9 +143,9 @@ python -V                                               # 必须是 3.12.x
 
 ### 7.1 前提
 
-- conda 环境 `jit-defect-prediction`（Python **3.12.14**），依赖唯一清单 `data_model/environment.yml`
+- conda 环境 `jit-defect-prediction`（Python **3.12.x**，本机实测 3.12.15），依赖唯一清单 `data_model/environment.yml`
   （仓库不再维护第二份依赖清单）。
-- MySQL 8（联调 / 演示 / 验收统一数据库，本机必须安装）；Node 18+（前端）。
+- MySQL 8（联调 / 演示 / 验收统一数据库，本机必须安装）；Node **≥20.19**（前端，vite 8 / vitest 5 的要求；CI 用 24）。
 - `backend/.env` —— **不入库**，从 `backend/.env.example` 复制后按本机改。
 
 ### 7.2 `backend/.env` 关键项
@@ -197,7 +197,7 @@ python -m pipelines.expert.train           # 默认训练 8 个分类器
 ```
 
 产物落在 `data_model/pipelines/expert/`：`models/*.pkl`、`models/feature_order.txt`（交付清单）、
-`data/prediction_result.csv`（由后端灌 `prediction` 表）、`reports/` 报告。
+`data/prediction_result.csv`（离线评估对照产物；入库走后端实时同步端点）、`reports/` 报告。
 
 ### 7.6 前端
 
@@ -211,7 +211,7 @@ npm run test:unit  # 单测（含模型清单与「无归因」降级用例）
 
 ### 7.7 一键联调与更多细节
 
-`python backend/scripts/demo_preflight.py` 可一条命令跑完建库→灌数→起服务→断言。
+后端自检脚本在 `backend/` 目录下跑：`cd backend && python -m scripts.demo_preflight --init-db --out scripts/evidence/preflight-<日期>.md`（建表→起服务→六条判据；**灌数阶段已随离线灌库移除**，数据走实时同步端点）。
 完整命令链、三端联调判据与故障排查见 `docs/common/local-runbook.md`。
 
 ---

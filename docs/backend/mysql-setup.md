@@ -102,7 +102,7 @@ DATABASE_URL=mysql+pymysql://<user>:<pwd>@127.0.0.1:3306/jit_demo?charset=utf8mb
 
 - **口令只写进本机 `backend/.env`**（已被 `.gitignore` 忽略），不进任何入库文档、不进 `.env.example`（§0 硬规矩 1 的同源要求）。`<user>` 用你自己建的账号即可 —— 建库要 `CREATE DATABASE` 权限（§6 坑 1），但**灌数与起服务只需要该库的 DML/DDL 权限**。
 - **必须带 `?charset=utf8mb4`**，否则中文提交信息可能按服务端默认字符集写入（§6 坑 5）。
-- **坑（最容易踩）**：`backend/app/config.py` 只调用 `load_dotenv()`，而 **`load_dotenv()` 默认不覆盖已存在的环境变量** —— 所以 `DATABASE_URL=... python -m app.ingest ...` 这种**行内前缀会压过 `.env`**。两者只能选一种；本口径选 `.env`，**命令里一律不带前缀**（`backend/scripts/evidence/system-layer-backend-2026-10-24.md` §1 的复跑命令、`docs/repo/demo-script-sprint1.md` §0.0 同此口径）。
+- **坑（最容易踩）**：`backend/app/config.py` 只调用 `load_dotenv()`，而 **`load_dotenv()` 默认不覆盖已存在的环境变量** —— 所以 `DATABASE_URL=... python -m <脚本> ...` 这种**行内前缀会压过 `.env`**。两者只能选一种；本口径选 `.env`，**命令里一律不带前缀**（`backend/scripts/evidence/system-layer-backend-2026-10-24.md` §1 的复跑命令、`docs/repo/demo-script-sprint1.md` §0.0 同此口径）。
 - `API_TOKEN` 必须等于前端 `frontend/.env.local` 的 `VITE_API_KEY`，否则前端全部 40100。当前值与其余基线项**只认** `docs/frontend/integration-log.md` §0，本文不抄。
 - `MODEL_DIR` 留空即回落到仓库内 `data_model/pipelines/expert/models/`（#99 自动插 `sys.path`，不要再手工设 `PYTHONPATH`）。
 
@@ -119,17 +119,9 @@ python infra/clone_camel_history.py --path <本机路径>/camel-history --fetch 
 ```
 
 - 索引**不是开发库、不进工作流、不持有预测状态**；`SOURCE_REPO` 配它的路径（见 §3）。
-- 它取代了原「离线 CSV 灌库」成为数据入口：灌库（`app.ingest`）已移除，实时预测见 `docs/common/local-runbook.md` §4。
+- 它取代了原「离线 CSV 灌库」成为数据入口：灌库（`app.ingest`）已彻底移除，数据只由实时同步端点写入（`POST /api/sync` / `POST /api/sync-prs`），见 `docs/common/local-runbook.md` §3。
 
-```bash
-# cwd = backend；连接串已在 backend/.env（命令行不带前缀，见 §3）
-python -m app.ingest commits     <提交清单.csv>
-python -m app.ingest labels      <标签表.csv>
-python -m app.ingest features    <特征表.csv>
-python -m app.ingest predictions <prediction_result.csv>
-```
-
-- **四份 CSV 的文件名、来源与产出口径只认 `docs/repo/demo-script-sprint1.md` §0.0**，本文不抄第二份。
+- **CSV 产物的文件名、来源与产出口径只认 `docs/repo/demo-script-sprint1.md` §0.0**，本文不抄第二份。
 - **行数口径**（本机实测 CSV 数据行数，不含表头）：
 
 | 类别 | 数据行数 | 说明 |
@@ -190,7 +182,7 @@ python -m app.ingest predictions <prediction_result.csv>
 > python project_features.py
 > ```
 >
-> 期望输出 `写出 83943 行 -> data_model\data\commit_features.csv`。随后 `cd backend` → `python -m app.ingest features ../data_model/data/commit_features.csv` 重灌一次即可（ingest 幂等、同 hash 覆盖，不用重建库、不用重灌其他三类）。
+> 期望输出 `写出 83943 行 -> data_model\data\commit_features.csv`。此后由实时同步现算特征入库（`POST /api/sync` / `POST /api/sync-prs`），特征按 `commit_hash` 幂等覆盖，**不再有离线重灌命令**。
 >
 > 灌完**必须验一次口径**（一条 SQL，能挡住这个坑）：契约形态下 `la` / `ld` 会出现**大量负值**（`ln(x)` 在 x<1 时为负），原始计数则**恒为非负**且量级完全不同。本机全量实测两份文件的判据值：
 >
@@ -228,15 +220,15 @@ python -m app.ingest predictions <prediction_result.csv>
 | 5 | 模型加载 | 启动日志 `loaded models: ['lr_v1', 'rf_v1', 'xgb_v1']`，**不得出现** `failed models:` | 终端 A |
 | 6 | 在线预测幂等 | 同一 `(commit_hash, model_name)` 连 POST 两次，`prediction` 只留 1 行 | 两次 curl + `COUNT(*)` |
 
-判据 5 的清单来源是 `data_model/pipelines/expert/models/feature_order.txt` 的 `[models]` 段；同目录另有 5 个 `[evaluated]` 权重（`lgbm_v1` / `et_v1` / `svm_v1` / `mlp_deep_v1` / `tabnet_v1`），**不进后端加载清单**（`openspec/specs/model-coverage` 冻结项），指定它们查询返回 **40001** 属预期行为、不判失败。
+判据 5 的清单来源是 `data_model/pipelines/expert/models/feature_order.txt` 的 `[models]` 段（2026-10-25 组长裁定 Issue #139 起为**全部 8 个**：`lr_v1` / `rf_v1` / `xgb_v1` / `lgbm_v1` / `et_v1` / `svm_v1` / `mlp_deep_v1` / `tabnet_v1`）；`[evaluated]` 段当前为空。清单外的模型名才返回 **40001**（如 `not_a_model`），属预期行为、不判失败。
 
 ### 5.2 一条命令自检
 
 ```bash
 # cwd = backend；连接串、令牌、MODEL_DIR 一律读 backend/.env（脚本不提供覆盖它们的开关）
 python -m scripts.demo_preflight --out scripts/evidence/preflight-<日期>.md
-# 从零到断言（--init-db / --ingest 两个前置阶段）：建表 → 灌数 → 起服务 → 六条判据
-python -m scripts.demo_preflight --init-db --ingest --out scripts/evidence/preflight-<日期>.md
+# 从零到断言（--init-db 前置阶段）：建表 → 起服务 → 六条判据
+python -m scripts.demo_preflight --init-db --out scripts/evidence/preflight-<日期>.md
 ```
 
 脚本（Issue #138）**实际支持的开关**（`python -m scripts.demo_preflight --help` 是唯一权威，下表只是速查）：
@@ -244,14 +236,14 @@ python -m scripts.demo_preflight --init-db --ingest --out scripts/evidence/prefl
 | 开关 | 作用 | 默认 |
 |---|---|---|
 | `--init-db` | 前置阶段 0a：建表（等价 `python -m app.db init`，含索引自检）。**只建表不建库** | 关 |
-| `--ingest` | 前置阶段 0b：四类 CSV 依次 `app.ingest`，逐类报行数 | 关 |
-| `--ingest-csv KIND=PATH` | 覆盖某一类 CSV 路径，可重复；KIND 取 `commits\|labels\|features\|predictions` | §0.0 的四条路径 |
 | `--expect-predictions N` | 判据 2 的期望 `prediction` 行数；**联调库跑要写 3** | `83943` |
-| `--expect-models a,b,c` | 判据 4 的期望加载清单 | `lr_v1,rf_v1,xgb_v1` |
+| `--expect-models a,b,c` | 判据 4 的期望加载清单（交付清单共 8 个） | `lr_v1,rf_v1,xgb_v1,lgbm_v1,et_v1,svm_v1,mlp_deep_v1,tabnet_v1` |
 | `--host` / `--port` | 脚本自己起的服务地址 | `127.0.0.1` / `8055` |
 | `--timeout S` | 等服务就绪的秒数（模型加载约 40s，首次跑建议放宽） | `120` |
 | `--backend-env` / `--frontend-env` | 两份 `.env` 的位置（判据 1 比对令牌用） | `backend/.env` / `frontend/.env.local` |
 | `--out PATH` | 把结果写成证据 markdown | 不写 |
+
+> **`--ingest` / `--ingest-csv` 已随离线灌库移除而删除**（2026-10-25）。数据由实时同步端点写入，脚本不再有灌数阶段；要先有数据请先调 `POST /api/sync`（或 `/api/sync-prs`），见 `docs/common/local-runbook.md` §3。
 
 **没有** `--db-url` 与 `--token` 这两个开关：库与令牌只从 `backend/.env`（或已存在的环境变量）读，脚本刻意不提供命令行覆盖 —— 命令行传口令会进 shell 历史，也会让「判据 1 比对的两份 `.env`」与「实际连的库」脱钩。
 
@@ -291,6 +283,8 @@ python -m scripts.demo_preflight --init-db --ingest --out scripts/evidence/prefl
 ## 8. 本文档的实测边界（哪些是测过的、哪些不是）
 
 **本文档只写已验证或已裁定的内容**，未验证的一律如实登记，不当已验证。
+
+> **历史记录说明**：下表与「补记 2026-10-25」记录的是 **2026-10-24/25 当时的实跑**，其中的 `--ingest` / `--ingest-csv` 开关与 `python -m app.ingest` 灌库命令**已于同日随离线灌库裁定一并移除**（见 §5.2 的说明），复现请改用实时同步端点。记录本身保留原样，不改写历史。
 
 | 内容 | 状态 | 依据 |
 |---|---|---|

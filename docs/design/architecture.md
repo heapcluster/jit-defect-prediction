@@ -98,7 +98,8 @@ SHAP 解释 → 落 `commit` / `commit_feature` / `prediction` 三张表 → 返
 
 **③ 离线训练与交付（写文件，不碰库）**
 Camel 仓库 → 抽取提交 → SZZ 打标 → 14 项特征 → 时间序切分 → 训练 8 个分类器 →
-导出 `.pkl` + `feature_order.txt` + 全量 `prediction_result.csv` → 由后端灌库。
+导出 `.pkl` + `feature_order.txt`（+ 全量 `prediction_result.csv`，仅作评估对照）→ 后端按 `[models]` 段加载。
+**入库只走实时同步端点**（`POST /api/sync` / `POST /api/sync-prs`），离线 CSV 灌库已于 2026-10-25 移除。
 
 ## 6. 关键组件：`model_registry`（插件化）
 

@@ -16,7 +16,7 @@
 | 6 | 查询与预测接口时序图 | 5.1.2 核心流程图 & 时序图（后端线） | `hi_seq_query_predict.png` | CodeBuddy（DeepSeek-V4.1-Flash；Mermaid → 无头浏览器渲染） | 「画后端查询与预测接口的 mermaid 时序图，参与方为前端/FastAPI/MySQL/模型注册表，体现鉴权、校验、查询与预测分支及幂等落库」 |
 | 7 | 后端核心类图 | 5.1.2 核心流程图 & 时序图（后端线） | `hi_class_backend.png` | CodeBuddy（DeepSeek-V4.1-Flash；Mermaid → 无头浏览器渲染） | 「画后端核心类图：鉴权中间件、提交/趋势/预测三个路由、模型注册表、预测仓储，标出依赖关系」 |
 | 8 | 图1 数据库 ER 图（鸦爪法） | 5.2 数据库表的设计 | `hi_er_db.png` | CodeBuddy（DeepSeek-V4.1-Flash；Mermaid → 无头浏览器渲染） | 「画 commit / commit_label / commit_feature / prediction 四表 ER，标主键/外键与基数，鸦爪法，与契约 data-fields 同源」 |
-| 9 | 图2 入库链路图 | 5.2 数据库表的设计 | `hi_flow_ingest.png` | CodeBuddy（DeepSeek-V4.1-Flash；Mermaid → 无头浏览器渲染） | 「画数据线 01~04 产出 CSV 经后端导入脚本写入 MySQL 四张表、接口读取并实时推理的链路」 |
+| 9 | 图2 入库链路图 | 5.2 数据库表的设计 | `hi_flow_ingest.png` | CodeBuddy（DeepSeek-V4.1-Flash；Mermaid → 无头浏览器渲染） | 「画数据线 01~04 产出 CSV 与实时同步写入 MySQL 四张表、接口读取并实时推理的链路」 |
 | 10 | 模型线数据链路流程图 | 5.4.1.2 流程图 | 飞书 Mermaid 画板 `KuxMw2VXmh7EhmbLCmBc2NHrnJb` | CodeBuddy（DeepSeek-V4.1-Flash；Mermaid → 飞书画板渲染） | 「按 `model/data-pipeline.md` 的九步链路画模型线数据链路流程图：01 抽取提交 → 02 SZZ 打标 → 03 特征提取（契约二 14 项）→ 04 构建样本 → 05 时间序切分 → 06 训练 → 07 全量预测 → 08 覆盖矩阵 → 09 校准阈值，每步标出产物文件名，并注明仓库固定版本 camel-4.23.0」 |
 | 11 | 模型线核心类图 | 5.4.1.3 类图 | 飞书 Mermaid 画板 `J6Odw946jhQArcbs9Y5c0OSBnEg` | CodeBuddy（DeepSeek-V4.1-Flash；Mermaid → 飞书画板渲染） | 「画模型线核心类图：Commit（提交）、SzzLabel（打标结果）、CommitFeature（14 项特征）、Prediction（预测结果）四个类，标出字段与类型，并按契约一 data-fields 标注主键 / 唯一键与关联基数」 |
 | 12 | 前后端时序图 | 5.4.1.4 时序图 | 飞书 Mermaid 画板 `Oi2AwfflBh2m4ubQ6EMcj6LRnRg` | CodeBuddy（DeepSeek-V4.1-Flash；Mermaid → 飞书画板渲染） | 「画前端三页面与后端 FastAPI、模型模块、MySQL 之间的时序图，体现 GET /api/commits、GET /api/commits/{hash}、GET /api/trends、POST /api/predict 四条链路，含 X-API-Key 鉴权、参数校验与预测结果幂等落库」 |
@@ -58,14 +58,14 @@ flowchart TD
     subgraph 数据与模型层["数据与模型层"]
         D1[(MySQL 8：commit / commit_label / commit_feature / prediction)]
         D2[模型文件 .pkl（数据线交付）]
-        D3[CSV：01–03 提交/标签/特征 + 方案 C prediction_result.csv]
+        D3[历史索引仓库 SOURCE_REPO（Apache Camel blobless 克隆）]
     end
     P1 & P2 & P3 -->|HTTP + X-API-Key| A1
     A1 --> A2 --> A3 & A4
     A4 --> A5 --> D2
     A3 --> D1
     A4 -->|幂等落库| D1
-    D3 -->|python -m app.ingest| D1
+    D3 -->|实时同步落库| D1
 ```
 
 > 生成方式：Qoder（LLM）｜提示词：「按 docs/contracts/ 三条契约与 backend/ 实现，画 JIT 缺陷预测系统三层架构图，标出组件、调用方向与外部依赖」

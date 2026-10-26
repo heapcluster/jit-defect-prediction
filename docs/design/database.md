@@ -41,7 +41,7 @@ PK 复合 `(commit_hash, label_method)`；一个提交可两方法各行。
 | `risk_score` | DOUBLE | 风险概率 0~1 |
 | `predicted_at` | DATETIME | 预测时间（UTC） |
 
-PK 复合 `(commit_hash, model_name)`；A（实时推理）+C（离线批量）**写同一张表**，靠 `model_name` 区分；幂等 upsert。
+PK 复合 `(commit_hash, model_name)`；A（实时推理）与实时同步**写同一张表**，靠 `model_name` 区分；幂等 upsert（入库只走实时同步端点，无离线 CSV 灌库）。
 
 ## 2. ER 图（鸦爪法）
 

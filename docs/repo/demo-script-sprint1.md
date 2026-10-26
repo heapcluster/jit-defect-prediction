@@ -6,7 +6,7 @@
 
 ## 0. 起服务与录屏准备（录屏前按序执行，2026-10-16 补 / 2026-10-24 按 #96/#97/#99 订正 / 2026-10-25 补实时同步口径）
 
-### 0.0 建库与灌数（一次性；首次演示前）
+### 0.0 建库与数据入口（一次性；首次演示前）
 
 ```bash
 cd backend
@@ -18,17 +18,15 @@ mysql -u<user> -p jit_demo < ../infra/schema.sql
 # backend/.env 里把连接指向演示库
 # DATABASE_URL=mysql+pymysql://jit:<pwd>@127.0.0.1:3306/jit_demo?charset=utf8mb4
 
-# 依次灌四类数据，打印并留档每类入库行数
-python -m app.ingest commits     ../data_model/data/commits.csv
-python -m app.ingest labels      ../data_model/data/commit_labels_szz.csv
-python -m app.ingest features    ../data_model/data/commit_features.csv
-python -m app.ingest predictions ../data_model/pipelines/expert/data/prediction_result.csv
+# 数据入口：实时同步（离线 CSV 灌库已移除，2026-10-25 裁定）
+# 起后端后调同步端点，逐条现算特征并预测入库
+curl -X POST -H "X-API-Key: $API_TOKEN" "http://127.0.0.1:8000/api/sync?limit=50"
 ```
 
-- 期望：`predictions` 入库 **83,943** 行（`xgb_v1`，`feature_version=v1`）。
+- 期望：`prediction` 表逐步长行（`xgb_v1` 等交付模型，`feature_version=v1`）；同步口径与幂等规则见 `docs/common/local-runbook.md` §3。
 - 权重目录：默认即 `data_model/pipelines/expert/models/`，不改 `MODEL_DIR` 也能加载（#99 自动插 `sys.path`）。
 - **`backend/.env` 的 `API_TOKEN` 必须等于 `frontend/.env.local` 的 `VITE_API_KEY`**，否则前端全部 40100。
-- **实时同步（新入口，随 PR #149 合入生效）**：起后端后 `POST /api/sync?limit=50` —— fetch SOURCE_REPO 最新提交 → 逐条现算特征 → 预测入库（口径见 `docs/common/local-runbook.md` §3.1）。#149 未合入前，本节灌数是唯一数据路径。
+- **实时同步（唯一数据入口）**：起后端后 `POST /api/sync?limit=50`（主干新提交）或 `POST /api/sync-prs?limit=20`（open PR）—— fetch SOURCE_REPO → 逐条现算特征 → 预测入库（口径见 `docs/common/local-runbook.md` §3.1 / §3.2）。
 
 ### 0.0.1 联调库与演示库统一为 MySQL（2026-10-25 裁定：废除双库，全项目一套 MySQL）
 
@@ -36,14 +34,14 @@ python -m app.ingest predictions ../data_model/pipelines/expert/data/prediction_
 
 | 库 | 连接 | 生成方式 | 数据规模 | 用在哪 |
 |---|---|---|---|---|
-| **`jit_demo`**（联调 / 演示 / 验收共用） | **MySQL `jit_demo`** | `python infra/setup_mysql.py` 一键建库建表（或 `mysql -u<user> -p jit_demo < ../infra/schema.sql` + `python -m app.db init`）→ 上面 4× `python -m app.ingest`；#149 合入后改用 `POST /api/sync` | 灌数口径：commits **84,461** / labels **83,943** / features **83,943** / predictions **83,943**，其中 `risk_score ≥ 0.5` 有 **14,596** 条（17.39%）；同步口径：窗口内 Camel 最新提交逐条现场预测 | 联调、演示、录屏、T-ST-01~05、系统层验收 |
+| **`jit_demo`**（联调 / 演示 / 验收共用） | **MySQL `jit_demo`** | `python infra/setup_mysql.py` 一键建库建表（或 `mysql -u<user> -p jit_demo < ../infra/schema.sql` + `python -m app.db init`）→ 实时同步 `POST /api/sync` / `POST /api/sync-prs`（离线灌库已移除） | 同步口径：窗口内 Camel 最新提交（或 open PR 内提交）逐条现场预测；`prediction` 表按需增长 | 联调、演示、录屏、T-ST-01~05、系统层验收 |
 
 - **数据库敲定为 MySQL**：`DATABASE_URL=mysql+pymysql://jit:<pwd>@127.0.0.1:3306/jit_demo?charset=utf8mb4`。不用 SQLite —— 演示要的是「真库 + 真实规模」，MySQL 也是课程验收与 Issue #121 的既定方向。
 - **为什么废除 SQLite 联调库**：原 `integration-log.md` §0 定 SQLite 是为了零外部依赖，且 #117 的 9 张三态截图曾在该口径下取证；现统一 MySQL 后，新联调直接走 `jit_demo`，避免两套库带来的口径分裂。
 - **历史说明（不影响现口径）**：早期 seed 三行 `risk_score` 最高 0.3，若用极小 seed 库跑 `min_risk=0.5&size=5` 自检会为空；联调与演示现都用 `jit_demo` 的真实规模数据，不踩此坑。
 - **前置（先解，否则跑不起来）**：每人本机 MySQL，配好 `jit` 账号与库（一键脚本 `infra/setup_mysql.py` 会建 `jit_demo` 与测试库 `jit_test` 并授权；`jit` 通常无 `CREATE DATABASE`，脚本支持 `--root-password` 由 root 代建）。现有 `jit_defect` 里的 2 提交 / 4 预测是**占位脏数据**（假哈希 `1111…`/`2222…`、`repo_name=activemq`、`smoke_v1`/`tree_placeholder_v0`），按 §5 第 4 条「演示 `commit_hash` 必须与库中真实数据一致」**不能上台**；用新建的干净库 `jit_demo`，`jit_defect` 的存量由 infra 处置，不在演示路径上。
-- 灌数只走 `app.ingest`，**不许手工改库**。#149 合入后切到 `/api/sync` 时，同样只走接口、不手工改库。
-- 录屏前跑一次 `backend/scripts/demo_preflight.py`（Issue #138，后端线；PR #151 起支持 `--init-db --ingest` 一条命令建库+灌数）：按本节口径逐项自检，任一不满足退出码 1 并打印实际值。注意其六条判据**不比对 `commit_feature` 的值**——灌错特征表（raw 那份）也会全绿，判别方法见 `docs/backend/mysql-setup.md` §4。
+- 数据只走实时同步端点（`/api/sync` / `/api/sync-prs`），**不许手工改库**。离线 CSV 灌库（`app.ingest`）已于 2026-10-25 移除。
+- 录屏前跑一次 `backend/scripts/demo_preflight.py`（Issue #138，后端线；现支持 `--init-db` 一条命令建表 + 六条判据自检，**灌数阶段已随离线灌库移除**）：按本节口径逐项自检，任一不满足退出码 1 并打印实际值。注意其六条判据**不比对 `commit_feature` 的值**——特征口径错也会全绿，判别方法见 `docs/backend/mysql-setup.md` §4。
 
 ### 0.1 起后端（终端 A）
 
@@ -72,7 +70,7 @@ npm run dev          # Vite 默认 http://localhost:5173
 curl -s -H "X-API-Key: $KEY" "http://localhost:8000/api/commits?min_risk=0.5&size=5" | head -c 400
 ```
 
-- 返回为空 → 先由后端线把 `data_model/pipelines/expert/predict.py` 产出的 `prediction_result.csv` 灌库（#149 合入后改为 `POST /api/sync?limit=50`）；
+- 返回为空 → 调 `POST /api/sync?limit=50` 同步主干最新提交（#149 起的数据入口；离线 CSV 灌库已于 2026-10-25 移除）；
   **不要在演示现场临时造数据**（演示所用 `commit_hash` 必须与库中真实数据一致，见 §5 第 4 条）。
 
 ### 0.4 录屏设置
@@ -92,7 +90,7 @@ curl -s -H "X-API-Key: $KEY" "http://localhost:8000/api/commits?min_risk=0.5&siz
 |---|---|---|
 | 后端已起 | `curl -s -o /dev/null -w "%{http_code}" -H "X-API-Key: $KEY" http://localhost:8000/api/commits` | 返回 `200` |
 | 交付模型已加载 | 启动日志搜 `model_name` / 搜 `failed models` | 出现 `lr_v1` / `rf_v1` / `xgb_v1` **三个**，且无 `model load failed`（#96 定：在线模型集 = `feature_order.txt` 的 `[models]` 段） |
-| 预测结果已入库 | `SELECT COUNT(*) FROM prediction;` | 83,943（只少不多即为灌数未完成；`0` 时不要临场造数）；#149 合入后改为「同步后 `new` 递减至 0」 |
+| 预测结果已入库 | `SELECT COUNT(*) FROM prediction;` | 随同步增长（`0` 时不要临场造数；同步口径下看「`new` 递减至 0」）；历史 83,943 行口径只作规模参照 |
 | 前端三页面可访问 | 浏览器打开列表 / 详情 / 趋势三页 | 三页均渲染，非白屏 |
 
 ## 2. 正向演示（主链路，一条提交走完三段）

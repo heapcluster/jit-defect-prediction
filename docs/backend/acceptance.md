@@ -45,11 +45,11 @@
 **目标**：前端能在浏览器里把「列表 → 详情 → 重新预测 → 趋势」跑通，中间不出现 500。
 
 1. **建表**：演示 / 验收库名固定 **`jit_demo`**（Issue #130 更正裁定、#142），一条命令建好库与四张表 —— `python infra/setup_mysql.py`（一键建库 + 建表，权限与常见报错见 `docs/backend/mysql-setup.md` §2）。四表 DDL 的**单一来源仍是 `infra/schema.sql`**：它必须保持「纯四表、可导入任意目标库」，**不要往里加 `CREATE DATABASE` / `USE`** —— 加了会静默改写调用方指定的目标库（本条命令与 Issue #121 的 `jit_schema_probe` / `jit_orm_probe` 两个探针库都走这一份文件），并被 `backend/tests/test_schema_sql.py` 判红。`python -m app.db init` 作为等价性校验，两条路径都必须通过索引自检。日常**联调**库也是它（`jit_demo`，与演示/验收同一套）：见 `docs/frontend/integration-log.md` §0。
-2. **数据**：依次执行 4 次 `python -m app.ingest {commits|labels|features|predictions} <csv>`，打印并留档每类入库行数。
-3. **模型**：`MODEL_DIR` 指向 `data_model/pipelines/expert/models/`；**在线模型集 = 该目录 `feature_order.txt` 的 `[models]` 段**（已合并的 #96 定义的唯一来源，当前声明 `lr_v1` / `rf_v1` / `xgb_v1`）。清单内声明的模型必须全部加载成功，启动日志不得出现 `model load failed` 或 `failed models:`。
-   - 目录内另有 5 个权重（`lgbm_v1` / `et_v1` / `svm_v1` / `mlp_deep_v1` / `tabnet_v1`），登记在 `feature_order.txt` 的 **`[evaluated]` 段**（#98）：只进评估、不进交付，按冻结规格 `openspec/specs/model-coverage` R6「新增模型 MUST NOT 进入后端加载清单」不参与在线加载，**不属于本板块验收对象**。
+2. **数据**：离线 CSV 灌库已于 2026-10-25 移除，数据只由实时同步端点写入 —— 调 `POST /api/sync`（主干新提交）或 `POST /api/sync-prs`（open PR），留档返回的 `commits_predicted` / `skipped` 明细；前端库 `jit_demo` 可另用 `python -m scripts.seed_dev_data` 造少量种子行。
+3. **模型**：`MODEL_DIR` 指向 `data_model/pipelines/expert/models/`；**在线模型集 = 该目录 `feature_order.txt` 的 `[models]` 段**（#96 定义的唯一来源，2026-10-25 组长裁定 Issue #139 起为**全部 8 个**：`lr_v1` / `rf_v1` / `xgb_v1` / `lgbm_v1` / `et_v1` / `svm_v1` / `mlp_deep_v1` / `tabnet_v1`）。清单内声明的模型必须全部加载成功，启动日志不得出现 `model load failed` 或 `failed models:`。
+   - `feature_order.txt` 的 `[evaluated]` 段当前为空（8 模型全部上线）；该段只登记「只进评估、不进交付」的权重，按 `openspec/specs/model-coverage`「交付模型 MUST 保持不变」，新增模型 MUST NOT 静默进 `[models]`。
    - 导入路径无需手工处理：#99 已让后端在 `load_models()` 自动把 `<repo>/data_model` 的绝对路径插入 `sys.path`（幂等，不接受请求参数或 `MODEL_DIR` 传入），不要再手工设 `PYTHONPATH`。
    - **待裁定（不阻塞本板块）**：T9 原文写「8 个模型全部可用」。若 PO 裁定扩大交付范围，须先按 R6 另立「模型切换」change 并升版契约三 / `docs/backend/api-spec.md`，再回来同步本条；裁定前按上面 `[models]` 的口径验收。
 4. **接口**：4 条 200；空数据返回 `[]`/`null` 而非 404；缺 `X-API-Key` → 40100；畸形 `commit_hash` → 40001；同一 hash 连调两次不产生第二行 prediction（幂等）。
-5. **给前端的模型清单**：与第 3 条同源，即 `feature_order.txt` 的 `[models]` 段当前声明的模型（**不是**目录内全部 8 个 `.pkl`）。前端下拉按这份清单排，MVP **不新增** `GET /api/models`（`docs/frontend/pages.md` §6 已裁定由前端维护静态清单）。**清单内缺一即视为本板块未达标**；清单外权重（第 3 条的 `[evaluated]`）加载不上不算本板块缺陷。
+5. **给前端的模型清单**：与第 3 条同源，即 `feature_order.txt` 的 `[models]` 段当前声明的 **8 个**模型。前端下拉按这份清单排（`frontend/src/utils/models.js` 已同步），MVP **不新增** `GET /api/models`（`docs/frontend/pages.md` §6 已裁定由前端维护静态清单）。**清单内缺一即视为本板块未达标**；清单外的模型名加载不上不算本板块缺陷。
 6. **证据**：四条接口的 curl 输出、`POST /api/predict` 连跑 20 次的 P50/P95（<500ms）、缺令牌与畸形参数两组截图。

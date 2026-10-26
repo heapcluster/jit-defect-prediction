@@ -18,7 +18,7 @@
 | MVP | 最小可行产品 |
 | DoD | Definition of Done：代码能跑+有验证+规格同步+非作者审合 |
 | Sprint | 课程 4 个迭代（S0–S3 + Final） |
-| A+C 交付 | 跨线方案：A 后端加载 `.pkl` 实时推理；C 数据线出 `prediction_result.csv` 由后端导入 |
+| A+C 交付 | 跨线方案：A 后端加载 `.pkl` 实时推理；C 数据线出 `.pkl` + `feature_order.txt`（`prediction_result.csv` 仅作评估对照），入库只走后端实时同步端点 |
 | 时间序切分 | 按 `committed_at` 前 70%/后 30%，禁随机（防时序泄漏） |
 | NFR | 非功能需求（安全/性能/可靠性/易用性） |
 | 三类契约 | 契约一库表/契约二特征/契约三接口（冻结点） |

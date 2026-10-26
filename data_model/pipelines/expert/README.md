@@ -51,7 +51,7 @@ python -m pipelines.verify_all_weights --check      # 权重交付校验：md5 +
 | 路径 | 内容 | 入库 |
 |---|---|---|
 | `models/*_v1.pkl` | 模型权重（joblib；数量以训练口径 `config.DEFAULT_MODELS` 为准，当前 8 个） | 否（`*.pkl` 全局忽略） |
-| `models/feature_order.txt` | 交付清单（契约二第三节的副本）：`[models]` 交付集 3 个、`[evaluated]` 评估集 5 个 | 是 |
+| `models/feature_order.txt` | 交付清单（契约二第三节的副本）：`[models]` 交付集 **8 个**（2026-10-25 组长裁定 Issue #139 起全部上线）、`[evaluated]` 段当前为空 | 是 |
 | `models/manifest.txt` | 8 个权重的 md5 / 类路径 / 特征宽度清单（`verify_all_weights --write-manifest` 生成） | 是 |
 | `reports/model_metrics.md` | 两类指标 + SHAP 实测 | 是 |
 | `reports/figs/*.png` | ROC / effort 曲线 / 柱状图 | 是 |
@@ -76,17 +76,9 @@ python -m pipelines.verify_all_weights --check      # 权重交付校验：md5 +
    两条容易踩的坑：
 
    - **`sys.path` 不用手工插** —— #99 已让 `load_models()` 自动把 `<repo>/data_model` 的绝对路径插入 `sys.path`（幂等、不接受请求参数或 `MODEL_DIR` 传入）。命令里漏了 `sys.path.insert` 也不会失败。
-   - **另外 5 个权重不会出现在列表里** —— `lgbm_v1` / `et_v1` / `svm_v1` / `mlp_deep_v1` / `tabnet_v1` 登记在 `[evaluated]` 段（本 PR 引入），只进评估不进交付，按冻结规格 `openspec/specs/model-coverage` R6「新增模型 MUST NOT 进入后端加载清单」不参与在线加载。它们加载不上**不算**联调缺陷，不要拿 8 个来验收这一条。
+   - **交付清单现在是 8 个** —— `feature_order.txt` 的 `[models]` 段已含 `lgbm_v1` / `et_v1` / `svm_v1` / `mlp_deep_v1` / `tabnet_v1`（2026-10-25 组长裁定 Issue #139：8 模型全部上线），`[evaluated]` 段留空。它们加载不上**才是**联调缺陷。
 
-4. **灌数据（可选，取决于对方要不要真实规模的列表）**：拿得到 CSV 时（自己跑 `01–04 + 07`，或用上面的数据包），cwd=`backend`：
-
-   ```bash
-   python -m app.ingest commits     <目录>/commits.csv             # 全量 camel 历史（约 45 万条）
-   python -m app.ingest features    <目录>/commit_features.csv    # 84,461 行
-   python -m app.ingest predictions <目录>/prediction_result.csv  # 83,943 行（xgb_v1 / feature_version=v1）
-   ```
-
-   顺序不能换。不灌也能验收「模型加载 + 单条在线预测」：`python -m scripts.seed_dev_data` 会造 3 行种子数据，`POST /api/predict` 对库里没有的哈希会走 `SOURCE_REPO` 现算特征。
+4. **灌数据（2026-10-25 起只有实时同步一条路）**：离线 CSV 灌库（`python -m app.ingest`）已随裁定移除，数据由后端实时同步端点写入（`POST /api/sync` / `POST /api/sync-prs`），详见 `docs/common/local-runbook.md` §3。不灌也能验收「模型加载 + 单条在线预测」：`python -m scripts.seed_dev_data` 会造 3 行种子数据，`POST /api/predict` 对库里没有的哈希会走 `SOURCE_REPO` 现算特征。
 
 已知待办（不在本包改）：
 

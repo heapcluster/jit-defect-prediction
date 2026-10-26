@@ -15,7 +15,7 @@
 
 | 层 | 对象 | 负责 | 现有资产 | 目标 |
 |---|---|---|---|---|
-| **单元测试** | 后端四接口 / 鉴权 / ingest / mirror / model_registry；模型 14 特征口径 + `joblib.load` 加载 + SHAP 键名；前端三态 / 错误码 / 字段映射 | 吕建江、蒋励、刘帅华 | `backend/tests/` 9 个文件 **87 条已跑绿**；`data_model/tests/test_feature_contract.py` **8 条已跑绿**；`frontend/src/__tests__/contract.test.js` 已写（vitest，待 `npm ci` 后跑） | Sprint 2 补集成用例 + 覆盖率 |
+| **单元测试** | 后端四接口 / 鉴权 / PR 三端点 / mirror / model_registry；模型 14 特征口径 + `joblib.load` 加载 + SHAP 键名；前端三态 / 错误码 / 字段映射 | 吕建江、蒋励、刘帅华 | `backend/tests/` 10 个文件 **253 条已跑绿**；`data_model/tests/test_feature_contract.py` **8 条已跑绿**；`frontend/tests/` 7 个 spec **26 条已跑绿**（vitest） | Sprint 2 补集成用例 + 覆盖率 |
 | **集成测试** | API ↔ MySQL ↔ 前端三页面一条完整链路 | 吕建江 + 刘帅华 | `frontend/implementation.md` 联调记录 | Sprint 2 |
 | **系统测试** | 端到端 1 条主链路 + 异常输入 + 8 模型切换 + 回归 | 蒋励（演示） | `repo/demo-script-sprint1.md` | Sprint 1 起跑，Sprint 3 收口 |
 | **非功能测试** | 性能（p95<500ms）、安全（缺令牌 / 畸形参数）、可靠、易用 | 吕建江 + 刘帅华 | `backend/api-spec.md` §四、`design/non-functional.md` | Sprint 3 出证据 |
@@ -53,7 +53,7 @@
 | T-MO-01 | 14 项特征键名与 `feature-columns.md` 逐字一致 | 键名集合相等、顺序一致（四处来源同一份有序清单） | ✅ `data_model/tests/test_feature_contract.py`（8 passed） |
 | T-MO-02 | 交付模型 `joblib.load` + 特征数自检 | 加载成功，特征数与 `feature_order.txt` 一致 | ✅ `backend/tests/test_model_registry.py` |
 | T-MO-03 | SHAP 解释键名可回溯到 14 特征 | 每条 `explanation` 的键名 ∈ 14 特征 | ✅ `backend/tests/test_model_registry.py::_explain_of` |
-| T-FE-01 | 三态（加载中 / 空数据 / 失败） | 空数据显示空态非错误页；失败按错误码给文案 | 🔶 口径函数已有 `frontend/src/__tests__/contract.test.js`；页面级三态待组件测试 |
+| T-FE-01 | 三态（加载中 / 空数据 / 失败） | 空数据显示空态非错误页；失败按错误码给文案 | 🔶 口径函数已有 `frontend/tests/`（7 个 spec，含 api 层契约测试）；页面级三态待组件测试 |
 | T-FE-02 | 字段映射一致性 | 页面用到的每个字段能在 `backend/api-spec.md` 找到 | 🔶 `contract.test.js` 已钉模型清单/五维度分组；逐字段映射待补 |
 | T-FE-03 | 错误码 → 文案分发 | 40001/40100/40400/50000 各得对应提示，50000 不回显堆栈 | 🔶 后端侧已断言不泄露（`test_security_boundaries.py`）；前端文案分发待组件测试 |
 
