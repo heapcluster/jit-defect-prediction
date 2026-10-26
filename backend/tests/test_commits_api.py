@@ -112,9 +112,7 @@ def test_end_with_time_component_unchanged(client):
 
 def test_start_pure_date_still_midnight(client):
     """start 纯日期串仍是当天 00:00:00，不随 end 规则变（#61 评审：不能一刀切）。"""
-    body = client.get(
-        "/api/commits", params={"start_time": "2026-08-03"}, headers=HEADERS
-    ).json()
+    body = client.get("/api/commits", params={"start_time": "2026-08-03"}, headers=HEADERS).json()
     assert body["data"]["total"] == 1
     assert body["data"]["items"][0]["commit_hash"] == C2
 

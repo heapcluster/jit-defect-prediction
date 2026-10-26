@@ -18,14 +18,26 @@ SETUP_DOC = REPO_ROOT / "docs" / "backend" / "mysql-setup.md"
 ACCEPTANCE_DOC = REPO_ROOT / "docs" / "backend" / "acceptance.md"
 BACKEND_README = REPO_ROOT / "backend" / "README.md"
 
-FORBIDDEN = ("INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "GRANT", "REVOKE", "CREATE USER")
+FORBIDDEN = (
+    "INSERT",
+    "UPDATE",
+    "DELETE",
+    "DROP",
+    "ALTER",
+    "TRUNCATE",
+    "GRANT",
+    "REVOKE",
+    "CREATE USER",
+)
 PERSONAL_PATH = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]|(?<![A-Za-z0-9])/(?:Users|home)/")
 
 
 def _statements(path: Path) -> list[str]:
     """去掉整行注释后按 `;` 切分，返回可执行语句（与 test_schema_sql.py 同一套口径）。"""
     text = "\n".join(
-        line for line in path.read_text(encoding="utf-8").splitlines() if not line.lstrip().startswith("-- ")
+        line
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if not line.lstrip().startswith("-- ")
     )
     return [" ".join(part.split()) for part in text.split(";") if part.strip()]
 
@@ -43,18 +55,24 @@ def test_wrapper_creates_demo_database_once_with_pinned_charset():
     assert "IF NOT EXISTS" in statement, "缺 IF NOT EXISTS → 重跑会报 1007，破坏幂等"
     assert _demo_db_name() == "jit_demo", "#142/#130 更正裁定：演示库名固定 jit_demo"
     assert "CHARACTER SET UTF8MB4" in statement, "缺显式字符集 → 各人本机默认值不同会建出不一致的库"
-    assert "COLLATE UTF8MB4_UNICODE_CI" in statement, "缺显式排序规则（#142 裁定 utf8mb4_unicode_ci）"
+    assert "COLLATE UTF8MB4_UNICODE_CI" in statement, (
+        "缺显式排序规则（#142 裁定 utf8mb4_unicode_ci）"
+    )
 
 
 def test_wrapper_switches_database_and_reuses_the_single_ddl_source():
     statements = _statements(WRAPPER)
-    assert any(s.upper() == "USE JIT_DEMO" for s in statements), "缺 USE jit_demo → 四表会建到命令行指定的库里"
+    assert any(s.upper() == "USE JIT_DEMO" for s in statements), (
+        "缺 USE jit_demo → 四表会建到命令行指定的库里"
+    )
     sourced = [s for s in statements if s.upper().startswith("SOURCE")]
     assert len(sourced) == 1, f"应恰好 SOURCE 一次 infra/schema.sql，实际 {sourced}"
     assert sourced[0] == "SOURCE infra/schema.sql", (
         f"DDL 单一来源必须是 infra/schema.sql（相对仓库根），实际 {sourced[0]!r}"
     )
-    assert (REPO_ROOT / sourced[0].split(maxsplit=1)[1]).is_file(), "SOURCE 指向的文件在仓库根下不存在"
+    assert (REPO_ROOT / sourced[0].split(maxsplit=1)[1]).is_file(), (
+        "SOURCE 指向的文件在仓库根下不存在"
+    )
     assert not [s for s in statements if "CREATE TABLE" in s.upper()], (
         "建库脚本里不许出现 CREATE TABLE：四表 DDL 只在 infra/schema.sql 一份，"
         "复制第二份必然与 Base.metadata 漂移（test_schema_sql.py 守的就是这份一致性）"
@@ -75,10 +93,13 @@ def test_infra_schema_sql_stays_importable_into_any_database():
     或 USE，命令行指定的目标库会被静默改写 —— 验收会在错误的库上「通过」。
     """
     upper = "\n".join(
-        line for line in INFRA_SCHEMA.read_text(encoding="utf-8").splitlines()
+        line
+        for line in INFRA_SCHEMA.read_text(encoding="utf-8").splitlines()
         if not line.lstrip().startswith("-- ")
     ).upper()
-    assert "CREATE DATABASE" not in upper, "建库头请放 backend/scripts/schema_mysql.sql，不要进 infra/schema.sql"
+    assert "CREATE DATABASE" not in upper, (
+        "建库头请放 backend/scripts/schema_mysql.sql，不要进 infra/schema.sql"
+    )
     assert not re.search(r"^\s*USE\s", upper, re.MULTILINE), "USE 会覆盖调用方指定的目标库"
     for verb in ("GRANT", "REVOKE", "CREATE USER", "DROP", "TRUNCATE"):
         assert verb not in upper, f"infra/schema.sql 不应含 {verb}"
@@ -104,18 +125,22 @@ def test_demo_db_name_is_the_single_caliber_across_backend_docs():
 @pytest.mark.parametrize(
     "needle",
     [
-        "8.0",                                     # 版本要求
-        "pymysql",                                 # 驱动依赖确认
-        "1044",                                    # CREATE DATABASE 权限不足的报错号
-        "3306",                                    # 端口占用
-        "utf8mb4",                                 # 字符集
-        "time_zone",                               # 时区
-        "python infra/clone_camel_history.py",     # 建 Camel blobless 历史索引（取代离线 CSV 灌库）
-        "python -m scripts.demo_preflight",        # 一条命令自检
-        "84,461", "83,943", "14,596",              # 验收清单三个数
-        "lr_v1", "rf_v1", "xgb_v1",                # 三模型全加载
-        "load_dotenv",                             # 行内 DATABASE_URL 前缀压过 .env 的坑
-        "docs/common/local-runbook.md",            # 步骤口径的指针（不复述）
+        "8.0",  # 版本要求
+        "pymysql",  # 驱动依赖确认
+        "1044",  # CREATE DATABASE 权限不足的报错号
+        "3306",  # 端口占用
+        "utf8mb4",  # 字符集
+        "time_zone",  # 时区
+        "python infra/clone_camel_history.py",  # 建 Camel blobless 历史索引（取代离线 CSV 灌库）
+        "python -m scripts.demo_preflight",  # 一条命令自检
+        "84,461",
+        "83,943",
+        "14,596",  # 验收清单三个数
+        "lr_v1",
+        "rf_v1",
+        "xgb_v1",  # 三模型全加载
+        "load_dotenv",  # 行内 DATABASE_URL 前缀压过 .env 的坑
+        "docs/common/local-runbook.md",  # 步骤口径的指针（不复述）
     ],
 )
 def test_setup_doc_covers_every_item_issue_142_asked_for(needle):
@@ -125,8 +150,15 @@ def test_setup_doc_covers_every_item_issue_142_asked_for(needle):
 def test_setup_doc_warns_about_the_raw_feature_table():
     """§4 那条警告是承重的：灌 raw 特征表会让在线预测静默算错，删掉它等于埋雷。"""
     text = SETUP_DOC.read_text(encoding="utf-8")
-    for needle in ("commit_features_raw.csv", "dataset_szz.csv", "对数变换", "契约二 v1.2",
-                   "0.82657", "0.79963", "MIN(la)"):
+    for needle in (
+        "commit_features_raw.csv",
+        "dataset_szz.csv",
+        "对数变换",
+        "契约二 v1.2",
+        "0.82657",
+        "0.79963",
+        "MIN(la)",
+    ):
         assert needle in text, f"配置文档缺特征口径警告的关键项：{needle}"
 
 
@@ -141,7 +173,9 @@ def test_env_example_uses_mysql_as_the_only_database():
     # SQLite 只允许出现在注释里，且不能成为生效连接串
     sqlite_effective = [ln for ln in effective if "sqlite" in ln]
     assert not sqlite_effective, "不允许 SQLite 作为生效连接串（双库已废除）"
-    assert "API_TOKEN=dev-token-20260918" in lines, "令牌是 §0 表里钉死的值，改它要同 PR 同步前端模板"
+    assert "API_TOKEN=dev-token-20260918" in lines, (
+        "令牌是 §0 表里钉死的值，改它要同 PR 同步前端模板"
+    )
     assert "SOURCE_REPO=" in lines, "#135 加的现场预测开关不能被库名收敛顺手删掉"
 
 
@@ -167,7 +201,9 @@ def test_setup_doc_is_reachable_from_every_index(index_doc):
 def test_wrapper_and_docs_carry_no_personal_absolute_path():
     for path in (WRAPPER, SETUP_DOC, ACCEPTANCE_DOC, Path(__file__)):
         for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            assert not PERSONAL_PATH.search(line), f"{path.name}:{lineno} 含个人绝对路径（§0 硬规矩 1）：{line}"
+            assert not PERSONAL_PATH.search(line), (
+                f"{path.name}:{lineno} 含个人绝对路径（§0 硬规矩 1）：{line}"
+            )
 
 
 def test_wrapper_comments_use_the_mysql_safe_double_dash():
@@ -180,10 +216,16 @@ def test_wrapper_comments_use_the_mysql_safe_double_dash():
     for lineno, line in enumerate(WRAPPER.read_text(encoding="utf-8").splitlines(), 1):
         stripped = line.lstrip()
         if stripped.startswith("--"):
-            assert stripped.startswith("-- "), f"schema_mysql.sql:{lineno} 注释必须是「-- 」开头：{line!r}"
+            assert stripped.startswith("-- "), (
+                f"schema_mysql.sql:{lineno} 注释必须是「-- 」开头：{line!r}"
+            )
 
 
 def test_wrapper_is_a_four_statement_script():
     statements = _statements(WRAPPER)
-    assert len(statements) == 4, f"建库 + USE + SOURCE + 自检 SELECT 共四条，实际 {len(statements)}：{statements}"
-    assert statements[-1].upper().startswith("SELECT"), "末条应是自检 SELECT，跑完当场能看到建出的表"
+    assert len(statements) == 4, (
+        f"建库 + USE + SOURCE + 自检 SELECT 共四条，实际 {len(statements)}：{statements}"
+    )
+    assert statements[-1].upper().startswith("SELECT"), (
+        "末条应是自检 SELECT，跑完当场能看到建出的表"
+    )

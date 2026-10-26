@@ -27,7 +27,16 @@ def clone(repo: str, path: Path) -> None:
         print(f"skip: {path} 已存在，改用 --fetch 更新")
         return
     path.parent.mkdir(parents=True, exist_ok=True)
-    run(["git", "clone", "--filter=blob:none", "--no-checkout", f"https://github.com/{repo}.git", str(path)])
+    run(
+        [
+            "git",
+            "clone",
+            "--filter=blob:none",
+            "--no-checkout",
+            f"https://github.com/{repo}.git",
+            str(path),
+        ]
+    )
 
 
 def fetch(path: Path) -> None:
@@ -38,7 +47,9 @@ def fetch(path: Path) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--repo", default="apache/camel", help="owner/name，默认 apache/camel")
     parser.add_argument("--path", required=True, type=Path, help="本地历史索引目录")
     parser.add_argument("--fetch", action="store_true", help="仅增量更新已存在的索引")

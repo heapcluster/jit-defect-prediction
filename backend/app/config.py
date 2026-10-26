@@ -13,7 +13,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 API_TOKEN = os.getenv("API_TOKEN", "")
-MODEL_DIR = Path(os.getenv("MODEL_DIR", "") or (REPO_ROOT / "data_model" / "pipelines" / "expert" / "models"))
+MODEL_DIR = Path(
+    os.getenv("MODEL_DIR", "") or (REPO_ROOT / "data_model" / "pipelines" / "expert" / "models")
+)
 # 历史索引仓库：apache/camel 的 **blobless 克隆**（`git clone --filter=blob:none`，
 # 只取提交+树、不含 blob，几十 MB），仅供 feature_source 跑 `git log --numstat` /
 # `git cat-file` 计算 14 维特征。它**不是开发库、不进工作流、不持有预测状态**，
@@ -30,11 +32,20 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 
 # 契约二 §3 的 14 项特征列顺序：模型输入向量按此顺序组装，不按 dict 插入顺序猜
 FEATURE_COLUMNS = (
-    "ns", "nd", "nf", "entropy",
-    "la", "ld", "lt",
+    "ns",
+    "nd",
+    "nf",
+    "entropy",
+    "la",
+    "ld",
+    "lt",
     "fix",
-    "ndev", "age", "nuc",
-    "exp", "rexp", "sexp",
+    "ndev",
+    "age",
+    "nuc",
+    "exp",
+    "rexp",
+    "sexp",
 )
 
 HIGH_RISK_THRESHOLD = 0.5

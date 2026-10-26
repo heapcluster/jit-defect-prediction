@@ -54,16 +54,24 @@ def parse_args() -> argparse.Namespace:
         description="按 committed_at 时间序把样本集切成训练集 / 检验集（前 70% / 后 30%）",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument("--dataset", type=Path, default=DATA_DIR / "dataset_szz.csv",
-                   help="04 产出的可训练样本集")
+    p.add_argument(
+        "--dataset", type=Path, default=DATA_DIR / "dataset_szz.csv", help="04 产出的可训练样本集"
+    )
     p.add_argument("--tag", default="", help="文件名标记（如 szz / szz_lite），空则不加后缀")
-    p.add_argument("--train-ratio", type=float, default=DEFAULT_RATIO,
-                   help=f"训练集比例（默认 {DEFAULT_RATIO}）")
+    p.add_argument(
+        "--train-ratio",
+        type=float,
+        default=DEFAULT_RATIO,
+        help=f"训练集比例（默认 {DEFAULT_RATIO}）",
+    )
     p.add_argument("--train-out", type=Path, default=None, help="训练集输出路径")
     p.add_argument("--test-out", type=Path, default=None, help="检验集输出路径")
     p.add_argument("--report", type=Path, default=None, help="切分报告输出路径")
-    p.add_argument("--selfcheck", action="store_true",
-                   help="边界场景自检：故意不排序，断言必须拦住（exit 0 表示「拦住了」）")
+    p.add_argument(
+        "--selfcheck",
+        action="store_true",
+        help="边界场景自检：故意不排序，断言必须拦住（exit 0 表示「拦住了」）",
+    )
     return p.parse_args()
 
 
@@ -88,21 +96,20 @@ def split_index(total: int, ratio: float) -> int:
     return int(total * ratio)
 
 
-def validate_split(train: list[dict], test: list[dict],
-                   total: int) -> list[str]:
+def validate_split(train: list[dict], test: list[dict], total: int) -> list[str]:
     """返回失败原因列表；空列表 = 通过。"""
     failures: list[str] = []
     if not train or not test:
         failures.append("训练集或检验集为空（切分把一侧切没了）")
         return failures
     if len(train) + len(test) != total:
-        failures.append(
-            f"行数不守恒：训练 {len(train)} + 检验 {len(test)} != 样本集 {total}")
+        failures.append(f"行数不守恒：训练 {len(train)} + 检验 {len(test)} != 样本集 {total}")
     train_max = max(parse_ts(r["committed_at"]) for r in train)
     test_min = min(parse_ts(r["committed_at"]) for r in test)
     if not test_min > train_max:
         failures.append(
-            f"时间序被破坏：检验集最早 {test_min.strftime(TIMESTAMP_FORMAT)} 不晚于训练集最晚 {train_max.strftime(TIMESTAMP_FORMAT)}")
+            f"时间序被破坏：检验集最早 {test_min.strftime(TIMESTAMP_FORMAT)} 不晚于训练集最晚 {train_max.strftime(TIMESTAMP_FORMAT)}"
+        )
     return failures
 
 
@@ -116,8 +123,7 @@ def main() -> int:
     total = len(rows)
     for col in ("commit_hash", "committed_at"):
         if col not in fields:
-            print(f"[05] 样本集缺列 {col} —— 切分依据列不可缺（契约二第二节）",
-                  file=sys.stderr)
+            print(f"[05] 样本集缺列 {col} —— 切分依据列不可缺（契约二第二节）", file=sys.stderr)
             return 2
 
     tag = ("_" + args.tag) if args.tag else ""
@@ -193,12 +199,22 @@ def main() -> int:
         newline="\n",
     )
 
-    print(f"[05] 样本集 {total} 条 -> 训练 {len(train)} / 检验 {len(test)}（比例 {args.train_ratio * 100:.0f}/{(1 - args.train_ratio) * 100:.0f}，按时间序）")
-    print(f"[05] 训练集 {train_min.strftime(TIMESTAMP_FORMAT)} ~ {train_max.strftime(TIMESTAMP_FORMAT)}")
-    print(f"[05] 检验集 {test_min.strftime(TIMESTAMP_FORMAT)} ~ {test_max.strftime(TIMESTAMP_FORMAT)}")
-    print("[05] 断言通过：检验集最早 > 训练集最晚（相隔 %.1f 天）"
-          % ((test_min - train_max).total_seconds() / 86400.0))
-    print(f"[05] 正样本比例：训练 {pos_train / len(train) * 100:.2f}% / 检验 {pos_test / len(test) * 100:.2f}%")
+    print(
+        f"[05] 样本集 {total} 条 -> 训练 {len(train)} / 检验 {len(test)}（比例 {args.train_ratio * 100:.0f}/{(1 - args.train_ratio) * 100:.0f}，按时间序）"
+    )
+    print(
+        f"[05] 训练集 {train_min.strftime(TIMESTAMP_FORMAT)} ~ {train_max.strftime(TIMESTAMP_FORMAT)}"
+    )
+    print(
+        f"[05] 检验集 {test_min.strftime(TIMESTAMP_FORMAT)} ~ {test_max.strftime(TIMESTAMP_FORMAT)}"
+    )
+    print(
+        "[05] 断言通过：检验集最早 > 训练集最晚（相隔 %.1f 天）"
+        % ((test_min - train_max).total_seconds() / 86400.0)
+    )
+    print(
+        f"[05] 正样本比例：训练 {pos_train / len(train) * 100:.2f}% / 检验 {pos_test / len(test) * 100:.2f}%"
+    )
     print(f"[05] 产出：{train_out}")
     print(f"[05]       {test_out}")
     print(f"[05] 报告：{report}")

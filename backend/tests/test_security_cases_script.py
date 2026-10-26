@@ -59,18 +59,38 @@ def _make_routes(mask_list_items, mask_post):
     def routes(method, url, arg):
         if url.startswith(MASK):
             if method == "GET":
-                return FakeResp(200, {"code": 0, "message": "ok",
-                                      "data": {"items": mask_list_items, "total": len(mask_list_items)}})
+                return FakeResp(
+                    200,
+                    {
+                        "code": 0,
+                        "message": "ok",
+                        "data": {"items": mask_list_items, "total": len(mask_list_items)},
+                    },
+                )
             return mask_post()
         if method == "POST":
             return FakeResp(200, {"code": 0, "message": "ok", "data": {}})
         if "size=101" in url or (arg or {}).get("size") == 101:
-            return FakeResp(400, {"code": 40001, "message": "参数非法：size 超过上限 100", "data": None})
+            return FakeResp(
+                400, {"code": 40001, "message": "参数非法：size 超过上限 100", "data": None}
+            )
         if "/api/trends" in url:
-            return FakeResp(400, {"code": 40001, "message": "参数非法：granularity 取值需为 week 或 month", "data": None})
+            return FakeResp(
+                400,
+                {
+                    "code": 40001,
+                    "message": "参数非法：granularity 取值需为 week 或 month",
+                    "data": None,
+                },
+            )
         if url.rstrip("/").endswith("/api/commits"):
-            return FakeResp(401, {"code": 40100, "message": "missing or invalid token", "data": None})
-        return FakeResp(400, {"code": 40001, "message": "参数非法：commit_hash 需为 40 位十六进制", "data": None})
+            return FakeResp(
+                401, {"code": 40100, "message": "missing or invalid token", "data": None}
+            )
+        return FakeResp(
+            400,
+            {"code": 40001, "message": "参数非法：commit_hash 需为 40 位十六进制", "data": None},
+        )
 
     return routes
 
@@ -78,8 +98,11 @@ def _make_routes(mask_list_items, mask_post):
 def _run(monkeypatch, tmp_path, argv_extra):
     mod = _load_module()
     monkeypatch.setenv("API_TOKEN", "dev-token")
-    monkeypatch.setattr(sys, "argv", ["security_cases.py", "--base-url", BASE, *argv_extra,
-                                      "--out", str(tmp_path / "out.md")])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["security_cases.py", "--base-url", BASE, *argv_extra, "--out", str(tmp_path / "out.md")],
+    )
     return mod, tmp_path
 
 
@@ -90,9 +113,16 @@ def base_items():
 
 def test_mask_50000_passes_row_and_rc(monkeypatch, tmp_path, base_items):
     mod, tmp = _run(monkeypatch, tmp_path, ["--mask-url", MASK])
-    monkeypatch.setattr(mod.httpx, "Client",
-                        lambda **kw: FakeClient(_make_routes(base_items, lambda: FakeResp(
-                            500, {"code": 50000, "message": "internal error", "data": None}))))
+    monkeypatch.setattr(
+        mod.httpx,
+        "Client",
+        lambda **kw: FakeClient(
+            _make_routes(
+                base_items,
+                lambda: FakeResp(500, {"code": 50000, "message": "internal error", "data": None}),
+            )
+        ),
+    )
     rc = mod.main()
     text = (tmp / "out.md").read_text(encoding="utf-8")
     assert rc == 0
@@ -102,9 +132,16 @@ def test_mask_50000_passes_row_and_rc(monkeypatch, tmp_path, base_items):
 
 def test_mask_404_fails_row_and_rc(monkeypatch, tmp_path, base_items):
     mod, tmp = _run(monkeypatch, tmp_path, ["--mask-url", MASK])
-    monkeypatch.setattr(mod.httpx, "Client",
-                        lambda **kw: FakeClient(_make_routes(base_items, lambda: FakeResp(
-                            404, {"code": 40400, "message": "commit not found", "data": None}))))
+    monkeypatch.setattr(
+        mod.httpx,
+        "Client",
+        lambda **kw: FakeClient(
+            _make_routes(
+                base_items,
+                lambda: FakeResp(404, {"code": 40400, "message": "commit not found", "data": None}),
+            )
+        ),
+    )
     rc = mod.main()
     text = (tmp / "out.md").read_text(encoding="utf-8")
     assert rc == 1, "掩码 FAIL 必须进 rc，禁止静默通过"
@@ -114,9 +151,16 @@ def test_mask_404_fails_row_and_rc(monkeypatch, tmp_path, base_items):
 
 def test_mask_empty_db_fails_row_and_rc(monkeypatch, tmp_path):
     mod, tmp = _run(monkeypatch, tmp_path, ["--mask-url", MASK])
-    monkeypatch.setattr(mod.httpx, "Client",
-                        lambda **kw: FakeClient(_make_routes([], lambda: FakeResp(
-                            500, {"code": 50000, "message": "internal error", "data": None}))))
+    monkeypatch.setattr(
+        mod.httpx,
+        "Client",
+        lambda **kw: FakeClient(
+            _make_routes(
+                [],
+                lambda: FakeResp(500, {"code": 50000, "message": "internal error", "data": None}),
+            )
+        ),
+    )
     rc = mod.main()
     text = (tmp / "out.md").read_text(encoding="utf-8")
     assert rc == 1
@@ -125,9 +169,16 @@ def test_mask_empty_db_fails_row_and_rc(monkeypatch, tmp_path):
 
 def test_without_mask_url_row_is_untested_and_rc0(monkeypatch, tmp_path):
     mod, tmp = _run(monkeypatch, tmp_path, [])
-    monkeypatch.setattr(mod.httpx, "Client",
-                        lambda **kw: FakeClient(_make_routes([], lambda: FakeResp(
-                            500, {"code": 50000, "message": "internal error", "data": None}))))
+    monkeypatch.setattr(
+        mod.httpx,
+        "Client",
+        lambda **kw: FakeClient(
+            _make_routes(
+                [],
+                lambda: FakeResp(500, {"code": 50000, "message": "internal error", "data": None}),
+            )
+        ),
+    )
     rc = mod.main()
     text = (tmp / "out.md").read_text(encoding="utf-8")
     assert rc == 0

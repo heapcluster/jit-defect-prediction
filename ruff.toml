@@ -1,0 +1,39 @@
+# 全仓统一的 Ruff 配置（backend / data_model / infra 共用一份）
+#
+# 2026-10-26 起，配置从 `backend/ruff.toml` 上提到仓库根：此前只有 backend 有配置，
+# data_model 与 infra 走默认值，导致「同一条规则在三个目录结论不同」。
+# 现在只有一个入口：`python -m ruff check backend data_model infra` 与
+# `python -m ruff format --check backend data_model infra`。
+
+target-version = "py312"
+line-length = 100
+
+[lint]
+select = [
+    "E4", # import 相关
+    "E7", # 语句层错误
+    "E9", # 运行时错误
+    "F",  # pyflakes
+    "I",  # import 排序（现状已全绿，防回流）
+    "B",  # bugbear：zip 长度、裸 raise、可变默认值等常见陷阱
+    "UP", # pyupgrade：按 py312 现代化写法
+]
+ignore = [
+    # 项目约定：库内一律 naive UTC（契约一 DATETIME UTC），序列化时统一补 Z；
+    # 存 tz-aware 反而与 MySQL DATETIME 语义冲突，故不按 DTZ001 改。
+    "DTZ001",
+    # 行宽由 formatter 负责；E501 会与长字符串/长 URL/表格化常量冲突，不启用。
+    "E501",
+]
+
+[lint.per-file-ignores]
+# 测试的固定写法：
+#   B011 —— `assert False` 作为用例体标注是合法的；
+#   E402 —— conftest / 测试必须在导入被测模块前先 `sys.path.insert`，导入必然「不在文件顶部」。
+"**/tests/**" = ["B011", "E402"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+docstring-code-format = true

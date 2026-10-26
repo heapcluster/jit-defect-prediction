@@ -121,7 +121,9 @@ def review_body(action: str, reason: str, decision: dict, head_sha: str) -> str:
     lines = [MARKER.format(sha=head_sha), "自动审阅（原型）：" + reason]
     if action == "REQUEST_CHANGES":
         for finding in decision["findings"]:
-            lines.append(f"- `{finding['path']}`：{finding['reason']}（差异证据：`{finding['evidence']}`）")
+            lines.append(
+                f"- `{finding['path']}`：{finding['reason']}（差异证据：`{finding['evidence']}`）"
+            )
     else:
         lines.append("已覆盖完整文本差异，模型无阻断项，且必需检查通过。")
     return "\n\n".join(lines)
@@ -154,7 +156,9 @@ def run(args: argparse.Namespace) -> int:
         print("SKIP: event head is stale")
         return 0
     files = list_pages(pr_path + "/files", token)
-    decision = json.loads(args.decision_file.read_text(encoding="utf-8")) if args.decision_file else None
+    decision = (
+        json.loads(args.decision_file.read_text(encoding="utf-8")) if args.decision_file else None
+    )
     checks = {}
     if decision and decision.get("action") == "APPROVE":
         response = api_request(f"{repo_path}/commits/{head_sha}/check-runs?per_page=100", token)
@@ -175,8 +179,11 @@ def run(args: argparse.Namespace) -> int:
     if any(marker in (review.get("body") or "") for review in previous):
         print("SKIP: already reviewed this commit")
         return 0
-    payload = {"commit_id": head_sha, "event": action,
-               "body": review_body(action, reason, decision, head_sha)}
+    payload = {
+        "commit_id": head_sha,
+        "event": action,
+        "body": review_body(action, reason, decision, head_sha),
+    }
     api_request(pr_path + "/reviews", token, method="POST", data=payload)
     print("Published " + action)
     return 0
@@ -185,8 +192,12 @@ def run(args: argparse.Namespace) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--event", type=Path, required=True)
-    parser.add_argument("--config", type=Path, default=Path(__file__).with_name("pr_review_config.json"))
-    parser.add_argument("--decision-file", type=Path, help="offline provider JSON; no API provider is built in")
+    parser.add_argument(
+        "--config", type=Path, default=Path(__file__).with_name("pr_review_config.json")
+    )
+    parser.add_argument(
+        "--decision-file", type=Path, help="offline provider JSON; no API provider is built in"
+    )
     parser.add_argument("--publish", action="store_true", help="also requires config.publish=true")
     args = parser.parse_args()
     try:

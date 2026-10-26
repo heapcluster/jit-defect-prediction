@@ -10,7 +10,11 @@
 from tests.conftest import HEADERS
 
 CONTRACT_PATHS = {
-    "/api/commits", "/api/commits/{commit_hash}", "/api/trends", "/api/predict", "/api/sync",
+    "/api/commits",
+    "/api/commits/{commit_hash}",
+    "/api/trends",
+    "/api/predict",
+    "/api/sync",
 }
 PR_PATHS = {"/api/sync-prs", "/api/prs", "/api/prs/{number}"}
 
@@ -53,7 +57,8 @@ def test_pr_endpoints_methods_and_params_match_contract(client):
     doc = _schema(client)
     assert set(doc["paths"]["/api/sync-prs"]) == {"post"}
     assert {p["name"] for p in doc["paths"]["/api/sync-prs"]["post"]["parameters"]} == {
-        "limit", "x-api-key",
+        "limit",
+        "x-api-key",
     }
     for path in ("/api/prs", "/api/prs/{number}"):
         assert set(doc["paths"][path]) == {"get"}, path
@@ -67,18 +72,37 @@ def test_prs_response_fields_match_contract(client):
     doc, data = _data_props(client, "/api/prs")
     assert _keys(doc, data) == {"items", "model_name", "skipped"}
     assert _keys(doc, data["properties"]["items"]["items"]) == {
-        "number", "title", "author", "state", "html_url", "updated_at",
-        "risk_score", "commit_count", "predicted_count", "predicted_at",
+        "number",
+        "title",
+        "author",
+        "state",
+        "html_url",
+        "updated_at",
+        "risk_score",
+        "commit_count",
+        "predicted_count",
+        "predicted_at",
     }
 
 
 def test_pr_detail_response_fields_match_contract(client):
     doc, data = _data_props(client, "/api/prs/{number}")
     assert _keys(doc, data) == {
-        "number", "title", "author", "state", "html_url", "updated_at", "model_name", "commits",
+        "number",
+        "title",
+        "author",
+        "state",
+        "html_url",
+        "updated_at",
+        "model_name",
+        "commits",
     }
     assert _keys(doc, data["properties"]["commits"]["items"]) == {
-        "sha", "message", "author", "risk_score", "predicted_at",
+        "sha",
+        "message",
+        "author",
+        "risk_score",
+        "predicted_at",
     }
 
 
@@ -107,15 +131,26 @@ def test_commits_response_fields_match_contract(client):
     doc, data = _data_props(client, "/api/commits")
     assert _keys(doc, data) == {"total", "page", "size", "items"}
     assert _keys(doc, data["properties"]["items"]["items"]) == {
-        "commit_hash", "author_name", "committed_at", "message", "risk_score", "model_name",
+        "commit_hash",
+        "author_name",
+        "committed_at",
+        "message",
+        "risk_score",
+        "model_name",
     }
 
 
 def test_detail_response_fields_match_contract(client):
     doc, data = _data_props(client, "/api/commits/{commit_hash}")
     assert _keys(doc, data) == {
-        "commit_hash", "author_name", "committed_at", "message",
-        "risk_score", "model_name", "features", "explanation",
+        "commit_hash",
+        "author_name",
+        "committed_at",
+        "message",
+        "risk_score",
+        "model_name",
+        "features",
+        "explanation",
     }
 
 
@@ -123,12 +158,20 @@ def test_trends_response_fields_match_contract(client):
     doc, data = _data_props(client, "/api/trends")
     assert _keys(doc, data) == {"granularity", "model_name", "series"}
     assert _keys(doc, data["properties"]["series"]["items"]) == {
-        "period", "commit_count", "avg_risk", "high_risk_count",
+        "period",
+        "commit_count",
+        "avg_risk",
+        "high_risk_count",
     }
 
 
 def test_predict_response_fields_match_contract(client):
     doc, data = _data_props(client, "/api/predict", "post")
     assert _keys(doc, data) == {
-        "commit_hash", "model_name", "risk_score", "predicted_at", "features", "explanation",
+        "commit_hash",
+        "model_name",
+        "risk_score",
+        "predicted_at",
+        "features",
+        "explanation",
     }

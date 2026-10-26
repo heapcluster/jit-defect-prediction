@@ -102,16 +102,38 @@ def test_week_drilldown_monday_to_sunday_keeps_sunday(client):
 
     from app.db import SessionLocal
     from app.models import Commit, CommitFeature, Prediction
+
     from tests.conftest import FEATURE_VALUES
 
     sunday = "e" * 40
     with SessionLocal() as session:
-        session.add(Commit(commit_hash=sunday, repo_name="camel", author_name="jdoe",
-                           committed_at=datetime(2026, 8, 2, 9, 0, 0), message="Sunday commit", parent_hash=None))
-        session.add(CommitFeature(commit_hash=sunday, committed_at=datetime(2026, 8, 2, 9, 0, 0),
-                                  feature_version="v1", **FEATURE_VALUES))
-        session.add(Prediction(commit_hash=sunday, model_name="xgb_v1", risk_score=0.50000,
-                               predicted_at=datetime(2026, 9, 1, 8, 0, 0), feature_version="v1"))
+        session.add(
+            Commit(
+                commit_hash=sunday,
+                repo_name="camel",
+                author_name="jdoe",
+                committed_at=datetime(2026, 8, 2, 9, 0, 0),
+                message="Sunday commit",
+                parent_hash=None,
+            )
+        )
+        session.add(
+            CommitFeature(
+                commit_hash=sunday,
+                committed_at=datetime(2026, 8, 2, 9, 0, 0),
+                feature_version="v1",
+                **FEATURE_VALUES,
+            )
+        )
+        session.add(
+            Prediction(
+                commit_hash=sunday,
+                model_name="xgb_v1",
+                risk_score=0.50000,
+                predicted_at=datetime(2026, 9, 1, 8, 0, 0),
+                feature_version="v1",
+            )
+        )
         session.commit()
     body = client.get(
         "/api/trends",

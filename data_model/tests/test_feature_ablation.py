@@ -52,7 +52,9 @@ def test_fit_eval_returns_bounded_metrics():
 
 def test_leave_one_out_covers_all_features():
     X, y = _toy()
-    base, rows = ab.leave_one_out("lr", 42, X[:300], y[:300], X[300:], y[300:], config.FEATURE_FIELDS)
+    base, rows = ab.leave_one_out(
+        "lr", 42, X[:300], y[:300], X[300:], y[300:], config.FEATURE_FIELDS
+    )
     assert len(rows) == len(config.FEATURE_FIELDS)
     assert {r["feature"] for r in rows} == set(config.FEATURE_FIELDS)
     assert 0.0 <= base["auc"] <= 1.0
@@ -100,8 +102,10 @@ def test_rank_orders_by_key_desc():
 
 
 def _synthetic(base_auc=0.80):
-    loo = [{"feature": f, "auc_without": base_auc, "delta_auc": -0.01, "delta_f1": -0.01}
-           for f in config.FEATURE_FIELDS]
+    loo = [
+        {"feature": f, "auc_without": base_auc, "delta_auc": -0.01, "delta_f1": -0.01}
+        for f in config.FEATURE_FIELDS
+    ]
     perm = [{"feature": f, "drop_mean": 0.01, "drop_std": 0.002} for f in config.FEATURE_FIELDS]
     return {"auc": base_auc, "f1": 0.4}, loo, perm
 
@@ -109,8 +113,14 @@ def _synthetic(base_auc=0.80):
 def test_render_report_has_required_sections():
     base, loo, perm = _synthetic()
     text = ab.render_report(base, loo, perm, 0.80, "xgb", 42, 1.0, 0)
-    for token in ("# Kamei 14 项特征消融", "## 1. 基线", "## 2. 两口径交叉排序",
-                  "## 3. 结论", "## 4. 口径与边界", "## 5. 复现"):
+    for token in (
+        "# Kamei 14 项特征消融",
+        "## 1. 基线",
+        "## 2. 两口径交叉排序",
+        "## 3. 结论",
+        "## 4. 口径与边界",
+        "## 5. 复现",
+    ):
         assert token in text
     assert text.count("| `") == len(config.FEATURE_FIELDS), "交叉表应恰好 14 行"
 

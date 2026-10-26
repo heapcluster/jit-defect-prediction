@@ -17,7 +17,7 @@
 
 ## 四条共同规矩（所有人适用，违反就不合）
 
-1. **提交前 CI 必绿。** 红着推等于把问题转给别人；`ruff` / `pytest` / `openspec validate --specs --strict` / `check_spec_references links` 四道门禁本地先跑一遍。
+1. **提交前 CI 必绿。** 红着推等于把问题转给别人；`ruff check` / `ruff format --check` / `pytest` / `openspec validate --specs --strict` / `check_spec_references links` 四道门禁本地先跑一遍。
 2. **联调只认 `docs/frontend/integration-log.md` §0。** 库、`API_TOKEN`、`MODEL_DIR`、端口都在那一张表；个人 `.env.local` 是它的下游，不是它的替代。
 3. **不写个人绝对路径进任何入库文件。** 写了的人能跑，别人必然 `50000`。
 4. **一个 PR 只做一件事。** 代码和台账不同时动；改口径必须同一 PR 同步下游 `.env.example`，描述标作用域标签（`[联调基线]` / `[契约]` / `[归档]`）。

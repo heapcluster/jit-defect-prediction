@@ -39,8 +39,7 @@ class SpecReferenceTests(unittest.TestCase):
         self.write("docs/model/feature-columns.md", "# columns\n")
         self.write(
             "docs/guide.md",
-            "[local](model/feature-columns.md)\n"
-            "[root](docs/model/feature-columns.md)\n",
+            "[local](model/feature-columns.md)\n[root](docs/model/feature-columns.md)\n",
         )
         self.assertEqual(broken_links(self.root), [])
 

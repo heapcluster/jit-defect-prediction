@@ -37,8 +37,9 @@ from .model import MODEL_NAMES, build_model
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="semantic 线（冻结 CodeBERT）训练与验证")
     p.add_argument("--text-csv", type=Path, default=config.TEXT_CSV)
-    p.add_argument("--repo", type=Path, default=None,
-                   help="文本缺失时自动建；指向克隆仓库（data/camel）")
+    p.add_argument(
+        "--repo", type=Path, default=None, help="文本缺失时自动建；指向克隆仓库（data/camel）"
+    )
     p.add_argument("--embeddings", type=Path, default=config.EMBEDDINGS_NPZ)
     p.add_argument("--force-encode", action="store_true", help="忽略缓存重新编码")
     p.add_argument("--train", type=Path, default=config.TRAIN_CSV)
@@ -56,12 +57,13 @@ def parse_args() -> argparse.Namespace:
 def get_embeddings(args) -> tuple[list[str], np.ndarray]:
     if args.embeddings.is_file() and not args.force_encode:
         hashes, emb, _, fv = load_embeddings(args.embeddings)
-        print(f"[semantic] 读缓存：{args.embeddings}（{len(hashes)} 条 × {emb.shape[1]} 维，fv={fv}）")
+        print(
+            f"[semantic] 读缓存：{args.embeddings}（{len(hashes)} 条 × {emb.shape[1]} 维，fv={fv}）"
+        )
         return hashes, emb
     df = load_texts(args.text_csv)
     print(f"[semantic] 冻结编码 {len(df)} 条文本（{config.TEXT_MODEL}）…")
-    emb = encode_texts(df["text"].tolist(), config.TEXT_MODEL,
-                       config.MAX_LEN, config.ENCODE_BATCH)
+    emb = encode_texts(df["text"].tolist(), config.TEXT_MODEL, config.MAX_LEN, config.ENCODE_BATCH)
     save_embeddings(args.embeddings, df, emb)
     print(f"[semantic] 缓存已写：{args.embeddings}")
     return df["commit_hash"].tolist(), emb
@@ -73,8 +75,9 @@ def text_registration(args, test_hashes, y_test, probas) -> dict | None:
     来源取自编码缓存的 `text_source` 键；旧缓存没有该键时返回 None，报告会如实写
     「未登记」，不按 `diff` 冒充。计算实现在 `pipelines/text_source.py`，三线共用。
     """
-    return text_source.registration_from_cache(args.embeddings, test_hashes, y_test,
-                                               probas, effort_unaware)
+    return text_source.registration_from_cache(
+        args.embeddings, test_hashes, y_test, probas, effort_unaware
+    )
 
 
 def main() -> int:
@@ -85,8 +88,9 @@ def main() -> int:
         if not args.text_csv.is_file() and not args.repo:
             raise SystemExit("[semantic] 文本与缓存都缺：传 --repo 自动建文本")
         if not args.text_csv.is_file():
-            out = extract_texts_from_repo(args.repo, config.DATASET_CSV,
-                                          args.text_csv, config.MAX_CHARS)
+            out = extract_texts_from_repo(
+                args.repo, config.DATASET_CSV, args.text_csv, config.MAX_CHARS
+            )
             print(f"[semantic] 文本已建：{out}")
 
     hashes, emb = get_embeddings(args)
@@ -95,8 +99,10 @@ def main() -> int:
     test_hashes, y_test = load_split_hashes(args.test)
     miss = [h for h in train_hashes + test_hashes if h not in index]
     if miss:
-        raise SystemExit(f"[semantic] 编码缓存缺 {len(miss)} 条切分内提交（例：{miss[0]}）—— "
-                         "文本与切分窗口不一致")
+        raise SystemExit(
+            f"[semantic] 编码缓存缺 {len(miss)} 条切分内提交（例：{miss[0]}）—— "
+            "文本与切分窗口不一致"
+        )
     X_train = emb[[index[h] for h in train_hashes]]
     X_test = emb[[index[h] for h in test_hashes]]
 
@@ -110,14 +116,18 @@ def main() -> int:
         proba = model.predict_proba(X_test)[:, 1]
         probas[name] = proba
         eu = effort_unaware(y_test, proba)
-        results[name] = {"model_name": f"{name}_semantic_v1",
-                         "label": MODEL_NAMES.get(name, name), **eu,
-                         "effort": {"LOC（改动行数 la+ld）":
-                                    effort_aware_metrics(proba, y_test, effort_loc)}}
+        results[name] = {
+            "model_name": f"{name}_semantic_v1",
+            "label": MODEL_NAMES.get(name, name),
+            **eu,
+            "effort": {"LOC（改动行数 la+ld）": effort_aware_metrics(proba, y_test, effort_loc)},
+        }
         if not args.no_export:
             args.model_dir.mkdir(parents=True, exist_ok=True)
             joblib.dump(model, args.model_dir / (f"{name}_semantic_v1.pkl"))
-        print(f"[semantic] {name:<8} AUC={eu['auc']:.4f}  F1={eu['f1']:.4f}  P={eu['precision']:.4f}  R={eu['recall']:.4f}")
+        print(
+            f"[semantic] {name:<8} AUC={eu['auc']:.4f}  F1={eu['f1']:.4f}  P={eu['precision']:.4f}  R={eu['recall']:.4f}"
+        )
 
     if not args.no_export:
         # 这是「在线加载清单」，不是 verify_all_weights 的 md5 权重清单。两者同名会撞车：
@@ -125,21 +135,30 @@ def main() -> int:
         # 故本文件固定叫 load_manifest.txt；manifest.txt 归 verify_all_weights 专用。
         (args.model_dir / "load_manifest.txt").write_text(
             f"[encoder]\n{config.TEXT_MODEL}（冻结，mean-pool，{X_train.shape[1]} 维）\n\n[models]\n"
-            + "".join(f"{m}_semantic_v1.pkl\t{MODEL_NAMES.get(m, m)}\n"
-                      for m in wanted)
+            + "".join(f"{m}_semantic_v1.pkl\t{MODEL_NAMES.get(m, m)}\n" for m in wanted)
             + "\n[split]\ndata/split_szz_{train,test}.csv（与 expert 同一切分）\n",
-            encoding="utf-8", newline="\n")
+            encoding="utf-8",
+            newline="\n",
+        )
 
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(report.render(args, results, len(train_hashes),
-                                         len(test_hashes), y_test,
-                                         text_stats=text_registration(args, test_hashes,
-                                                                      y_test, probas)),
-                           encoding="utf-8", newline="\n")
+    args.report.write_text(
+        report.render(
+            args,
+            results,
+            len(train_hashes),
+            len(test_hashes),
+            y_test,
+            text_stats=text_registration(args, test_hashes, y_test, probas),
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
     print(f"[semantic] 报告：{args.report}")
     if not args.no_charts:
-        figs = report.make_charts(results, probas, y_test, effort_loc,
-                                  args.report.parent / report.FIG_DIR_NAME)
+        figs = report.make_charts(
+            results, probas, y_test, effort_loc, args.report.parent / report.FIG_DIR_NAME
+        )
         for f in figs:
             print(f"[semantic] 图表：{f}")
     return 0

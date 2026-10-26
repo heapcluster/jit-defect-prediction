@@ -4,7 +4,7 @@
 
 ## 覆盖与边界
 
-- lint：前端 ESLint、backend/data_model/infra 的 Ruff、活 OpenSpec 规格严格校验，以及活文档链接和未归档 change 的 MODIFIED requirement 标题冲突检查。tasks 的十项格式与证据检查仍由 PR 审阅执行，不回头重排存量。
+- lint：前端 ESLint、backend/data_model/infra 的 Ruff（`ruff check` + `ruff format --check`，配置统一在仓库根 `ruff.toml`）、活 OpenSpec 规格严格校验，以及活文档链接和未归档 change 的 MODIFIED requirement 标题冲突检查。tasks 的十项格式与证据检查仍由 PR 审阅执行，不回头重排存量。
 - test：工程化 unittest 和后端完整 pytest 始终运行；前端/模型步骤在对应测试文件存在时执行。用例存在但缺脚本/依赖会失败，不用 `--if-present`。
 - build：Vite 生产构建和 Python 编译；不是模型训练、真实服务联调或浏览器 E2E。
 - Ubuntu 24.04、Node 24、Python 3.12；前端依赖以 `frontend/package-lock.json` 为准，Python 依赖仅以 `data_model/environment.yml` 为准。CI 用 `setup-miniconda` 激活该环境，再单独确认同一文件中钉定的 Ruff；不更改各线版本、不提交数据/模型/密钥。完整模型依赖较大，CI 超时设为 60 分钟；实际耗时须以 GitHub run 验证。
@@ -27,6 +27,7 @@ npm install --global @fission-ai/openspec@1.11.0 --ignore-scripts --no-audit --n
 |---|---|---|
 | lint | frontend | `npm run lint` |
 | lint | 根目录 | `python -m ruff check backend data_model infra` |
+| lint | 根目录 | `python -m ruff format --check backend data_model infra` |
 | lint | 根目录 | `openspec validate --specs --strict --no-interactive` |
 | lint | 根目录 | `python infra/check_spec_references.py links` |
 | lint | 根目录 | `python infra/check_spec_references.py deltas` |

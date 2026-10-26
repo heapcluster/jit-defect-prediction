@@ -47,8 +47,9 @@ def cumulative_area(order: np.ndarray, effort: np.ndarray, y: np.ndarray) -> flo
     return area
 
 
-def cumulative_curve(order: np.ndarray, effort: np.ndarray,
-                     y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def cumulative_curve(
+    order: np.ndarray, effort: np.ndarray, y: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
     """按给定顺序累加，返回「累计工作量占比 ~ 累计召回率」曲线坐标。
 
     与 `fused/metrics.py` 的 `cumulative_curve` 逐字同口径（x=累计 effort 占比、
@@ -57,13 +58,14 @@ def cumulative_curve(order: np.ndarray, effort: np.ndarray,
     total_e, total_y = float(effort.sum()), float(y.sum())
     xs, ys, ce, cy = [0.0], [0.0], 0.0, 0.0
     for i in order:
-        ce += float(effort[i]); cy += float(y[i])
-        xs.append(ce / total_e); ys.append(cy / total_y)
+        ce += float(effort[i])
+        cy += float(y[i])
+        xs.append(ce / total_e)
+        ys.append(cy / total_y)
     return np.array(xs), np.array(ys)
 
 
-def recall_at_effort(order: np.ndarray, effort: np.ndarray, y: np.ndarray,
-                     frac: float) -> float:
+def recall_at_effort(order: np.ndarray, effort: np.ndarray, y: np.ndarray, frac: float) -> float:
     """按给定顺序审查，累计工作量达到 frac 时已抓到多少比例的缺陷。"""
     total_e = float(effort.sum())
     total_y = float(y.sum())
@@ -79,8 +81,7 @@ def recall_at_effort(order: np.ndarray, effort: np.ndarray, y: np.ndarray,
     return cum_y / total_y
 
 
-def effort_aware_metrics(proba: np.ndarray, y: np.ndarray,
-                         effort: np.ndarray) -> dict:
+def effort_aware_metrics(proba: np.ndarray, y: np.ndarray, effort: np.ndarray) -> dict:
     """对四种排序各算一次曲线下面积与截断召回（同 06，此处不复述公式）。
 
     四种排序：model（概率降序）/ density（概率/工作量降序）/ optimal（真实密度上界）/
@@ -116,14 +117,11 @@ def effort_aware_metrics(proba: np.ndarray, y: np.ndarray,
 
     denom = out["optimal"]["area"] - baseline
     for value in out.values():
-        value["p_norm"] = (
-            (value["area"] - baseline) / denom if abs(denom) > 1e-12
-            else float("nan"))
+        value["p_norm"] = (value["area"] - baseline) / denom if abs(denom) > 1e-12 else float("nan")
     return out
 
 
-def effort_unaware(y: np.ndarray, proba: np.ndarray,
-                   threshold: float = DECISION_THRESHOLD) -> dict:
+def effort_unaware(y: np.ndarray, proba: np.ndarray, threshold: float = DECISION_THRESHOLD) -> dict:
     """Effort-unaware 五指标 + 阈值切分后的预测。"""
     pred = (proba >= threshold).astype(int)
     return {

@@ -5,11 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from app.models import INDEX_ASSERTIONS, Base
 from sqlalchemy import MetaData, UniqueConstraint
 from sqlalchemy.dialects import mysql
 from sqlalchemy.schema import CreateIndex, CreateTable
-
-from app.models import INDEX_ASSERTIONS, Base
 
 SCHEMA_SQL = Path(__file__).resolve().parents[2] / "infra" / "schema.sql"
 
@@ -59,15 +58,31 @@ def test_schema_sql_matches_complete_mysql_metadata():
 @pytest.mark.parametrize(
     ("table_name", "definitions"),
     [
-        ("commit", ("PRIMARY KEY (id)", "UNIQUE (commit_hash)",
-                    "INDEX ix_commit_committed_at (committed_at)")),
+        (
+            "commit",
+            (
+                "PRIMARY KEY (id)",
+                "UNIQUE (commit_hash)",
+                "INDEX ix_commit_committed_at (committed_at)",
+            ),
+        ),
         ("commit_feature", ("PRIMARY KEY (commit_hash)",)),
-        ("commit_label", ("PRIMARY KEY (id)",
-                          "CONSTRAINT uq_label_hash_method UNIQUE (commit_hash, label_method)",
-                          "INDEX ix_commit_label_commit_hash (commit_hash)")),
-        ("prediction", ("PRIMARY KEY (id)",
-                        "CONSTRAINT uq_prediction_hash_model UNIQUE (commit_hash, model_name)",
-                        "INDEX ix_prediction_commit_hash (commit_hash)")),
+        (
+            "commit_label",
+            (
+                "PRIMARY KEY (id)",
+                "CONSTRAINT uq_label_hash_method UNIQUE (commit_hash, label_method)",
+                "INDEX ix_commit_label_commit_hash (commit_hash)",
+            ),
+        ),
+        (
+            "prediction",
+            (
+                "PRIMARY KEY (id)",
+                "CONSTRAINT uq_prediction_hash_model UNIQUE (commit_hash, model_name)",
+                "INDEX ix_prediction_commit_hash (commit_hash)",
+            ),
+        ),
     ],
 )
 def test_primary_unique_and_normal_indexes_are_inline(table_name, definitions):
@@ -86,19 +101,31 @@ def test_metadata_covers_runtime_assertions_and_label_keys():
             if isinstance(constraint, UniqueConstraint):
                 keys.add((table.name, tuple(column.name for column in constraint.columns), True))
         for index in table.indexes:
-            keys.add((table.name, tuple(column.name for column in index.columns), bool(index.unique)))
+            keys.add(
+                (table.name, tuple(column.name for column in index.columns), bool(index.unique))
+            )
     # 标签表两项不在 INDEX_ASSERTIONS 中，不能把运行时自检当完整元数据比对。
-    required = (*INDEX_ASSERTIONS,
-                ("commit_label", ("commit_hash", "label_method"), True),
-                ("commit_label", ("commit_hash",), False))
+    required = (
+        *INDEX_ASSERTIONS,
+        ("commit_label", ("commit_hash", "label_method"), True),
+        ("commit_label", ("commit_hash",), False),
+    )
     assert set(required) <= keys
 
 
 @pytest.mark.parametrize(
     ("original", "replacement", "table_name"),
     [
-        (", CONSTRAINT uq_prediction_hash_model UNIQUE (commit_hash, model_name)", "", "prediction"),
-        (", CONSTRAINT uq_label_hash_method UNIQUE (commit_hash, label_method)", "", "commit_label"),
+        (
+            ", CONSTRAINT uq_prediction_hash_model UNIQUE (commit_hash, model_name)",
+            "",
+            "prediction",
+        ),
+        (
+            ", CONSTRAINT uq_label_hash_method UNIQUE (commit_hash, label_method)",
+            "",
+            "commit_label",
+        ),
         (", INDEX ix_commit_label_commit_hash (commit_hash)", "", "commit_label"),
         ("is_bug_inducing TINYINT(1)", "is_bug_inducing SMALLINT", "commit_label"),
         ("repo_name VARCHAR(64) NOT NULL", "repo_name VARCHAR(64)", "commit"),
@@ -106,8 +133,16 @@ def test_metadata_covers_runtime_assertions_and_label_keys():
         ("UNIQUE (commit_hash, model_name)", "UNIQUE (model_name, commit_hash)", "prediction"),
         ("CREATE TABLE IF NOT EXISTS", "CREATE TABLE", "commit"),
     ],
-    ids=["missing-prediction-unique", "missing-label-unique", "missing-label-index", "wrong-type",
-         "wrong-nullability", "missing-autoincrement", "wrong-key-order", "missing-if-not-exists"],
+    ids=[
+        "missing-prediction-unique",
+        "missing-label-unique",
+        "missing-label-index",
+        "wrong-type",
+        "wrong-nullability",
+        "missing-autoincrement",
+        "wrong-key-order",
+        "missing-if-not-exists",
+    ],
 )
 def test_drift_check_rejects_mutated_schema(original, replacement, table_name):
     sql = SCHEMA_SQL.read_text(encoding="utf-8")

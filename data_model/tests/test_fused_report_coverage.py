@@ -29,10 +29,12 @@ DIM_KAMEI = 14
 def _make_case(covered: int):
     """构造 covered/N 条带语义向量的合成切分。"""
     hashes = [f"h{i:03d}" for i in range(N)]
-    df = pd.DataFrame({
-        "commit_hash": hashes,
-        "is_bug_inducing": [0, 1] * (N // 2),
-    })
+    df = pd.DataFrame(
+        {
+            "commit_hash": hashes,
+            "is_bug_inducing": [0, 1] * (N // 2),
+        }
+    )
     X = np.random.RandomState(0).rand(N, DIM_KAMEI).astype(np.float32)
     emb = np.random.RandomState(1).rand(covered, 768).astype(np.float32)
     index = {h: i for i, h in enumerate(hashes[:covered])}
@@ -52,15 +54,25 @@ def _fake_results() -> dict:
         "optimal": {"area": 0.5, "p_norm": 0.6, "recall@20": 0.7, "recall@50": 0.8},
         "random": {"repeats": 200, "area": 0.05, "area_std": 0.01, "p_norm": 0.1},
     }
-    return {"lr": {"model_name": "lr_fused_v1", "label": "逻辑回归", "auc": 0.5,
-                   "f1": 0.5, "precision": 0.5, "recall": 0.5, "accuracy": 0.5,
-                   "effort": {"LOC（改动行数 la+ld）": eff}}}
+    return {
+        "lr": {
+            "model_name": "lr_fused_v1",
+            "label": "逻辑回归",
+            "auc": 0.5,
+            "f1": 0.5,
+            "precision": 0.5,
+            "recall": 0.5,
+            "accuracy": 0.5,
+            "effort": {"LOC（改动行数 la+ld）": eff},
+        }
+    }
 
 
 def _render(coverage: dict[str, float], kept: int) -> str:
     y = np.array([0, 1] * (kept // 2)) if kept % 2 == 0 else np.zeros(kept, dtype=int)
-    return fused_report.render(SimpleNamespace(seed=42), _fake_results(),
-                               kept, kept, y, coverage=coverage)
+    return fused_report.render(
+        SimpleNamespace(seed=42), _fake_results(), kept, kept, y, coverage=coverage
+    )
 
 
 def test_coverage_100_percent_keeps_all_rows_and_reports_it():

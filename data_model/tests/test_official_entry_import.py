@@ -40,17 +40,25 @@ def _run_probe(code: str, timeout: int = 300) -> subprocess.CompletedProcess:
     env = dict(os.environ)
     env.pop("PYTHONPATH", None)
     env["PYTHONDONTWRITEBYTECODE"] = "1"
-    return subprocess.run([sys.executable, "-c", code],
-                          cwd=str(DATA_MODEL), capture_output=True,
-                          text=True, encoding="utf-8", errors="replace",
-                           env=env, timeout=timeout, check=False)
+    return subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=str(DATA_MODEL),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        timeout=timeout,
+        check=False,
+    )
 
 
 @pytest.mark.parametrize("line", ["semantic", "fused"])
 def test_tabnet_imports_under_official_namespace(line):
     r = _run_probe(PROBE.format(line=line))
     assert r.returncode == 0, (
-        f"official entry broken for {line}:\nstdout: {r.stdout}\nstderr: {r.stderr[-1200:]}")
+        f"official entry broken for {line}:\nstdout: {r.stdout}\nstderr: {r.stderr[-1200:]}"
+    )
     assert "TabNet" in r.stdout, r.stdout
 
 
@@ -67,6 +75,5 @@ def test_all_registered_names_build_under_official_namespace(line):
         "print('OK', len(DEFAULT_MODELS))"
     )
     r = _run_probe(probe)
-    assert r.returncode == 0, (
-        f"{line}: {r.stdout}\nstderr: {r.stderr[-1200:]}")
+    assert r.returncode == 0, f"{line}: {r.stdout}\nstderr: {r.stderr[-1200:]}"
     assert "OK 8" in r.stdout

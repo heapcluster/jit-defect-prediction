@@ -23,8 +23,9 @@ from .model import MODEL_NAMES, build_model
 
 def text_registration(args, test_hashes, y_test, probas) -> dict | None:
     """文本来源登记（来源取自 semantic 的编码缓存）；旧缓存无该键 → None，报告写「未登记」。"""
-    return text_source.registration_from_cache(args.embeddings, test_hashes, y_test,
-                                               probas, effort_unaware)
+    return text_source.registration_from_cache(
+        args.embeddings, test_hashes, y_test, probas, effort_unaware
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -51,11 +52,15 @@ def main() -> int:
     n_train_all, n_test_all = len(train_df), len(test_df)
     train_df, X_train, _ = fuse(train_df, X_train_k, emb_index, emb)
     test_df, X_test, _ = fuse(test_df, X_test_k, emb_index, emb)
-    coverage = {"train": 100.0 * len(train_df) / max(1, n_train_all),
-                "test": 100.0 * len(test_df) / max(1, n_test_all)}
+    coverage = {
+        "train": 100.0 * len(train_df) / max(1, n_train_all),
+        "test": 100.0 * len(test_df) / max(1, n_test_all),
+    }
     y_train = train_df[config.LABEL_COL].astype(int).to_numpy()
     y_test = test_df[config.LABEL_COL].astype(int).to_numpy()
-    print(f"[fused] 训练 {len(X_train)} 条 / 检验 {len(X_test)} 条，维度 {X_train.shape[1]}，语义覆盖 训练 {coverage['train']:.2f}% / 检验 {coverage['test']:.2f}%")
+    print(
+        f"[fused] 训练 {len(X_train)} 条 / 检验 {len(X_test)} 条，维度 {X_train.shape[1]}，语义覆盖 训练 {coverage['train']:.2f}% / 检验 {coverage['test']:.2f}%"
+    )
 
     effort_loc = load_effort(args.features_raw, test_df["commit_hash"])
     wanted = [m.strip() for m in args.models.split(",") if m.strip()]
@@ -67,14 +72,18 @@ def main() -> int:
         proba = model.predict_proba(X_test)[:, 1]
         probas[name] = proba
         eu = effort_unaware(y_test, proba)
-        results[name] = {"model_name": f"{name}_fused_v1",
-                         "label": MODEL_NAMES.get(name, name), **eu,
-                         "effort": {"LOC（改动行数 la+ld）":
-                                    effort_aware_metrics(proba, y_test, effort_loc)}}
+        results[name] = {
+            "model_name": f"{name}_fused_v1",
+            "label": MODEL_NAMES.get(name, name),
+            **eu,
+            "effort": {"LOC（改动行数 la+ld）": effort_aware_metrics(proba, y_test, effort_loc)},
+        }
         if not args.no_export:
             args.model_dir.mkdir(parents=True, exist_ok=True)
             joblib.dump(model, args.model_dir / (f"{name}_fused_v1.pkl"))
-        print(f"[fused] {name:<8} AUC={eu['auc']:.4f}  F1={eu['f1']:.4f}  P={eu['precision']:.4f}  R={eu['recall']:.4f}")
+        print(
+            f"[fused] {name:<8} AUC={eu['auc']:.4f}  F1={eu['f1']:.4f}  P={eu['precision']:.4f}  R={eu['recall']:.4f}"
+        )
 
     if not args.no_export:
         # 同 semantic：在线加载清单叫 load_manifest.txt，避免与 verify_all_weights 的
@@ -84,21 +93,31 @@ def main() -> int:
         (args.model_dir / "load_manifest.txt").write_text(
             f"[input]\nKamei 14（契约二第三节顺序）⊕ 冻结语义 768 = {config.EXPECTED_DIM} 维\n"
             f"语义缓存：{config.EMBEDDINGS_NPZ.relative_to(config.PKG.parent.parent.parent).as_posix()}\n\n[models]\n"
-            + "".join(f"{m}_fused_v1.pkl\t{MODEL_NAMES.get(m, m)}\n"
-                      for m in wanted) + "\n",
-            encoding="utf-8", newline="\n")
+            + "".join(f"{m}_fused_v1.pkl\t{MODEL_NAMES.get(m, m)}\n" for m in wanted)
+            + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
 
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(report.render(args, results, len(X_train), len(X_test),
-                                         y_test, coverage=coverage,
-                                         text_stats=text_registration(
-                                             args, test_df["commit_hash"].tolist(),
-                                             y_test, probas)),
-                           encoding="utf-8", newline="\n")
+    args.report.write_text(
+        report.render(
+            args,
+            results,
+            len(X_train),
+            len(X_test),
+            y_test,
+            coverage=coverage,
+            text_stats=text_registration(args, test_df["commit_hash"].tolist(), y_test, probas),
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
     print(f"[fused] 报告：{args.report}")
     if not args.no_charts:
-        figs = report.make_charts(results, probas, y_test, effort_loc,
-                                  args.report.parent / report.FIG_DIR_NAME)
+        figs = report.make_charts(
+            results, probas, y_test, effort_loc, args.report.parent / report.FIG_DIR_NAME
+        )
         for f in figs:
             print(f"[fused] 图表：{f}")
     return 0

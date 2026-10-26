@@ -1,0 +1,24 @@
+# 编辑器级最小共识（2026-10-26 新增）
+#
+# 仓库已经用 .gitattributes 把行尾钉成 LF、用 ruff format 统一 Python 排版，
+# 但「缩进用空格还是 Tab」「文件末尾要不要留空行」这类事，git 与 ruff 都管不到 ——
+# 它们只影响编辑器里看到的差异。本文件把这些约定写进仓库，换机器/换 IDE 也不用重设。
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{js,vue,json,yml,yaml,css,html}]
+indent_size = 2
+
+[*.md]
+# Markdown 的行尾两个空格是「换行」语义，不能被编辑器自动裁掉
+trim_trailing_whitespace = false
+
+[*.{bat,cmd,ps1}]
+end_of_line = crlf

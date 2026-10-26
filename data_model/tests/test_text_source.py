@@ -56,15 +56,18 @@ class _FakeRepo:
 
 
 def _repo():
-    return _FakeRepo({
-        "diff": _FakeCommit(1, [_FakeDiff("src/A.java", b"+int a = 1;\n")]),
-        "empty": _FakeCommit(1, []),
-        "blank": _FakeCommit(1, [_FakeDiff("src/B.java", b"   \n")]),
-        "root": _FakeCommit(0, []),
-    })
+    return _FakeRepo(
+        {
+            "diff": _FakeCommit(1, [_FakeDiff("src/A.java", b"+int a = 1;\n")]),
+            "empty": _FakeCommit(1, []),
+            "blank": _FakeCommit(1, [_FakeDiff("src/B.java", b"   \n")]),
+            "root": _FakeCommit(0, []),
+        }
+    )
 
 
 # ────────────────────── 1. 三类来源的判定边界 ──────────────────────
+
 
 def test_real_diff_keeps_text_and_source():
     text, source = commit_text(_repo(), "diff", 4000)
@@ -101,6 +104,7 @@ def test_unreachable_commit_returns_none_not_placeholder():
 
 # ────────────────────── 2. 截断口径未被本补丁改动 ──────────────────────
 
+
 def test_assemble_truncates_per_file_and_total():
     long_patch = b"x" * 5000
     diffs = [_FakeDiff(f"f{i}.java", long_patch) for i in range(5)]
@@ -125,9 +129,17 @@ def test_header_only_diff_stays_diff_per_ruling():
 
 # ────────────────────── 3. 占位串不会被 pandas 读成 NaN ──────────────────────
 
+
 def test_placeholder_survives_csv_roundtrip(tmp_path):
-    rows = [text_source.make_row(HASH, text_source.PLACEHOLDER[text_source.SOURCE_NO_TEXT_CHANGE],
-                                 text_source.SOURCE_NO_TEXT_CHANGE, 0, "v1")]
+    rows = [
+        text_source.make_row(
+            HASH,
+            text_source.PLACEHOLDER[text_source.SOURCE_NO_TEXT_CHANGE],
+            text_source.SOURCE_NO_TEXT_CHANGE,
+            0,
+            "v1",
+        )
+    ]
     path = tmp_path / "commit_text.csv"
     pd.DataFrame(rows, columns=text_source.TEXT_COLUMNS).to_csv(path, index=False, quoting=1)
     back = pd.read_csv(path)
@@ -136,7 +148,9 @@ def test_placeholder_survives_csv_roundtrip(tmp_path):
     assert back["text"].iloc[0] == text_source.PLACEHOLDER[text_source.SOURCE_NO_TEXT_CHANGE]
     # 空串对照：同样写法下会被读成 NaN —— 这就是为什么占位串必须非空
     empty = tmp_path / "empty.csv"
-    pd.DataFrame([{"commit_hash": HASH, "text": ""}], ).to_csv(empty, index=False, quoting=1)
+    pd.DataFrame(
+        [{"commit_hash": HASH, "text": ""}],
+    ).to_csv(empty, index=False, quoting=1)
     assert pd.read_csv(empty)["text"].isna().all()
 
 
@@ -144,9 +158,11 @@ def test_text_source_is_not_a_model_input_column():
     # text_source 只做登记：不在特征列里，也不参与 TextDataset 的输入构造
     assert "text_source" not in ("commit_hash", "text", "label", "feature_version")
     assert text_source.TEXT_COLUMNS[-1] == "text_source"
-    assert text_source.SOURCES == (text_source.SOURCE_DIFF,
-                                   text_source.SOURCE_NO_TEXT_CHANGE,
-                                   text_source.SOURCE_ROOT_COMMIT)
+    assert text_source.SOURCES == (
+        text_source.SOURCE_DIFF,
+        text_source.SOURCE_NO_TEXT_CHANGE,
+        text_source.SOURCE_ROOT_COMMIT,
+    )
 
 
 def test_sources_of_falls_back_to_diff_for_old_files():
@@ -158,9 +174,13 @@ def test_sources_of_falls_back_to_diff_for_old_files():
 
 # ────────────────────── 4. 登记与稳健性附注 ──────────────────────
 
+
 def test_stats_and_registration_numbers():
-    sources = ([text_source.SOURCE_DIFF] * 10 + [text_source.SOURCE_NO_TEXT_CHANGE] * 3
-               + [text_source.SOURCE_ROOT_COMMIT] * 2)
+    sources = (
+        [text_source.SOURCE_DIFF] * 10
+        + [text_source.SOURCE_NO_TEXT_CHANGE] * 3
+        + [text_source.SOURCE_ROOT_COMMIT] * 2
+    )
     labels = np.array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0] + [0] * 3 + [1, 0])
     counts, positives = text_source.stats_of(sources, labels)
     assert counts == {"diff": 10, "no_text_change": 3, "root_commit": 2}
@@ -169,22 +189,28 @@ def test_stats_and_registration_numbers():
     y = np.array([1, 0, 0, 0, 0])
     probas = {"m": np.array([0.9, 0.4, 0.3, 0.2, 0.1])}
 
-    def metric_fn(yy, pp):           # 与 effort_unaware 同签名的假指标
+    def metric_fn(yy, pp):  # 与 effort_unaware 同签名的假指标
         return {"auc": float(np.mean(pp)), "f1": float(np.max(pp))}
 
-    keep = [True, True, True, False, False]      # 后两条是占位行
-    reg = text_source.registration(counts, positives, 15, 
-                                   [text_source.SOURCE_DIFF] * 3 + ["no_text_change"] * 2,
-                                   y, probas, metric_fn)
+    keep = [True, True, True, False, False]  # 后两条是占位行
+    reg = text_source.registration(
+        counts,
+        positives,
+        15,
+        [text_source.SOURCE_DIFF] * 3 + ["no_text_change"] * 2,
+        y,
+        probas,
+        metric_fn,
+    )
     assert reg["kept"] == 3 and reg["dropped"] == 2 and reg["retrained"] is False
     base, sub = metric_fn(y, probas["m"]), metric_fn(y[keep], probas["m"][keep])
     assert reg["deltas"]["AUC"] == pytest.approx(abs(sub["auc"] - base["auc"]))
 
 
 def test_registration_lines_state_that_models_were_not_retrained():
-    lines = text_source.robustness_lines(kept=25123, dropped=60,
-                                         deltas={"AUC": 0.0012, "F1": 0.0034},
-                                         retrained=False)
+    lines = text_source.robustness_lines(
+        kept=25123, dropped=60, deltas={"AUC": 0.0012, "F1": 0.0034}, retrained=False
+    )
     joined = "".join(lines)
     assert "模型未重训" in joined and "敏感性检查" in joined
     assert "0.0012" in joined and "0.0034" in joined
@@ -199,13 +225,16 @@ def test_registration_lines_do_not_invent_positives():
 
 # ────────────────────── 5. 编码缓存携带 text_source，旧缓存返回 None ──────────────────────
 
+
 def test_embedding_cache_roundtrips_text_source(tmp_path):
-    df = pd.DataFrame({
-        "commit_hash": [HASH, "b" * 40],
-        "label": [1, 0],
-        "feature_version": ["v1", "v1"],
-        "text_source": [text_source.SOURCE_DIFF, text_source.SOURCE_ROOT_COMMIT],
-    })
+    df = pd.DataFrame(
+        {
+            "commit_hash": [HASH, "b" * 40],
+            "label": [1, 0],
+            "feature_version": ["v1", "v1"],
+            "text_source": [text_source.SOURCE_DIFF, text_source.SOURCE_ROOT_COMMIT],
+        }
+    )
     path = tmp_path / "semantic_embeddings.npz"
     save_embeddings(path, df, np.zeros((2, 768), dtype=np.float32))
 
@@ -218,11 +247,13 @@ def test_embedding_cache_roundtrips_text_source(tmp_path):
 
 def test_old_cache_without_key_reports_unregistered(tmp_path):
     path = tmp_path / "old.npz"
-    np.savez_compressed(path,
-                        commit_hash=text_source.as_str_array([HASH]),
-                        embeddings=np.zeros((1, 768), dtype=np.float32),
-                        labels=np.array([1]),
-                        feature_version=text_source.as_str_array(["v1"]))
+    np.savez_compressed(
+        path,
+        commit_hash=text_source.as_str_array([HASH]),
+        embeddings=np.zeros((1, 768), dtype=np.float32),
+        labels=np.array([1]),
+        feature_version=text_source.as_str_array(["v1"]),
+    )
     assert text_source.load_sources(path) is None
     assert text_source.load_sources_with_hashes(path) is None
     assert text_source.load_sources(tmp_path / "missing.npz") is None

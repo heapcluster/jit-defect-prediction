@@ -1,0 +1,49 @@
+name: CodeQL
+
+# 安全扫描（2026-10-26 入库）。
+#
+# 为什么不在 pull_request 上跑：本仓库的必需检查只有 `CI` 一个，CodeQL 若挂在 PR 上
+# 只会给每次评审多出两个「非必需」的失败面（例如依赖未装导致的 autobuild 失败），
+# 却挡不住任何东西。这里改成「合入 main 后扫 + 每周一扫」：真出漏洞会在 Security 页
+# 报警并留记录，不干扰 PR 流程。
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, javascript-typescript]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@4bfa242aa49c5f7c6770b98670d354a7dfac05f8 # v3
+        with:
+          languages: ${{ matrix.language }}
+          # 默认安全查询集：只报可利用问题，不掺代码风格类噪声。
+          queries: security-extended
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@4bfa242aa49c5f7c6770b98670d354a7dfac05f8 # v3
+        with:
+          category: "/language:${{ matrix.language }}"

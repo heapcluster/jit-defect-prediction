@@ -17,6 +17,10 @@ import sys
 from pathlib import Path
 
 import pytest
+from app import db
+from app.db import Base, _assert_indexes
+from app.errors import AppError
+from app.models import Prediction
 from sqlalchemy import (
     CHAR,
     Column,
@@ -27,11 +31,6 @@ from sqlalchemy import (
     inspect,
     text,
 )
-
-from app import db
-from app.db import Base, _assert_indexes
-from app.errors import AppError
-from app.models import Prediction
 
 
 def _new_engine():
@@ -156,12 +155,19 @@ def test_db_cli_covers_usage_config_error_and_success(tmp_path, monkeypatch, eng
 def test_module_guard_exits_with_usage(module):
     """`python -m <module>`（无参）真走 `__main__` 守卫：退出码 2 + stderr 是用法行。"""
     backend = Path(__file__).resolve().parents[1]
-    env = dict(os.environ, PYTHONUTF8="1", DATABASE_URL=db.config.DATABASE_URL, API_TOKEN="test-token")
+    env = dict(
+        os.environ, PYTHONUTF8="1", DATABASE_URL=db.config.DATABASE_URL, API_TOKEN="test-token"
+    )
     env.pop("PYTHONPATH", None)
     assert Path(sys.executable).is_file(), f"解释器不可用：{sys.executable}"
     proc = subprocess.run(
         [sys.executable, "-m", module],
-        cwd=str(backend), env=env, capture_output=True, text=True, timeout=180, check=False,
+        cwd=str(backend),
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=180,
+        check=False,
     )
     assert proc.returncode == 2, proc.stderr
     assert "用法：" in proc.stderr

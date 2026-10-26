@@ -40,7 +40,9 @@ def error_payload(code: int, message: str) -> dict:
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _app_error(_: Request, exc: AppError) -> JSONResponse:
-        return JSONResponse(status_code=HTTP_BY_CODE[exc.code], content=error_payload(exc.code, exc.message))
+        return JSONResponse(
+            status_code=HTTP_BY_CODE[exc.code], content=error_payload(exc.code, exc.message)
+        )
 
     @app.exception_handler(RequestValidationError)
     async def _validation(_: Request, exc: RequestValidationError) -> JSONResponse:
@@ -48,7 +50,7 @@ def register_error_handlers(app: FastAPI) -> None:
         loc = [str(part) for part in first.get("loc", []) if part not in ("query", "body", "path")]
         param = loc[-1] if loc else "parameter"
         return JSONResponse(
-            status_code=400,
+            status_code=HTTP_BY_CODE[40001],
             content=error_payload(40001, f"参数非法：{param}"),
         )
 

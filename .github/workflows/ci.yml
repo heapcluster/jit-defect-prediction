@@ -87,6 +87,11 @@ jobs:
       - name: Lint Python
         run: python -m ruff check backend data_model infra --output-format concise
 
+      - name: Check Python formatting
+        # lint 管「对不对」，format 管「齐不齐」：一条命令覆盖 backend / data_model / infra。
+        # 配置在仓库根 ruff.toml（2026-10-26 起统一，不再由子目录各管一套）。
+        run: python -m ruff format --check backend data_model infra
+
       - name: Lint specifications
         # 仅检查活规格，不回头重排存量 change；tasks 十项检查仍由 PR 审阅把关。
         run: openspec validate --specs --strict --no-interactive
@@ -113,7 +118,8 @@ jobs:
 
       - name: Test frontend
         # 测试配置/用例一旦合入即执行，失败不能被忽略。
-        if: hashFiles('frontend/vitest.config.*', 'frontend/src/**/__tests__/**', 'frontend/src/**/*.test.*', 'frontend/tests/**/*.spec.*') != ''
+        # vitest 配置已并入 frontend/vite.config.js（不再有独立的 vitest.config.*）
+        if: hashFiles('frontend/vite.config.*', 'frontend/src/**/__tests__/**', 'frontend/src/**/*.test.*', 'frontend/tests/**/*.spec.*') != ''
         working-directory: frontend
         run: npm run test:unit
 
@@ -128,4 +134,6 @@ jobs:
 
       - name: Build Python
         # Python 无打包入口；这里验证可编译性，不冒充模型训练/交付验收。
-        run: python -m compileall -q backend/app data_model infra
+        # -x 跳过 data_model/data/ 下的 Apache Camel 检出（含不是 Python 的 .py 模板），
+        # 否则本机有该目录时这一步会误报，CI 里没有该目录时又看不出来。
+        run: python -m compileall -q -x 'data_model[\\/]data' backend/app data_model infra

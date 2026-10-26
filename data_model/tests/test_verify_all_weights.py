@@ -27,9 +27,15 @@ def _fake_weight(path: Path, payload: dict | None = None) -> Path:
 
 
 def _record(**kwargs) -> vw.WeightRecord:
-    base = {"file": "x_v1.pkl", "md5": "0" * 32, "size": 1,
-            "module": "sklearn.linear_model._base.LinearRegression",
-            "n_features": 14, "loaded": True, "error": ""}
+    base = {
+        "file": "x_v1.pkl",
+        "md5": "0" * 32,
+        "size": 1,
+        "module": "sklearn.linear_model._base.LinearRegression",
+        "n_features": 14,
+        "loaded": True,
+        "error": "",
+    }
     base.update(kwargs)
     return vw.WeightRecord(**base)
 

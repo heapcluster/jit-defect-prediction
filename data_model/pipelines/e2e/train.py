@@ -31,8 +31,12 @@ from .model import build_model, load_tokenizer, predict_proba
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="e2e 线（CodeBERT 微调）训练与验证")
     p.add_argument("--text-csv", type=Path, default=config.TEXT_CSV)
-    p.add_argument("--train", type=Path, default=config.TRAIN_CSV,
-                   help="共享切分训练集（对齐 commit_hash）；缺省时按 --eval-frac 兜底")
+    p.add_argument(
+        "--train",
+        type=Path,
+        default=config.TRAIN_CSV,
+        help="共享切分训练集（对齐 commit_hash）；缺省时按 --eval-frac 兜底",
+    )
     p.add_argument("--test", type=Path, default=config.TEST_CSV)
     p.add_argument("--features-raw", type=Path, default=config.FEATURES_RAW_CSV)
     p.add_argument("--text-model", default=config.TEXT_MODEL)
@@ -56,8 +60,12 @@ def main() -> int:
     np.random.seed(args.seed)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print("[e2e] 设备：{}{}".format(device, "（fp16 已开启）" if torch.cuda.is_available()
-                                else "（CPU，微调极慢，建议 4060）"))
+    print(
+        "[e2e] 设备：{}{}".format(
+            device,
+            "（fp16 已开启）" if torch.cuda.is_available() else "（CPU，微调极慢，建议 4060）",
+        )
+    )
 
     df = load_texts(args.text_csv)
     tokenizer = load_tokenizer(args.text_model)
@@ -68,8 +76,10 @@ def main() -> int:
         n_eval = max(1, int(len(df) * args.eval_frac))
         test_df = df.tail(n_eval).reset_index(drop=True)
         train_df = df.head(len(df) - n_eval).reset_index(drop=True)
-        print("[e2e] ⚠ 未找到共享切分文件，按时间序尾部分留 %.0f%% 兜底 —— "
-              "跨线对比请先跑 05" % (args.eval_frac * 100))
+        print(
+            "[e2e] ⚠ 未找到共享切分文件，按时间序尾部分留 %.0f%% 兜底 —— "
+            "跨线对比请先跑 05" % (args.eval_frac * 100)
+        )
     y_test = test_df["label"].to_numpy().astype(int)
 
     # 验证集：从训练尾部按时间序切 10%，仅供 Trainer 选最佳模型。
@@ -77,12 +87,14 @@ def main() -> int:
     n_val = max(1, int(len(train_df) * args.eval_frac))
     val_df = train_df.tail(n_val).reset_index(drop=True)
     train_core = train_df.head(len(train_df) - n_val).reset_index(drop=True)
-    print(f"[e2e] 训练 {len(train_core)} / 验证 {len(val_df)} / 检验 {len(test_df)}（验证集来自训练尾部时间序）")
+    print(
+        f"[e2e] 训练 {len(train_core)} / 验证 {len(val_df)} / 检验 {len(test_df)}（验证集来自训练尾部时间序）"
+    )
 
-    train_ds = TextDataset(train_core["text"].tolist(), train_core["label"].tolist(),
-                           tokenizer, args.max_len)
-    val_ds = TextDataset(val_df["text"].tolist(), val_df["label"].tolist(),
-                         tokenizer, args.max_len)
+    train_ds = TextDataset(
+        train_core["text"].tolist(), train_core["label"].tolist(), tokenizer, args.max_len
+    )
+    val_ds = TextDataset(val_df["text"].tolist(), val_df["label"].tolist(), tokenizer, args.max_len)
     test_ds = TextDataset(test_df["text"].tolist(), y_test, tokenizer, args.max_len)
     test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False)
 
@@ -107,8 +119,7 @@ def main() -> int:
         seed=args.seed,
         report_to="none",
     )
-    trainer = Trainer(model=model, args=training_args,
-                      train_dataset=train_ds, eval_dataset=val_ds)
+    trainer = Trainer(model=model, args=training_args, train_dataset=train_ds, eval_dataset=val_ds)
     t0 = time.perf_counter()
     trainer.train()
     print("[e2e] 训练耗时 %.1fs（最佳模型已加载）" % (time.perf_counter() - t0))
@@ -125,18 +136,27 @@ def main() -> int:
     print(f"[e2e] 模型已保存：{args.model_dir}")
 
     text_stats = text_source.registration_from_frame(
-        df, test_df["commit_hash"].tolist(), y_test, {config.MODEL_NAME: proba},
-        effort_unaware)
+        df, test_df["commit_hash"].tolist(), y_test, {config.MODEL_NAME: proba}, effort_unaware
+    )
 
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(report.render(args, len(train_core), len(val_df),
-                                         len(test_df), y_test, res, text_stats=text_stats),
-                           encoding="utf-8", newline="\n")
-    print("[e2e] AUC={:.4f}  F1={:.4f}  P={:.4f}  R={:.4f}".format(res["auc"], res["f1"], res["precision"], res["recall"]))
+    args.report.write_text(
+        report.render(
+            args, len(train_core), len(val_df), len(test_df), y_test, res, text_stats=text_stats
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+    print(
+        "[e2e] AUC={:.4f}  F1={:.4f}  P={:.4f}  R={:.4f}".format(
+            res["auc"], res["f1"], res["precision"], res["recall"]
+        )
+    )
     print(f"[e2e] 报告：{args.report}")
     if not args.no_charts:
-        for f in report.make_charts(y_test, proba, effort_loc,
-                                    args.report.parent / report.FIG_DIR_NAME):
+        for f in report.make_charts(
+            y_test, proba, effort_loc, args.report.parent / report.FIG_DIR_NAME
+        ):
             print(f"[e2e] 图表：{f}")
     return 0
 

@@ -41,7 +41,8 @@ def cumulative_area(order, effort, y) -> float:
         return float("nan")
     area, cum_e, cum_y, prev = 0.0, 0.0, 0.0, 0.0
     for i in order:
-        cum_e += float(effort[i]); cum_y += float(y[i])
+        cum_e += float(effort[i])
+        cum_y += float(y[i])
         recall = cum_y / total_y
         area += 0.5 * (prev + recall) * (float(effort[i]) / total_e)
         prev = recall
@@ -53,8 +54,10 @@ def cumulative_curve(order, effort, y):
     total_e, total_y = float(effort.sum()), float(y.sum())
     xs, ys, ce, cy = [0.0], [0.0], 0.0, 0.0
     for i in order:
-        ce += float(effort[i]); cy += float(y[i])
-        xs.append(ce / total_e); ys.append(cy / total_y)
+        ce += float(effort[i])
+        cy += float(y[i])
+        xs.append(ce / total_e)
+        ys.append(cy / total_y)
     return np.array(xs), np.array(ys)
 
 
@@ -82,6 +85,7 @@ def recall_and_count_at_effort(order, effort, y, frac):
 def _spearman(a, b) -> float:
     """秩相关。必须用平均秩处理并列（effort 里有大量相同值），否则相关性会被压低。"""
     from scipy.stats import rankdata
+
     ra = rankdata(a)
     rb = rankdata(b)
     if ra.std() == 0 or rb.std() == 0:
@@ -124,9 +128,12 @@ def effort_aware_metrics(proba, y, effort, review_floor=None) -> dict:
     out = {}
     for k, o in orders.items():
         rec20, n20 = recall_and_count_at_effort(o, effort, y, 0.20)
-        out[k] = {"area": cumulative_area(o, effort, y),
-                  "recall@20": rec20, "recall@50": recall_at_effort(o, effort, y, 0.50),
-                  "n_commits@20": n20}
+        out[k] = {
+            "area": cumulative_area(o, effort, y),
+            "recall@20": rec20,
+            "recall@50": recall_at_effort(o, effort, y, 0.50),
+            "n_commits@20": n20,
+        }
     rng = np.random.default_rng(config.RANDOM_BASELINE_SEED)
     areas, rec20s = [], []
     for _ in range(config.RANDOM_BASELINE_REPEATS):
@@ -134,19 +141,25 @@ def effort_aware_metrics(proba, y, effort, review_floor=None) -> dict:
         areas.append(cumulative_area(perm, effort, y))
         rec20s.append(recall_at_effort(perm, effort, y, 0.20))
     baseline = float(np.mean(areas))
-    out["random"] = {"area": baseline, "area_std": float(np.std(areas)),
-                     "repeats": config.RANDOM_BASELINE_REPEATS,
-                     "recall@20": float(np.mean(rec20s)),
-                     "recall@50": float("nan"),
-                     "n_commits@20": round(len(y) * 0.20)}
+    out["random"] = {
+        "area": baseline,
+        "area_std": float(np.std(areas)),
+        "repeats": config.RANDOM_BASELINE_REPEATS,
+        "recall@20": float(np.mean(rec20s)),
+        "recall@50": float("nan"),
+        "n_commits@20": round(len(y) * 0.20),
+    }
     # 规模混杂诊断：risk_score 与「提交规模」的秩相关。
     # 高相关意味着按 risk_score 降序 ≈ 先审最大的提交，effort-aware 指标必然被拖累。
-    out["confound"] = {"spearman_risk_log_effort": _spearman(proba, np.log(effort)),
-                       "median_effort": float(np.median(effort))}
+    out["confound"] = {
+        "spearman_risk_log_effort": _spearman(proba, np.log(effort)),
+        "median_effort": float(np.median(effort)),
+    }
     denom = out["optimal"]["area"] - baseline
     for k in [k for k in out if "area" in out[k]]:  # 只给排序项算归一值，跳过 confound
-        out[k]["p_norm"] = ((out[k]["area"] - baseline) / denom
-                            if abs(denom) > 1e-12 else float("nan"))
+        out[k]["p_norm"] = (
+            (out[k]["area"] - baseline) / denom if abs(denom) > 1e-12 else float("nan")
+        )
         # 文献标准别名（同一数字的两种叫法，避免「自造口径」的误读）：
         #   popt = 1 − Δopt（Mende & Koschke, CSMR 2010；形式与本组 P_norm 一致）
         #   ce20 = CE@20%（20% 工作量处的缺陷召回率，20-80 原则）
@@ -158,8 +171,10 @@ def effort_aware_metrics(proba, y, effort, review_floor=None) -> dict:
 def effort_unaware(y, proba, threshold=None) -> dict:
     threshold = config.DECISION_THRESHOLD if threshold is None else threshold
     pred = (proba >= threshold).astype(int)
-    return {"auc": float(roc_auc_score(y, proba)),
-            "f1": float(f1_score(y, pred, zero_division=0)),
-            "precision": float(precision_score(y, pred, zero_division=0)),
-            "recall": float(recall_score(y, pred, zero_division=0)),
-            "accuracy": float(accuracy_score(y, pred))}
+    return {
+        "auc": float(roc_auc_score(y, proba)),
+        "f1": float(f1_score(y, pred, zero_division=0)),
+        "precision": float(precision_score(y, pred, zero_division=0)),
+        "recall": float(recall_score(y, pred, zero_division=0)),
+        "accuracy": float(accuracy_score(y, pred)),
+    }

@@ -38,6 +38,7 @@ SCHEMA_PATH = REPO_ROOT / "infra" / "schema.sql"
 
 # ───────────────────────────── 解析与读取 ─────────────────────────────
 
+
 def parse_database_url(url: str) -> dict:
     """mysql+pymysql://user:pwd@host:port/db?query → 字段。"""
     m = re.match(
@@ -46,8 +47,10 @@ def parse_database_url(url: str) -> dict:
         url.strip(),
     )
     if not m:
-        raise SystemExit(f"[setup] 无法解析 DATABASE_URL：{url}\n"
-                         "期望形如 mysql+pymysql://jit:<pwd>@127.0.0.1:3306/jit_demo?charset=utf8mb4")
+        raise SystemExit(
+            f"[setup] 无法解析 DATABASE_URL：{url}\n"
+            "期望形如 mysql+pymysql://jit:<pwd>@127.0.0.1:3306/jit_demo?charset=utf8mb4"
+        )
     port = int(m.group("port") or 3306)
     return {
         "user": m.group("user"),
@@ -65,11 +68,12 @@ def load_database_url_from_env() -> str | None:
     for line in env_file.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line.startswith("DATABASE_URL=") and not line.startswith("DATABASE_URL=#"):
-            return line[len("DATABASE_URL="):].strip()
+            return line[len("DATABASE_URL=") :].strip()
     return None
 
 
 # ───────────────────────────── 服务可用性 ─────────────────────────────
+
 
 def mysql_listening(host: str, port: int, timeout: float = 1.0) -> bool:
     try:
@@ -86,18 +90,26 @@ def try_start_service() -> None:
     try:
         if system == "Windows":
             for svc in ("MySQL80", "MySQL57", "MySQL"):
-                rc = subprocess.run(["net", "start", svc], capture_output=True, text=True, check=False)
+                rc = subprocess.run(
+                    ["net", "start", svc], capture_output=True, text=True, check=False
+                )
                 if rc.returncode == 0:
                     print(f"[setup] 已启动服务 {svc}")
                     return
-            print("[setup] 未能通过 net start 启动（服务名可能不同）。请手动启动 MySQL 后再跑本脚本。")
+            print(
+                "[setup] 未能通过 net start 启动（服务名可能不同）。请手动启动 MySQL 后再跑本脚本。"
+            )
         elif system == "Darwin":  # macOS
-            subprocess.run(["brew", "services", "start", "mysql"], capture_output=True, text=True, check=False)
+            subprocess.run(
+                ["brew", "services", "start", "mysql"], capture_output=True, text=True, check=False
+            )
             print("[setup] 已执行 brew services start mysql")
         else:  # Linux
-            for cmd in (["sudo", "systemctl", "start", "mysql"],
-                        ["sudo", "service", "mysql", "start"],
-                        ["sudo", "systemctl", "start", "mysqld"]):
+            for cmd in (
+                ["sudo", "systemctl", "start", "mysql"],
+                ["sudo", "service", "mysql", "start"],
+                ["sudo", "systemctl", "start", "mysqld"],
+            ):
                 rc = subprocess.run(cmd, capture_output=True, text=True, check=False)
                 if rc.returncode == 0:
                     print(f"[setup] 已执行：{' '.join(cmd)}")
@@ -119,21 +131,30 @@ def ensure_reachable(creds: dict, skip_start: bool) -> None:
             print(f"[setup] MySQL 已在 {creds['host']}:{creds['port']} 监听")
             return
     print(f"[setup] 连不上 {creds['host']}:{creds['port']}。请确认 MySQL 已安装并启动。")
-    print("        Windows: net start MySQL80    Linux: sudo systemctl start mysql"
-          "    macOS: brew services start mysql")
-    raise SystemExit(1)
+    print(
+        "        Windows: net start MySQL80    Linux: sudo systemctl start mysql"
+        "    macOS: brew services start mysql"
+    )
+    raise SystemExit(1) from None
 
 
 # ───────────────────────────── 建库 / 授权 / 建表 ─────────────────────────────
+
 
 def split_statements(sql: str) -> list[str]:
     return [s.strip() for s in sql.split(";") if s.strip()]
 
 
-def connect(creds: dict, user: str, password: str, database: str | None = None) -> pymysql.Connection:
+def connect(
+    creds: dict, user: str, password: str, database: str | None = None
+) -> pymysql.Connection:
     return pymysql.connect(
-        host=creds["host"], port=creds["port"], user=user, password=password,
-        database=database, autocommit=True,
+        host=creds["host"],
+        port=creds["port"],
+        user=user,
+        password=password,
+        database=database,
+        autocommit=True,
     )
 
 
@@ -161,15 +182,17 @@ def build_databases(creds: dict, test_db: str, root_password: str | None) -> Non
                         f"CREATE DATABASE IF NOT EXISTS `{db}` "
                         f"CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
                     )
-                cur.execute(
-                    f"CREATE USER IF NOT EXISTS '{app_user}'@'%' IDENTIFIED BY '{app_pwd}'"
-                )
+                cur.execute(f"CREATE USER IF NOT EXISTS '{app_user}'@'%' IDENTIFIED BY '{app_pwd}'")
                 cur.execute(
                     f"CREATE USER IF NOT EXISTS '{app_user}'@'localhost' IDENTIFIED BY '{app_pwd}'"
                 )
                 for host_spec in ("%", "localhost"):
-                    cur.execute(f"GRANT ALL PRIVILEGES ON `{demo_db}`.* TO '{app_user}'@'{host_spec}'")
-                    cur.execute(f"GRANT ALL PRIVILEGES ON `{test_db}`.* TO '{app_user}'@'{host_spec}'")
+                    cur.execute(
+                        f"GRANT ALL PRIVILEGES ON `{demo_db}`.* TO '{app_user}'@'{host_spec}'"
+                    )
+                    cur.execute(
+                        f"GRANT ALL PRIVILEGES ON `{test_db}`.* TO '{app_user}'@'{host_spec}'"
+                    )
                 cur.execute("FLUSH PRIVILEGES")
             print(f"[setup] 已建库 {demo_db} / {test_db}，并授权 {app_user}")
         finally:
@@ -188,9 +211,11 @@ def build_databases(creds: dict, test_db: str, root_password: str | None) -> Non
     try:
         app = connect(creds, app_user, app_pwd)
     except pymysql.err.OperationalError as exc:
-        print(f"[setup] 连接失败：{exc}\n"
-              f"        若 jit 无建库权限，请加 --root-password <pwd> 由 root 代建并授权。")
-        raise SystemExit(1)
+        print(
+            f"[setup] 连接失败：{exc}\n"
+            f"        若 jit 无建库权限，请加 --root-password <pwd> 由 root 代建并授权。"
+        )
+        raise SystemExit(1) from None
     try:
         with app.cursor() as cur:
             for db in (demo_db, test_db):
@@ -201,10 +226,12 @@ def build_databases(creds: dict, test_db: str, root_password: str | None) -> Non
         run_schema_on(app, demo_db)
         run_schema_on(app, test_db)
     except pymysql.err.OperationalError as exc:
-        print(f"[setup] 建库/建表失败（多半是 jit 没有 CREATE DATABASE 权限）：{exc}\n"
-              f"        请用 root 执行：GRANT CREATE, DROP ON *.* TO '{app_user}'@'%';\n"
-              f"        或改用 --root-password <pwd> 由 root 代建并授权。")
-        raise SystemExit(1)
+        print(
+            f"[setup] 建库/建表失败（多半是 jit 没有 CREATE DATABASE 权限）：{exc}\n"
+            f"        请用 root 执行：GRANT CREATE, DROP ON *.* TO '{app_user}'@'%';\n"
+            f"        或改用 --root-password <pwd> 由 root 代建并授权。"
+        )
+        raise SystemExit(1) from None
     finally:
         app.close()
 
@@ -213,33 +240,43 @@ def run_seed() -> None:
     print("[setup] 灌入种子数据（seed_dev_data.py）…")
     rc = subprocess.run(
         [sys.executable, "-m", "scripts.seed_dev_data"],
-        cwd=str(BACKEND_DIR), check=False,
+        cwd=str(BACKEND_DIR),
+        check=False,
     )
     if rc.returncode != 0:
         print("[setup] 种子数据写入失败，请检查 DATABASE_URL 与库连接。")
-        raise SystemExit(1)
+        raise SystemExit(1) from None
     print("[setup] 种子数据写入完成")
 
 
 # ───────────────────────────── 入口 ─────────────────────────────
 
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="一键建库（非 docker）：建 jit_demo / jit_test 并执行 schema.sql")
+    parser = argparse.ArgumentParser(
+        description="一键建库（非 docker）：建 jit_demo / jit_test 并执行 schema.sql"
+    )
     parser.add_argument("--database-url", help="覆盖 backend/.env 里的 DATABASE_URL")
     parser.add_argument("--test-db", default="jit_test", help="pytest 用测试库名（默认 jit_test）")
     parser.add_argument("--seed", action="store_true", help="额外灌入起步种子数据")
-    parser.add_argument("--root-password", default=None, help="用 root 代建库并授权（jit 无建库权限时）")
+    parser.add_argument(
+        "--root-password", default=None, help="用 root 代建库并授权（jit 无建库权限时）"
+    )
     parser.add_argument("--skip-start", action="store_true", help="跳过启动 MySQL 服务尝试")
     args = parser.parse_args()
 
     url = args.database_url or load_database_url_from_env()
     if not url:
-        print("[setup] 找不到 DATABASE_URL：请先配置 backend/.env（DATABASE_URL=mysql+pymysql://jit:<pwd>@127.0.0.1:3306/jit_demo?charset=utf8mb4）")
-        raise SystemExit(1)
+        print(
+            "[setup] 找不到 DATABASE_URL：请先配置 backend/.env（DATABASE_URL=mysql+pymysql://jit:<pwd>@127.0.0.1:3306/jit_demo?charset=utf8mb4）"
+        )
+        raise SystemExit(1) from None
 
     creds = parse_database_url(url)
-    print(f"[setup] 目标：{creds['user']}@{creds['host']}:{creds['port']}  "
-          f"演示库={creds['database']} 测试库={args.test_db}")
+    print(
+        f"[setup] 目标：{creds['user']}@{creds['host']}:{creds['port']}  "
+        f"演示库={creds['database']} 测试库={args.test_db}"
+    )
 
     ensure_reachable(creds, args.skip_start)
     build_databases(creds, args.test_db, args.root_password)

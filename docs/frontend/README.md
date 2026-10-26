@@ -2,7 +2,7 @@
 
 > **你打开这个文件夹就能知道：你负责什么、最近要干什么、每次任务怎么干、改东西的红线在哪。**
 > 包负责人：**刘帅华**（前端与可视化线）｜ 目录：`frontend/` ｜ 审核：吕建江、蒋励
-> 配套依据：飞书《产品需求文档》Epic **F 前端可视化**；OpenSpec change `frontend-integration`；接口源 `../backend/api-spec.md`（契约三 v1.4）。
+> 配套依据：飞书《产品需求文档》Epic **F 前端可视化**；OpenSpec change `frontend-integration`；接口源 `../backend/api-spec.md`（契约三 v1.7）。
 
 ---
 

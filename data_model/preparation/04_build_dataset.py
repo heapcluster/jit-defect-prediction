@@ -38,18 +38,42 @@ REPORTS_DIR = BASE / "reports"
 SZZ_SCRIPT = BASE / "02_szz_labeling.py"
 
 FEATURE_FIELDS = [
-    "ns", "nd", "nf", "entropy",
-    "la", "ld", "lt",
+    "ns",
+    "nd",
+    "nf",
+    "entropy",
+    "la",
+    "ld",
+    "lt",
     "fix",
-    "ndev", "age", "nuc",
-    "exp", "rexp", "sexp",
+    "ndev",
+    "age",
+    "nuc",
+    "exp",
+    "rexp",
+    "sexp",
 ]
 
-COMMIT_FIELDS = ["repo_name", "commit_hash", "author_name", "author_email", "committed_at", "message", "parent_hash"]
+COMMIT_FIELDS = [
+    "repo_name",
+    "commit_hash",
+    "author_name",
+    "author_email",
+    "committed_at",
+    "message",
+    "parent_hash",
+]
 LABEL_FIELDS = ["commit_hash", "is_bug_inducing", "label_method", "bug_fix_hash", "labeled_at"]
 
-DATASET_FIELDS = ["commit_hash", "committed_at", "feature_version", *FEATURE_FIELDS,
-                  "is_bug_inducing", "label_method", "bug_fix_hash"]
+DATASET_FIELDS = [
+    "commit_hash",
+    "committed_at",
+    "feature_version",
+    *FEATURE_FIELDS,
+    "is_bug_inducing",
+    "label_method",
+    "bug_fix_hash",
+]
 
 # 样本集里绝不允许出现的列名：出现即说明切分被提前做进了样本集
 FORBIDDEN_FIELDS = {"split", "is_train", "is_test", "train", "test", "fold", "partition", "set"}
@@ -72,8 +96,12 @@ def parse_args() -> argparse.Namespace:
         description="汇总提交清单 + 标签 + 特征，产出可训练样本集并报出七项统计",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument("--commits", type=Path, default=DATA_DIR / "commits.csv", help="01 产出的提交清单")
-    p.add_argument("--features", type=Path, default=DATA_DIR / "commit_features.csv", help="03 产出的特征表")
+    p.add_argument(
+        "--commits", type=Path, default=DATA_DIR / "commits.csv", help="01 产出的提交清单"
+    )
+    p.add_argument(
+        "--features", type=Path, default=DATA_DIR / "commit_features.csv", help="03 产出的特征表"
+    )
     p.add_argument(
         "--labels",
         type=Path,
@@ -81,7 +109,9 @@ def parse_args() -> argparse.Namespace:
         required=True,
         help="02 产出的标签表，可传多次（两套打标方法各一份，各产出一个样本集）",
     )
-    p.add_argument("--out-dir", type=Path, default=DATA_DIR, help=f"样本集输出目录（默认 {DATA_DIR}）")
+    p.add_argument(
+        "--out-dir", type=Path, default=DATA_DIR, help=f"样本集输出目录（默认 {DATA_DIR}）"
+    )
     p.add_argument("--tag", default="", help="输出文件名后缀（例：--tag window2023）")
     p.add_argument(
         "--review-sample",
@@ -140,7 +170,8 @@ def write_review_sample(path: Path, commits: dict[str, dict], n: int, is_fix_com
     ordered = sorted(commits.values(), key=lambda r: (r["committed_at"], r["commit_hash"]))
     flagged = [r for r in ordered if is_fix_commit(r["message"])]
     unflagged = [
-        r for r in ordered
+        r
+        for r in ordered
         if not is_fix_commit(r["message"]) and re.search(r"CAMEL-\d+", r["message"], re.IGNORECASE)
     ]
 
@@ -156,8 +187,12 @@ def write_review_sample(path: Path, commits: dict[str, dict], n: int, is_fix_com
 
     L: list[str] = []
     L.append("# 修缺陷提交识别抽样复核（tasks.md 3.7）\n")
-    L.append("> 判据 D4 = 含缺陷编号 `CAMEL-<数字>` **且** 含修复语义 `fix`/`bug`/`patch`（词首边界 `\\b`，故 `dispatch`/`debug`/`prefix` 不算），见 `docs/model/data-pipeline.md` 第 7 节\n")
-    L.append(f"> 抽样方式：按 `committed_at` 排序后**固定步长**各取 {n} 条。用步长而非随机数，是为了同一份输入每次产出同一份名单，便于他人复算。\n")
+    L.append(
+        "> 判据 D4 = 含缺陷编号 `CAMEL-<数字>` **且** 含修复语义 `fix`/`bug`/`patch`（词首边界 `\\b`，故 `dispatch`/`debug`/`prefix` 不算），见 `docs/model/data-pipeline.md` 第 7 节\n"
+    )
+    L.append(
+        f"> 抽样方式：按 `committed_at` 排序后**固定步长**各取 {n} 条。用步长而非随机数，是为了同一份输入每次产出同一份名单，便于他人复算。\n"
+    )
     L.append("| 输入 | 值 |\n|---|---|")
     L.append(f"| 提交清单 | {len(commits)} 条 |")
     L.append(f"| 判为修缺陷提交 | {len(flagged)} 条 |")
@@ -165,15 +200,23 @@ def write_review_sample(path: Path, commits: dict[str, dict], n: int, is_fix_com
 
     a = sample(flagged, n)
     L.append("\n## A. 被判为「修缺陷提交」的抽样 —— 查**误判**\n")
-    L.append("| # | commit | 提交时间 | 提交信息（截断） | 是修复吗？ | 备注 |\n|---|---|---|---|---|---|")
+    L.append(
+        "| # | commit | 提交时间 | 提交信息（截断） | 是修复吗？ | 备注 |\n|---|---|---|---|---|---|"
+    )
     for i, r in enumerate(a, 1):
-        L.append(f"| {i} | `{r['commit_hash'][:12]}` | {r['committed_at'][:10]} | {short(r['message'])} |  |  |")
+        L.append(
+            f"| {i} | `{r['commit_hash'][:12]}` | {r['committed_at'][:10]} | {short(r['message'])} |  |  |"
+        )
 
     b = sample(unflagged, n)
     L.append("\n## B. 未被判为「修缺陷提交」但含缺陷编号的抽样 —— 查**漏判**\n")
-    L.append("| # | commit | 提交时间 | 提交信息（截断） | 其实是修复吗？ | 备注 |\n|---|---|---|---|---|---|")
+    L.append(
+        "| # | commit | 提交时间 | 提交信息（截断） | 其实是修复吗？ | 备注 |\n|---|---|---|---|---|---|"
+    )
     for i, r in enumerate(b, 1):
-        L.append(f"| {i} | `{r['commit_hash'][:12]}` | {r['committed_at'][:10]} | {short(r['message'])} |  |  |")
+        L.append(
+            f"| {i} | `{r['commit_hash'][:12]}` | {r['committed_at'][:10]} | {short(r['message'])} |  |  |"
+        )
 
     L.append("\n## 复核结论（由复核人填写）\n")
     L.append("| 项 | 值 |\n|---|---|")
@@ -183,7 +226,9 @@ def write_review_sample(path: Path, commits: dict[str, dict], n: int, is_fix_com
     L.append(f"| B 组抽样条数 | {len(b)} |")
     L.append("| B 组漏判条数（未判、实为修复） | 待填 |")
     L.append("| **漏判率** | 待填 |")
-    L.append("\n> 结论栏为「待填」时，本表只是一份**待办名单**，不能当作 3.7 已完成的证据。判据的漏判率由设计决策 D4 明确承认（会漏掉没写修复关键词的修复提交），这一栏就是量化它的地方。")
+    L.append(
+        "\n> 结论栏为「待填」时，本表只是一份**待办名单**，不能当作 3.7 已完成的证据。判据的漏判率由设计决策 D4 明确承认（会漏掉没写修复关键词的修复提交），这一栏就是量化它的地方。"
+    )
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(L) + "\n", encoding="utf-8")
@@ -209,7 +254,9 @@ def build_one(
     method = label_rows[0]["label_method"]
     methods = {r["label_method"] for r in label_rows}
     if len(methods) > 1:
-        raise RuntimeError(f"同一份标签表里混了多个 label_method：{sorted(methods)}；契约要求一表一方法")
+        raise RuntimeError(
+            f"同一份标签表里混了多个 label_method：{sorted(methods)}；契约要求一表一方法"
+        )
 
     # ── 断言 A：有标签却不在提交清单里 ──
     orphan_label = [r["commit_hash"] for r in label_rows if r["commit_hash"] not in commits]
@@ -246,12 +293,16 @@ def build_one(
 
     versions = {r["feature_version"] for r in rows}
     if len(versions) > 1:
-        raise RuntimeError(f"样本集里混了多个 feature_version：{sorted(versions)}；口径不统一不能当一份样本集")
+        raise RuntimeError(
+            f"样本集里混了多个 feature_version：{sorted(versions)}；口径不统一不能当一份样本集"
+        )
 
     # tasks.md 4.5：样本集不得含切分列
     leaked = FORBIDDEN_FIELDS & {c.lower() for c in rows[0]}
     if leaked:
-        raise RuntimeError(f"样本集里出现了切分列 {sorted(leaked)}；切分属下游 change，不能提前做进来")
+        raise RuntimeError(
+            f"样本集里出现了切分列 {sorted(leaked)}；切分属下游 change，不能提前做进来"
+        )
 
     out_dir.mkdir(parents=True, exist_ok=True)
     stem = f"dataset_{tag}_{method}" if tag else f"dataset_{method}"
@@ -292,16 +343,26 @@ def write_report(path: Path, ctx: dict, results: list[dict], labels: list[Path])
         )
         L.append(f"| **正样本数**（`{r['method']}`） | {r['pos']} | `is_bug_inducing = 1` |")
         L.append(f"| 负样本数（`{r['method']}`） | {r['neg']} | `is_bug_inducing = 0` |")
-        L.append(f"| **正样本比例**（`{r['method']}`） | **{r['ratio']:.2%}** | 正样本数 ÷ 打标成功数 |")
-    L.append(f"| 打标方法 | {'、'.join('`' + r['method'] + '`' for r in results)} | 见 `contracts/data-fields.md` 表二 |")
+        L.append(
+            f"| **正样本比例**（`{r['method']}`） | **{r['ratio']:.2%}** | 正样本数 ÷ 打标成功数 |"
+        )
+    L.append(
+        f"| 打标方法 | {'、'.join('`' + r['method'] + '`' for r in results)} | 见 `contracts/data-fields.md` 表二 |"
+    )
 
     L.append("\n## 正样本比例是否落在合理区间\n")
-    L.append(f"判定依据：`docs/model/data-pipeline.md` 第 6 节 —— 落在 {ABNORMAL_LOW:.0%}–{ABNORMAL_HIGH:.0%} 就先查打标逻辑。\n")
+    L.append(
+        f"判定依据：`docs/model/data-pipeline.md` 第 6 节 —— 落在 {ABNORMAL_LOW:.0%}–{ABNORMAL_HIGH:.0%} 就先查打标逻辑。\n"
+    )
     for r in results:
         if ABNORMAL_LOW <= r["ratio"] <= ABNORMAL_HIGH:
-            L.append(f"- ❌ `{r['method']}`：**{r['ratio']:.2%} 落在异常区间**，不要进下游，先复核判据")
+            L.append(
+                f"- ❌ `{r['method']}`：**{r['ratio']:.2%} 落在异常区间**，不要进下游，先复核判据"
+            )
         else:
-            L.append(f"- ✅ `{r['method']}`：{r['ratio']:.2%} 不在异常区间（判据见 docs/model/data-pipeline.md 第 6 节：落在 40%–60% 才需自查）")
+            L.append(
+                f"- ✅ `{r['method']}`：{r['ratio']:.2%} 不在异常区间（判据见 docs/model/data-pipeline.md 第 6 节：落在 40%–60% 才需自查）"
+            )
 
     L.append("\n## 对齐与断言\n")
     L.append("| 检查项 | 结果 |\n|---|---|")
@@ -317,11 +378,19 @@ def write_report(path: Path, ctx: dict, results: list[dict], labels: list[Path])
 
     L.append("\n## 产出\n")
     for r in results:
-        L.append(f"- `{_rel(r['path'])}` —— {r['pos'] + r['neg']} 行 × {len(DATASET_FIELDS)} 列（14 项特征 + 标签），`label_method = {r['method']}`")
+        L.append(
+            f"- `{_rel(r['path'])}` —— {r['pos'] + r['neg']} 行 × {len(DATASET_FIELDS)} 列（14 项特征 + 标签），`label_method = {r['method']}`"
+        )
     L.append("\n## 说明\n")
-    L.append("- 样本集**不含任何切分列，也不产出切分文件**：按 `committed_at` 前 70%/后 30% 的时间序切分属下游 change（`AGENTS.md` 禁止随机切分）")
-    L.append("- 标签来源：`docs/model/data-pipeline.md` 第 7 节判据 D4（缺陷编号 且 修复语义双命中）+ 决策 D5（回溯未命中者不入样本、不记 0）")
-    L.append("- 特征口径：`docs/model/feature-columns.md` 第四节（归一化 + 自然对数变换），版本号见样本集 `feature_version` 列")
+    L.append(
+        "- 样本集**不含任何切分列，也不产出切分文件**：按 `committed_at` 前 70%/后 30% 的时间序切分属下游 change（`AGENTS.md` 禁止随机切分）"
+    )
+    L.append(
+        "- 标签来源：`docs/model/data-pipeline.md` 第 7 节判据 D4（缺陷编号 且 修复语义双命中）+ 决策 D5（回溯未命中者不入样本、不记 0）"
+    )
+    L.append(
+        "- 特征口径：`docs/model/feature-columns.md` 第四节（归一化 + 自然对数变换），版本号见样本集 `feature_version` 列"
+    )
     L.append("- 输入文件：" + "；".join(f"`{p.name}`" for p in labels))
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -341,7 +410,11 @@ def main() -> int:
     if problems:
         print(f"[失败] 提交清单列名与契约表一不符：{problems}", file=sys.stderr)
         return 3
-    problems = check_fields(list(feature_rows[0].keys()), ["commit_hash", "committed_at", "feature_version", *FEATURE_FIELDS], "特征表")
+    problems = check_fields(
+        list(feature_rows[0].keys()),
+        ["commit_hash", "committed_at", "feature_version", *FEATURE_FIELDS],
+        "特征表",
+    )
     if problems:
         print(f"[失败] 特征表列名与契约不符：{problems}", file=sys.stderr)
         return 3

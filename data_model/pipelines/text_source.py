@@ -50,8 +50,7 @@ TEXT_COLUMNS = ["commit_hash", "text", "label", "feature_version", "text_source"
 PER_FILE_LIMIT = 1500
 
 
-def assemble(diffs, max_chars: int,
-             per_file_limit: int = PER_FILE_LIMIT) -> str:
+def assemble(diffs, max_chars: int, per_file_limit: int = PER_FILE_LIMIT) -> str:
     """把 GitPython 的 diff 列表装配成一段文本。
 
     口径：每个改动文件 = 文件头（a/b 路径）+ patch；单文件超 `per_file_limit` 截断；
@@ -93,8 +92,13 @@ def classify(has_parents: bool, assembled: str) -> tuple[str, str]:
 
 
 def make_row(commit_hash: str, text: str, source: str, label: int, feature_version: str) -> dict:
-    return {"commit_hash": str(commit_hash), "text": text, "label": int(label),
-            "feature_version": str(feature_version), "text_source": source}
+    return {
+        "commit_hash": str(commit_hash),
+        "text": text,
+        "label": int(label),
+        "feature_version": str(feature_version),
+        "text_source": source,
+    }
 
 
 def summarize(sources) -> dict:
@@ -189,8 +193,16 @@ def robustness(probas: dict, y, keep, metric_fn, keys=("auc", "f1")) -> dict:
     return worst
 
 
-def registration(counts: dict, positives: dict | None, n_total: int, test_sources,
-                 y_test, probas: dict, metric_fn, retrained: bool = False) -> dict:
+def registration(
+    counts: dict,
+    positives: dict | None,
+    n_total: int,
+    test_sources,
+    y_test,
+    probas: dict,
+    metric_fn,
+    retrained: bool = False,
+) -> dict:
     """组装报告登记段需要的全部数字（三条线共用这一份，不各写一遍）。
 
     `metric_fn(y, proba) -> dict` 即各线的 `metrics.effort_unaware`；`retrained` 只有
@@ -198,11 +210,16 @@ def registration(counts: dict, positives: dict | None, n_total: int, test_source
     """
     test_sources = [str(s) for s in test_sources]
     keep = [s == SOURCE_DIFF for s in test_sources]
-    return {"counts": counts, "positives": positives, "n_total": n_total,
-            "test_counts": stats_of(test_sources)[0],
-            "kept": int(sum(keep)), "dropped": int(len(keep) - sum(keep)),
-            "deltas": robustness(probas, y_test, keep, metric_fn),
-            "retrained": retrained}
+    return {
+        "counts": counts,
+        "positives": positives,
+        "n_total": n_total,
+        "test_counts": stats_of(test_sources)[0],
+        "kept": int(sum(keep)),
+        "dropped": int(len(keep) - sum(keep)),
+        "deltas": robustness(probas, y_test, keep, metric_fn),
+        "retrained": retrained,
+    }
 
 
 def registration_from_cache(npz_path, test_hashes, y_test, probas: dict, metric_fn) -> dict | None:
@@ -220,13 +237,14 @@ def registration_from_cache(npz_path, test_hashes, y_test, probas: dict, metric_
         if "labels" in z and z["labels"].size == len(sources):
             labels = z["labels"]
     counts, positives = stats_of(sources, labels)
-    src_by_hash = dict(zip(hashes, sources))
+    src_by_hash = dict(zip(hashes, sources, strict=True))
     test_sources = [src_by_hash.get(h, SOURCE_DIFF) for h in test_hashes]
     return registration(counts, positives, len(hashes), test_sources, y_test, probas, metric_fn)
 
 
-def registration_from_frame(df: pd.DataFrame, test_hashes, y_test, probas: dict,
-                            metric_fn) -> dict | None:
+def registration_from_frame(
+    df: pd.DataFrame, test_hashes, y_test, probas: dict, metric_fn
+) -> dict | None:
     """从文本数据集（e2e 直接吃 CSV）取来源并登记；没有 `text_source` 列 → None。
 
     检验侧哈希在 CSV 里查不到时按 `diff` 计入，口径同 `registration_from_cache`。
@@ -236,20 +254,24 @@ def registration_from_frame(df: pd.DataFrame, test_hashes, y_test, probas: dict,
     sources = sources_of(df)
     labels = df["label"].to_numpy() if "label" in df.columns else None
     counts, positives = stats_of(sources, labels)
-    src_by_hash = dict(zip(df["commit_hash"].astype(str), sources.astype(str)))
+    src_by_hash = dict(zip(df["commit_hash"].astype(str), sources.astype(str), strict=True))
     test_sources = [src_by_hash.get(str(h), SOURCE_DIFF) for h in test_hashes]
     return registration(counts, positives, len(df), test_sources, y_test, probas, metric_fn)
 
 
-def registration_lines(stats: dict, n_total: int, positives_by_source: dict | None = None) -> list[str]:
+def registration_lines(
+    stats: dict, n_total: int, positives_by_source: dict | None = None
+) -> list[str]:
     """报告里的「文本来源与覆盖率」登记段（markdown 行）。
 
     只登记实测数字：条数、占全量比例、其中正样本数、正样本占该来源比例。
     `positives_by_source` 缺省时正样本两列写 `—`，不编数。
     """
-    lines = ["## 文本来源与覆盖率\n",
-             "| 来源 | 条数 | 占全量 | 其中正样本 | 正样本占该来源 |\n",
-             "|---|---|---|---|---|\n"]
+    lines = [
+        "## 文本来源与覆盖率\n",
+        "| 来源 | 条数 | 占全量 | 其中正样本 | 正样本占该来源 |\n",
+        "|---|---|---|---|---|\n",
+    ]
     for name in SOURCES:
         count = stats.get(name, 0)
         share = f"{100.0 * count / n_total:.2f}%" if n_total else "—"
@@ -271,10 +293,12 @@ def registration_lines(stats: dict, n_total: int, positives_by_source: dict | No
 
     placeholder = sum(stats.get(name, 0) for name in (SOURCE_NO_TEXT_CHANGE, SOURCE_ROOT_COMMIT))
     share = f"{100.0 * placeholder / n_total:.2f}%" if n_total else "—"
-    lines.append(f"\n> 占位（`no_text_change` + `root_commit`）合计 {placeholder} 条 = {share}"
-                 f"（全量 {n_total} 条）。占位串只是「该提交没有可取的文本变更」这一事实的"
-                 "显式登记，不是伪造的 diff；`text_source` 列不进特征、不进模型输入，"
-                 "只用于本段登记与下面的稳健性附注。\n")
+    lines.append(
+        f"\n> 占位（`no_text_change` + `root_commit`）合计 {placeholder} 条 = {share}"
+        f"（全量 {n_total} 条）。占位串只是「该提交没有可取的文本变更」这一事实的"
+        "显式登记，不是伪造的 diff；`text_source` 列不进特征、不进模型输入，"
+        "只用于本段登记与下面的稳健性附注。\n"
+    )
     return lines
 
 
@@ -286,7 +310,11 @@ def robustness_lines(kept: int, dropped: int, deltas: dict | None, retrained: bo
     不能让人读成「重训后指标不变」。
     """
     lines = ["### 稳健性附注（剔除占位样本）\n"]
-    scope = "已按剔除后样本重训" if retrained else "**模型未重训**，仅把占位行从检验集中剔除后重算指标（敏感性检查）"
+    scope = (
+        "已按剔除后样本重训"
+        if retrained
+        else "**模型未重训**，仅把占位行从检验集中剔除后重算指标（敏感性检查）"
+    )
     lines.append(f"- 检验集保留 {kept} 条、剔除 {dropped} 条（`text_source != diff`）；{scope}。\n")
     if deltas:
         items = "、".join(f"{k} 最大绝对变化 {v:.4f}" for k, v in sorted(deltas.items()))

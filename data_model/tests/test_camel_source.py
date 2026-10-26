@@ -31,20 +31,33 @@ def test_collection_and_both_szz_methods_on_local_git(tmp_path, monkeypatch):
     source.write_text("class Example { int value = 0; }\n", encoding="utf-8")
     repo.index.add(["Example.java"])
     introducing = repo.index.commit(
-        "CAMEL-1 add example", author=actor, committer=actor,
-        author_date="2026-01-01T00:00:00+0000", commit_date="2026-01-01T00:00:00+0000",
+        "CAMEL-1 add example",
+        author=actor,
+        committer=actor,
+        author_date="2026-01-01T00:00:00+0000",
+        commit_date="2026-01-01T00:00:00+0000",
     )
     source.write_text("class Example { int value = 1; }\n", encoding="utf-8")
     repo.index.add(["Example.java"])
     fixing = repo.index.commit(
-        "CAMEL-2 fix incorrect value", author=actor, committer=actor,
-        author_date="2026-01-02T00:00:00+0000", commit_date="2026-01-02T00:00:00+0000",
+        "CAMEL-2 fix incorrect value",
+        author=actor,
+        committer=actor,
+        author_date="2026-01-02T00:00:00+0000",
+        commit_date="2026-01-02T00:00:00+0000",
     )
     extract = load_script("01_extract_commits.py")
     out = tmp_path / "commits.csv"
-    monkeypatch.setattr(extract, "parse_args", lambda: SimpleNamespace(
-        repo=repo_dir, out=out, since=None, allow_head_mismatch=False,
-    ))
+    monkeypatch.setattr(
+        extract,
+        "parse_args",
+        lambda: SimpleNamespace(
+            repo=repo_dir,
+            out=out,
+            since=None,
+            allow_head_mismatch=False,
+        ),
+    )
     monkeypatch.setattr(extract, "REPORTS_DIR", tmp_path / "reports")
 
     # 生产固定提交不匹配：必须在写 CSV 前拦截。

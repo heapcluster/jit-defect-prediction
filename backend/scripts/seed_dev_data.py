@@ -4,17 +4,25 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy.exc import IntegrityError
-
 from app.db import SessionLocal, init_db
 from app.models import Commit, CommitFeature, Prediction
+from sqlalchemy.exc import IntegrityError
 
 _SEED_FEATURES = {
-    "ns": 1.0986, "nd": 1.6094, "nf": 1.9459, "entropy": 1.42,
-    "la": -4.2720, "ld": -5.2753, "lt": 7.1136,
+    "ns": 1.0986,
+    "nd": 1.6094,
+    "nf": 1.9459,
+    "entropy": 1.42,
+    "la": -4.2720,
+    "ld": -5.2753,
+    "lt": 7.1136,
     "fix": 1,
-    "ndev": 1.3863, "age": 2.5257, "nuc": 0.2513,
-    "exp": 5.7683, "rexp": 3.8114, "sexp": 2.8904,
+    "ndev": 1.3863,
+    "age": 2.5257,
+    "nuc": 0.2513,
+    "exp": 5.7683,
+    "rexp": 3.8114,
+    "sexp": 2.8904,
 }
 
 

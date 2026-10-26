@@ -22,27 +22,39 @@ from pathlib import Path
 
 import httpx
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
 from app.db import Base
 from app.models import Commit, CommitFeature, Prediction
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "demo_preflight.py"
 HASH = "a" * 40
 TOKEN = "dev-token-20260918"
 FEATURES = {
-    "ns": 1.0986, "nd": 1.6094, "nf": 1.9459, "entropy": 1.42,
-    "la": -4.2720, "ld": -5.2753, "lt": 7.1136,
+    "ns": 1.0986,
+    "nd": 1.6094,
+    "nf": 1.9459,
+    "entropy": 1.42,
+    "la": -4.2720,
+    "ld": -5.2753,
+    "lt": 7.1136,
     "fix": 1,
-    "ndev": 1.3863, "age": 2.5257, "nuc": 0.2513,
-    "exp": 5.7683, "rexp": 3.8114, "sexp": 2.8904,
+    "ndev": 1.3863,
+    "age": 2.5257,
+    "nuc": 0.2513,
+    "exp": 5.7683,
+    "rexp": 3.8114,
+    "sexp": 2.8904,
 }
-GOOD_LOG = ("INFO:backend.model_registry:loaded models: "
-            "['lr_v1', 'rf_v1', 'xgb_v1', 'lgbm_v1', 'et_v1', 'svm_v1', 'mlp_deep_v1', 'tabnet_v1']\n")
-FAILED_LOG = ("INFO:backend.model_registry:loaded models: "
-              "['lr_v1', 'rf_v1', 'xgb_v1', 'lgbm_v1', 'et_v1', 'svm_v1']\n"
-              "ERROR:backend.model_registry:failed models: ['mlp_deep_v1', 'tabnet_v1']\n")
+GOOD_LOG = (
+    "INFO:backend.model_registry:loaded models: "
+    "['lr_v1', 'rf_v1', 'xgb_v1', 'lgbm_v1', 'et_v1', 'svm_v1', 'mlp_deep_v1', 'tabnet_v1']\n"
+)
+FAILED_LOG = (
+    "INFO:backend.model_registry:loaded models: "
+    "['lr_v1', 'rf_v1', 'xgb_v1', 'lgbm_v1', 'et_v1', 'svm_v1']\n"
+    "ERROR:backend.model_registry:failed models: ['mlp_deep_v1', 'tabnet_v1']\n"
+)
 
 
 def _load_module():
@@ -60,12 +72,32 @@ def _make_db(tmp_path: Path, scores: list[tuple[str, float, str]]) -> str:
     Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine)()
     for commit_hash, score, model in scores:
-        session.add(Commit(commit_hash=commit_hash, repo_name="camel", author_name="jdoe",
-                           committed_at=datetime(2026, 8, 3, 9, 0, 0), message="CAMEL-1 fix"))
-        session.add(CommitFeature(commit_hash=commit_hash, committed_at=datetime(2026, 8, 3, 9, 0, 0),
-                                  feature_version="v1", **FEATURES))
-        session.add(Prediction(commit_hash=commit_hash, model_name=model, risk_score=score,
-                               predicted_at=datetime(2026, 9, 1, 8, 0, 0), feature_version="v1"))
+        session.add(
+            Commit(
+                commit_hash=commit_hash,
+                repo_name="camel",
+                author_name="jdoe",
+                committed_at=datetime(2026, 8, 3, 9, 0, 0),
+                message="CAMEL-1 fix",
+            )
+        )
+        session.add(
+            CommitFeature(
+                commit_hash=commit_hash,
+                committed_at=datetime(2026, 8, 3, 9, 0, 0),
+                feature_version="v1",
+                **FEATURES,
+            )
+        )
+        session.add(
+            Prediction(
+                commit_hash=commit_hash,
+                model_name=model,
+                risk_score=score,
+                predicted_at=datetime(2026, 9, 1, 8, 0, 0),
+                feature_version="v1",
+            )
+        )
     session.commit()
     session.close()
     engine.dispose()
@@ -97,18 +129,40 @@ class FakeClient:
 
     def get(self, url, params=None, headers=None):
         if url.rstrip("/").endswith("/api/commits"):
-            return FakeResp(200, {"code": 0, "message": "ok",
-                                  "data": {"items": [{"commit_hash": HASH}], "total": 1}})
+            return FakeResp(
+                200,
+                {
+                    "code": 0,
+                    "message": "ok",
+                    "data": {"items": [{"commit_hash": HASH}], "total": 1},
+                },
+            )
         if "/api/trends" in url:
-            return FakeResp(200, {"code": 0, "message": "ok", "data": {"granularity": "week", "items": []}})
-        return FakeResp(200, {"code": 0, "message": "ok",
-                              "data": {"commit_hash": HASH, "features": FEATURES, "explanation": []}})
+            return FakeResp(
+                200, {"code": 0, "message": "ok", "data": {"granularity": "week", "items": []}}
+            )
+        return FakeResp(
+            200,
+            {
+                "code": 0,
+                "message": "ok",
+                "data": {"commit_hash": HASH, "features": FEATURES, "explanation": []},
+            },
+        )
 
     def post(self, url, json=None, headers=None):
-        return FakeResp(self._predict_status,
-                        {"code": self._predict_code, "message": "ok",
-                         "data": {"commit_hash": HASH, "model_name": (json or {}).get("model_name"),
-                                  "risk_score": 0.9}})
+        return FakeResp(
+            self._predict_status,
+            {
+                "code": self._predict_code,
+                "message": "ok",
+                "data": {
+                    "commit_hash": HASH,
+                    "model_name": (json or {}).get("model_name"),
+                    "risk_score": 0.9,
+                },
+            },
+        )
 
 
 class RaisingClient(FakeClient):
@@ -153,16 +207,28 @@ class FakeProc:
         self._rc = -9
 
 
-def _wire(monkeypatch, mod, tmp_path, db_url, *, log_text=GOOD_LOG, ready=True,
-          backend_token=TOKEN, frontend_token=TOKEN, write_frontend=True,
-          client=None):
+def _wire(
+    monkeypatch,
+    mod,
+    tmp_path,
+    db_url,
+    *,
+    log_text=GOOD_LOG,
+    ready=True,
+    backend_token=TOKEN,
+    frontend_token=TOKEN,
+    write_frontend=True,
+    client=None,
+):
     """把服务、HTTP、两份 .env 都换成可控的假实现，返回本次运行的 argv 尾巴。"""
     monkeypatch.setattr(mod.config, "DATABASE_URL", db_url)
     monkeypatch.setattr(mod.config, "MODEL_DIR", tmp_path / "models")
     monkeypatch.setenv("API_TOKEN", backend_token)
 
     backend_env = tmp_path / "backend.env"
-    backend_env.write_text(f"# 注释行\nAPI_TOKEN={backend_token}\nDATABASE_URL={db_url}\n", encoding="utf-8")
+    backend_env.write_text(
+        f"# 注释行\nAPI_TOKEN={backend_token}\nDATABASE_URL={db_url}\n", encoding="utf-8"
+    )
     frontend_env = tmp_path / "frontend.env.local"
     if write_frontend:
         frontend_env.write_text(f'VITE_API_KEY="{frontend_token}"\n', encoding="utf-8")
@@ -173,12 +239,27 @@ def _wire(monkeypatch, mod, tmp_path, db_url, *, log_text=GOOD_LOG, ready=True,
         return FakeProc()
 
     monkeypatch.setattr(mod, "start_service", fake_start)
-    monkeypatch.setattr(mod, "wait_ready",
-                        lambda c, base, proc, timeout: (ready, "HTTP 401（无令牌，401 即为已就绪）"
-                                                        if ready else "120s 内未就绪，最后一次异常 ConnectError"))
+    monkeypatch.setattr(
+        mod,
+        "wait_ready",
+        lambda c, base, proc, timeout: (
+            ready,
+            "HTTP 401（无令牌，401 即为已就绪）"
+            if ready
+            else "120s 内未就绪，最后一次异常 ConnectError",
+        ),
+    )
     monkeypatch.setattr(mod.httpx, "Client", lambda **kw: client or FakeClient())
-    return ["--backend-env", str(backend_env), "--frontend-env", str(frontend_env),
-            "--port", "8099", "--timeout", "1"]
+    return [
+        "--backend-env",
+        str(backend_env),
+        "--frontend-env",
+        str(frontend_env),
+        "--port",
+        "8099",
+        "--timeout",
+        "1",
+    ]
 
 
 def _run(monkeypatch, mod, tmp_path, argv_extra, **wire_kwargs):
@@ -190,11 +271,15 @@ def _run(monkeypatch, mod, tmp_path, argv_extra, **wire_kwargs):
 
 # ── 纯函数 ──────────────────────────────────────────────────────────
 
+
 def test_parse_dotenv_handles_quotes_comments_and_export(tmp_path):
     mod = _load_module()
     path = tmp_path / ".env"
-    path.write_text('# 注释\n\nAPI_TOKEN="quoted-token"\nVITE_API_KEY=\'single\'\n'
-                    "export MODEL_DIR=/tmp/x\r\nEMPTY=\r\nno_equals_line\r\n", encoding="utf-8")
+    path.write_text(
+        "# 注释\n\nAPI_TOKEN=\"quoted-token\"\nVITE_API_KEY='single'\n"
+        "export MODEL_DIR=/tmp/x\r\nEMPTY=\r\nno_equals_line\r\n",
+        encoding="utf-8",
+    )
     values = mod.parse_dotenv(path)
     assert values["API_TOKEN"] == "quoted-token"
     assert values["VITE_API_KEY"] == "single"
@@ -225,8 +310,12 @@ def test_display_path_hides_paths_outside_repo(tmp_path):
 def test_parse_startup_log_reads_loaded_and_failed_lines():
     mod = _load_module()
     loaded, failed, raw = mod.parse_startup_log(GOOD_LOG)
-    assert loaded == ["lr_v1", "rf_v1", "xgb_v1", "lgbm_v1", "et_v1", "svm_v1",
-                      "mlp_deep_v1", "tabnet_v1"] and failed is False and "loaded models" in raw
+    assert (
+        loaded
+        == ["lr_v1", "rf_v1", "xgb_v1", "lgbm_v1", "et_v1", "svm_v1", "mlp_deep_v1", "tabnet_v1"]
+        and failed is False
+        and "loaded models" in raw
+    )
     loaded, failed, raw = mod.parse_startup_log(FAILED_LOG)
     assert loaded == ["lr_v1", "rf_v1", "xgb_v1", "lgbm_v1", "et_v1", "svm_v1"] and failed is True
     assert "failed models" in raw
@@ -235,15 +324,24 @@ def test_parse_startup_log_reads_loaded_and_failed_lines():
 
 # ── 全绿路径 ────────────────────────────────────────────────────────
 
+
 def test_all_six_pass_returns_0_and_masks_secrets(monkeypatch, tmp_path, capsys):
     mod = _load_module()
     db_url = _make_db(tmp_path, [(HASH, 0.9, "xgb_v1")])
     out = tmp_path / "evidence" / "preflight.md"
-    rc = _run(monkeypatch, mod, tmp_path, ["--expect-predictions", "1", "--out", str(out)], db_url=db_url)
+    rc = _run(
+        monkeypatch, mod, tmp_path, ["--expect-predictions", "1", "--out", str(out)], db_url=db_url
+    )
     text = capsys.readouterr().out
     assert rc == 0, text
-    for name in ("1 令牌一致", "2 库行数", "3 存在高风险行", "4 交付模型全部加载",
-                 "5 四接口 200", "6 同 hash 两次预测只留一行"):
+    for name in (
+        "1 令牌一致",
+        "2 库行数",
+        "3 存在高风险行",
+        "4 交付模型全部加载",
+        "5 四接口 200",
+        "6 同 hash 两次预测只留一行",
+    ):
         assert f"PASS {name} ::" in text, name
     assert "汇总：6/6 通过" in text
     assert TOKEN not in text and TOKEN not in out.read_text(encoding="utf-8"), "令牌不得回显"
@@ -254,12 +352,19 @@ def test_all_six_pass_returns_0_and_masks_secrets(monkeypatch, tmp_path, capsys)
 
 # ── 判据 1：令牌 ────────────────────────────────────────────────────
 
+
 def test_token_mismatch_fails_rc1_and_masks_both(monkeypatch, tmp_path, capsys):
     mod = _load_module()
     db_url = _make_db(tmp_path, [(HASH, 0.9, "xgb_v1")])
     out = tmp_path / "evidence" / "preflight-fail.md"
-    rc = _run(monkeypatch, mod, tmp_path, ["--expect-predictions", "1", "--out", str(out)],
-              db_url=db_url, frontend_token="another-token-999")
+    rc = _run(
+        monkeypatch,
+        mod,
+        tmp_path,
+        ["--expect-predictions", "1", "--out", str(out)],
+        db_url=db_url,
+        frontend_token="another-token-999",
+    )
     text = capsys.readouterr().out
     assert rc == 1, "令牌不一致必须进 rc"
     assert "FAIL 1 令牌一致 ::" in text and "不相等" in text
@@ -272,8 +377,14 @@ def test_token_mismatch_fails_rc1_and_masks_both(monkeypatch, tmp_path, capsys):
 def test_missing_frontend_env_fails_rc1(monkeypatch, tmp_path, capsys):
     mod = _load_module()
     db_url = _make_db(tmp_path, [(HASH, 0.9, "xgb_v1")])
-    rc = _run(monkeypatch, mod, tmp_path, ["--expect-predictions", "1"],
-              db_url=db_url, write_frontend=False)
+    rc = _run(
+        monkeypatch,
+        mod,
+        tmp_path,
+        ["--expect-predictions", "1"],
+        db_url=db_url,
+        write_frontend=False,
+    )
     text = capsys.readouterr().out
     assert rc == 1
     assert "FAIL 1 令牌一致 ::" in text and "配置文件不存在" in text and "40100" in text
@@ -283,8 +394,15 @@ def test_empty_backend_token_fails_rc1(monkeypatch, tmp_path, capsys):
     mod = _load_module()
     db_url = _make_db(tmp_path, [(HASH, 0.9, "xgb_v1")])
     monkeypatch.delenv("API_TOKEN", raising=False)
-    rc = _run(monkeypatch, mod, tmp_path, ["--expect-predictions", "1"],
-              db_url=db_url, backend_token="", frontend_token="")
+    rc = _run(
+        monkeypatch,
+        mod,
+        tmp_path,
+        ["--expect-predictions", "1"],
+        db_url=db_url,
+        backend_token="",
+        frontend_token="",
+    )
     text = capsys.readouterr().out
     assert rc == 1
     assert "FAIL 1 令牌一致 ::" in text and "没有 API_TOKEN" in text
@@ -292,6 +410,7 @@ def test_empty_backend_token_fails_rc1(monkeypatch, tmp_path, capsys):
 
 
 # ── 判据 2、3：库 ───────────────────────────────────────────────────
+
 
 def test_empty_db_fails_2_3_and_blocks_456(monkeypatch, tmp_path, capsys):
     mod = _load_module()
@@ -323,8 +442,19 @@ def test_missing_database_url_fails_2_3(monkeypatch, tmp_path, capsys):
     backend_env.write_text(f"API_TOKEN={TOKEN}\n", encoding="utf-8")
     frontend_env = tmp_path / "frontend.env.local"
     frontend_env.write_text(f"VITE_API_KEY={TOKEN}\n", encoding="utf-8")
-    monkeypatch.setattr(sys, "argv", ["demo_preflight", "--backend-env", str(backend_env),
-                                      "--frontend-env", str(frontend_env), "--port", "8099"])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "demo_preflight",
+            "--backend-env",
+            str(backend_env),
+            "--frontend-env",
+            str(frontend_env),
+            "--port",
+            "8099",
+        ],
+    )
     rc = mod.main()
     text = capsys.readouterr().out
     assert rc == 1
@@ -333,7 +463,9 @@ def test_missing_database_url_fails_2_3(monkeypatch, tmp_path, capsys):
 
 def test_unreachable_db_fails_with_driver_error(monkeypatch, tmp_path, capsys):
     mod = _load_module()
-    rc = _run(monkeypatch, mod, tmp_path, [], db_url=f"sqlite:///{(tmp_path / 'nope').as_posix()}/x.db")
+    rc = _run(
+        monkeypatch, mod, tmp_path, [], db_url=f"sqlite:///{(tmp_path / 'nope').as_posix()}/x.db"
+    )
     text = capsys.readouterr().out
     assert rc == 1
     assert "FAIL 2 库行数 :: 数据库不可用" in text
@@ -341,11 +473,18 @@ def test_unreachable_db_fails_with_driver_error(monkeypatch, tmp_path, capsys):
 
 # ── 判据 4、5、6：服务 ──────────────────────────────────────────────
 
+
 def test_failed_models_line_fails_check4(monkeypatch, tmp_path, capsys):
     mod = _load_module()
     db_url = _make_db(tmp_path, [(HASH, 0.9, "xgb_v1")])
-    rc = _run(monkeypatch, mod, tmp_path, ["--expect-predictions", "1"],
-              db_url=db_url, log_text=FAILED_LOG)
+    rc = _run(
+        monkeypatch,
+        mod,
+        tmp_path,
+        ["--expect-predictions", "1"],
+        db_url=db_url,
+        log_text=FAILED_LOG,
+    )
     text = capsys.readouterr().out
     assert rc == 1
     assert "FAIL 4 交付模型全部加载 ::" in text and "failed models" in text
@@ -355,8 +494,15 @@ def test_failed_models_line_fails_check4(monkeypatch, tmp_path, capsys):
 def test_service_not_ready_fails_456_with_log_tail(monkeypatch, tmp_path, capsys):
     mod = _load_module()
     db_url = _make_db(tmp_path, [(HASH, 0.9, "xgb_v1")])
-    rc = _run(monkeypatch, mod, tmp_path, ["--expect-predictions", "1"],
-              db_url=db_url, ready=False, log_text="boom: 端口被占用\n")
+    rc = _run(
+        monkeypatch,
+        mod,
+        tmp_path,
+        ["--expect-predictions", "1"],
+        db_url=db_url,
+        ready=False,
+        log_text="boom: 端口被占用\n",
+    )
     text = capsys.readouterr().out
     assert rc == 1
     assert "FAIL 4 交付模型全部加载 :: 服务没起来" in text
@@ -379,8 +525,14 @@ def test_network_error_in_checks_fails_5_and_6(monkeypatch, tmp_path, capsys):
     """请求抛网络异常时不许静默通过：判据 5、6 都得 FAIL 且进 rc。"""
     mod = _load_module()
     db_url = _make_db(tmp_path, [(HASH, 0.9, "xgb_v1")])
-    rc = _run(monkeypatch, mod, tmp_path, ["--expect-predictions", "1"],
-              db_url=db_url, client=RaisingClient(fail_get=True))
+    rc = _run(
+        monkeypatch,
+        mod,
+        tmp_path,
+        ["--expect-predictions", "1"],
+        db_url=db_url,
+        client=RaisingClient(fail_get=True),
+    )
     text = capsys.readouterr().out
     assert rc == 1
     assert "FAIL 5 四接口 200 :: 请求异常：ConnectError" in text
@@ -391,8 +543,14 @@ def test_network_error_on_second_post_fails_6(monkeypatch, tmp_path, capsys):
     """第一次 POST 成功、第二次断连：判据 5 过、判据 6 必须 FAIL（不许拿第一次当幂等证据）。"""
     mod = _load_module()
     db_url = _make_db(tmp_path, [(HASH, 0.9, "xgb_v1")])
-    rc = _run(monkeypatch, mod, tmp_path, ["--expect-predictions", "1"],
-              db_url=db_url, client=RaisingClient(post_fail_at=2))
+    rc = _run(
+        monkeypatch,
+        mod,
+        tmp_path,
+        ["--expect-predictions", "1"],
+        db_url=db_url,
+        client=RaisingClient(post_fail_at=2),
+    )
     text = capsys.readouterr().out
     assert rc == 1
     assert "PASS 5 四接口 200 ::" in text
@@ -402,8 +560,14 @@ def test_network_error_on_second_post_fails_6(monkeypatch, tmp_path, capsys):
 def test_predict_500_fails_check5(monkeypatch, tmp_path, capsys):
     mod = _load_module()
     db_url = _make_db(tmp_path, [(HASH, 0.9, "xgb_v1")])
-    rc = _run(monkeypatch, mod, tmp_path, ["--expect-predictions", "1"], db_url=db_url,
-              client=FakeClient(predict_status=500, predict_code=50000))
+    rc = _run(
+        monkeypatch,
+        mod,
+        tmp_path,
+        ["--expect-predictions", "1"],
+        db_url=db_url,
+        client=FakeClient(predict_status=500, predict_code=50000),
+    )
     text = capsys.readouterr().out
     assert rc == 1
     assert "FAIL 5 四接口 200 ::" in text and "POST /api/predict → HTTP 500 code=50000" in text
@@ -432,13 +596,21 @@ def test_upsert_inserting_second_row_fails_check6(monkeypatch, tmp_path, capsys)
 
 # ── CLI 守卫 ────────────────────────────────────────────────────────
 
+
 def test_module_entry_prints_usage_flags():
     """`python -m scripts.demo_preflight --help` 真走一遍模块导入（含 app.config）。"""
     backend = Path(__file__).resolve().parents[1]
     env = dict(os.environ, PYTHONUTF8="1")
     env.pop("PYTHONPATH", None)
-    proc = subprocess.run([sys.executable, "-m", "scripts.demo_preflight", "--help"],
-                          cwd=str(backend), env=env, capture_output=True, text=True, timeout=180, check=False)
+    proc = subprocess.run(
+        [sys.executable, "-m", "scripts.demo_preflight", "--help"],
+        cwd=str(backend),
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=180,
+        check=False,
+    )
     assert proc.returncode == 0, proc.stderr
     assert "--expect-predictions" in proc.stdout and "--frontend-env" in proc.stdout
 
@@ -464,27 +636,43 @@ def test_evidence_file_never_contains_local_absolute_paths(monkeypatch, tmp_path
     mod = _load_module()
     db_url = _make_db(tmp_path, [(HASH, 0.9, "xgb_v1")])
     out = tmp_path / "evidence" / "preflight.md"
-    rc = _run(monkeypatch, mod, tmp_path, ["--expect-predictions", "1", "--out", str(out)], db_url=db_url)
+    rc = _run(
+        monkeypatch, mod, tmp_path, ["--expect-predictions", "1", "--out", str(out)], db_url=db_url
+    )
     assert rc == 0
     evidence = out.read_text(encoding="utf-8")
     drive = str(tmp_path)[:2]
-    for chunk in (str(tmp_path), str(tmp_path).replace("\\", "/"), drive + "\\Users", drive + "/Users"):
+    for chunk in (
+        str(tmp_path),
+        str(tmp_path).replace("\\", "/"),
+        drive + "\\Users",
+        drive + "/Users",
+    ):
         assert chunk not in evidence, f"证据文件里出现了本机路径：{chunk}"
     assert "<本机路径>" in evidence, "应替换为占位符而不是直接删掉整行"
 
-    sample = f"库：sqlite:///{(tmp_path / 'demo.db').as_posix()}；模型目录 {tmp_path / 'm'}；口令 ***"
-    cleaned = mod.sanitize_for_evidence(sample, mod.local_replacements(f"sqlite:///{(tmp_path / 'demo.db').as_posix()}"))
+    sample = (
+        f"库：sqlite:///{(tmp_path / 'demo.db').as_posix()}；模型目录 {tmp_path / 'm'}；口令 ***"
+    )
+    cleaned = mod.sanitize_for_evidence(
+        sample, mod.local_replacements(f"sqlite:///{(tmp_path / 'demo.db').as_posix()}")
+    )
     assert str(tmp_path) not in cleaned and "<本机路径>" in cleaned and "口令 ***" in cleaned
 
 
 def test_sanitize_keeps_api_paths_and_repo_relative_paths():
     """兜底正则不许误伤：契约三的 `/api/...` 与仓库内相对路径必须原样留下。"""
     mod = _load_module()
-    text = ("GET /api/commits → HTTP 200；GET /api/trends；POST /api/predict；"
-            "pipelines/e2e/data/prediction_result.csv；backend/scripts/demo_preflight.py")
+    text = (
+        "GET /api/commits → HTTP 200；GET /api/trends；POST /api/predict；"
+        "pipelines/e2e/data/prediction_result.csv；backend/scripts/demo_preflight.py"
+    )
     assert mod.sanitize_for_evidence(text, {}) == text
     assert mod.sanitize_for_evidence("日志在 /tmp/x/uvicorn.log", {}) == "日志在 <本机路径>"
-    assert mod.sanitize_for_evidence("库 sqlite:////tmp/pytest-x/db.sqlite", {}) == "库 sqlite:///<本机路径>"
+    assert (
+        mod.sanitize_for_evidence("库 sqlite:////tmp/pytest-x/db.sqlite", {})
+        == "库 sqlite:///<本机路径>"
+    )
 
 
 @pytest.mark.parametrize("model_name", ["xgb_v1", "seed_v1"])
@@ -521,8 +709,9 @@ def fresh_db_engine():
         app_db.SessionLocal.kw.pop("bind", None)
 
 
-def test_init_db_stage_reaches_seven_of_seven_on_a_seeded_database(fresh_db_engine,
-        tmp_path, monkeypatch, capsys):
+def test_init_db_stage_reaches_seven_of_seven_on_a_seeded_database(
+    fresh_db_engine, tmp_path, monkeypatch, capsys
+):
     """建库→起服务→断言一条命令跑通：阶段 1 条 + 判据 6 条 = 7/7、rc=0，且表是真建出来的。
 
     数据入口已统一为实时同步（`POST /api/sync` / `/api/sync-prs`），离线灌库（app.ingest）
@@ -530,9 +719,7 @@ def test_init_db_stage_reaches_seven_of_seven_on_a_seeded_database(fresh_db_engi
     """
     mod = _load_module()
     db_url = _make_db(tmp_path, [(HASH, 0.9, "xgb_v1")])
-    rc = _run(monkeypatch, mod, tmp_path,
-              ["--init-db", "--expect-predictions", "1"],
-              db_url=db_url)
+    rc = _run(monkeypatch, mod, tmp_path, ["--init-db", "--expect-predictions", "1"], db_url=db_url)
     out = capsys.readouterr().out
     assert rc == 0, out
     assert "PASS 0a 建库建表" in out
@@ -543,28 +730,35 @@ def test_init_db_stage_reaches_seven_of_seven_on_a_seeded_database(fresh_db_engi
     assert counts == {"commit": 1, "commit_label": 0, "commit_feature": 1, "prediction": 1}
 
 
-def test_stages_print_before_the_six_criteria_and_do_not_change_their_numbering(fresh_db_engine, 
-        tmp_path, monkeypatch, capsys):
+def test_stages_print_before_the_six_criteria_and_do_not_change_their_numbering(
+    fresh_db_engine, tmp_path, monkeypatch, capsys
+):
     mod = _load_module()
     db_url = f"sqlite:///{(tmp_path / 'blank2.db').as_posix()}"
     rc = _run(monkeypatch, mod, tmp_path, ["--init-db"], db_url=db_url)
     out = capsys.readouterr().out
     assert rc == 1, "空库上判据 2/3 必须 FAIL，不许因为建库成功就整体判绿"
-    assert out.index("0a 建库建表") < out.index("1 令牌一致") < out.index("6 同 hash 两次预测只留一行")
+    assert (
+        out.index("0a 建库建表") < out.index("1 令牌一致") < out.index("6 同 hash 两次预测只留一行")
+    )
     assert "PASS 0a 建库建表" in out and "FAIL 2 库行数" in out and "FAIL 3 存在高风险行" in out
     assert "灌真实数据" not in out, "离线灌库已移除，不该出现灌数阶段"
     assert "汇总：2/7 通过" in out, "1 条阶段 + 6 条判据；只有阶段与判据 1 该绿"
 
 
-def test_stage_failure_blocks_the_db_dependent_criteria_and_never_starts_the_service(fresh_db_engine, 
-        tmp_path, monkeypatch, capsys):
+def test_stage_failure_blocks_the_db_dependent_criteria_and_never_starts_the_service(
+    fresh_db_engine, tmp_path, monkeypatch, capsys
+):
     mod = _load_module()
     started = []
     # 目录不存在 → SQLite 打不开文件 → 阶段 0a 必须 FAIL（不是异常穿透）
     db_url = f"sqlite:///{(tmp_path / 'no-such-dir' / 'x.db').as_posix()}"
     extra = _wire(monkeypatch, mod, tmp_path, db_url)
-    monkeypatch.setattr(mod, "start_service",
-                        lambda *a, **k: started.append(a) or pytest.fail("前置阶段 FAIL 就不该起服务"))
+    monkeypatch.setattr(
+        mod,
+        "start_service",
+        lambda *a, **k: started.append(a) or pytest.fail("前置阶段 FAIL 就不该起服务"),
+    )
     monkeypatch.setattr(sys, "argv", ["demo_preflight", *extra, "--init-db"])
     rc = mod.main()
     out = capsys.readouterr().out
@@ -577,7 +771,9 @@ def test_stage_failure_blocks_the_db_dependent_criteria_and_never_starts_the_ser
     assert "汇总：1/7 通过" in out
 
 
-def test_evidence_records_the_stage_flags_and_masks_every_csv_path(fresh_db_engine, tmp_path, monkeypatch):
+def test_evidence_records_the_stage_flags_and_masks_every_csv_path(
+    fresh_db_engine, tmp_path, monkeypatch
+):
     mod = _load_module()
     db_url = _make_db(tmp_path, [(HASH, 0.9, "xgb_v1")])
     out_file = tmp_path / "evidence" / "preflight.md"
@@ -604,25 +800,37 @@ def _stage_args(mod, **overrides):
 
 def test_evidence_command_omits_defaults_when_no_stage_is_requested():
     mod = _load_module()
-    assert mod.evidence_command(_stage_args(mod, port=8099)) == \
-        "python -m scripts.demo_preflight --port 8099"
+    assert (
+        mod.evidence_command(_stage_args(mod, port=8099))
+        == "python -m scripts.demo_preflight --port 8099"
+    )
 
 
 def test_evidence_command_records_every_non_default_verdict_parameter():
     """漏记任一判据参数，「照命令复跑」就会得出与本次不同的结论（sober-hub #151 复审第 2 条）。"""
     mod = _load_module()
     args = _stage_args(
-        mod, init_db=True,
-        port=8099, host="0.0.0.0", expect_predictions=3,
-        expect_models="lr_v1,rf_v1,xgb_v1,lgbm_v1", timeout=5.0,
-        backend_env="/elsewhere/backend.env", frontend_env="/elsewhere/frontend.env.local",
+        mod,
+        init_db=True,
+        port=8099,
+        host="0.0.0.0",
+        expect_predictions=3,
+        expect_models="lr_v1,rf_v1,xgb_v1,lgbm_v1",
+        timeout=5.0,
+        backend_env="/elsewhere/backend.env",
+        frontend_env="/elsewhere/frontend.env.local",
     )
     command = mod.evidence_command(args)
-    for needle in ("--init-db", "--port 8099",
-                   "--host 0.0.0.0", "--expect-predictions 3",
-                   "--expect-models lr_v1,rf_v1,xgb_v1,lgbm_v1", "--timeout 5.0",
-                   "--backend-env /elsewhere/backend.env",
-                   "--frontend-env /elsewhere/frontend.env.local"):
+    for needle in (
+        "--init-db",
+        "--port 8099",
+        "--host 0.0.0.0",
+        "--expect-predictions 3",
+        "--expect-models lr_v1,rf_v1,xgb_v1,lgbm_v1",
+        "--timeout 5.0",
+        "--backend-env /elsewhere/backend.env",
+        "--frontend-env /elsewhere/frontend.env.local",
+    ):
         assert needle in command, f"证据命令漏记了影响判定的参数：{needle}\n实际：{command}"
 
 
@@ -634,15 +842,27 @@ def test_evidence_command_has_no_ingest_leftovers():
     assert command == "python -m scripts.demo_preflight --init-db"
 
 
-def test_evidence_records_non_default_expect_models_and_flags_masked_paths(
-        tmp_path, monkeypatch):
+def test_evidence_records_non_default_expect_models_and_flags_masked_paths(tmp_path, monkeypatch):
     """端到端核对：用非默认 --expect-models 跑一次，证据里的命令必须带上它；掩码处要有替换说明。"""
     mod = _load_module()
     db_url = _make_db(tmp_path, [(HASH, 0.9, "xgb_v1")])
     out_file = tmp_path / "evidence" / "preflight.md"
-    rc = _run(monkeypatch, mod, tmp_path,
-              ["--expect-predictions", "1", "--expect-models", "lr_v1,rf_v1,xgb_v1,lgbm_v1",
-               "--timeout", "5", "--out", str(out_file)], db_url=db_url)
+    rc = _run(
+        monkeypatch,
+        mod,
+        tmp_path,
+        [
+            "--expect-predictions",
+            "1",
+            "--expect-models",
+            "lr_v1,rf_v1,xgb_v1,lgbm_v1",
+            "--timeout",
+            "5",
+            "--out",
+            str(out_file),
+        ],
+        db_url=db_url,
+    )
     text = out_file.read_text(encoding="utf-8")
     assert rc == 1, "期望清单里多了一个未交付的 lgbm_v1，判据 4 必须 FAIL"
     assert "--expect-models lr_v1,rf_v1,xgb_v1,lgbm_v1" in text
@@ -667,8 +887,9 @@ def test_init_db_points_at_the_create_database_script_when_the_schema_is_missing
     from app import db as app_db
 
     def boom():
-        raise OperationalError("CREATE TABLE …", {},
-                               Exception("(1049, \"Unknown database 'jit_demo'\")"))
+        raise OperationalError(
+            "CREATE TABLE …", {}, Exception("(1049, \"Unknown database 'jit_demo'\")")
+        )
 
     monkeypatch.setattr(app_db, "init_db", boom)
     ok, detail = mod.init_database("mysql+pymysql://u:***@127.0.0.1:3306/jit_demo")

@@ -65,7 +65,13 @@ def list_open_prs(limit: int = 20, repo: str | None = None) -> list[PullRequest]
     for page in range(1, 4):  # 最多 3 页 = 300 个 PR
         batch = _get(
             f"/repos/{repo}/pulls",
-            {"state": "open", "sort": "updated", "direction": "desc", "per_page": 100, "page": page},
+            {
+                "state": "open",
+                "sort": "updated",
+                "direction": "desc",
+                "per_page": 100,
+                "page": page,
+            },
         )
         if not isinstance(batch, list):
             break

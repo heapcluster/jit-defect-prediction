@@ -18,8 +18,11 @@ from .. import text_source
 
 def load_texts(path: Path) -> pd.DataFrame:
     if not path.is_file():
-        print(f"[semantic] 找不到文本数据集：{path}（传 --repo 自动建，或先跑 e2e 的 "
-              "build_text_dataset.py 后把 --text-csv 指过去）", file=sys.stderr)
+        print(
+            f"[semantic] 找不到文本数据集：{path}（传 --repo 自动建，或先跑 e2e 的 "
+            "build_text_dataset.py 后把 --text-csv 指过去）",
+            file=sys.stderr,
+        )
         raise SystemExit(2)
     df = pd.read_csv(path)
     missing = [c for c in ("commit_hash", "text") if c not in df.columns]
@@ -29,11 +32,13 @@ def load_texts(path: Path) -> pd.DataFrame:
     return df.dropna(subset=["text"]).reset_index(drop=True)
 
 
-def extract_texts_from_repo(repo_path: Path, dataset_csv: Path,
-                            out_csv: Path, max_chars: int) -> Path:
+def extract_texts_from_repo(
+    repo_path: Path, dataset_csv: Path, out_csv: Path, max_chars: int
+) -> Path:
     """diff 文本提取（依赖 GitPython）；口径与 e2e 包共用 `pipelines/text_source.py`。"""
     from git import Repo
     from git.exc import BadName, BadObject, GitCommandError
+
     if not (repo_path / ".git").exists():
         print(f"[semantic] 仓库不存在：{repo_path}", file=sys.stderr)
         raise SystemExit(2)
@@ -46,8 +51,7 @@ def extract_texts_from_repo(repo_path: Path, dataset_csv: Path,
         try:
             commit = repo.commit(h)
             has_parents = bool(commit.parents)
-            diffs = (commit.diff(commit.parents[0], create_patch=True, R=True)
-                     if has_parents else [])
+            diffs = commit.diff(commit.parents[0], create_patch=True, R=True) if has_parents else []
         except (BadName, BadObject, GitCommandError, OSError, ValueError) as exc:
             # 取不到提交 ≠ 无文本变更：跳过并单独计数，不落占位串
             unreachable += 1
@@ -55,8 +59,9 @@ def extract_texts_from_repo(repo_path: Path, dataset_csv: Path,
             continue
         assembled = text_source.assemble(diffs, max_chars)
         text, source = text_source.classify(has_parents, assembled)
-        rows.append(text_source.make_row(h, text, source,
-                                         int(r["is_bug_inducing"]), r["feature_version"]))
+        rows.append(
+            text_source.make_row(h, text, source, int(r["is_bug_inducing"]), r["feature_version"])
+        )
     if not rows:
         print("[semantic] 0 条有效文本", file=sys.stderr)
         raise SystemExit(1)
@@ -64,24 +69,35 @@ def extract_texts_from_repo(repo_path: Path, dataset_csv: Path,
     out_csv.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(out_csv, index=False, quoting=1)  # QUOTE_ALL：text 含换行逗号
     stats = text_source.summarize(out["text_source"])
-    positives = {name: int(((out["text_source"] == name) & (out["label"] == 1)).sum())
-                 for name in text_source.SOURCES}
-    print("[semantic] 文本 {} 条；来源：{}".format(
-        len(out), "，".join(f"{k}={v}" for k, v in stats.items())))
-    print("[semantic] 占位行中的正样本：{}".format(
-        "，".join(f"{k}={positives[k]}" for k in (text_source.SOURCE_NO_TEXT_CHANGE,
-                                                  text_source.SOURCE_ROOT_COMMIT))))
+    positives = {
+        name: int(((out["text_source"] == name) & (out["label"] == 1)).sum())
+        for name in text_source.SOURCES
+    }
+    print(
+        "[semantic] 文本 {} 条；来源：{}".format(
+            len(out), "，".join(f"{k}={v}" for k, v in stats.items())
+        )
+    )
+    print(
+        "[semantic] 占位行中的正样本：{}".format(
+            "，".join(
+                f"{k}={positives[k]}"
+                for k in (text_source.SOURCE_NO_TEXT_CHANGE, text_source.SOURCE_ROOT_COMMIT)
+            )
+        )
+    )
     if unreachable:
-        print(f"[semantic] ⚠ 另有 {unreachable} 条在克隆仓库里取不到（未落占位串）",
-              file=sys.stderr)
+        print(
+            f"[semantic] ⚠ 另有 {unreachable} 条在克隆仓库里取不到（未落占位串）", file=sys.stderr
+        )
     return out_csv
 
 
-def encode_texts(texts: list[str], text_model: str, max_len: int,
-                 batch_size: int) -> np.ndarray:
+def encode_texts(texts: list[str], text_model: str, max_len: int, batch_size: int) -> np.ndarray:
     """冻结 CodeBERT mean-pool 编码 → (N, 768) float32。只前向、无梯度。"""
     import torch
     from transformers import AutoModel, AutoTokenizer
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[semantic] 编码设备：{device}（冻结，只前向）")
     tokenizer = AutoTokenizer.from_pretrained(text_model)
@@ -91,11 +107,15 @@ def encode_texts(texts: list[str], text_model: str, max_len: int,
     out = []
     with torch.no_grad():
         for i in range(0, len(texts), batch_size):
-            batch = tokenizer(texts[i:i + batch_size], truncation=True,
-                              padding="max_length", max_length=max_len,
-                              return_tensors="pt").to(device)
-            hidden = encoder(**batch).last_hidden_state          # (B, L, 768)
-            mask = batch["attention_mask"].unsqueeze(-1)          # (B, L, 1)
+            batch = tokenizer(
+                texts[i : i + batch_size],
+                truncation=True,
+                padding="max_length",
+                max_length=max_len,
+                return_tensors="pt",
+            ).to(device)
+            hidden = encoder(**batch).last_hidden_state  # (B, L, 768)
+            mask = batch["attention_mask"].unsqueeze(-1)  # (B, L, 1)
             pooled = (hidden * mask).sum(1) / mask.sum(1).clamp(min=1)
             out.append(pooled.cpu().numpy().astype(np.float32))
             if (i // batch_size) % 20 == 0:
@@ -130,12 +150,14 @@ def save_embeddings(path: Path, df: pd.DataFrame, emb: np.ndarray) -> None:
     """
     sources = text_source.sources_of(df)
     path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(path,
-                        commit_hash=_as_str_array(df["commit_hash"]),
-                        embeddings=emb,
-                        labels=df["label"].to_numpy() if "label" in df.columns else np.array([]),
-                        feature_version=_as_str_array(sorted(set(df["feature_version"]))),
-                        text_source=_as_str_array(sources))
+    np.savez_compressed(
+        path,
+        commit_hash=_as_str_array(df["commit_hash"]),
+        embeddings=emb,
+        labels=df["label"].to_numpy() if "label" in df.columns else np.array([]),
+        feature_version=_as_str_array(sorted(set(df["feature_version"]))),
+        text_source=_as_str_array(sources),
+    )
 
 
 def load_embeddings(path: Path) -> tuple[list[str], np.ndarray, np.ndarray | None, list[str]]:
@@ -161,8 +183,7 @@ def load_effort(path: Path, hashes: pd.Series) -> np.ndarray:
     raw = pd.read_csv(path).set_index("commit_hash")
     missing = [h for h in hashes if h not in raw.index]
     if missing:
-        print(f"[semantic] 原始特征表缺 {len(missing)} 条（例：{missing[0]}）",
-              file=sys.stderr)
+        print(f"[semantic] 原始特征表缺 {len(missing)} 条（例：{missing[0]}）", file=sys.stderr)
         raise SystemExit(2)
     sub = raw.loc[list(hashes)]
     return (sub["la"].astype(float) + sub["ld"].astype(float)).to_numpy()

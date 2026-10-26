@@ -23,24 +23,41 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXTRACT_FEATURES = REPO_ROOT / "data_model" / "preparation" / "03_extract_features.py"
 BACKEND_CONFIG = REPO_ROOT / "backend" / "app" / "config.py"
-FEATURE_ORDER_TXT = REPO_ROOT / "data_model" / "pipelines" / "expert" / "models" / "feature_order.txt"
+FEATURE_ORDER_TXT = (
+    REPO_ROOT / "data_model" / "pipelines" / "expert" / "models" / "feature_order.txt"
+)
 CONTRACT_MD = REPO_ROOT / "docs" / "model" / "feature-columns.md"
 MODEL_DIR = REPO_ROOT / "data_model" / "pipelines" / "expert" / "models"
 
 # 契约二第三节：14 项，顺序即契约出现顺序（五维度分组）
 EXPECTED_14 = [
-    "ns", "nd", "nf", "entropy",  # 代码分布 Diffusion
-    "la", "ld", "lt",  # 规模 Size
+    "ns",
+    "nd",
+    "nf",
+    "entropy",  # 代码分布 Diffusion
+    "la",
+    "ld",
+    "lt",  # 规模 Size
     "fix",  # 目的 Purpose
-    "ndev", "age", "nuc",  # 历史 History
-    "exp", "rexp", "sexp",  # 开发者经验 Experience
+    "ndev",
+    "age",
+    "nuc",  # 历史 History
+    "exp",
+    "rexp",
+    "sexp",  # 开发者经验 Experience
 ]
 
 # 交付边界（specs/model-coverage R6，2026-10-25 组长裁定 Issue #139 起 8 模型全部上线）：
 # [models] 段登记交给后端加载的 8 个；新增模型仍走 change 流程，不静默加
 DELIVERED_MODELS = [
-    "lr_v1.pkl", "rf_v1.pkl", "xgb_v1.pkl",
-    "lgbm_v1.pkl", "et_v1.pkl", "svm_v1.pkl", "mlp_deep_v1.pkl", "tabnet_v1.pkl",
+    "lr_v1.pkl",
+    "rf_v1.pkl",
+    "xgb_v1.pkl",
+    "lgbm_v1.pkl",
+    "et_v1.pkl",
+    "svm_v1.pkl",
+    "mlp_deep_v1.pkl",
+    "tabnet_v1.pkl",
 ]
 
 
@@ -90,8 +107,12 @@ def _manifest_models() -> list[str]:
     "source",
     [
         pytest.param(_contract_columns, id="契约文档-第三节"),
-        pytest.param(lambda: _literal(EXTRACT_FEATURES, "FEATURE_FIELDS"), id="实现-FEATURE_FIELDS"),
-        pytest.param(lambda: _literal(BACKEND_CONFIG, "FEATURE_COLUMNS"), id="后端-FEATURE_COLUMNS"),
+        pytest.param(
+            lambda: _literal(EXTRACT_FEATURES, "FEATURE_FIELDS"), id="实现-FEATURE_FIELDS"
+        ),
+        pytest.param(
+            lambda: _literal(BACKEND_CONFIG, "FEATURE_COLUMNS"), id="后端-FEATURE_COLUMNS"
+        ),
         pytest.param(_manifest_columns, id="交付清单-feature_order"),
     ],
 )
