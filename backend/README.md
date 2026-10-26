@@ -58,7 +58,7 @@ uvicorn app.main:app --reload --port 8000
 
 **迁移方式自行决定**（Alembic 或建表 SQL 脚本都行），但要满足 —— 别人 clone 后一条命令能把库建好。这属于完成定义第 1 条「能在别人机器上跑起来」。
 
-## 建表与灌入
+## 建表与入库
 
 ### 建表：SQL 或 Python 二选一
 
@@ -99,20 +99,21 @@ python -c "from app.db import get_engine, _assert_indexes; _assert_indexes(get_e
 
 Python 建表入口已自动执行该自检；它只覆盖 `INDEX_ASSERTIONS` 的核心索引，不是完整列/键对照。若自检失败，应另走经授权的正式迁移，不因 SQL 执行成功便视为结构已修复。静态测试仅证明 SQL 与元数据一致，不能代替 MySQL 空库执行、重复执行及两条建表路径的实测。
 
-### 灌入：统一使用 app.ingest
+### 灌入：统一走实时同步（2026-10-25 起不再有离线 CSV 灌库）
 
-SQL **只建表**；业务数据仍由现有 ingest 按同一份 `DATABASE_URL` 灌入，无独立 SQL INSERT/upsert 路径。先核对数据线产物；对已有业务库灌数前需授权并备份。
+SQL **只建表**；业务数据由实时同步端点写入，同一份 `DATABASE_URL`，无独立 SQL INSERT/upsert 路径。**离线灌库脚本 `app.ingest` 已彻底移除**（含其 CLI 入口与测试），历史 CSV 产物只作数据线归档，不再进入运行时。
 
 ```bash
-# cwd=backend；替换为实际 CSV 路径
-# 前提：先跑 data_model 01–04；prediction_result.csv 来自方案 C 离线预测，不来自 01–04
-python -m app.ingest commits     "提交清单.csv"
-python -m app.ingest labels      "标签表.csv"
-python -m app.ingest features    "特征表.csv"
-python -m app.ingest predictions "prediction_result.csv"
+# cwd=backend；两个端点都是长耗时（单条提交 × 8 模型约 4.1s），调用方须放宽超时
+# 同步主干新提交：窗口内 Camel 最新提交逐条现算特征并预测入库
+curl -X POST -H "X-API-Key: $API_TOKEN" "http://127.0.0.1:8000/api/sync?limit=50"
+# 同步 open PR：逐 PR 取提交清单后逐条预测入库
+curl -X POST -H "X-API-Key: $API_TOKEN" "http://127.0.0.1:8000/api/sync-prs?limit=10"
 ```
 
-灌入幂等：同一文件重跑不增行；按表幂等键 upsert（commit=commit_hash、label=(commit_hash, label_method)、feature=commit_hash、prediction=(commit_hash, model_name)，见 change `backend-db-and-query-api` design D4）。缺主键字段的行整批回滚并报行号。
+前置：在 `backend/.env` 配置 `SOURCE_REPO=<本地 Apache Camel Git 仓库绝对路径>`（历史索引），否则同步端点返回 40400。
+
+入库幂等：按表幂等键 upsert（commit=commit_hash、label=(commit_hash, label_method)、feature=commit_hash、prediction=(commit_hash, model_name)，见 change `backend-db-and-query-api` design D4）。同一提交重复同步不增行；单条失败只计入 `skipped`，不中断整批。
 
 ## 模型从哪来（2026-09-16 已定：方案 A + C）
 
@@ -146,7 +147,7 @@ python -m app.ingest predictions "prediction_result.csv"
 - **不改打标与特征计算逻辑** —— 那是数据与模型线的目录。
 - 模型从哪来：**已裁定 A+C**（依据飞书《讨论0915-项目启动与分工》，规格见 `openspec/changes/model-training-and-delivery/`）。
   - 方案 A：数据线交付 `.pkl` 与特征顺序清单，本线启动时加载；
-  - 方案 C：数据线产出 `prediction_result.csv`（字段对应契约一表三），**由本线灌入 `prediction` 表** —— 数据线只产出结果文件、不碰数据库。
+  - 方案 C：数据线产出 `prediction_result.csv`（字段对应契约一表三）作离线评估对照；**入库只走本线的实时同步端点**（`POST /api/sync` / `POST /api/sync-prs`，离线 CSV 灌库已于 2026-10-25 移除）—— 数据线只产出结果文件、不碰数据库。
 - 只在本目录内写代码。
 
 ---

@@ -11,7 +11,7 @@
 | 依赖 | 版本 | 说明 |
 |---|---|---|
 | Python | 3.12.x | 权重由 sklearn 1.9.1 训练，主版本别跨 |
-| Node | 20.x | 前端 `npm run dev` |
+| Node | ≥20.19（CI 用 24） | 前端 `npm run dev`；vite 8 / vitest 5 要求 Node ≥20.19 |
 | MySQL | 8.x | 联调 / 演示 / 验收统一数据库，本机必须安装（建库见 `infra/setup_mysql.py`）|
 | Git | 任意 | 现算特征要对本地 Camel 副本执行 `git log` |
 
@@ -108,17 +108,10 @@ curl -X POST "http://127.0.0.1:8000/api/sync-prs?limit=20" -H "X-API-Key: $API_T
 # 2) 前端「PR 列表」页即可看到各 PR 的聚合风险；点进 PR 看每个 commit 的风险
 ```
 
-> 离线 CSV 灌库（`python -m app.ingest`）已于 2026-10-25 裁定**彻底移除**；历史口径的 CSV 产物仅作数据线归档，不再进入运行时。
+> 离线 CSV 灌库（`python -m app.ingest`）已于 2026-10-25 裁定**彻底移除**（脚本、CLI 入口与测试一并删除）；历史口径的 CSV 产物仅作数据线归档，不再进入运行时。数据入口只有 §3.1 的实时同步（主干）与 §3.2 的 open PR 同步。
 
-```bash
-# cwd=backend，顺序不能换（commits → features → predictions）
-python -m app.ingest commits     <目录>/commits.csv
-python -m app.ingest features    <目录>/commit_features.csv
-python -m app.ingest predictions <目录>/prediction_result.csv
-```
-
-幂等：同一文件重跑不增行（按表幂等键 upsert）；缺主键字段的行整批回滚并报行号。
-`GET /api/commits` 是 `prediction` 内连接，`commits.csv` 灌全量（约 45 万条）不会把「无预测的提交」带进风险列表。
+幂等：同一提交重复同步不增行（按表幂等键 upsert：commit=commit_hash、label=(commit_hash, label_method)、feature=commit_hash、prediction=(commit_hash, model_name)）；单条失败只计入 `skipped`，不中断整批。
+`GET /api/commits` 是 `prediction` 内连接，「库中无预测的提交」不会进风险列表。
 
 ### 3.1 实时同步（change `realtime-commit-sync`，新数据入口）
 
@@ -184,22 +177,20 @@ npm run dev
 
 ---
 
-## 7. 8 个模型可切换：现状与差距（未落地，别当已支持）
+## 7. 8 个模型可切换：现状（2026-10-25 组长裁定 Issue #139 已落地）
 
-**现状是 3 个**：`feature_order.txt` 的 `[models]` 段声明 `lr_v1` / `rf_v1` / `xgb_v1`，`model_registry` 只加载这一段；另 5 个（`lgbm_v1` / `et_v1` / `svm_v1` / `mlp_deep_v1` / `tabnet_v1`）在 `[evaluated]` 段，只进评估。传这 5 个的 `model_name` 会返回 **40001 参数非法**。
+**现状是 8 个**：`feature_order.txt` 的 `[models]` 段已声明全部 8 个（`lr_v1` / `rf_v1` / `xgb_v1` / `lgbm_v1` / `et_v1` / `svm_v1` / `mlp_deep_v1` / `tabnet_v1`），`model_registry` 加载这一段；`[evaluated]` 段当前为空。前端 `src/utils/models.js` 的静态清单已同步为 8 个。传清单外的 `model_name` 才返回 **40001 参数非法**。
 
-要变成 8 个，缺 6 件事：
+| 项 | 状态 | 说明 |
+|---|---|---|
+| 契约三 §4 的 `model_name` 枚举 | ✅ 已放开为 8 个 | 走 change 流程，非静默改 |
+| `feature_order.txt` 的 `[models]` | ✅ 8 行 | `[evaluated]` 段留空 |
+| 后端依赖（`lightgbm` / `torch` / `pytorch_tabnet`） | ✅ 已进 `environment.yml` | 镜像变大、冷启动变慢 |
+| **SHAP 归因** | ⚠️ 三个模型无归因 | `svm`（RBF）/ `mlp_deep` / `tabnet` 无高效精确解释器，契约三 §4 允许，详情页显「无归因」；要真归因需 KernelSHAP（单次 1–3s，500ms 靶子必破） |
+| 各模型压测 | ✅ 已登记 | 单模型 `MODEL_DIR` 压测；`perf_loop.py` **没有** `--model-name` 参数 |
+| 前端静态清单 | ✅ 8 个 | 必须与 `[models]` 段同步，否则下拉静默少项 |
 
-| # | 缺什么 | 归谁 | 后果 / 代价 |
-|---|---|---|---|
-| 1 | 契约三 §4 的 `model_name` 枚举 3→8；解除 `openspec/specs/model-coverage` R6 冻结（「新增模型 MUST NOT 进入后端加载清单」） | 契约/infra（苏哲勋）+ 模型线（蒋励） | 必须走 change，不能静默改 |
-| 2 | `models/feature_order.txt` 的 `[models]` 加 5 行 | 模型线（蒋励） | 5 分钟，但依赖第 1 条先裁 |
-| 3 | 后端依赖加 `lightgbm`、`torch`（`tabnet` 还需 `pytorch_tabnet`） | 后端（吕建江） | 镜像约 +250MB，冷启动变慢 |
-| 4 | **SHAP 归因**：现有 `get_explainer` 只有 `TreeExplainer`（树族）与 `LinearExplainer`（有 `coef_`）。`svm`（RBF）/ `mlp_deep` / `tabnet` **两者都不适用** → 现在只会降级成空归因（前端「无归因」），要真归因得上 `KernelExplainer` | 模型线 + 后端 | KernelSHAP 单次 1–3s，**500ms 靶子必破**；要么接受「这 3 个模型无归因」，要么按模型分别定靶子（又是 change） |
-| 5 | 8 个模型各按登记口径 `perf_loop.py --n 100` 压测（每个都要单模型 `MODEL_DIR`） | 后端（吕建江） | 半天；注意 `perf_loop.py` **没有** `--model-name` 参数 |
-| 6 | 前端 `src/utils/models.js` 的静态清单 3→8 | 前端（刘帅华） | 1 行，且必须与 `[models]` 段同步，否则下拉静默少项 |
-
-**判断**：第 3、4 条是真正的成本，第 1 条是流程成本。MVP 建议维持 3 个（已全部达标：默认 xgb p95 15.5ms、rf 86.6ms、lr 9.0ms）；8 个切换按 change 单独立项，别塞进 D-14 这批。
+**归因降级**：这三个模型在详情页显示「无归因」是**预期行为**，不是缺陷（契约三 §4 已允许）。
 
 ---
 
@@ -210,7 +201,7 @@ npm run dev
 | 启动日志 `failed models: [...]` | 权重版本不对 / 缺依赖 / 目录里套了子文件夹 | `verify_all_weights --check` 看 md5 与类路径；确认 10 个文件平铺 |
 | 所有接口 `50000 internal error` | `DATABASE_URL` 为空或不可达 | 按 §2 建库并核对连接串；日志在服务端，不回显给你 |
 | `40100` | 前后端令牌不一致 | 前端 `VITE_API_KEY` 与后端 `API_TOKEN` 必须是同一个 |
-| `40400` 且哈希确实存在 | 没灌 `commit` / `commit_feature`，且未配 `SOURCE_REPO` | 灌数（§3）或配 `SOURCE_REPO`（§4） |
-| `40001 参数非法：model_name` | 选了 `[evaluated]` 里的模型 | 只用 `lr_v1` / `rf_v1` / `xgb_v1`（8 模型见 §7） |
+| `40400` 且哈希确实存在 | 库中无该提交的历史索引，且未配 `SOURCE_REPO` | 配 `SOURCE_REPO`（§4）后走实时同步（§3） |
+| `40001 参数非法：model_name` | 选了交付清单外的模型名 | 只用 `[models]` 段的 8 个（见 §7） |
 | 预测值眼熟但和旧记录不一样 | rf 权重已换成收敛版（md5 `ca80c586…`），旧 `prediction` 行不可比 | 用新权重对要展示的哈希重跑一次 |
 | 第一次 predict 很慢（>1s） | SHAP 解释器惰性构造（首请求） | 正常，判定看 p95 不看 max |

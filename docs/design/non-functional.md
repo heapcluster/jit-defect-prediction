@@ -25,7 +25,7 @@
   - 契约一致性（14 项特征列名与顺序、交付清单 3 模型、`feature_version=v1`）→ `data_model/tests/test_feature_contract.py`（8 passed）；
   - 复现一致性（同一切分/特征/种子，指标报告逐行一致）→ `data_model/reports/model_matrix.md`「与 `model_metrics.md` 差异 0 项」；
   - 幂等与空数据不冒充 → `backend/tests/test_predict_api.py`、`test_commits_api.py`；
-  - 灌库幂等（四类 CSV 各灌两遍行数不变）与「同哈希 POST 两次只留一行」→ 三端联调实测记录 `backend/scripts/evidence/integration-2026-10-24.md`（SQLite 全量库，见 §5.3）；MySQL 侧待隔离库授权后补。
+  - 入库幂等（「同哈希 POST 两次只留一行」）→ 三端联调实测记录 `backend/scripts/evidence/integration-2026-10-24.md`（SQLite 全量库，见 §5.3）；MySQL 侧待隔离库授权后补。离线 CSV 灌库的幂等记录（2026-10-24 当日实跑）保留在该证据档中。
 
 ## 4. 易用性
 
@@ -82,7 +82,7 @@
 ### 5.3 可靠性——佐证（非本轮新测，列可点验落点）
 
 - 预测幂等：单测 `test_predict_api.py::test_predict_idempotent_single_row`；联调实测「同哈希 POST 两次、`prediction` 表该 `(commit_hash, model_name)` 键恰 1 行」见 `integration-2026-10-24.md`。
-- 灌库幂等：单测 `test_ingest.py` + `test_integration_api.py`；联调实测四类 CSV 各灌两遍行数不变，见同上。
+- 入库幂等：单测 `test_integration_api.py` + `test_predict_api.py`（同哈希预测两次只留一行）；离线灌库已于 2026-10-25 移除，实时同步的幂等口径见 `openspec/specs/db-schema/spec.md`「实时同步入库」。
 - 契约一致性：`data_model/tests/test_feature_contract.py`（14 项列名与顺序、交付清单 3 模型、`feature_version=v1`）。
 - 复现一致性（±0）：模型线主验收口径，见 `data_model/pipelines/expert/reports/model_metrics.md` 与 `test-report-sprint2.md` §2.3。
 

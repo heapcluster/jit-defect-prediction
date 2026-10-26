@@ -31,8 +31,8 @@
 
 | 线 | 单元测试 | 集成测试 | 验收测试 | 非功能 | 状态 |
 |---|---|---|---|---|---|
-| 后端 `backend/` | **87 条**（8 个文件；`test_security_boundaries.py` 48 条参数化） | `test_mirror.py` 8 + `test_ingest.py` 2 + `test_model_registry.py` 5 = 15 条 | `docs/repo/demo-script-sprint1.md` API-01~04 | 性能 + 安全两阶段证据齐 | ✅ 最完整 |
-| 前端 `frontend/` | **13 个 it / 30 断言**（`src/__tests__/contract.test.js`，纯口径函数） | **0**（未联调） | **0**（未跑演示） | 易用（三态）待联调 | 🟡 已写未跑 |
+| 后端 `backend/` | **253 条**（`ingest` 随 2026-10-25 裁定移除后重测；`test_prs_api.py` 8 条为 PR 三端点新增） | `test_mirror.py` 8 + `test_model_registry.py` 5 = 13 条 | `docs/repo/demo-script-sprint1.md` API-01~04 | 性能 + 安全两阶段证据齐 | ✅ 最完整 |
+| 前端 `frontend/` | **26 个 it**（7 个测试文件：`tests/api.spec.js` / `request.spec.js` / `RiskList.spec.js` / `CommitDetail.spec.js` / `models.spec.js` / `risk.spec.js` / `features.spec.js`） | **0**（未联调） | **0**（未跑演示） | 易用（三态）待联调 | 🟡 已写未跑 |
 | 数据/模型 `data_model/` | **59 条**（`test_feature_contract.py` 8 + `test_szz_labeling.py` 34 + `test_split_dataset.py` 17） | 以九份统计报告代替，**无自动化** | `data_model/reports/` 九份 | 可靠（版本固定 + 可复现） | 🟡 单测已补，集成待建 |
 | 工程化 `infra/` | **0**（CI 未落地） | —— | —— | —— | 🔴 缺口 |
 
@@ -75,10 +75,10 @@ cd frontend   && npm ci && npm run test:unit   # 13 it（尚未执行，node_mod
 |---|---|
 | `backend/pytest.ini` | pytest 测试路径、命名约定、报告输出 |
 | `data_model/pytest.ini` | 同上（数据线） |
-| `frontend/vitest.config.js` | vitest 环境与 `src/**/__tests__` 匹配 |
+| `frontend/vite.config.js` | vitest 环境（jsdom）与 `frontend/tests/**` 匹配（`setupFiles: ./tests/setup.js`） |
 | `frontend/package.json` `scripts` | `test:unit` / `test:coverage` 统一入口 |
 
-> 命名约定：后端 `tests/test_<模块>.py`，用例 `test_<行为>_<期望结果>`；前端 `src/__tests__/<对象>.test.js`。
+> 命名约定：后端 `tests/test_<模块>.py`，用例 `test_<行为>_<期望结果>`；前端 `tests/<对象>.spec.js`。
 > 每个用例必须能**独立复现**：不依赖执行顺序、不依赖上一次运行的残留数据。
 
 ## 6. 证据归档位置（一处集中，答辩直接取）
