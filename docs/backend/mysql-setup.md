@@ -267,6 +267,16 @@ python infra/clone_camel_history.py --path <本机路径>/camel-history --fetch 
 
 - **灌入幂等**：同一文件重跑不增行（按表幂等键 upsert：`commit=commit_hash`、`label=(commit_hash, label_method)`、`feature=commit_hash`、`prediction=(commit_hash, model_name)`）；缺主键字段的行整批回滚并报行号。该幂等性在 MySQL `jit_demo` 四类各灌两遍实测通过（组长本机 #147）。
 
+## 4.4 让页面先有数据（本地开发初始化）
+
+```bash
+# cwd = 仓库根；把仓库内已有的数据线产物灌进开发库并预跑预测（约 1 分钟）
+python infra/bootstrap_dev.py --limit 3000 --models xgb_v1,lr_v1
+# 幂等：重复执行不产生重复行；--reset 清空重建；--skip-predict 只导数据
+```
+
+这是**本地开发初始化**，不是运行时数据入口（增量仍走 `POST /api/sync` / `POST /api/sync-prs`，规格见 `openspec/specs/db-schema`）。
+
 ## 5. 验收清单
 
 灌完起服务后逐条核（也可用 §5.2 的脚本一条命令跑完）：
@@ -330,6 +340,7 @@ python -m scripts.demo_preflight --init-db --out scripts/evidence/preflight-<日
 | 10 | PowerShell 里跑 `mysql … < backend/scripts/schema_mysql.sql` 报「`<` 运算符保留供将来使用」，一条语句都没执行 | PowerShell **不支持** `<` 输入重定向（bash/cmd 才支持），这是 shell 语法差异、不是 MySQL 的问题 | 用 §2.2 的 PowerShell 写法：`mysql -u root -p -e "SOURCE backend/scripts/schema_mysql.sql"`（实测 rc=0），或 `Get-Content … \| mysql -u root -p`（实测 rc=0）。`cmd /c "mysql -u root -p < backend\scripts\schema_mysql.sql"` 也可以 |
 | 11 | 口令里有 `@ : / # ? %`，以前拼 URL 总连不上或连到别的库 | 手工做百分号编码极易错（`@` 会被当成 host 分隔符） | 现在不用拼 URL：`DB_PASSWORD` **原样填**，编码由 `backend/app/config.py` 负责（`backend/tests/test_config.py` 钉死） |
 | 12 | 跑完 `pytest` 发现演示库的数据被清空了 | 老口径要求手工把连接改成 `jit_test`，忘了改就等于拿演示库当测试库（用例前会 `drop/create`） | 现已自动切库：`config.test_database_url()` 用 `DB_TEST_NAME`（默认 `jit_test`）；确认 `.env` 里 `DB_TEST_NAME` 没被改成 `jit_demo` |
+| 13 | 库里明明有 `jit` 账号，`.env` 填的口令也对，仍然 `Access denied for 'jit'@'localhost' (using password: YES)` | MySQL 按 host 最具体优先匹配：`jit@127.0.0.1` 是**旧口令**时，新建 `jit@localhost` 不会生效；而 `CREATE USER IF NOT EXISTS` 对已存在的账号**不改口令** | 跑 `python infra/setup_mysql.py --root-password <root口令>`：脚本现在会对 `jit@%` / `jit@localhost` / `jit@127.0.0.1` 三个 host 逐一 `ALTER USER` 同步口令（2026-10-26 修复），再授权两个库 |
 
 ## 7. 与其他文档的关系
 
@@ -391,5 +402,4 @@ python -m scripts.demo_preflight --init-db --out scripts/evidence/preflight-<日
 - **本轮 `features` 用的是按 §4 投影出的契约形态文件（83,943 行），不是 `commit_features_raw.csv`。**
 - 证据文件（脚本 `--out` 产出，令牌/连接串/CSV 路径全部自动掩码）：连接串在证据里显示为 `mysql+pymysql://jit:***@127.0.0.1:3306/jit_demo?charset=utf8mb4`。
 
-**仍未闭合的一项**：从**空 MySQL 实例**首次执行 `CREATE DATABASE`（需 root）。本机 root 口令不在后端线手上，`jit_demo` 由用户以 root 建出后我只核了它的字符集与排序规则。若要在文档里把这一步也标成「已实测」，需要有 root 的人在**删掉 `jit_demo` 之后**跑一次 §2.1 并记录输出 —— 这属破坏性操作，我不会自行执行。
-
+**已闭合（2026-10-26）**：本机以 root 执行 `python infra/setup_mysql.py --root-password <root口令>` 完成 `CREATE DATABASE jit_demo / jit_test`、建 `jit` 账号（`%` / `localhost` / `127.0.0.1` 三个 host，口令统一）并授权，随后两库执行 `infra/schema.sql` 均退出码 0；`pytest` 263 条全绿。踩到的坑见 §6 坑 13：`CREATE USER IF NOT EXISTS` 对已存在账号不改口令。

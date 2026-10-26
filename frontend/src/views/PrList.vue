@@ -1,7 +1,5 @@
 <template>
   <div>
-    <h2>PR 列表（实时 Camel open PR）</h2>
-
     <el-form
       :inline="true"
       class="filters"

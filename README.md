@@ -159,32 +159,46 @@ python -V                                               # 必须是 3.12.x
 | `SOURCE_REPO` | 本地 Apache Camel 克隆根目录（含 `.git`）。留空 = `POST /api/predict` 只查库，库里没有的哈希返回 40400 |
 | `SYNC_ON_STARTUP` | `=1` 时启动后台预同步一次（需先配 `SOURCE_REPO`） |
 
-### 7.3 起后端
+### 7.3 三步跑起来（本机已实测）
 
 ```bash
-cd backend
-python -m app.db init                      # 建四张表：commit / commit_label / commit_feature / prediction
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8011
+# 1) 配连接：复制模板，只填 DB_PASSWORD（口令单独一格，不用转义）
+cp backend/.env.example backend/.env
+
+# 2) 建库建表：jit_demo（演示/验收） + jit_test（pytest 自动用）
+python infra/setup_mysql.py
+
+# 3) 灌历史数据并预跑预测（约 1 分钟；默认最新 5000 条，可 --limit / --models）
+python infra/bootstrap_dev.py
+
+# 起后端（启动日志应出现 8 个已加载模型）
+cd backend && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+# 另开一个终端起前端
+cd frontend && npm run dev        # http://127.0.0.1:5173
 ```
 
-启动日志应出现 8 个已加载模型（`lr_v1` … `tabnet_v1`）。清单缺失或列序与契约二不符时注册表为空，
-预测返回 50000，查询接口仍可用。
+- `bootstrap_dev.py` 是**本地开发初始化**：只把仓库里已有的数据线产物（`data_model/data/*.csv`）灌进开发库，
+  运行时数据入口仍然只有 `POST /api/sync` / `POST /api/sync-prs`（规格见 `openspec/specs/db-schema`）。
+- 想手动建表：`cd backend && python -m app.db init`；只想灌数据不预测：加 `--skip-predict`。
+- PR 页要调 GitHub：受限流影响时在 `backend/.env` 加 `GITHUB_TOKEN`（公开仓库可留空）；
+  本机需要代理时加 `HTTPS_PROXY=http://127.0.0.1:<端口>`（`urllib` 会自动使用）。
 
 ### 7.4 冒烟自测
 
 ```bash
 # 在线预测（现算 14 项特征 + 推理 + SHAP 归因，落三张表）
-curl -X POST http://127.0.0.1:8011/api/predict \
+curl -X POST http://127.0.0.1:8000/api/predict \
   -H "x-api-key: $API_TOKEN" -H "Content-Type: application/json" \
   -d '{"commit_hash":"<40位哈希>","model_name":"xgb_v1"}'
 
 # 查询
-curl "http://127.0.0.1:8011/api/commits?size=5"            -H "x-api-key: $API_TOKEN"
-curl "http://127.0.0.1:8011/api/commits/<40位哈希>"         -H "x-api-key: $API_TOKEN"
-curl "http://127.0.0.1:8011/api/trends?granularity=week"   -H "x-api-key: $API_TOKEN"
+curl "http://127.0.0.1:8000/api/commits?size=5"            -H "x-api-key: $API_TOKEN"
+curl "http://127.0.0.1:8000/api/commits/<40位哈希>"         -H "x-api-key: $API_TOKEN"
+curl "http://127.0.0.1:8000/api/trends?granularity=week"   -H "x-api-key: $API_TOKEN"
 
 # 批量同步最新提交并逐条预测（需 SOURCE_REPO，且该仓库能 git fetch）
-curl -X POST "http://127.0.0.1:8011/api/sync?limit=5" -H "x-api-key: $API_TOKEN"
+curl -X POST "http://127.0.0.1:8000/api/sync?limit=5" -H "x-api-key: $API_TOKEN"
 ```
 
 响应统一包络 `{ "code": 0, "message": "ok", "data": {...} }`；错误码只用契约三那 5 个。
@@ -205,7 +219,7 @@ python -m pipelines.expert.train           # 默认训练 8 个分类器
 ```bash
 cd frontend
 npm install
-npm run dev        # 本地开发（默认读 http://127.0.0.1:8011，见 frontend/.env.example）
+npm run dev        # 本地开发（默认读 http://127.0.0.1:8000，见 frontend/.env.example）
 npm run build      # 产出静态站点 dist/
 npm run test:unit  # 单测（含模型清单与「无归因」降级用例）
 ```

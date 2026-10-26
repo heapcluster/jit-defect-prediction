@@ -245,16 +245,23 @@ def build_databases(creds: dict, test_db: str, root_password: str | None) -> Non
                         f"CREATE DATABASE IF NOT EXISTS `{db}` "
                         f"CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
                     )
-                cur.execute(f"CREATE USER IF NOT EXISTS '{app_user}'@'%' IDENTIFIED BY '{app_pwd}'")
-                cur.execute(
-                    f"CREATE USER IF NOT EXISTS '{app_user}'@'localhost' IDENTIFIED BY '{app_pwd}'"
-                )
-                for host_spec in ("%", "localhost"):
+                # 口令里的单引号要转义（DDL 不支持占位参数）
+                user_sql = app_user.replace("'", "''")
+                pwd_sql = app_pwd.replace("'", "''")
+                for host_spec in ("%", "localhost", "127.0.0.1"):
                     cur.execute(
-                        f"GRANT ALL PRIVILEGES ON `{demo_db}`.* TO '{app_user}'@'{host_spec}'"
+                        f"CREATE USER IF NOT EXISTS '{user_sql}'@'{host_spec}' "
+                        f"IDENTIFIED BY '{pwd_sql}'"
+                    )
+                    # `CREATE USER IF NOT EXISTS` 对**已存在**的账号不改口令。本机实测踩过：
+                    # `jit@127.0.0.1` 是旧口令，MySQL 又优先匹配最具体的 host，于是 .env 里
+                    # 的新口令永远不生效（报 Access denied for 'jit'@'localhost'）。这里统一同步。
+                    cur.execute(f"ALTER USER '{user_sql}'@'{host_spec}' IDENTIFIED BY '{pwd_sql}'")
+                    cur.execute(
+                        f"GRANT ALL PRIVILEGES ON `{demo_db}`.* TO '{user_sql}'@'{host_spec}'"
                     )
                     cur.execute(
-                        f"GRANT ALL PRIVILEGES ON `{test_db}`.* TO '{app_user}'@'{host_spec}'"
+                        f"GRANT ALL PRIVILEGES ON `{test_db}`.* TO '{user_sql}'@'{host_spec}'"
                     )
                 cur.execute("FLUSH PRIVILEGES")
             print(f"[setup] 已建库 {demo_db} / {test_db}，并授权 {app_user}")

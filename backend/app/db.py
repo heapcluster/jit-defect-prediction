@@ -19,9 +19,10 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False)
 def get_engine() -> Engine:
     global _engine
     if _engine is None:
-        if not config.DATABASE_URL:
+        url = config.DATABASE_URL
+        if not url:
             raise AppError(50000, "internal error")
-        _engine = create_engine(config.DATABASE_URL, pool_pre_ping=True)
+        _engine = create_engine(url, pool_pre_ping=True)
         SessionLocal.configure(bind=_engine)
     return _engine
 
