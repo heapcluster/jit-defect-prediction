@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from urllib.parse import quote
 
 from dotenv import load_dotenv
 
@@ -11,7 +12,60 @@ load_dotenv()
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-DATABASE_URL = os.getenv("DATABASE_URL", "")
+# ── 数据库连接：分字段配置（推荐），显式 DATABASE_URL 仍可整段覆盖 ──
+# 为什么要分字段：`mysql+pymysql://user:pwd@host/db` 里口令只要含 `@ : / # ? %` 就必须做
+# 百分号编码，手写几乎必错（写错的表现是「连不上」或「连上了别的库」）。分开填则原样写入，
+# 由本模块负责编码 —— 用户只关心「账号是什么、口令是什么」。
+DB_HOST = os.getenv("DB_HOST", "").strip()
+DB_PORT = os.getenv("DB_PORT", "").strip() or "3306"
+DB_USER = os.getenv("DB_USER", "").strip()
+DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+DB_NAME = os.getenv("DB_NAME", "").strip() or "jit_demo"
+DB_TEST_NAME = os.getenv("DB_TEST_NAME", "").strip() or "jit_test"
+DB_CHARSET = os.getenv("DB_CHARSET", "").strip() or "utf8mb4"
+
+
+def _with_database(url: str, database: str) -> str:
+    """把显式 DSN 的库名换掉（保留口令与 query），pytest 切测试库用。"""
+    from sqlalchemy.engine import make_url
+
+    try:
+        return make_url(url).set(database=database).render_as_string(hide_password=False)
+    except Exception:  # noqa: BLE001 —— 非法 DSN 原样返回，把报错留给连接层
+        return url
+
+
+def build_database_url(database: str | None = None) -> str:
+    """按分字段拼 DSN；显式 `DATABASE_URL` 优先（CI / 容器一行搞定）。缺字段返回空串。
+
+    `database` 非空时覆盖库名：pytest 用它把 `DB_NAME` 换成 `DB_TEST_NAME`。
+    """
+    explicit = os.getenv("DATABASE_URL", "").strip()
+    if explicit:
+        return _with_database(explicit, database) if database else explicit
+    if not (DB_HOST and DB_USER):
+        return ""
+    credential = quote(DB_USER, safe="")
+    if DB_PASSWORD:
+        credential += f":{quote(DB_PASSWORD, safe='')}"
+    return (
+        f"mysql+pymysql://{credential}@{DB_HOST}:{DB_PORT}/"
+        f"{database or DB_NAME}?charset={DB_CHARSET}"
+    )
+
+
+def test_database_url() -> str:
+    """pytest 专用：`TEST_DATABASE_URL` > 当前配置把库名换成 `DB_TEST_NAME`。
+
+    这样跑测试不必手工改 `.env`（改错就会把演示库的表当成测试表清空）。
+    """
+    explicit = os.getenv("TEST_DATABASE_URL", "").strip()
+    if explicit:
+        return explicit
+    return build_database_url(DB_TEST_NAME)
+
+
+DATABASE_URL = build_database_url()
 API_TOKEN = os.getenv("API_TOKEN", "")
 MODEL_DIR = Path(
     os.getenv("MODEL_DIR", "") or (REPO_ROOT / "data_model" / "pipelines" / "expert" / "models")

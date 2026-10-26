@@ -13,11 +13,13 @@
 | 步 | 做什么 | 命令（cwd 见每节） | 判据 |
 |---|---|---|---|
 | 1 | 装 MySQL 8 + 建 conda 环境 | 见 §1 | `mysql --version` 有输出；`python -m pip show PyMySQL` 有版本 |
-| 2 | **一条命令**建库 + 建四表 | `mysql -u root -p < backend/scripts/schema_mysql.sql`（cwd = **仓库根**） | 末尾列出 4 张表，排序规则 `utf8mb4_unicode_ci` |
-| 3 | 配 `backend/.env` 的连接串 | 见 §3 | `python -m app.db init` 幂等 + 索引自检通过 |
-| 4 | 灌真实数据 + 起服务 + 自检 | 见 §4、§5 | `python -m scripts.demo_preflight` 六条判据全 PASS |
+| 2 | 配 `backend/.env` 的**五项连接字段**（口令单独一格） | 见 §3 | `python -m app.db init` 幂等 + 索引自检通过 |
+| 3 | **一条命令**建库 + 建四表 + 建测试库 | `python infra/setup_mysql.py`（cwd = **仓库根**） | 输出列出演示库 / 测试库，末尾 `[setup] 完成` |
+| 4 | 起服务 + 采集数据 + 自检 | 见 §4、§5 | `python -m scripts.demo_preflight` 六条判据全 PASS |
 
 第 2–4 步在**空 MySQL** 上就能跑通，不依赖任何既有库、不依赖别人的机器、不需要 infra 授权（#142 已把「授权 `jit@127.0.0.1`」这条作废）。
+
+> **为什么先配 `.env` 再建库**：`setup_mysql.py` 直接读这份配置连库，配置错就没法建 —— 反过来「先建库再配 .env」会多一次手工改库名的机会。只用 SQL 建库的等价路径见 §2（需要 root 或已授权的账号）。
 
 ## 1. 前置：MySQL 与 Python 依赖
 
@@ -44,7 +46,27 @@ python -c "import sqlalchemy; print(sqlalchemy.__version__)"
 
 ## 2. 一条命令建库 + 建表
 
-### 2.1 命令
+### 2.1 推荐路径：`python infra/setup_mysql.py`（读 §3 的配置）
+
+```bash
+# cwd = 仓库根
+python infra/setup_mysql.py
+```
+
+它按 §3 填的 `DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME` 做五件事：探测/尝试启动本机 MySQL 服务 → 建演示库（`DB_NAME`）→ 建测试库（`DB_TEST_NAME`）→ 在两库上执行 `infra/schema.sql` 建四表 → 打印下一步。**不需要 root**：账号有 `CREATE DATABASE` 权限即可；没有这个权限时用 `--root-password` 让脚本以 root 代建并授权。
+
+| 参数 | 用途 |
+|---|---|
+| `--seed` | 额外灌 3 行起步数据（`commit_hash` = `000…001`~`000…003`），用于「列表页有东西可看」 |
+| `--root-password <pwd>` | 你的账号没有建库权限（`ERROR 1044`）时，用 root 代建库并 `GRANT` |
+| `--db-host/--db-port/--db-user/--db-password/--db-name` | 临时覆盖 `.env` 的对应字段，**不改文件** |
+| `--test-db <name>` | 临时改测试库名（默认取 `DB_TEST_NAME`，否则 `jit_test`） |
+| `--database-url <dsn>` | 整段 DSN，优先级最高（CI / 容器用） |
+| `--skip-start` | 跳过「尝试启动 MySQL 服务」这一步（服务已手动起好时用） |
+
+口令**不会**被打印：脚本只输出 `用户@主机:端口  演示库=… 测试库=…`。连不上时的提示会指向具体字段（§6 坑 1）。
+
+### 2.2 等价路径：纯 SQL（需要 root 或已授权账号）
 
 **Git Bash / Linux shell**（cwd 必须是仓库根目录，不是 `backend/`）：
 
@@ -62,9 +84,9 @@ Get-Content backend/scripts/schema_mysql.sql | mysql -u root -p
 
 口令走 `-p` 的**交互输入**，不要写成 `-p<口令>`（会进 shell 历史，且 MySQL 自己会警告）。
 
-脚本内容只有四条语句：`CREATE DATABASE IF NOT EXISTS jit_demo …` → `USE jit_demo` → `SOURCE infra/schema.sql` → 一条自检 `SELECT`。**四表 DDL 仍只有 `infra/schema.sql` 一份**，脚本不复制 DDL，因此两条建表路径的等价性与幂等性口径不变。
+脚本内容只有四条语句：`CREATE DATABASE IF NOT EXISTS jit_demo …` → `USE jit_demo` → `SOURCE infra/schema.sql` → 一条自检 `SELECT`。**四表 DDL 仍只有 `infra/schema.sql` 一份**，脚本不复制 DDL，因此三条建表路径（脚本 / SQL / ORM）的等价性与幂等性口径不变。注意它**只建演示库**，测试库请另跑一次并把库名换掉，或直接用 §2.1 的脚本。
 
-### 2.2 期望输出
+### 2.3 期望输出
 
 ```
 built_table       TABLE_COLLATION
@@ -78,35 +100,76 @@ prediction        utf8mb4_unicode_ci
 
 **幂等**：`CREATE DATABASE` 与四表 `CREATE TABLE` 全带 `IF NOT EXISTS`，同一条命令重跑不报错、**不清已有数据**。要重建空库请自己显式 `DROP DATABASE jit_demo`（脚本永不做破坏性操作，`backend/tests/test_schema_mysql_script.py` 把这条钉住了）。
 
-### 2.3 为什么建库头不进 `infra/schema.sql`
+### 2.4 为什么建库头不进 `infra/schema.sql`
 
 `infra/schema.sql` 必须保持「纯四表 DDL、可导入任意目标库」：它同时服务三个调用方（`docs/backend/acceptance.md` 的导入命令、Issue #121 的 `jit_schema_probe` / `jit_orm_probe` 两个探针库、本脚本的 `SOURCE`），里面一旦出现 `USE`，命令行指定的库名就会被**静默改写**，验收会在错误的库上「通过」；而 `backend/tests/test_schema_sql.py` 逐字比对 `Base.metadata`，断言「恰好四条 CREATE TABLE」并显式拒收 `CREATE DATABASE` / `GRANT` / `DROP` 等多余语句（25 条用例）。所以建库头单独放 `backend/scripts/schema_mysql.sql`。
 
 字符集与排序规则**显式写死** `utf8mb4` + `utf8mb4_unicode_ci`（#142 裁定），不跟随服务端默认值 —— 各人本机 `@@collation_server` 可能不同（本项目实测就有默认 `utf8mb4_0900_ai_ci` 的），显式指定才不会让六台机器建出排序规则不一致的库。
 
-### 2.4 ORM 等价路径（可选，用于交叉验证）
+### 2.5 ORM 等价路径（可选，用于交叉验证）
 
 ```bash
-# cwd = backend；连接串走 backend/.env（见 §3），命令行不带 DATABASE_URL 前缀
+# cwd = backend；连接走 backend/.env 的五项字段（见 §3），命令行不要再加 DATABASE_URL 前缀
 python -m app.db init
 python -c "from app.db import get_engine, _assert_indexes; _assert_indexes(get_engine()); print('indexes ok')"
 ```
 
 `app.db init` 建表后自动跑 `_assert_indexes`；它只覆盖 `INDEX_ASSERTIONS` 的核心索引，**不是完整列/键对照**，完整验收按 `docs/backend/acceptance.md` 板块 B1。两条路径在同一库上连跑两次都必须无错（幂等）。
 
-## 3. 配 `backend/.env`
+## 3. 配 `backend/.env`（五项字段，口令单独一格）
 
-```ini
-DATABASE_URL=mysql+pymysql://<user>:<pwd>@127.0.0.1:3306/jit_demo?charset=utf8mb4
+复制模板再改值，不要凭空手写：
+
+```bash
+cp backend/.env.example backend/.env      # PowerShell: Copy-Item backend\.env.example backend\.env
 ```
 
-- **口令只写进本机 `backend/.env`**（已被 `.gitignore` 忽略），不进任何入库文档、不进 `.env.example`（§0 硬规矩 1 的同源要求）。`<user>` 用你自己建的账号即可 —— 建库要 `CREATE DATABASE` 权限（§6 坑 1），但**灌数与起服务只需要该库的 DML/DDL 权限**。
-- **必须带 `?charset=utf8mb4`**，否则中文提交信息可能按服务端默认字符集写入（§6 坑 5）。
-- **坑（最容易踩）**：`backend/app/config.py` 只调用 `load_dotenv()`，而 **`load_dotenv()` 默认不覆盖已存在的环境变量** —— 所以 `DATABASE_URL=... python -m <脚本> ...` 这种**行内前缀会压过 `.env`**。两者只能选一种；本口径选 `.env`，**命令里一律不带前缀**（`backend/scripts/evidence/system-layer-backend-2026-10-24.md` §1 的复跑命令、`docs/repo/demo-script-sprint1.md` §0.0 同此口径）。
-- `API_TOKEN` 必须等于前端 `frontend/.env.local` 的 `VITE_API_KEY`，否则前端全部 40100。当前值与其余基线项**只认** `docs/frontend/integration-log.md` §0，本文不抄。
-- `MODEL_DIR` 留空即回落到仓库内 `data_model/pipelines/expert/models/`（#99 自动插 `sys.path`，不要再手工设 `PYTHONPATH`）。
+然后把「数据库连接」这一段改成你自己的值 —— **账号、口令、库名各占一个字段**：
 
-## 4. 灌真实数据
+```ini
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=jit
+DB_PASSWORD=你的口令
+DB_NAME=jit_demo
+DB_TEST_NAME=jit_test
+```
+
+| 字段 | 填什么 | 不填的后果 |
+|---|---|---|
+| `DB_HOST` | MySQL 所在主机，本机就是 `127.0.0.1` | 与 `DB_USER` 任一为空 → 视为「未配置」，接口一律 `50000 internal error` |
+| `DB_PORT` | 默认 `3306`；改过端口才需要写 | 留空即 `3306` |
+| `DB_USER` | 你的 MySQL 账号 | 同上（与 `DB_HOST` 成对必填） |
+| `DB_PASSWORD` | **原样写口令，不用转义、不用 URL 编码** | 留空 = 该账号无口令（不是「忘记填」） |
+| `DB_NAME` | 演示 / 联调 / 验收共用的库，默认 `jit_demo` | 留空即 `jit_demo` |
+| `DB_TEST_NAME` | pytest 用的库，默认 `jit_test` | 留空即 `jit_test` |
+
+四条要点：
+
+- **口令不再塞进 URL**：以前写 `mysql+pymysql://jit:口令@host/db`，口令里只要出现 `@ : / # ? %` 就必须手工做百分号编码，写错的表现是「连不上」或更糟 —— 「连上了另一个库」。现在程序负责编码（`backend/tests/test_config.py` 钉住了这条），**你只管原样填**。
+- **pytest 不用再改配置**：`config.test_database_url()` 会把库名换成 `DB_TEST_NAME`。以前要求「跑测试前把 `DATABASE_URL` 改成 jit_test」，忘了改就会把演示库的表当测试表清空（`conftest.py` 每个用例前会 `drop/create`）。
+- **口令只写进本机 `backend/.env`**（已被 `.gitignore` 忽略），不进任何入库文档、也不进 `.env.example`（§0 硬规矩 1 的同源要求）。字符集由代码固定为 `utf8mb4`，不需要你写 `?charset=`。
+- **可以整段覆盖（CI / 容器）**：需要一行 DSN 时，取消注释 `DATABASE_URL=mysql+pymysql://…` 即可，它的优先级高于上面五项字段（`.env.example` 里已有注释示例）。本地开发**不要**同时填，两种口径混用只会互相打脸。
+
+其余键（与库连接无关，§0 表里钉死的基线项只认 `docs/frontend/integration-log.md` §0，本文不抄）：
+
+- `API_TOKEN` 必须等于前端 `frontend/.env.local` 的 `VITE_API_KEY`，否则前端全部 40100。
+- `MODEL_DIR` 留空即回落到仓库内 `data_model/pipelines/expert/models/`（#99 自动插 `sys.path`，不要再手工设 `PYTHONPATH`）。
+- `SOURCE_REPO` 见 §4.1。
+
+配好后先验一次连接（**不建表、只连**）：
+
+```bash
+# cwd = backend —— 只连一次，不建表
+python -c "from app.db import get_engine; get_engine().connect().close(); print('连接 ok')"
+
+# cwd = 仓库根 —— 看建库脚本的全部参数（不连库）
+python infra/setup_mysql.py --help
+```
+
+## 4. 数据从哪来 + 特征口径判据
+
+> **现状（2026-10-25 起）**：数据只有一条入口 —— 后端实时同步端点（`POST /api/sync` 主干、`POST /api/sync-prs` open PR）。离线 CSV 灌库（`python -m app.ingest`）已随裁定彻底移除，本节保留的是**两样仍然有效的东西**：① 现算特征的数据来源（§4.1 历史索引）；② 「`commit_feature` 里必须是 `ln` 变换后的契约形态」这条**判据 SQL**（§4.1 末尾的判据 SQL）。中间那些「CSV 怎么投影、怎么导库」的步骤属历史记录，`--ingest` 之类命令**已不可执行**。
 
 ### 4.1 先建 Camel 历史索引（现算特征的数据来源）
 
@@ -261,10 +324,12 @@ python -m scripts.demo_preflight --init-db --out scripts/evidence/preflight-<日
 | 4 | `ModuleNotFoundError: No module named 'pymysql'` | 跑成了系统 Python，不是 conda 环境 `jit-defect-prediction` | `conda activate jit-defect-prediction` 后重试；依赖清单只有 `data_model/environment.yml` 一份 |
 | 5 | 中文提交信息乱码，或 `Incorrect string value: '\xF0\x9F...'` | 库/连接不是 `utf8mb4`（`utf8` 在 MySQL 里是 `utf8mb3`，存不下 4 字节字符） | 用 §2.1 的脚本建库（已钉 `utf8mb4`），连接串带 `?charset=utf8mb4` |
 | 6 | 担心时间被时区偏移 | 不成立：四表时间列都是 `DATETIME`（不是会按会话时区转换的 `TIMESTAMP`），后端一律在 Python 侧取 UTC 再去 `tzinfo` 后写入，`backend/app` 内没有任何 SQL 侧 `NOW()` / `CURRENT_TIMESTAMP` / `server_default`（grep 实测 0 命中） | 无需设 `time_zone`；本机实测 `@@time_zone = SYSTEM` 也不产生偏移。**别把时间列改成 `TIMESTAMP`** |
-| 7 | 改了 `backend/.env` 的连接串，服务却还连旧库 | 命令行带了 `DATABASE_URL=...` 前缀，而 `load_dotenv()` **不覆盖已存在的环境变量** | 命令里去掉前缀（§3）；`docs/common/local-runbook.md` §2.2 里那种带前缀的写法与本口径二选一，别混用 |
+| 7 | 改了 `backend/.env` 的连接字段，服务却还连旧库 | ① 命令行或系统环境里有 `DATABASE_URL`（优先级高于五项字段）；② `load_dotenv()` 只在进程启动时读一次，改完没重启 | 先 `echo $env:DATABASE_URL`（PowerShell）/ `env | grep DATABASE_URL` 排除环境变量；统一走一种口径；改完 `.env` 必须重启后端 |
 | 8 | 建到了共享实例上那份旧库 | 那份库里有 2 提交 / 4 预测的**占位脏数据**（假哈希 `1111…`/`2222…`、`repo_name=activemq`、`model_name` 为 `smoke_v1` / `tree_placeholder_v0`），灌真数据不会覆盖它们（哈希不同），演示列表会只剩一条假数据还排在前面 | 演示与验收一律用本机新建的 `jit_demo`；那份旧库**不是演示库**，其存量清理归 infra、不阻断演示（#142「存量处置（降级，不阻断）」） |
-| 9 | **在线预测的概率与库内存量值对不上**（同一提交、同一模型，详情页点「重新预测」后数字变了） | 灌的是 `commit_features_raw.csv` —— 那是模型线的训练输入形态（`ln` 变换之前），专家模型按契约二 v1.2 的 `ln` 形态训练，喂它不报错、只给错答案 | 按 §4 从 `dataset_szz.csv` 投影出契约形态的 `commit_features.csv` 重灌 `features`（ingest 幂等，同 hash 覆盖，不用重建库），再用 §4 那条 SQL 验 `MIN(la)` 为负。本机实测差多少：同一提交 `xgb_v1` raw → **0.82657**、契约形态 → **0.79963**（= 离线批量产物的存量值） |
-| 10 | PowerShell 里跑 `mysql … < backend/scripts/schema_mysql.sql` 报「`<` 运算符保留供将来使用」，一条语句都没执行 | PowerShell **不支持** `<` 输入重定向（bash/cmd 才支持），这是 shell 语法差异、不是 MySQL 的问题 | 用 §2.1 的 PowerShell 写法：`mysql -u root -p -e "SOURCE backend/scripts/schema_mysql.sql"`（实测 rc=0），或 `Get-Content … \| mysql -u root -p`（实测 rc=0）。`cmd /c "mysql -u root -p < backend\scripts\schema_mysql.sql"` 也可以 |
+| 9 | **在线预测的概率与库内存量值对不上**（同一提交、同一模型，详情页点「重新预测」后数字变了） | 库里存的是 `ln` 变换**之前**的原始计数（历史 CSV 灌库时期误灌过 `commit_features_raw.csv`），而模型按契约二 v1.2 的 `ln` 形态训练 —— 喂它不报错、只给错答案 | 用 §4.1 末尾那条判据 SQL 验口径：`MIN(la)` 必须为负。本机实测差多少：同一提交 `xgb_v1` raw → **0.82657**、契约形态 → **0.79963**（= 离线批量产物的存量值）。现在数据由实时同步现算写入，不会再产生这种行；命中说明是历史残留，按该判据确认后清理重同步 |
+| 10 | PowerShell 里跑 `mysql … < backend/scripts/schema_mysql.sql` 报「`<` 运算符保留供将来使用」，一条语句都没执行 | PowerShell **不支持** `<` 输入重定向（bash/cmd 才支持），这是 shell 语法差异、不是 MySQL 的问题 | 用 §2.2 的 PowerShell 写法：`mysql -u root -p -e "SOURCE backend/scripts/schema_mysql.sql"`（实测 rc=0），或 `Get-Content … \| mysql -u root -p`（实测 rc=0）。`cmd /c "mysql -u root -p < backend\scripts\schema_mysql.sql"` 也可以 |
+| 11 | 口令里有 `@ : / # ? %`，以前拼 URL 总连不上或连到别的库 | 手工做百分号编码极易错（`@` 会被当成 host 分隔符） | 现在不用拼 URL：`DB_PASSWORD` **原样填**，编码由 `backend/app/config.py` 负责（`backend/tests/test_config.py` 钉死） |
+| 12 | 跑完 `pytest` 发现演示库的数据被清空了 | 老口径要求手工把连接改成 `jit_test`，忘了改就等于拿演示库当测试库（用例前会 `drop/create`） | 现已自动切库：`config.test_database_url()` 用 `DB_TEST_NAME`（默认 `jit_test`）；确认 `.env` 里 `DB_TEST_NAME` 没被改成 `jit_demo` |
 
 ## 7. 与其他文档的关系
 

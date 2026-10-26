@@ -61,7 +61,11 @@ def main(argv: list[str]) -> int:
         init_db()
     except AppError:
         # 连接配置错误：指出配置项名，不回显密码明文
-        print("建库失败：请检查 .env 中的 DATABASE_URL 配置", file=sys.stderr)
+        print(
+            "建库失败：请检查 backend/.env 的数据库连接配置"
+            "（DB_HOST / DB_USER / DB_PASSWORD / DB_NAME，或整段 DATABASE_URL）",
+            file=sys.stderr,
+        )
         return 1
     print("四张表建表完成：commit / commit_label / commit_feature / prediction")
     return 0

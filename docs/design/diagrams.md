@@ -127,7 +127,7 @@ classDiagram
         +_lifespan()
     }
     class config {
-        +DATABASE_URL
+        +DB_HOST/DB_USER/DB_PASSWORD
         +API_TOKEN
         +MODEL_DIR
         +FEATURE_COLUMNS
