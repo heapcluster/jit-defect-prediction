@@ -1,7 +1,8 @@
 """测试公共夹具：本机 MySQL 测试库 jit_test + fixture 决策树模型（design D9）。
 
-所有测试依赖本机 MySQL：DATABASE_URL 必须指向已建好的测试库 jit_test
-（由仓库 infra/setup_mysql.py 一键建好）。代码里不再写死 SQLite 内存库。
+所有测试依赖本机 MySQL：连接由 `backend/.env` 的分字段（DB_HOST / DB_USER / DB_PASSWORD …）
+或整段 `DATABASE_URL` 提供；库名由 `config.test_database_url()` 自动换成 `DB_TEST_NAME`（默认
+jit_test，由仓库 `infra/setup_mysql.py` 一键建好）。代码里不再写死 SQLite 内存库。
 """
 
 from __future__ import annotations
@@ -19,14 +20,15 @@ from sklearn.tree import DecisionTreeClassifier
 MODEL_DIR = Path(tempfile.mkdtemp(prefix="jit-models-"))
 os.environ["API_TOKEN"] = "test-token"
 os.environ["MODEL_DIR"] = str(MODEL_DIR)
-# DATABASE_URL 不在此写死：由 backend/.env（指向 jit_test）或环境变量提供。
-# 跑 pytest 前请确保 jit_test 已建好（见 infra/setup_mysql.py）。
+# 连接不在此写死：由 backend/.env 的分字段或 DATABASE_URL 提供，库名自动切到 DB_TEST_NAME。
+# 跑 pytest 前请确保测试库已建好（见 infra/setup_mysql.py）。
 
-from app import model_registry
-from app.db import Base, configure_engine, get_engine
+from app import config, model_registry
+from app.db import Base, configure_engine
 from app.main import create_app
 from app.models import Commit, CommitFeature, Prediction
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
 
 HEADERS = {"X-API-Key": "test-token"}
 
@@ -77,8 +79,17 @@ os.utime(MODEL_DIR / "fixture_v2.pkl", (2_000_000, 2_000_000))
 
 @pytest.fixture(scope="session")
 def engine():
-    # 读 config.DATABASE_URL（指向本机 MySQL 测试库 jit_test）；不再用 SQLite 内存库
-    eng = get_engine()
+    # 库名由 config.test_database_url() 决定：分字段配置下自动用 DB_TEST_NAME，
+    # 不必手工把 .env 改成 jit_test（改错就会把演示库当测试库清空）。
+    url = config.test_database_url()
+    if not url:
+        pytest.fail(
+            "未配置数据库连接：请在 backend/.env 填 DB_HOST / DB_USER / DB_PASSWORD"
+            "（或整段写 DATABASE_URL），再跑 infra/setup_mysql.py；"
+            "见 docs/backend/mysql-setup.md",
+            pytrace=False,
+        )
+    eng = create_engine(url, pool_pre_ping=True)
     Base.metadata.create_all(eng)  # 幂等：表已存在则跳过
     configure_engine(eng)
     return eng

@@ -6,12 +6,12 @@
 ## §0 联调基线（唯一出处，2026-10-24 蒋励定 / 2026-10-25 演示库口径随 #147 更新）
 
 **任何联调、截图取证，只认这张表。** 前后端的 `.env` / `.env.local` 都是它的下游，不许各自定义。
-**演示与验收不在这张表范围内** —— 它们走 MySQL 演示库 `jit_demo`，口径见 `docs/repo/demo-script-sprint1.md` §0.0.1（数据库已敲定为 MySQL；数据入口将切换为实时同步，**随 PR #149 合入后生效**，此前灌库见演示脚本 §0.0）。
+**演示与验收不在这张表范围内** —— 它们走 MySQL 演示库 `jit_demo`，口径见 `docs/repo/demo-script-sprint1.md` §0.0.1（数据库已敲定为 MySQL；数据入口为实时同步 `POST /api/sync` / `POST /api/sync-prs`，离线 CSV 灌库已于 2026-10-25 移除）。
 
 | 项 | 基线值 | 维护线 |
 |---|---|---|
-| 数据库（联调 / 演示 / 验收） | **MySQL `jit_demo`**；`DATABASE_URL=mysql+pymysql://jit:<pwd>@127.0.0.1:3306/jit_demo?charset=utf8mb4`（同一套库，每人本机建库见 `infra/setup_mysql.py`） | 后端 |
-| 数据库（演示 / 验收） | **MySQL `jit_demo`**；`DATABASE_URL=mysql+pymysql://jit:<pwd>@127.0.0.1:3306/jit_demo?charset=utf8mb4`。建库脚本见 Issue #142 / PR #150（每人本机 MySQL，root 建库）；数据入口现为灌数（演示脚本 §0.0），**#149 合入后切换为 `POST /api/sync` 实时同步**，判据见 `docs/repo/demo-script-sprint1.md` §0.0.1 | 后端 |
+| 数据库（联调 / 演示 / 验收） | **MySQL `jit_demo`**；连接按分字段填：`DB_HOST=127.0.0.1` / `DB_PORT=3306` / `DB_USER=jit` / `DB_PASSWORD=<本机口令>` / `DB_NAME=jit_demo`（口令单独一格、不转义；建库见 `infra/setup_mysql.py`，读同一份 `.env`） | 后端 |
+| 数据库（演示 / 验收） | **MySQL `jit_demo`**（`DB_NAME=jit_demo`；测试库 `DB_TEST_NAME=jit_test`，pytest 自动切）。建库见 Issue #142 / PR #150（每人本机 MySQL）；数据入口为实时同步 `POST /api/sync` / `POST /api/sync-prs`，判据见 `docs/repo/demo-script-sprint1.md` §0.0.1 | 后端 |
 | 建库灌数 | `cd backend` → `python -m scripts.seed_dev_data`（PowerShell / bash 同一写法；`PYTHONPATH=.` 前缀在 PowerShell 下不是有效命令，不要写） | 后端 |
 | 种子内容 | 3 提交 / 3 特征 / 3 预测；`commit_hash` = `000…001` ~ `000…003` | 后端 |
 | 后端令牌 | `API_TOKEN=dev-token-20260918`，请求头 `X-Api-Key`（不是 `Authorization: Bearer`） | 后端 |

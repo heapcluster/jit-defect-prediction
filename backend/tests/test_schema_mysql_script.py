@@ -109,9 +109,11 @@ def test_demo_db_name_is_the_single_caliber_across_backend_docs():
     db_name = _demo_db_name()
     setup = SETUP_DOC.read_text(encoding="utf-8")
     acceptance = ACCEPTANCE_DOC.read_text(encoding="utf-8")
-    assert f"mysql+pymysql://<user>:<pwd>@127.0.0.1:3306/{db_name}" in setup, (
-        "配置文档必须给出可直接照抄的 DATABASE_URL 形态（口令用占位符）"
+    assert f"DB_NAME={db_name}" in setup, (
+        "配置文档必须给出可直接照抄的分字段模板，且演示库名与验收一致"
     )
+    for field in ("DB_HOST=127.0.0.1", "DB_PORT=3306", "DB_USER=", "DB_PASSWORD="):
+        assert field in setup, f"配置文档必须逐项写明 {field}：账号与口令分字段填，不再塞进一行 URL"
     assert "backend/scripts/schema_mysql.sql" in setup, "配置文档必须写明建库脚本路径与用法"
     assert db_name in acceptance, "验收文档的建表命令必须指向同一个库名"
     for path in (SETUP_DOC, ACCEPTANCE_DOC, BACKEND_README, WRAPPER):
@@ -163,16 +165,20 @@ def test_setup_doc_warns_about_the_raw_feature_table():
 
 
 def test_env_example_uses_mysql_as_the_only_database():
-    """`backend/.env.example` 不变式：统一 MySQL，不再保留 SQLite 联调库（双库策略已废除）。"""
+    """`backend/.env.example` 不变式：连接按分字段填（口令不塞进 URL），MySQL 唯一，无双库。"""
     text = (REPO_ROOT / "backend" / ".env.example").read_text(encoding="utf-8")
     lines = text.splitlines()
-    effective = [ln for ln in lines if ln.startswith("DATABASE_URL=")]
-    assert effective, "必须有一行生效的 DATABASE_URL"
-    assert all("mysql" in ln for ln in effective), "生效值必须是 MySQL"
-    assert any("jit_demo" in ln for ln in effective), "统一库名必须是 jit_demo"
-    # SQLite 只允许出现在注释里，且不能成为生效连接串
-    sqlite_effective = [ln for ln in effective if "sqlite" in ln]
-    assert not sqlite_effective, "不允许 SQLite 作为生效连接串（双库已废除）"
+    effective = [ln for ln in lines if ln and not ln.startswith("#") and "=" in ln]
+    fields = {ln.split("=", 1)[0].strip(): ln.split("=", 1)[1].strip() for ln in effective}
+    for field in ("DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD"):
+        assert field in fields, f".env.example 必须给出 {field}：账号与口令分开填"
+    assert fields.get("DB_NAME") == "jit_demo", "统一库名必须是 jit_demo"
+    assert fields.get("DB_TEST_NAME") == "jit_test", "测试库名默认 jit_test（pytest 自动切）"
+    assert "DATABASE_URL" not in fields, (
+        "DATABASE_URL 只作为注释里的可选覆盖（CI / 容器），模板默认走分字段"
+    )
+    assert "mysql" in text, "模板必须写明驱动是 MySQL"
+    assert "sqlite" not in text.lower(), "不允许 SQLite（双库已废除）"
     assert "API_TOKEN=dev-token-20260918" in lines, (
         "令牌是 §0 表里钉死的值，改它要同 PR 同步前端模板"
     )

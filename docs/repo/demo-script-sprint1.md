@@ -15,8 +15,12 @@ cd backend
 mysql -u<user> -p jit_demo < ../infra/schema.sql
 # python -m app.db init
 
-# backend/.env 里把连接指向演示库
-# DATABASE_URL=mysql+pymysql://jit:<pwd>@127.0.0.1:3306/jit_demo?charset=utf8mb4
+# backend/.env 里把连接指向演示库（五项字段，口令单独一格、不用转义）
+# DB_HOST=127.0.0.1
+# DB_PORT=3306
+# DB_USER=jit
+# DB_PASSWORD=<pwd>
+# DB_NAME=jit_demo
 
 # 数据入口：实时同步（离线 CSV 灌库已移除，2026-10-25 裁定）
 # 起后端后调同步端点，逐条现算特征并预测入库
@@ -30,13 +34,13 @@ curl -X POST -H "X-API-Key: $API_TOKEN" "http://127.0.0.1:8000/api/sync?limit=50
 
 ### 0.0.1 联调库与演示库统一为 MySQL（2026-10-25 裁定：废除双库，全项目一套 MySQL）
 
-**联调、演示、录屏、T-ST-01~05 与系统层验收统一走 MySQL `jit_demo`。** 不再保留 SQLite 联调库（`dev.db`）；双库策略已废除，所有人 clone 后配好 `backend/.env` 的 `DATABASE_URL` 指向本机 `jit_demo` 即可。
+**联调、演示、录屏、T-ST-01~05 与系统层验收统一走 MySQL `jit_demo`。** 不再保留 SQLite 联调库（`dev.db`）；双库策略已废除，所有人 clone 后配好 `backend/.env` 的五项连接字段（`DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME=jit_demo`）即可。
 
 | 库 | 连接 | 生成方式 | 数据规模 | 用在哪 |
 |---|---|---|---|---|
 | **`jit_demo`**（联调 / 演示 / 验收共用） | **MySQL `jit_demo`** | `python infra/setup_mysql.py` 一键建库建表（或 `mysql -u<user> -p jit_demo < ../infra/schema.sql` + `python -m app.db init`）→ 实时同步 `POST /api/sync` / `POST /api/sync-prs`（离线灌库已移除） | 同步口径：窗口内 Camel 最新提交（或 open PR 内提交）逐条现场预测；`prediction` 表按需增长 | 联调、演示、录屏、T-ST-01~05、系统层验收 |
 
-- **数据库敲定为 MySQL**：`DATABASE_URL=mysql+pymysql://jit:<pwd>@127.0.0.1:3306/jit_demo?charset=utf8mb4`。不用 SQLite —— 演示要的是「真库 + 真实规模」，MySQL 也是课程验收与 Issue #121 的既定方向。
+- **数据库敲定为 MySQL**：连接按分字段填（`DB_HOST=127.0.0.1` / `DB_PORT=3306` / `DB_USER=jit` / `DB_PASSWORD=<pwd>` / `DB_NAME=jit_demo`），口令原样写、不拼 URL。不用 SQLite —— 演示要的是「真库 + 真实规模」，MySQL 也是课程验收与 Issue #121 的既定方向。
 - **为什么废除 SQLite 联调库**：原 `integration-log.md` §0 定 SQLite 是为了零外部依赖，且 #117 的 9 张三态截图曾在该口径下取证；现统一 MySQL 后，新联调直接走 `jit_demo`，避免两套库带来的口径分裂。
 - **历史说明（不影响现口径）**：早期 seed 三行 `risk_score` 最高 0.3，若用极小 seed 库跑 `min_risk=0.5&size=5` 自检会为空；联调与演示现都用 `jit_demo` 的真实规模数据，不踩此坑。
 - **前置（先解，否则跑不起来）**：每人本机 MySQL，配好 `jit` 账号与库（一键脚本 `infra/setup_mysql.py` 会建 `jit_demo` 与测试库 `jit_test` 并授权；`jit` 通常无 `CREATE DATABASE`，脚本支持 `--root-password` 由 root 代建）。现有 `jit_defect` 里的 2 提交 / 4 预测是**占位脏数据**（假哈希 `1111…`/`2222…`、`repo_name=activemq`、`smoke_v1`/`tree_placeholder_v0`），按 §5 第 4 条「演示 `commit_hash` 必须与库中真实数据一致」**不能上台**；用新建的干净库 `jit_demo`，`jit_defect` 的存量由 infra 处置，不在演示路径上。

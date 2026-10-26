@@ -34,11 +34,12 @@
 （`docs/repo/collaboration.md` §0 第 3 条）。
 
 数据库口径（2026-10-25 裁定废除双库）：统一 **MySQL `jit_demo`**（联调 / 演示 / 验收同一套）。
-本脚本只认 `DATABASE_URL`，不假设方言。
+连接一律走 `app/config.py` 解析出的结果（`backend/.env` 的 `DB_HOST` 等五项字段，或整段 `DATABASE_URL`），本脚本不假设方言。
 
 用法（cwd=`backend`，与 `scripts.seed_dev_data` 同一种起法）：
   python -m scripts.demo_preflight
   python -m scripts.demo_preflight --port 8055 --out scripts/evidence/preflight-2026-10-25.md
+  # 临时覆盖连接（CI 用；本地请走 backend/.env 的五项字段，别混用）：
   DATABASE_URL=mysql+pymysql://<user>:<pwd>@127.0.0.1:3306/jit_demo python -m scripts.demo_preflight
   # 从零到断言一条命令（建库→起服务→六条判据；数据走实时同步，见下）：
   python -m scripts.demo_preflight --init-db --out scripts/evidence/preflight-2026-10-25.md

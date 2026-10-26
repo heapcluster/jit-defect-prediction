@@ -9,10 +9,17 @@
   5. 可选：--seed 灌入起步种子数据。
 
 设计前提（与「全部按 MySQL」一致）：你已经在本机装好 MySQL，并在 backend/.env
-里把 DATABASE_URL 配成指向 jit_demo 的账密。脚本就按这份账密连库、建库、建表。
+里按分字段填好连接（DB_HOST / DB_PORT / DB_USER / DB_PASSWORD / DB_NAME）。脚本按这份配置
+连库、建库（演示库 + 测试库）、建表。
+
+连接配置优先级（高 → 低）：
+    1. --database-url 整段 DSN（CI / 容器用）
+    2. --db-host / --db-port / --db-user / --db-password / --db-name
+    3. backend/.env 的分字段
+    4. backend/.env 里遗留的 DATABASE_URL（老配置仍可跑）
 
 最常见用法：
-    python infra/setup_mysql.py            # 读 backend/.env 的 DATABASE_URL，建 jit_demo + jit_test
+    python infra/setup_mysql.py            # 读 backend/.env，建 jit_demo + jit_test
     python infra/setup_mysql.py --seed     # 额外灌 seed 起步数据
     python infra/setup_mysql.py --root-password <pwd>   # jit 无建库权限时，用 root 代建并授权
 
@@ -48,7 +55,7 @@ def parse_database_url(url: str) -> dict:
     )
     if not m:
         raise SystemExit(
-            f"[setup] 无法解析 DATABASE_URL：{url}\n"
+            f"[setup] 无法解析整段 DSN：{url}\n"
             "期望形如 mysql+pymysql://jit:<pwd>@127.0.0.1:3306/jit_demo?charset=utf8mb4"
         )
     port = int(m.group("port") or 3306)
@@ -61,15 +68,71 @@ def parse_database_url(url: str) -> dict:
     }
 
 
-def load_database_url_from_env() -> str | None:
-    env_file = BACKEND_DIR / ".env"
+ENV_KEYS = (
+    "DB_HOST",
+    "DB_PORT",
+    "DB_USER",
+    "DB_PASSWORD",
+    "DB_NAME",
+    "DB_TEST_NAME",
+    "DATABASE_URL",
+)
+
+
+def read_backend_env(path: Path | None = None) -> dict[str, str]:
+    """读 backend/.env 里连接相关的键（手写解析，不给 infra 引入 dotenv 依赖）。"""
+    env_file = path or (BACKEND_DIR / ".env")
     if not env_file.exists():
-        return None
-    for line in env_file.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line.startswith("DATABASE_URL=") and not line.startswith("DATABASE_URL=#"):
-            return line[len("DATABASE_URL=") :].strip()
-    return None
+        return {}
+    values: dict[str, str] = {}
+    for raw in env_file.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        if key in ENV_KEYS:
+            value = value.strip()
+            # 与 dotenv 同口径：整段被引号包住时剥一层，口令本身带引号也不会被吃掉
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+                value = value[1:-1]
+            values[key] = value
+    return values
+
+
+def resolve_credentials(args: argparse.Namespace, env: dict[str, str] | None = None) -> dict:
+    """按「命令行 > .env 分字段 > .env 的旧 DATABASE_URL」取连接字段。"""
+    if args.database_url:
+        return parse_database_url(args.database_url)
+    env = read_backend_env() if env is None else env
+    host = (args.db_host or env.get("DB_HOST", "")).strip()
+    user = (args.db_user or env.get("DB_USER", "")).strip()
+    if host and user:
+        port_raw = str(args.db_port or env.get("DB_PORT") or 3306).strip()
+        try:
+            port = int(port_raw)
+        except ValueError:
+            raise SystemExit(f"[setup] DB_PORT 不是整数：{port_raw}") from None
+        password = args.db_password if args.db_password is not None else env.get("DB_PASSWORD", "")
+        return {
+            "user": user,
+            "password": password,
+            "host": host,
+            "port": port,
+            "database": (args.db_name or env.get("DB_NAME") or "jit_demo").strip(),
+        }
+    legacy = env.get("DATABASE_URL", "").strip()
+    if legacy:
+        return parse_database_url(legacy)
+    raise SystemExit(
+        "[setup] 未找到数据库连接配置。请在 backend/.env 填这五项（口令原样写，不用转义）：\n"
+        "        DB_HOST=127.0.0.1\n"
+        "        DB_PORT=3306\n"
+        "        DB_USER=jit\n"
+        "        DB_PASSWORD=<你的口令>\n"
+        "        DB_NAME=jit_demo\n"
+        "        模板见 backend/.env.example，引导见 docs/backend/mysql-setup.md。"
+    )
 
 
 # ───────────────────────────── 服务可用性 ─────────────────────────────
@@ -244,7 +307,7 @@ def run_seed() -> None:
         check=False,
     )
     if rc.returncode != 0:
-        print("[setup] 种子数据写入失败，请检查 DATABASE_URL 与库连接。")
+        print("[setup] 种子数据写入失败，请检查 backend/.env 的连接字段与库连接。")
         raise SystemExit(1) from None
     print("[setup] 种子数据写入完成")
 
@@ -256,8 +319,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="一键建库（非 docker）：建 jit_demo / jit_test 并执行 schema.sql"
     )
-    parser.add_argument("--database-url", help="覆盖 backend/.env 里的 DATABASE_URL")
-    parser.add_argument("--test-db", default="jit_test", help="pytest 用测试库名（默认 jit_test）")
+    parser.add_argument(
+        "--database-url", help="整段 DSN，优先级最高（CI / 容器用；覆盖下面的分字段）"
+    )
+    parser.add_argument("--db-host", help="覆盖 backend/.env 的 DB_HOST")
+    parser.add_argument("--db-port", help="覆盖 DB_PORT（默认 3306）")
+    parser.add_argument("--db-user", help="覆盖 DB_USER")
+    parser.add_argument("--db-password", help="覆盖 DB_PASSWORD")
+    parser.add_argument("--db-name", help="覆盖 DB_NAME（演示库，默认 jit_demo）")
+    parser.add_argument(
+        "--test-db", default=None, help="pytest 用测试库名（默认取 DB_TEST_NAME，否则 jit_test）"
+    )
     parser.add_argument("--seed", action="store_true", help="额外灌入起步种子数据")
     parser.add_argument(
         "--root-password", default=None, help="用 root 代建库并授权（jit 无建库权限时）"
@@ -265,27 +337,22 @@ def main() -> None:
     parser.add_argument("--skip-start", action="store_true", help="跳过启动 MySQL 服务尝试")
     args = parser.parse_args()
 
-    url = args.database_url or load_database_url_from_env()
-    if not url:
-        print(
-            "[setup] 找不到 DATABASE_URL：请先配置 backend/.env（DATABASE_URL=mysql+pymysql://jit:<pwd>@127.0.0.1:3306/jit_demo?charset=utf8mb4）"
-        )
-        raise SystemExit(1) from None
-
-    creds = parse_database_url(url)
+    env = read_backend_env()
+    creds = resolve_credentials(args, env)
+    test_db = args.test_db or env.get("DB_TEST_NAME") or "jit_test"
     print(
         f"[setup] 目标：{creds['user']}@{creds['host']}:{creds['port']}  "
-        f"演示库={creds['database']} 测试库={args.test_db}"
+        f"演示库={creds['database']} 测试库={test_db}"
     )
 
     ensure_reachable(creds, args.skip_start)
-    build_databases(creds, args.test_db, args.root_password)
+    build_databases(creds, test_db, args.root_password)
     if args.seed:
         run_seed()
 
     print("[setup] 完成。下一步：")
     print("        cd backend && uvicorn app.main:app --reload   # 起后端")
-    print("        （pytest 跑前请把 DATABASE_URL 指向测试库 jit_test）")
+    print(f"        （pytest 会自动连测试库 {test_db}，不需要改 .env）")
 
 
 if __name__ == "__main__":

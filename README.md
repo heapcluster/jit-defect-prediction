@@ -152,7 +152,8 @@ python -V                                               # 必须是 3.12.x
 
 | 变量 | 说明 |
 |---|---|
-| `DATABASE_URL` | `mysql+pymysql://jit:<密码>@127.0.0.1:3306/jit_demo?charset=utf8mb4`（联调 / 演示 / 验收同一套）；建库见 `infra/setup_mysql.py` |
+| `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | 数据库连接**分字段填**（口令原样写、不用转义；`DB_NAME` 默认 `jit_demo`）；测试库由 `DB_TEST_NAME` 指定，pytest 自动切。建库见 `infra/setup_mysql.py` |
+| `DATABASE_URL` | 可选：一行 DSN 整段覆盖上面五项（CI / 容器用），优先级更高 |
 | `API_TOKEN` | 接口令牌，请求头 `x-api-key`；**未配置时一律拒绝**（fail closed） |
 | `MODEL_DIR` | 留空即回落 `<repo>/data_model/pipelines/expert/models/`；禁止写个人绝对路径 |
 | `SOURCE_REPO` | 本地 Apache Camel 克隆根目录（含 `.git`）。留空 = `POST /api/predict` 只查库，库里没有的哈希返回 40400 |

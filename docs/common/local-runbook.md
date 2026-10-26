@@ -49,7 +49,7 @@ cd data_model; python -m pipelines.verify_all_weights --check
 
 ### 2.1 一键建库（推荐）
 
-克隆后配好 `backend/.env` 的 `DATABASE_URL`（指向本机 MySQL 的 `jit_demo`，账密自己设），然后：
+克隆后配好 `backend/.env` 的五项连接字段（`DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME`，指向本机 MySQL 的 `jit_demo`，账号口令自己设），然后：
 
 ```bash
 python infra/setup_mysql.py            # 读 backend/.env，建 jit_demo + 测试库 jit_test 并跑 schema.sql
@@ -68,7 +68,7 @@ mysql -u root -p -e "GRANT ALL PRIVILEGES ON jit_demo.* TO 'jit'@'127.0.0.1'; FL
 
 # 2) 建表（二选一）
 # A. ORM 路径（推荐，会顺带跑 _assert_indexes 自检）
-#    连接串写 backend/.env（DATABASE_URL=mysql+pymysql://jit:<密码>@127.0.0.1:3306/jit_demo?charset=utf8mb4）
+#    连接写 backend/.env 的字段（DB_HOST=127.0.0.1 / DB_USER=jit / DB_PASSWORD=<密码> / DB_NAME=jit_demo）
 cd backend && python -m app.db init
 
 # B. DDL 路径（部署形态）
@@ -135,7 +135,12 @@ curl -X POST 'http://127.0.0.1:8000/api/sync?limit=50' -H 'X-API-Key: <令牌>'
 `backend/.env`（模板见 `backend/.env.example`，实际值不进 git）：
 
 ```ini
-DATABASE_URL=mysql+pymysql://jit:<密码>@127.0.0.1:3306/jit_demo?charset=utf8mb4
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=jit
+DB_PASSWORD=<你的口令>
+DB_NAME=jit_demo
+DB_TEST_NAME=jit_test
 API_TOKEN=<与服务端一致的令牌>
 MODEL_DIR=                       # 留空 = 回落到 data_model/pipelines/expert/models/
 SOURCE_REPO=<本地 Apache Camel 仓库绝对路径>   # 只在本机 .env.local 写，不进文档、不进 .env.example
@@ -199,7 +204,7 @@ npm run dev
 | 现象 | 最可能原因 | 处理 |
 |---|---|---|
 | 启动日志 `failed models: [...]` | 权重版本不对 / 缺依赖 / 目录里套了子文件夹 | `verify_all_weights --check` 看 md5 与类路径；确认 10 个文件平铺 |
-| 所有接口 `50000 internal error` | `DATABASE_URL` 为空或不可达 | 按 §2 建库并核对连接串；日志在服务端，不回显给你 |
+| 所有接口 `50000 internal error` | 连接字段为空（`DB_HOST` / `DB_USER` 任一未填）或库不可达 | 按 §2 建库并核对 `backend/.env` 五项字段；日志在服务端，不回显给你 |
 | `40100` | 前后端令牌不一致 | 前端 `VITE_API_KEY` 与后端 `API_TOKEN` 必须是同一个 |
 | `40400` 且哈希确实存在 | 库中无该提交的历史索引，且未配 `SOURCE_REPO` | 配 `SOURCE_REPO`（§4）后走实时同步（§3） |
 | `40001 参数非法：model_name` | 选了交付清单外的模型名 | 只用 `[models]` 段的 8 个（见 §7） |

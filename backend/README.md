@@ -64,14 +64,17 @@ uvicorn app.main:app --reload --port 8000
 
 前提：目标 **MySQL 8 数据库已创建**，账号已有连接与建表权限。以下入口只建四张表，不创建数据库/用户、不授权、不灌数据；连接或权限错误需由管理员处理，不自动提权。
 
-**还没有库？（一条命令建库 + 建表）** 演示 / 验收库 `jit_demo` 用 `backend/scripts/schema_mysql.sql`：
+**还没有库？（一条命令建库 + 建两个库的表）** 先按 `backend/.env.example` 填好 `backend/.env` 的**五项连接字段**（`DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME`；口令单独一格、原样写不用转义），然后在仓库根跑：
 
 ```bash
-# cwd = 仓库根；需要 CREATE DATABASE 权限（普通账号会报 1044），跑完当场列出建好的四张表
-mysql -u root -p < backend/scripts/schema_mysql.sql
+python infra/setup_mysql.py          # 建 DB_NAME（默认 jit_demo）+ DB_TEST_NAME（默认 jit_test）并执行 infra/schema.sql
 ```
 
-该脚本 = `CREATE DATABASE IF NOT EXISTS jit_demo`（utf8mb4 / utf8mb4_unicode_ci）+ `USE jit_demo` + `SOURCE infra/schema.sql`，满足本节开头「别人 clone 后一条命令能把库建好」那条完成定义。**四表 DDL 仍只有 `infra/schema.sql` 一份**，脚本不复制 DDL，所以下面两条入口的行为与幂等性不变。MySQL 安装、`.env` 写法、灌数与验收清单、常见报错见 **`docs/backend/mysql-setup.md`**（Issue #142）。
+它按 `.env` 连库，账号有 `CREATE DATABASE` 权限即可（没有则不自动提权，用 `--root-password` 让脚本代建并授权），口令不会被打印。**四表 DDL 仍只有 `infra/schema.sql` 一份**，脚本不复制 DDL，所以下面两条入口的行为与幂等性不变。
+
+只要 SQL 的等价路径（需要 root 或已授权账号）：`mysql -u root -p < backend/scripts/schema_mysql.sql`（= `CREATE DATABASE IF NOT EXISTS jit_demo`（utf8mb4 / utf8mb4_unicode_ci）+ `USE jit_demo` + `SOURCE infra/schema.sql`，跑完当场列出四张表）。
+
+MySQL 安装、连接字段逐项说明、验收清单、常见报错见 **`docs/backend/mysql-setup.md`**（Issue #142）—— 那份是权威，本文不重复。
 
 **mysql 客户端入口（cwd=仓库根，Git Bash / Bash）：**
 
@@ -87,11 +90,11 @@ mysql -u "$MYSQL_USER" -p "$MYSQL_DATABASE" < infra/schema.sql
 **Python 入口（cwd=backend）：**
 
 ```bash
-# 按 backend/.env.example 配好 backend/.env 的 DATABASE_URL，指向已有目标库
+# 按 backend/.env.example 配好 backend/.env 的五项连接字段（DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME）
 python -m app.db init
 ```
 
-`IF NOT EXISTS` 只跳过已有表，**不会校验或修复已有错误 schema，不是迁移工具**。SQL 路线建表后，将 `backend/.env` 的 `DATABASE_URL` 配成同一目标库，在 backend 运行现有只读索引自检：
+`IF NOT EXISTS` 只跳过已有表，**不会校验或修复已有错误 schema，不是迁移工具**。SQL 路线建表后，将 `backend/.env` 的连接字段配成同一目标库，在 backend 运行现有只读索引自检：
 
 ```bash
 python -c "from app.db import get_engine, _assert_indexes; _assert_indexes(get_engine())"
@@ -101,7 +104,7 @@ Python 建表入口已自动执行该自检；它只覆盖 `INDEX_ASSERTIONS` �
 
 ### 灌入：统一走实时同步（2026-10-25 起不再有离线 CSV 灌库）
 
-SQL **只建表**；业务数据由实时同步端点写入，同一份 `DATABASE_URL`，无独立 SQL INSERT/upsert 路径。**离线灌库脚本 `app.ingest` 已彻底移除**（含其 CLI 入口与测试），历史 CSV 产物只作数据线归档，不再进入运行时。
+SQL **只建表**；业务数据由实时同步端点写入，同一份连接配置，无独立 SQL INSERT/upsert 路径。**离线灌库脚本 `app.ingest` 已彻底移除**（含其 CLI 入口与测试），历史 CSV 产物只作数据线归档，不再进入运行时。
 
 ```bash
 # cwd=backend；两个端点都是长耗时（单条提交 × 8 模型约 4.1s），调用方须放宽超时
