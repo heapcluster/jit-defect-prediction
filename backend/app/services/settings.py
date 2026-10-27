@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import logging
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app import config
 from app.db import SessionLocal
 from app.errors import AppError
 from app.models import RuntimeSetting
-from app.timeutil import now_naive_utc
+from app.timeutil import iso_z, now_naive_utc
 
 logger = logging.getLogger("backend.settings")
 
@@ -68,6 +68,17 @@ def high_threshold() -> float:
 
 def mid_threshold() -> float:
     return thresholds()[MID_KEY]
+
+
+def updated_at() -> str | None:
+    """最近一次阈值写入时间（仅审计展示；DB 不可用时返回 None）。"""
+    try:
+        with SessionLocal() as session:
+            value = session.execute(select(func.max(RuntimeSetting.updated_at))).scalar_one()
+    except Exception:  # noqa: BLE001
+        logger.exception("读取阈值更新时间失败")
+        return None
+    return iso_z(value)
 
 
 def set_thresholds(high: float, mid: float) -> dict[str, float]:

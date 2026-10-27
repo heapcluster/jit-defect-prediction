@@ -270,3 +270,85 @@ class CalibrateResponse(BaseModel):
     code: int
     message: str
     data: CalibrateData
+
+
+class ConfigData(BaseModel):
+    """运行时配置（change ops-hardening）：阈值热更新，改完立即生效。"""
+
+    high_risk_threshold: float
+    mid_risk_threshold: float
+    sync_initial_limit: int
+    sync_catchup_limit: int
+    updated_at: str | None
+
+
+class ConfigResponse(BaseModel):
+    code: int
+    message: str
+    data: ConfigData
+
+
+class ConfigUpdateRequest(BaseModel):
+    high_risk_threshold: float
+    mid_risk_threshold: float
+
+
+class LiveData(BaseModel):
+    """liveness：只证明进程活着（不查 DB，DB 挂不该导致重启）。"""
+
+    status: str
+    server_time: str
+
+
+class LiveResponse(BaseModel):
+    code: int
+    message: str
+    data: LiveData
+
+
+class ReadyData(BaseModel):
+    """readiness：DB 通 + 模型已加载才算就绪。"""
+
+    status: str
+    db: str
+    models_loaded: int
+    server_time: str
+
+
+class ReadyResponse(BaseModel):
+    code: int
+    message: str
+    data: ReadyData
+
+
+class GateData(BaseModel):
+    """CI 风险门禁结果：`blocked=true` 时 CI 应阻断合并。"""
+
+    number: int
+    model_name: str
+    risk_score: float | None
+    risk_level: str | None
+    threshold: float
+    blocked: bool
+    reason: str | None
+
+
+class GateResponse(BaseModel):
+    code: int
+    message: str
+    data: GateData
+
+
+class WebhookData(BaseModel):
+    """GitHub webhook 受理结果：`triggered` 表示是否真的派发了后台同步。"""
+
+    accepted: bool
+    event: str | None
+    action: str | None
+    triggered: bool
+
+
+class WebhookResponse(BaseModel):
+    code: int
+    message: str
+    data: WebhookData

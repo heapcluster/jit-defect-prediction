@@ -10,7 +10,18 @@ from datetime import datetime, timezone
 from fastapi import FastAPI
 
 from app import config, db, model_registry
-from app.api import commits, feedback, health, predict, prs, quality, sync, trends
+from app.api import (
+    commits,
+    feedback,
+    health,
+    predict,
+    prs,
+    quality,
+    runtime_config,
+    sync,
+    trends,
+    webhook,
+)
 from app.services import settings as runtime_settings
 from app.errors import register_error_handlers
 
@@ -87,6 +98,8 @@ def create_app() -> FastAPI:
     app.include_router(feedback.router)
     app.include_router(health.router)
     app.include_router(quality.router)
+    app.include_router(runtime_config.router)
+    app.include_router(webhook.router)
     return app
 
 
