@@ -61,7 +61,7 @@
       :closable="false"
       class="mb"
     >
-      正在逐条现算（约 15 秒/条），已处理 {{ syncDone }} 条，完成后自动刷新。
+      正在逐条现算（约 4 秒/条），已处理 {{ syncDone }} 条，完成后自动刷新。
     </el-alert>
 
     <el-alert
@@ -214,11 +214,13 @@ async function sync() {
   syncing.value = true
   syncDone.value = 0
   error.value = ''
+  // 分批触发避免单请求超时；批数按实际 PR 数收敛（PR 少于 30 时不再固定跑满 3 轮，
+  // 每轮会给每个 PR 打一次 GitHub 提交清单调用，白耗配额）
+  const target = Math.min(30, Math.max(items.value.length, 10))
   try {
-    // 分批触发：一次 30 个 PR 的提交现算会顶到前端超时，改成 3 批 × 10
-    for (let done = 0; done < 30; done += 10) {
+    for (let done = 0; done < target; done += 10) {
       await postSyncPrs(10)
-      syncDone.value = done + 10
+      syncDone.value = Math.min(done + 10, target)
     }
   } catch (e) {
     error.value = errText(e)

@@ -84,3 +84,5 @@ tools/
 
 # ===== conda 建环境时的临时 pip 清单（conda 自动生成，勿入库）=====
 data_model/condaenv.*.requirements.txt
+
+dev.db

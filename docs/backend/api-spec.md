@@ -104,9 +104,11 @@
 - `stream` 为 SSE（`text/event-stream`），状态变化时推送 `data: {...}`。
 
 ### 12. `PUT /api/commits/{commit_hash}/label` —— 人工反馈标签（change `feedback-observability`）
-请求体：`{"is_defect": bool}`。响应 `data`：`commit_hash` `is_defect` `labeled_at`。
+请求体：`{"is_defect": true | false | null}`。响应 `data`：`commit_hash` `is_defect` `labeled_at`。
+- **三态语义**：`true` = 引入缺陷；`false` = 确认非缺陷（保留行，计入质量指标）；`null` = **撤销**（删除该提交的 `manual` 标签行，响应 `is_defect=null`、`labeled_at=null`）。撤销 `MUST NOT` 实现为 `false`，否则用户以为撤销、实际留下 tn/fp 样本。
 - 以 `label_method="manual"` 写入/更新 `commit_label`，与 SZZ 自动标签靠唯一约束 `(commit_hash, label_method)` 隔离。
-- `commit_hash` 不存在 → `40400`；请求体非法 → `40001`；撤销 = 再次提交 `is_defect=false`（保留「已确认非缺陷」事实），`MUST NOT` 物理删除标签行。
+- `commit_hash` 不存在 → `40400`；请求体缺 `is_defect` 或值非布尔/非 `null` → `40001`；对未标注提交发 `null` 幂等返回 200（不报错、不建行）。
+- `false` 与 `null` `MUST NOT` 混用：`false` 保留标签行（计入 `tn`/`fp`），`null` 删行（回到未标注，不计入任何指标）。
 
 ### 13. `GET /api/health` —— 健康检查与运行状态（change `feedback-observability`）
 响应 `data`：`status`（`ok`/`degraded`）`db`（`up`/`down`）`models_loaded` `model_names` `commit_count` `prediction_count` `labeled_count` `last_sync_at` `server_time`。

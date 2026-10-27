@@ -11,7 +11,7 @@
 
 ## 2. 人工反馈闭环（feedback）
 
-- [x] 2.1 新增 `app/api/feedback.py`：`PUT /api/commits/{commit_hash}/label`（`is_defect`），`label_method="manual"`；commit 不存在返回 40400，参数非法返回 40001 — `backend/app/api/feedback.py`
+- [x] 2.1 新增 `app/api/feedback.py`：`PUT /api/commits/{commit_hash}/label`（`is_defect` 三态：`true`/`false` upsert、`null` 撤销删行），`label_method="manual"`；commit 不存在返回 40400，参数非法返回 40001 — `backend/app/api/feedback.py`
 - [x] 2.2 `commits.py` 详情 `data.label` 返回 manual 标签（无则 `null`）— `backend/app/api/commits.py`
 - [x] 2.3 `commits.py` 列表支持 `has_label=true` 过滤（仅查看、不触发预测）— `backend/app/api/commits.py`
 - [x] 2.4 `main.py` 注册 feedback 路由 — `backend/app/main.py`

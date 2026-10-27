@@ -41,6 +41,16 @@
       :inline="true"
       class="filters"
     >
+      <el-form-item label="搜索">
+        <el-input
+          v-model="filters.q"
+          placeholder="哈希/作者/提交信息"
+          clearable
+          maxlength="64"
+          style="width: 200px"
+          @keyup.enter="load(1)"
+        />
+      </el-form-item>
       <el-form-item label="模型">
         <el-select
           v-model="filters.model_name"
@@ -125,6 +135,7 @@
         <template #default="{ row }">
           <div class="risk-cell">
             <RiskTag
+              :level="row.risk_level"
               :score="row.risk_score"
               effect="dark"
             />
@@ -184,7 +195,7 @@
     >
       <h3>还没有数据</h3>
       <p class="boot-desc">
-        先同步最近若干条提交：逐条现算特征并预测落库，约 15 秒/条。
+        先同步最近若干条提交：逐条现算特征并预测落库，约 4 秒/条（单条 × 8 个模型）。
       </p>
       <div class="boot-row">
         <el-select
@@ -267,6 +278,7 @@ import {
 } from '../api'
 import { ElMessage } from 'element-plus'
 import { riskColor } from '../utils/risk'
+import { loadThresholds } from '../utils/thresholds'
 import { MODELS } from '../utils/models'
 import { errText, isRetryable } from '../utils/errors'
 import { formatTime } from '../utils/datetime'
@@ -281,6 +293,7 @@ const route = useRoute()
 const models = MODELS
 
 const filters = reactive({
+  q: '',
   model_name: '',
   min_risk: null,
   has_label: false,
@@ -296,12 +309,17 @@ const retryable = ref(false)
 
 // ── 运行状态（observability）──
 const health = ref(null)
+const healthError = ref(false)
 function loadHealth() {
   getHealth()
     .then((d) => {
       health.value = d
+      healthError.value = false
     })
-    .catch(() => {})
+    // 失败要说出来：卡片显示「—」会被误读成「没有数据」
+    .catch(() => {
+      healthError.value = true
+    })
 }
 const statusLabel = computed(() => {
   if (!health.value) return '—'
@@ -309,6 +327,7 @@ const statusLabel = computed(() => {
 })
 const statusColor = computed(() => (health.value?.status === 'ok' ? '#4e9b68' : '#d98a2b'))
 const statusHint = computed(() => {
+  if (healthError.value) return '状态获取失败，可刷新重试'
   if (!health.value) return '状态未知'
   return `模型 ${health.value.models_loaded} 个 · DB ${health.value.db === 'up' ? '正常' : '异常'}`
 })
@@ -324,9 +343,11 @@ const coverageLabel = computed(() => {
   const end = picked.end ? picked.end.slice(0, 10) : '—'
   return `${start} ~ ${end}`
 })
-const coverageHint = computed(() =>
-  coverage.value.length ? `${coverage.value.length} 个模型` : '尚无预测'
-)
+const coverageError = ref(false)
+const coverageHint = computed(() => {
+  if (coverageError.value) return '覆盖信息获取失败'
+  return coverage.value.length ? `${coverage.value.length} 个模型` : '尚无预测'
+})
 
 // ── 空态三分支：无预测数据的模型 / 筛选没命中 / 库为空（后者由 boot 卡片接管）──
 const modelHasNoData = computed(() => {
@@ -350,8 +371,11 @@ function loadCoverage() {
   getCommitsCoverage()
     .then((d) => {
       coverage.value = d.items || []
+      coverageError.value = false
     })
-    .catch(() => {})
+    .catch(() => {
+      coverageError.value = true
+    })
 }
 function catchup() {
   catching.value = true
@@ -383,6 +407,7 @@ const syncMsg = ref('')
 const hasFilter = computed(
   () =>
     !!(
+      filters.q.trim() ||
       filters.model_name ||
       filters.min_risk != null ||
       filters.has_label ||
@@ -396,20 +421,18 @@ const showBootstrap = computed(
 async function runSync() {
   syncing.value = true
   syncPct.value = 0
-  let done = 0
   try {
-    while (done < syncCount.value) {
-      const batch = Math.min(10, syncCount.value - done)
-      await postSync(batch)
-      done += batch
-      syncPct.value = Math.round((done / syncCount.value) * 100)
-      syncMsg.value = `已落库 ${done}/${syncCount.value} 条`
-    }
-    ElMessage.success(`同步完成，共 ${done} 条`)
+    // /api/sync 只按 limit 取**最近** N 条、没有游标：循环多次拿到的是同一批
+    // （第二次起 new=0），所以一次请求给够数（后端上限 50），并按响应里的 new 如实回报。
+    const data = await postSync(Math.min(syncCount.value, 50))
+    const added = data?.new ?? 0
+    syncPct.value = 100
+    syncMsg.value = `本次入库 ${added} 条（扫描 ${data?.scanned ?? 0} 条）`
+    ElMessage.success(added ? `同步完成，新增 ${added} 条` : '没有新的提交需要预测')
     await load(1)
   } catch (e) {
     ElMessage.error(errText(e))
-    syncMsg.value = `中断：已落库 ${done} 条，可再次点击继续`
+    syncMsg.value = '同步中断，可再次点击重试'
   } finally {
     syncing.value = false
   }
@@ -428,6 +451,7 @@ async function load(page = filters.page) {
     const data = await getCommits({
       page: filters.page,
       size: filters.size,
+      q: filters.q.trim() || undefined,
       model_name: filters.model_name || undefined,
       min_risk: filters.min_risk ?? undefined,
       start_time: timeRange.value?.[0] || undefined,
@@ -449,6 +473,7 @@ async function load(page = filters.page) {
 }
 
 function reset() {
+  filters.q = ''
   filters.model_name = ''
   filters.min_risk = null
   filters.has_label = false
@@ -472,9 +497,10 @@ function goDetail(row) {
 
 // 从 route.query 同步筛选条件（趋势下钻带回 start_time/end_time，其它页面可带 model_name 深链）
 function applyQueryAndLoad() {
-  const { start_time, end_time, model_name } = route.query
+  const { start_time, end_time, model_name, q } = route.query
   timeRange.value = start_time && end_time ? [start_time, end_time] : []
   filters.model_name = typeof model_name === 'string' ? model_name : ''
+  filters.q = typeof q === 'string' ? q : ''
   filters.page = 1
   load(1)
 }
@@ -483,6 +509,8 @@ onMounted(() => {
   applyQueryAndLoad()
   loadCoverage()
   loadHealth()
+  // 阈值来自后端运行时配置：先拉再渲染，避免用兜底 0.5/0.2 画一帧再跳变
+  loadThresholds()
 })
 
 watch(() => route.query, applyQueryAndLoad)

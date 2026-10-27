@@ -35,10 +35,16 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { loadThresholds } from './utils/thresholds'
 
 const route = useRoute()
+
+// 首屏预热风险阈值：各页面的配色与等级都读这份配置，避免先用默认值渲染再跳变
+onMounted(() => {
+  loadThresholds()
+})
 
 // 菜单高亮：default-active 只在首次渲染生效，路由变化后要跟着更新；
 // 详情页（/commit/:hash、/prs/:number）归到它所属的列表项

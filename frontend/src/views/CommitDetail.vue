@@ -10,13 +10,21 @@
     </div>
 
     <PageHint text="这条提交是否真的引入缺陷？看风险与解释因子，确认后标记 —— 标记会用于质量校准。">
+      <!-- 三态必须分清：撤销（无标签）≠ 确认非缺陷（计入 tn/fp） -->
       <el-button
         v-if="label"
         size="small"
         :loading="labeling"
-        @click="mark(false)"
+        @click="mark(null)"
       >
         撤销标记
+      </el-button>
+      <el-button
+        size="small"
+        :loading="labeling"
+        @click="mark(false)"
+      >
+        确认非缺陷
       </el-button>
       <el-button
         size="small"
@@ -55,9 +63,11 @@
       </el-button>
     </el-alert>
 
-    <div
+    <!-- 骨架屏用 el-skeleton：空 div + 转圈只是「一片空白」，看不出正在加载什么 -->
+    <el-skeleton
       v-if="loading"
-      v-loading="loading"
+      :rows="6"
+      animated
       class="skeleton"
     />
 
@@ -73,6 +83,7 @@
           {{ `${(detail.risk_score * 100).toFixed(1)}%` }}
         </span>
         <RiskTag
+          :level="detail.risk_level"
           :score="detail.risk_score"
           effect="dark"
         />
@@ -213,6 +224,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { getCommitDetail, postPredict, putCommitLabel } from '../api'
 import { ElMessage } from 'element-plus'
 import { riskColor } from '../utils/risk'
+import { loadThresholds } from '../utils/thresholds'
 import { MODELS } from '../utils/models'
 import { FEATURE_GROUPS, featureLabel } from '../utils/features'
 import { errText } from '../utils/errors'
@@ -311,14 +323,15 @@ async function predict() {
   }
 }
 
-// 撤销 = is_defect=false（保留「已确认非缺陷」事实，不删历史标签行）
+// mark(null) = 撤销（删除标签行）；mark(false) = 确认非缺陷（计入质量指标）
 async function mark(isDefect) {
   if (!detail.value) return
   labeling.value = true
   try {
     const data = await putCommitLabel(detail.value.commit_hash, isDefect)
-    detail.value = { ...detail.value, label: data }
-    ElMessage.success(isDefect ? '已标记为引入缺陷' : '已撤销标记')
+    detail.value = { ...detail.value, label: data.is_defect == null ? null : data }
+    if (isDefect === null) ElMessage.success('已撤销标记')
+    else ElMessage.success(isDefect ? '已标记为引入缺陷' : '已确认非缺陷')
   } catch (e) {
     ElMessage.error(errText(e))
   } finally {
@@ -326,7 +339,10 @@ async function mark(isDefect) {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  loadThresholds()
+})
 // 路由参数变化时重载：组件复用时不重载会显示上一条提交
 watch(
   () => props.hash,

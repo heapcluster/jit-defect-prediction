@@ -12,7 +12,9 @@ import * as echarts from 'echarts'
 const props = defineProps({
   // series[]: { period, commit_count, avg_risk, high_risk_count }
   series: { type: Array, default: () => [] },
-  height: { type: String, default: '320px' }
+  height: { type: String, default: '320px' },
+  // 高风险阈值参考线：取自运行时配置，改阈值后图上的基准线跟着动
+  highThreshold: { type: Number, default: 0.5 }
 })
 
 const emit = defineEmits(['point-click'])
@@ -60,13 +62,26 @@ function render() {
         data: props.series.map((s) => s.avg_risk),
         lineStyle: { color: '#3b5bdb', width: 2 },
         itemStyle: { color: '#3b5bdb' },
-        areaStyle: { color: '#3b5bdb', opacity: 0.08 }
+        areaStyle: { color: '#3b5bdb', opacity: 0.08 },
+        markLine: {
+          silent: true,
+          symbol: 'none',
+          label: {
+            formatter: `高阈值 ${props.highThreshold}`,
+            position: 'insideEndTop',
+            color: '#d9484a',
+            fontSize: 11
+          },
+          lineStyle: { color: '#d9484a', type: 'dashed', width: 1 },
+          data: [{ yAxis: props.highThreshold }]
+        }
       }
     ]
-  })
+    // notMerge：数据点变少时清掉上一轮的残留点，否则折线会「只增不减」
+  }, { notMerge: true })
 }
 
-watch(() => props.series, render, { deep: true })
+watch(() => [props.series, props.highThreshold], render, { deep: true })
 
 function onResize() {
   chart?.resize()
