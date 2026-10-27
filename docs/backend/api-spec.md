@@ -112,6 +112,25 @@
 响应 `data`：`status`（`ok`/`degraded`）`db`（`up`/`down`）`models_loaded` `model_names` `commit_count` `prediction_count` `labeled_count` `last_sync_at` `server_time`。
 - DB 不可达或模型数为 0 → `status="degraded"`，HTTP 仍为 200（`MUST NOT` 抛 50000）；响应 `MUST NOT` 回显连接串、口令、堆栈。
 
+### 14. `GET /api/quality` —— 预测质量指标（change `quality-loop`）
+请求：`model_name`（缺省取表内最新模型）、`threshold`（0.0~1.0，缺省取运行时 `high_risk_threshold`）、`start_time` / `end_time`（语义同 §1，按 `committed_at` 过滤）。
+响应 `data`：`model_name` `threshold` `labeled_total` `evaluated` `tp` `fp` `tn` `fn` `precision` `recall` `f1` `accuracy` `avg_risk_defect` `avg_risk_clean` `recommended_threshold` `evaluated_at`。
+- ground truth **只认** `label_method="manual"` 的人工标签，预测侧为 `risk_score >= threshold` 的二值判断。
+- 无样本 → `code=0` 且 `evaluated=0`、派生指标为 `null`（`MUST NOT` 用 0.0 冒充）；`labeled_total` 含尚无 prediction 的标签，`evaluated` 只算真正参与比对的行。
+- `threshold` 越界 → `40001`。
+
+### 15. `GET /api/quality/dataset` —— 标签回流样本导出（change `quality-loop`）
+响应 `data`：`count` `items[]`（`commit_hash` `is_defect` `labeled_at` `committed_at` `features`；无特征时 `features` 为 `null`）。
+- 纯只读，供离线再训练消费；`MUST NOT` 触发预测或写入。
+
+### 16. `POST /api/quality/calibrate` —— 阈值校准（change `quality-loop`）
+请求体：`{"model_name": string|null}`（可省略）。响应 `data`：`model_name` `labeled_total` `evaluated` `applied` `reason` `before` `after`（`before`/`after` 均为 `threshold` `precision` `recall` `f1`）。
+- 扫描 0.05~0.95（步长 0.05）选 F1 最高点（并列取更接近当前阈值者）；**仅在实质改善时**写入 `runtime_setting.high_risk_threshold` 并立即生效（无需重启），`mid_risk_threshold` 保持 `<= high`。
+- 样本不足（`evaluated < 2`，或标签全为正/全为负）→ `code=0`、`applied=false`、`reason="insufficient_labels"`，`MUST NOT` 写入任何配置。
+- 未改善 → `applied=false`、`reason="no_improvement"`。
+
+> 阈值口径变更：§7/§8 的 `risk_level` 与趋势的 `high_risk_count` 自本版起读 `runtime_setting`（DB 优先、`.env` 兜底），不再直接取 `config.HIGH_RISK_THRESHOLD`；默认值不变。
+
 ## 四、非功能要求与验证（必须有可出示证据）
 
 | 要求 | 指标 | 验证 | 证据 |
@@ -127,6 +146,7 @@
 
 | 日期 | 版本 | 变更人 | 主要变更 |
 |---|---|---|---|
+| 2026-10-27 | 1.9 | 后端线（吕建江） | **新增 §14~§16 质量闭环三条端点**（change `quality-loop`）：`GET /api/quality`（人工标签 vs 预测的混淆矩阵与 P/R/F1）、`GET /api/quality/dataset`（回流样本导出）、`POST /api/quality/calibrate`（按标签校准阈值并落 `runtime_setting`）。**阈值来源变更**：§7/§8 `risk_level` 与趋势 `high_risk_count` 改读运行时配置，默认值不变。新增第 6 张表 `runtime_setting` |
 | 2026-10-27 | 1.8 | 后端线（吕建江） | **§三「八个接口」→「接口清单」，补记 §9~§11 并新增 §12~§13**（change `feedback-observability`）：§9 coverage / §10 catchup / §11 sync status·stream（上一 change `startup-baseline-sync` 遗漏登记，一并补齐）；§12 人工反馈标签、§13 健康检查。§12 只用冻结错误码 40001/40400；§13 降级不抛 50000 且不回显连接细节 |
 | 2026-10-25 | 1.6 | 蒋励（组长，代后端线起草，吕建江复核） | **§三「四个接口」→「五个接口」，新增 §5 `POST /api/sync` 批量同步**（change `realtime-commit-sync`）：fetch SOURCE_REPO → 挑新哈希 → 逐条复用 §4 单条链路；错误码用冻结集合；幂等 `new=0`；并发互斥；`SYNC_ON_STARTUP` 可选启动同步。**不做 PR 状态清理**（另行 change）、不承诺 500ms 靶子。§四安全行改为「全部接口」 |
 | 2026-10-25 | 1.7 | 蒋励（组长，代后端线起草，吕建江复核） | **§三「五个接口」→「八个接口」，新增 §6~§8 PR 实时预测三条端点**（change `realtime-pr-prediction`）：`POST /api/sync-prs` 拉 open PR 逐提交复用 §4 多模型链路；`GET /api/prs` / `GET /api/prs/{number}` 只读查询（不依赖 SOURCE_REPO、逐 PR 失败隔离、`predicted_at` 带 Z）。**§4 在线模型清单口径回填为 #153 后的 8 模型**（原写 3 个，与 `feature_order.txt` 不一致）。§四安全行已覆盖「全部接口」，不再另改 |

@@ -7,9 +7,6 @@
 
 from __future__ import annotations
 
-import re
-from datetime import UTC, datetime
-
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 
@@ -19,30 +16,10 @@ from app.db import SessionLocal
 from app.errors import AppError, ok
 from app.models import Commit, CommitFeature, Prediction
 from app.services import commits as commit_service
-from app.timeutil import iso_z
+from app.timeutil import iso_z, parse_time_param
 from app.validate import normalize_commit_hash
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
-
-
-def _parse_time(value: str, param: str, role: str = "start") -> datetime:
-    # 紧凑基本格式一律拒（含 Z/偏移后缀变体，#62 复审 1+3）：头 8 位数字后接 T 或
-    # 结束即基本格式；fromisoformat 收但它绕过纯日期串判定，end 会静默停 00:00
-    if re.fullmatch(r"\d{8}(T\S*)?", value):
-        raise AppError(
-            40001, f"参数非法：{param} 不接受紧凑基本格式，请用 YYYY-MM-DD 或带分隔符的 ISO 8601"
-        )
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        raise AppError(40001, f"参数非法：{param} 需为 ISO 8601 时间") from None
-    if parsed.tzinfo is not None:
-        parsed = parsed.astimezone(UTC).replace(tzinfo=None)
-    # 契约三 1.5 区间语义（#61）：闭区间；end 侧纯日期串含结束日全天，
-    # start 侧纯日期串仍是当天 00:00:00（不能一刀切）；带时间分量按原样
-    if role == "end" and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
-        parsed = parsed.replace(hour=23, minute=59, second=59, microsecond=999999)
-    return parsed
 
 
 @router.get("/api/commits", response_model=schemas.CommitsResponse)
@@ -64,8 +41,12 @@ def list_commits(
     if min_risk is not None and not 0.0 <= min_risk <= 1.0:
         raise AppError(40001, "参数非法：min_risk 需在 0.0 ~ 1.0")
     # 查看过滤：since/until 与 start_time/end_time 同为按 committed_at 过滤的别名，均不触发预测
-    start = _parse_time((since or start_time), "start_time") if (since or start_time) else None
-    end = _parse_time((until or end_time), "end_time", "end") if (until or end_time) else None
+    start = parse_time_param((since or start_time), "start_time") if (since or start_time) else None
+    end = (
+        parse_time_param((until or end_time), "end_time", "end")
+        if (until or end_time)
+        else None
+    )
 
     with SessionLocal() as session:
         model = model_name or commit_service.default_model_in_table(session)

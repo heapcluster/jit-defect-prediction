@@ -10,7 +10,8 @@ from datetime import datetime, timezone
 from fastapi import FastAPI
 
 from app import config, db, model_registry
-from app.api import commits, feedback, health, predict, prs, sync, trends
+from app.api import commits, feedback, health, predict, prs, quality, sync, trends
+from app.services import settings as runtime_settings
 from app.errors import register_error_handlers
 
 logging.basicConfig(level=logging.INFO)
@@ -66,6 +67,11 @@ async def _lifespan(app: FastAPI):
         db.ensure_model_rows(entries)
     except Exception:
         logger.exception("ensure model rows failed")
+    # 预热运行时阈值缓存：首个请求不必再走一次「DB 读失败 → 回退 .env」的路径
+    try:
+        runtime_settings.refresh()
+    except Exception:
+        logger.exception("warm runtime settings failed")
     _startup_sync_if_enabled()
     yield
 
@@ -80,6 +86,7 @@ def create_app() -> FastAPI:
     app.include_router(prs.router)
     app.include_router(feedback.router)
     app.include_router(health.router)
+    app.include_router(quality.router)
     return app
 
 

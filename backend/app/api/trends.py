@@ -5,9 +5,10 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 
-from app import config, schemas
-from app.api.commits import _parse_time
+from app import schemas
+from app.services import settings as runtime_settings
 from app.services.commits import default_model_in_table
+from app.timeutil import parse_time_param
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import AppError, ok
@@ -32,8 +33,8 @@ def trends(
 ) -> dict:
     if granularity not in ("week", "month"):
         raise AppError(40001, "参数非法：granularity 取值需为 week 或 month")
-    start = _parse_time(start_time, "start_time") if start_time else None
-    end = _parse_time(end_time, "end_time", "end") if end_time else None
+    start = parse_time_param(start_time, "start_time") if start_time else None
+    end = parse_time_param(end_time, "end_time", "end") if end_time else None
 
     with SessionLocal() as session:
         model = model_name or default_model_in_table(session)
@@ -58,7 +59,9 @@ def trends(
             "period": period,
             "commit_count": len(scores),
             "avg_risk": round(sum(scores) / len(scores), 4),
-            "high_risk_count": sum(1 for score in scores if score >= config.HIGH_RISK_THRESHOLD),
+            "high_risk_count": sum(
+                1 for score in scores if score >= runtime_settings.high_threshold()
+            ),
         }
         for period, scores in sorted(buckets.items())
     ]

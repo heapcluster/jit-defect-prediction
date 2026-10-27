@@ -201,3 +201,72 @@ class HealthResponse(BaseModel):
     code: int
     message: str
     data: HealthData
+
+
+class QualityData(BaseModel):
+    """人工标签 vs 预测的质量指标（change quality-loop）。分母为 0 时指标为 null。"""
+
+    model_name: str | None
+    threshold: float
+    labeled_total: int
+    evaluated: int
+    tp: int
+    fp: int
+    tn: int
+    fn: int
+    precision: float | None
+    recall: float | None
+    f1: float | None
+    accuracy: float | None
+    avg_risk_defect: float | None
+    avg_risk_clean: float | None
+    recommended_threshold: float | None
+    evaluated_at: str
+
+
+class QualityResponse(BaseModel):
+    code: int
+    message: str
+    data: QualityData
+
+
+class QualityDatasetItem(BaseModel):
+    commit_hash: str
+    is_defect: bool
+    labeled_at: str | None
+    committed_at: str | None
+    features: dict[str, float | int] | None
+
+
+class QualityDatasetData(BaseModel):
+    count: int
+    items: list[QualityDatasetItem]
+
+
+class QualityDatasetResponse(BaseModel):
+    code: int
+    message: str
+    data: QualityDatasetData
+
+
+class ThresholdStats(BaseModel):
+    threshold: float
+    precision: float | None
+    recall: float | None
+    f1: float | None
+
+
+class CalibrateData(BaseModel):
+    model_name: str | None
+    labeled_total: int
+    evaluated: int
+    applied: bool
+    reason: str | None
+    before: ThresholdStats
+    after: ThresholdStats
+
+
+class CalibrateResponse(BaseModel):
+    code: int
+    message: str
+    data: CalibrateData
