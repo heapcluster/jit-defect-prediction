@@ -1,5 +1,6 @@
 from app.db import SessionLocal
 from app.models import Prediction
+
 from tests.conftest import C1, C2, C3, FEATURE_VALUES, HEADERS, UNKNOWN
 
 

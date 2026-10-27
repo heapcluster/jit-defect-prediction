@@ -5,6 +5,7 @@
 """
 
 from app.explain import explain_label
+
 from tests.conftest import C1, C2, HEADERS, UNKNOWN
 
 

@@ -61,6 +61,4 @@ def label_for(session: Session, commit_hash: str) -> dict | None:
 
 def labeled_hashes_stmt():
     """已人工确认的 commit_hash 子查询（仅查看过滤用，不触发预测）。"""
-    return select(CommitLabel.commit_hash).where(
-        CommitLabel.label_method == MANUAL_LABEL_METHOD
-    )
+    return select(CommitLabel.commit_hash).where(CommitLabel.label_method == MANUAL_LABEL_METHOD)

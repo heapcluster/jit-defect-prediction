@@ -11,13 +11,13 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app import config, feature_source, model_registry, schemas
-from app.explain import with_labels
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import INTERNAL_ERROR_MESSAGE, AppError, ok
+from app.explain import with_labels
+from app.models import Commit, CommitFeature, Prediction
 from app.timeutil import iso_z
 from app.validate import normalize_commit_hash
-from app.models import Commit, CommitFeature, Prediction
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
 
@@ -149,9 +149,6 @@ def predict_commit(body: PredictRequest, repo=None) -> dict:
             "explanation": explanation,
         }
     )
-
-
-
 
 
 def predict_commit_all_models(commit_hash: str, repo=None) -> list[dict]:

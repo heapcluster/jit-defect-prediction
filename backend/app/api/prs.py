@@ -20,7 +20,6 @@ from sqlalchemy import select
 
 from app import config, github, model_registry, schemas
 from app.api import sync
-from app.timeutil import iso_z
 from app.api.predict import predict_commit_all_models
 from app.auth import require_api_key
 from app.db import SessionLocal
@@ -28,6 +27,7 @@ from app.errors import INTERNAL_ERROR_MESSAGE, AppError, ok
 from app.explain import explain_label
 from app.models import Commit, CommitFeature, Prediction
 from app.services import settings as runtime_settings
+from app.timeutil import iso_z
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
 logger = logging.getLogger("backend.prs")
@@ -144,7 +144,9 @@ def _pr_reason(pr_number: int, model_name: str, top_hash: str | None) -> str | N
     return build_pr_reason(explanation)
 
 
-def _pr_risk(pr_number: int, model_name: str) -> tuple[int, int, float | None, object | None, str | None]:
+def _pr_risk(
+    pr_number: int, model_name: str
+) -> tuple[int, int, float | None, object | None, str | None]:
     """返回 (commit_count, predicted_count, max_risk, latest_predicted_at, top_commit_hash)。"""
     shas = github.list_pr_commit_shas(pr_number)
     with SessionLocal() as session:
