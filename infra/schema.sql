@@ -64,7 +64,8 @@ CREATE TABLE IF NOT EXISTS commit_label (
 	PRIMARY KEY (id), 
 	CONSTRAINT uq_label_hash_method UNIQUE (commit_hash, label_method), 
 	FOREIGN KEY(commit_hash) REFERENCES commit (commit_hash),
-	INDEX ix_commit_label_commit_hash (commit_hash)
+	INDEX ix_commit_label_commit_hash (commit_hash),
+	INDEX ix_commit_label_label_method (label_method)
 );
 
 CREATE TABLE IF NOT EXISTS prediction (

@@ -5,8 +5,10 @@
   1. 检测并（在需要时）尝试启动本机 MySQL 服务（Windows / Linux / macOS 各自一行命令）；
   2. 建两份库：jit_demo（联调 / 演示 / 验收共用）与 jit_test（pytest 用）；
   3. 确保应用用户 jit 存在并拥有两份库的权限；
-  4. 在两份库上执行 infra/schema.sql 建四张表；
-  5. 可选：--seed 灌入起步种子数据。
+  4. 在两份库上执行 infra/schema.sql 建四张表。
+
+建表后库内为空是**预期状态**：数据只由后端实时同步端点写入（`POST /api/sync`
+拉最新 N 条、`POST /api/sync-prs` 拉 open PR），本脚本不提供任何种子/离线导入捷径。
 
 设计前提（与「全部按 MySQL」一致）：你已经在本机装好 MySQL，并在 backend/.env
 里按分字段填好连接（DB_HOST / DB_PORT / DB_USER / DB_PASSWORD / DB_NAME）。脚本按这份配置
@@ -20,7 +22,6 @@
 
 最常见用法：
     python infra/setup_mysql.py            # 读 backend/.env，建 jit_demo + jit_test
-    python infra/setup_mysql.py --seed     # 额外灌 seed 起步数据
     python infra/setup_mysql.py --root-password <pwd>   # jit 无建库权限时，用 root 代建并授权
 
 注意：MySQL 没装时脚本不会偷偷改系统，只会给出各平台一行安装命令后退出。
@@ -33,7 +34,6 @@ import platform
 import re
 import socket
 import subprocess
-import sys
 from pathlib import Path
 
 import pymysql
@@ -306,19 +306,6 @@ def build_databases(creds: dict, test_db: str, root_password: str | None) -> Non
         app.close()
 
 
-def run_seed() -> None:
-    print("[setup] 灌入种子数据（seed_dev_data.py）…")
-    rc = subprocess.run(
-        [sys.executable, "-m", "scripts.seed_dev_data"],
-        cwd=str(BACKEND_DIR),
-        check=False,
-    )
-    if rc.returncode != 0:
-        print("[setup] 种子数据写入失败，请检查 backend/.env 的连接字段与库连接。")
-        raise SystemExit(1) from None
-    print("[setup] 种子数据写入完成")
-
-
 # ───────────────────────────── 入口 ─────────────────────────────
 
 
@@ -337,7 +324,6 @@ def main() -> None:
     parser.add_argument(
         "--test-db", default=None, help="pytest 用测试库名（默认取 DB_TEST_NAME，否则 jit_test）"
     )
-    parser.add_argument("--seed", action="store_true", help="额外灌入起步种子数据")
     parser.add_argument(
         "--root-password", default=None, help="用 root 代建库并授权（jit 无建库权限时）"
     )
@@ -354,11 +340,11 @@ def main() -> None:
 
     ensure_reachable(creds, args.skip_start)
     build_databases(creds, test_db, args.root_password)
-    if args.seed:
-        run_seed()
 
     print("[setup] 完成。下一步：")
     print("        cd backend && uvicorn app.main:app --reload   # 起后端")
+    print("        curl -X POST 'http://127.0.0.1:8000/api/sync?limit=10' -H 'X-API-Key: <令牌>'")
+    print("        （拉最新 10 条提交并预测；库内不做任何历史回填）")
     print(f"        （pytest 会自动连测试库 {test_db}，不需要改 .env）")
 
 

@@ -19,14 +19,14 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 
 from app import config, github, model_registry, schemas
-from app.api import sync
-from app.api.predict import predict_commit_all_models
 from app.auth import require_api_key
 from app.db import SessionLocal
-from app.errors import INTERNAL_ERROR_MESSAGE, AppError, ok
+from app.errors import AppError, ok
 from app.explain import explain_label
 from app.models import Commit, CommitFeature, Prediction
 from app.services import settings as runtime_settings
+from app.services.git import run_git
+from app.services.predict import predict_commit_all_models, resolve_model_name
 from app.timeutil import iso_z
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
@@ -46,20 +46,14 @@ def _repo_path() -> Path:
 
 
 def _resolve_model(model_name: str | None) -> str:
-    if model_name and not model_registry.has(model_name):
-        raise AppError(40001, "参数非法：model_name 不在已加载模型清单")
-    if model_name:
-        return model_name
-    default = model_registry.default_model()
-    if default is None:
-        raise AppError(50000, INTERNAL_ERROR_MESSAGE)
-    return default.name
+    """模型解析与 §4 单条预测同源：显式校验存在，缺省取冠军模型（契约 §17）。"""
+    return resolve_model_name(model_name)
 
 
 def fetch_pr_ref(repo: Path, pr_number: int) -> str:
     """把 PR 的 head ref 拉进本地历史索引（仅取对象，不 checkout），返回 head sha。"""
-    sync._run_git(str(repo), "fetch", "origin", f"pull/{pr_number}/head")
-    return sync._run_git(str(repo), "rev-parse", "FETCH_HEAD").strip()
+    run_git(str(repo), "fetch", "origin", f"pull/{pr_number}/head")
+    return run_git(str(repo), "rev-parse", "FETCH_HEAD").strip()
 
 
 def sync_prs(limit: int = 10) -> dict:
@@ -127,6 +121,20 @@ def build_pr_reason(explanation: list[dict]) -> str | None:
     return "、".join(explain_label(e["feature"]) for e in picks) + "（风险偏高）"
 
 
+def _reason_from(feature: CommitFeature | None, model_name: str) -> str | None:
+    """由特征 + 指定模型给出一句话理由；缺特征 / 模型不可解释时返回 None。"""
+    if feature is None or not model_registry.has(model_name):
+        return None
+    vector = [float(getattr(feature, name)) for name in config.FEATURE_COLUMNS]
+    try:
+        entry = model_registry.get_model(model_name)
+    except KeyError:
+        # has() 与 get_model() 之间存在热重载窗口（load_models 换注册表）；理由缺失不该让整端 500
+        logger.warning("model %s 在打分过程中从注册表移除，跳过理由", model_name)
+        return None
+    return build_pr_reason(model_registry.explain(entry, vector))
+
+
 def _pr_reason(pr_number: int, model_name: str, top_hash: str | None) -> str | None:
     """最高风险提交的风险因子理由；缺特征或 SHAP 不可用时返回 None。"""
     if top_hash is None:
@@ -135,13 +143,37 @@ def _pr_reason(pr_number: int, model_name: str, top_hash: str | None) -> str | N
         feature = session.execute(
             select(CommitFeature).where(CommitFeature.commit_hash == top_hash)
         ).scalar_one_or_none()
-        if feature is None:
-            return None
-        vector = [float(getattr(feature, name)) for name in config.FEATURE_COLUMNS]
-    if not model_registry.has(model_name):
-        return None
-    explanation = model_registry.explain(model_registry.get_model(model_name), vector)
-    return build_pr_reason(explanation)
+    return _reason_from(feature, model_name)
+
+
+def _prediction_index(shas: set[str], model_name: str) -> dict[str, Prediction]:
+    """一批提交在指定模型下的 prediction 行（一次 IN 查询，替代逐 PR 查询）。"""
+    if not shas:
+        return {}
+    with SessionLocal() as session:
+        rows = (
+            session.execute(
+                select(Prediction).where(
+                    Prediction.commit_hash.in_(shas), Prediction.model_name == model_name
+                )
+            )
+            .scalars()
+            .all()
+        )
+    return {row.commit_hash: row for row in rows}
+
+
+def _feature_index(shas: set[str]) -> dict[str, CommitFeature]:
+    """一批提交的特征行（一次 IN 查询，供列表页逐 PR 拼理由）。"""
+    if not shas:
+        return {}
+    with SessionLocal() as session:
+        rows = (
+            session.execute(select(CommitFeature).where(CommitFeature.commit_hash.in_(shas)))
+            .scalars()
+            .all()
+        )
+    return {row.commit_hash: row for row in rows}
 
 
 def _pr_risk(
@@ -183,19 +215,34 @@ def list_prs(
     # 只读查询：数据来自 GitHub API + 本地 prediction 表，不依赖 SOURCE_REPO 历史索引，
     # 故不调用 _repo_path() —— 未配历史索引时这两个查询端点不该 40400。
     prs = github.list_open_prs(limit=limit)
-    items = []
     skipped = 0
+    # 逐 PR 隔离：GitHub 没有「批量取多个 PR 的提交清单」的端点，每个 PR 一次
+    # list_pr_commit_shas 是 API 形态决定的（limit≤50 → 最多 50 次调用）；
+    # 未带 token 时 60 req/h 限额下单个 PR 失败不该让整端 50000。
+    shas_by_pr: dict[int, list[str]] = {}
     for pr in prs:
-        # 逐 PR 隔离：GitHub 没有「批量取多个 PR 的提交清单」的端点，每个 PR 一次
-        # list_pr_commit_shas 是 API 形态决定的（limit≤50 → 最多 50 次调用）；
-        # 未带 token 时 60 req/h 限额下单个 PR 失败不该让整端 50000。
         try:
-            commit_count, predicted_count, risk, predicted_at, top_hash = _pr_risk(pr.number, model)
+            shas_by_pr[pr.number] = github.list_pr_commit_shas(pr.number)
         except RuntimeError as exc:
-            logger.warning("pr %s 风险聚合失败，跳过该 PR：%s", pr.number, exc)
+            logger.warning("pr %s 提交清单拉取失败，跳过该 PR：%s", pr.number, exc)
             skipped += 1
+
+    # DB 侧一次批量取回，避免「每 PR 一次 prediction 查询 + 一次 feature 查询」的 N+1
+    all_shas = {sha for shas in shas_by_pr.values() for sha in shas}
+    preds = _prediction_index(all_shas, model)
+    features = _feature_index(all_shas)
+
+    items = []
+    for pr in prs:
+        shas = shas_by_pr.get(pr.number)
+        if shas is None:
             continue
-        reason = _pr_reason(pr.number, model, top_hash)
+        rows = [preds[sha] for sha in shas if sha in preds]
+        risks = [(p.commit_hash, float(p.risk_score)) for p in rows if p.risk_score is not None]
+        times = [p.predicted_at for p in rows if p.predicted_at is not None]
+        top_hash = max(risks, key=lambda item: item[1])[0] if risks else None
+        risk = max((score for _, score in risks), default=None)
+        predicted_at = max(times) if times else None
         items.append(
             {
                 "number": pr.number,
@@ -206,9 +253,9 @@ def list_prs(
                 "updated_at": pr.updated_at,
                 "risk_score": risk,
                 "risk_level": get_pr_risk_level(risk),
-                "reason": reason,
-                "commit_count": commit_count,
-                "predicted_count": predicted_count,
+                "reason": _reason_from(features.get(top_hash) if top_hash else None, model),
+                "commit_count": len(shas),
+                "predicted_count": len(risks),
                 "predicted_at": iso_z(predicted_at) if predicted_at else None,
             }
         )

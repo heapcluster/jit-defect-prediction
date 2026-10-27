@@ -45,7 +45,7 @@
 **目标**：前端能在浏览器里把「列表 → 详情 → 重新预测 → 趋势」跑通，中间不出现 500。
 
 1. **建表**：演示 / 验收库名固定 **`jit_demo`**（Issue #130 更正裁定、#142），一条命令建好库与四张表 —— `python infra/setup_mysql.py`（一键建库 + 建表，权限与常见报错见 `docs/backend/mysql-setup.md` §2）。四表 DDL 的**单一来源仍是 `infra/schema.sql`**：它必须保持「纯四表、可导入任意目标库」，**不要往里加 `CREATE DATABASE` / `USE`** —— 加了会静默改写调用方指定的目标库（本条命令与 Issue #121 的 `jit_schema_probe` / `jit_orm_probe` 两个探针库都走这一份文件），并被 `backend/tests/test_schema_sql.py` 判红。`python -m app.db init` 作为等价性校验，两条路径都必须通过索引自检。日常**联调**库也是它（`jit_demo`，与演示/验收同一套）：见 `docs/frontend/integration-log.md` §0。
-2. **数据**：离线 CSV 灌库已于 2026-10-25 移除，数据只由实时同步端点写入 —— 调 `POST /api/sync`（主干新提交）或 `POST /api/sync-prs`（open PR），留档返回的 `commits_predicted` / `skipped` 明细；前端库 `jit_demo` 可另用 `python -m scripts.seed_dev_data` 造少量种子行。
+2. **数据**：离线 CSV 灌库已于 2026-10-25 移除，数据只由实时同步端点写入 —— 调 `POST /api/sync`（主干最新 N 条）或 `POST /api/sync-prs`（open PR），留档返回的 `commits_predicted` / `skipped` 明细。**不做种子数据、不做历史回填**（2026-10-27 裁定，`scripts/seed_dev_data.py` 已删除）：建表后库内为空是预期状态，界面上能看到的内容就是「最近被同步的那几条」。
 3. **模型**：`MODEL_DIR` 指向 `data_model/pipelines/expert/models/`；**在线模型集 = 该目录 `feature_order.txt` 的 `[models]` 段**（#96 定义的唯一来源，2026-10-25 组长裁定 Issue #139 起为**全部 8 个**：`lr_v1` / `rf_v1` / `xgb_v1` / `lgbm_v1` / `et_v1` / `svm_v1` / `mlp_deep_v1` / `tabnet_v1`）。清单内声明的模型必须全部加载成功，启动日志不得出现 `model load failed` 或 `failed models:`。
    - `feature_order.txt` 的 `[evaluated]` 段当前为空（8 模型全部上线）；该段只登记「只进评估、不进交付」的权重，按 `openspec/specs/model-coverage`「交付模型 MUST 保持不变」，新增模型 MUST NOT 静默进 `[models]`。
    - 导入路径无需手工处理：#99 已让后端在 `load_models()` 自动把 `<repo>/data_model` 的绝对路径插入 `sys.path`（幂等，不接受请求参数或 `MODEL_DIR` 传入），不要再手工设 `PYTHONPATH`。

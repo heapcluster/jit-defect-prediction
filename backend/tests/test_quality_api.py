@@ -139,3 +139,36 @@ def test_quality_requires_api_key(client):
     resp = client.get("/api/quality")
     assert resp.status_code == 401
     assert resp.json()["code"] == 40100
+
+
+def test_false_discovery_rate_is_complement_of_precision(client):
+    """FDR = fp/(tp+fp) = 1 - precision；不是 fp/(fp+tn) 的 FPR。
+
+    C1(0.8732) 判高但人工说非缺陷 → fp；C2(0.21) 判低但人工说是缺陷 → fn。
+    """
+    _label(client, C1, False)
+    _label(client, C2, True)
+    data = client.get(
+        "/api/quality", params={"model_name": "xgb_v1", "threshold": 0.5}, headers=HEADERS
+    ).json()["data"]
+    assert (data["tp"], data["fp"], data["tn"], data["fn"]) == (0, 1, 0, 1)
+    assert data["precision"] == 0.0
+    assert data["false_discovery_rate"] == 1.0
+    assert "false_positive_rate" not in data, "字段名已统一为 FDR，旧名不得回流"
+
+
+def test_quality_rejects_invalid_label_source(client):
+    resp = client.get("/api/quality", params={"label_source": "manual2"}, headers=HEADERS)
+    assert resp.status_code == 400
+    assert resp.json()["code"] == 40001
+
+
+def test_szz_label_source_is_separate_from_manual(client):
+    """label_source=szz 只统计 SZZ 标签：只有人工标签时该视图无样本。"""
+    _label(client, C1, True)
+    data = client.get(
+        "/api/quality", params={"model_name": "xgb_v1", "label_source": "szz"}, headers=HEADERS
+    ).json()["data"]
+    assert data["label_source"] == "szz"
+    assert data["labeled_total"] == 0
+    assert data["evaluated"] == 0

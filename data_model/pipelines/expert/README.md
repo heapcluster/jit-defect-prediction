@@ -78,7 +78,7 @@ python -m pipelines.verify_all_weights --check      # 权重交付校验：md5 +
    - **`sys.path` 不用手工插** —— #99 已让 `load_models()` 自动把 `<repo>/data_model` 的绝对路径插入 `sys.path`（幂等、不接受请求参数或 `MODEL_DIR` 传入）。命令里漏了 `sys.path.insert` 也不会失败。
    - **交付清单现在是 8 个** —— `feature_order.txt` 的 `[models]` 段已含 `lgbm_v1` / `et_v1` / `svm_v1` / `mlp_deep_v1` / `tabnet_v1`（2026-10-25 组长裁定 Issue #139：8 模型全部上线），`[evaluated]` 段留空。它们加载不上**才是**联调缺陷。
 
-4. **灌数据（2026-10-25 起只有实时同步一条路）**：离线 CSV 灌库（`python -m app.ingest`）已随裁定移除，数据由后端实时同步端点写入（`POST /api/sync` / `POST /api/sync-prs`），详见 `docs/common/local-runbook.md` §3。不灌也能验收「模型加载 + 单条在线预测」：`python -m scripts.seed_dev_data` 会造 3 行种子数据，`POST /api/predict` 对库里没有的哈希会走 `SOURCE_REPO` 现算特征。
+4. **灌数据（2026-10-25 起只有实时同步一条路）**：离线 CSV 灌库（`python -m app.ingest`）已随裁定移除，数据由后端实时同步端点写入（`POST /api/sync` / `POST /api/sync-prs`），详见 `docs/common/local-runbook.md` §3。**不提供种子数据**（`scripts/seed_dev_data.py` 已于 2026-10-27 删除）：验收「模型加载 + 单条在线预测」直接调 `POST /api/predict`，对库里没有的哈希会走 `SOURCE_REPO` 现算特征。
 
 已知待办（不在本包改）：
 

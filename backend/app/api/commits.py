@@ -7,8 +7,10 @@
 
 from __future__ import annotations
 
+import re
+
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 from app import schemas
 from app.auth import require_api_key
@@ -20,6 +22,18 @@ from app.timeutil import iso_z, parse_time_param
 from app.validate import normalize_commit_hash
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
+
+# 全 hex（1~40 位）输入按哈希前缀查：走 commit_hash 的唯一索引，不做三列全表匹配
+_HEX_PREFIX = re.compile(r"^[0-9a-fA-F]{1,40}$")
+# LIKE 转义符必须显式声明：MySQL 默认认反斜杠，PG/SQLite 不认，不写 escape 等于没转义
+_LIKE_ESCAPE = "\\"
+
+
+def _like_term(raw: str) -> str:
+    """把用户输入转成 LIKE 模式的安全片段（转义 % _ \\），配 `escape=` 一起用。"""
+    escaped = raw.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2)
+    escaped = escaped.replace("%", _LIKE_ESCAPE + "%").replace("_", _LIKE_ESCAPE + "_")
+    return f"{escaped}%"
 
 
 @router.get("/api/commits", response_model=schemas.CommitsResponse)
@@ -33,6 +47,7 @@ def list_commits(
     since: str | None = Query(default=None),
     until: str | None = Query(default=None),
     has_label: bool | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=64),
 ) -> dict:
     if page < 1:
         raise AppError(40001, "参数非法：page 需 >= 1")
@@ -58,6 +73,20 @@ def list_commits(
         if has_label:
             # 仅查看过滤：已人工确认（存在 manual 标签）的提交，MUST NOT 触发预测
             stmt = stmt.where(Commit.commit_hash.in_(commit_service.labeled_hashes_stmt()))
+        if q and q.strip():
+            # 搜索：哈希前缀 / 作者 / 提交信息，三者取并集；纯查看过滤，不触发预测
+            keyword = q.strip()
+            term = _like_term(keyword)
+            if _HEX_PREFIX.match(keyword):
+                stmt = stmt.where(Commit.commit_hash.like(term, escape=_LIKE_ESCAPE))
+            else:
+                stmt = stmt.where(
+                    or_(
+                        Commit.commit_hash.like(term, escape=_LIKE_ESCAPE),
+                        Commit.author_name.like(term, escape=_LIKE_ESCAPE),
+                        Commit.message.like(term, escape=_LIKE_ESCAPE),
+                    )
+                )
         total = session.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
         window = session.execute(
             # risk_score 相同时按 commit_hash 兜底排序：等值分页跨页才不会重复/漏行

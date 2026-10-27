@@ -4,7 +4,7 @@
 
 ## 1. 负责范围（有权直接改）
 
-- `backend/**`：`app/`（`api/{commits,predict,trends}.py`、`model_registry`、`auth`、`config`、`db`、`errors`、`feature_source`、`ingest`、`models`、`schemas`、`main`）、`scripts/`（`seed_dev_data.py`、`security_cases.py`、`perf_loop.py`）、`tests/**`
+- `backend/**`：`app/`（`api/{commits,predict,trends}.py`、`model_registry`、`auth`、`config`、`db`、`errors`、`feature_source`、`ingest`、`models`、`schemas`、`main`）、`scripts/`（`security_cases.py`、`perf_loop.py`、`demo_preflight.py`）、`tests/**`
 - `backend/.env.example`（模板值必须与 `integration-log.md` §0 一致）
 - `backend/scripts/evidence/**`：性能与安全自测证据
 - `docs/backend/**`：`api-spec.md`、`implementation.md`、`acceptance.md`
@@ -24,7 +24,7 @@
 
 - **接口**：契约三所列路径全部可用；仓库侧唯一出处是 `docs/backend/api-spec.md` §三，当前 **4 条**（`GET /api/commits`、`GET /api/commits/{commit_hash}`、`GET /api/trends`、`POST /api/predict`）。`GET /api/models` **不做**（`docs/backend/acceptance.md` 第 5 条：前端维护静态清单）。鉴权 `X-API-Key` fail-closed：`API_TOKEN` 未配置一律拒绝（`backend/app/auth.py`）
 - **错误码**：`40001` 参数、`40100` 鉴权、`40400` 不存在、`50000` 内部错误；**不把服务端 message 原文吐给前端**，`50000` 不回显堆栈/SQL/路径
-- **联调库**：统一 MySQL `jit_demo`（与演示 / 验收同一套），由 `python infra/setup_mysql.py --seed`（或 `python -m scripts.seed_dev_data`，读 `backend/.env` 的连接字段（`DB_HOST` / `DB_USER` / `DB_PASSWORD` / `DB_NAME`））一键建库灌数（3 提交 / 3 特征 / 3 预测，`commit_hash` = `000…001`~`000…003`）。后端验收跑用的一次性隔离库（全量 83,943 行）是另一份，不许与联调库混用
+- **联调库**：统一 MySQL `jit_demo`（与演示 / 验收同一套），由 `python infra/setup_mysql.py`（读 `backend/.env` 的连接字段 `DB_HOST` / `DB_USER` / `DB_PASSWORD` / `DB_NAME`）建库建表。建完库内为空是预期状态：数据只由 `POST /api/sync?limit=N`（最新 N 条，N ≤ 50）或 `POST /api/sync-prs` 写入，**不做种子数据、不做历史回填**（`scripts/seed_dev_data.py` 已于 2026-10-27 删除）。后端验收跑用的一次性隔离库是另一份，不许与联调库混用
 - **压测**：登记口径是 `python scripts/perf_loop.py --n 100`（`test-plan.md` T-NF-01、`non-functional.md` §2）；`acceptance.md` 第 6 条另要 20 次的 P50/P95。脚本**没有 `--model-name` 参数**（POST body 只带 `commit_hash`），要测单个模型就构造只含该 `.pkl` + 对应 `feature_order.txt` 的单模型 `MODEL_DIR` 起服务
 - **自测**：`security_cases.py` 与 `perf_loop.py` 的每一行结论都必须是脚本真跑出来的，且脚本自己能在假数据上复现（回归测试不依赖外部服务）
 

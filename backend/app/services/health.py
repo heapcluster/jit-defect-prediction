@@ -56,7 +56,7 @@ def snapshot() -> dict:
         db_up = False
     model_names = [entry.name for entry in model_registry.all_models()]
     # last_sync_at 取同步状态快照（进程重启后为 null）
-    from app.api.sync import get_sync_state
+    from app.services.sync_state import get_sync_state
 
     return {
         "status": "ok" if (db_up and model_names) else "degraded",

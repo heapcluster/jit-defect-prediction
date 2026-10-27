@@ -27,13 +27,18 @@ def quality(
     threshold: float | None = Query(default=None),
     start_time: str | None = Query(default=None),
     end_time: str | None = Query(default=None),
+    label_source: str = Query(default="manual"),
 ) -> dict:
-    """人工标签 vs 预测的质量指标；无样本时返回 evaluated=0 而非报错。"""
+    """标签 vs 预测的质量指标；无样本时返回 evaluated=0 而非报错。"""
     if threshold is not None and not 0.0 <= threshold <= 1.0:
         raise AppError(40001, "参数非法：threshold 需在 0.0 ~ 1.0")
+    if label_source not in quality_service.LABEL_SOURCES:
+        # 文案由枚举生成：新增口径时不会漏改提示
+        choices = " 或 ".join(quality_service.LABEL_SOURCES)
+        raise AppError(40001, f"参数非法：label_source 取值需为 {choices}")
     start = parse_time_param(start_time, "start_time") if start_time else None
     end = parse_time_param(end_time, "end_time", "end") if end_time else None
-    return ok(quality_service.report(model_name, threshold, start, end))
+    return ok(quality_service.report(model_name, threshold, start, end, label_source))
 
 
 @router.get("/api/quality/dataset", response_model=schemas.QualityDatasetResponse)

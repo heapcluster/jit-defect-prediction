@@ -166,3 +166,22 @@ def test_commits_view_filter_does_not_trigger_prediction(client):
     assert body["data"]["items"][0]["commit_hash"] == C1
     with SessionLocal() as session:
         assert session.query(Prediction).count() == before, "查看过滤 MUST NOT 触发新预测"
+
+
+def test_search_by_message_and_by_hash_prefix(client):
+    """q 支持提交信息片段与哈希前缀，且只做查看过滤。"""
+    by_message = client.get("/api/commits", params={"q": "CAMEL-2"}, headers=HEADERS).json()["data"]
+    assert [item["commit_hash"] for item in by_message["items"]] == [C2]
+
+    by_hash = client.get("/api/commits", params={"q": C1[:8]}, headers=HEADERS).json()["data"]
+    assert [item["commit_hash"] for item in by_hash["items"]] == [C1]
+
+
+def test_search_treats_like_wildcards_literally(client):
+    """`_` / `%` 必须按字面匹配（LIKE 需显式 escape），不能退化成通配符扫全表。"""
+    for keyword in ("jd_e", "jd%", "_", "%"):
+        data = client.get("/api/commits", params={"q": keyword}, headers=HEADERS).json()["data"]
+        assert data["items"] == [], f"{keyword!r} 被当成了通配符"
+    # 作者 jdoe 字面命中不受影响（C3 无 prediction，列表只展示已预测的 C1/C2）
+    hit = client.get("/api/commits", params={"q": "jdoe"}, headers=HEADERS).json()["data"]
+    assert hit["total"] == 2

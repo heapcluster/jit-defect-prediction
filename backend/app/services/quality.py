@@ -13,6 +13,7 @@ from __future__ import annotations
 from sqlalchemy import func, select
 
 from app.db import SessionLocal
+from app.errors import AppError
 from app.models import Commit, CommitFeature, CommitLabel, Prediction
 from app.services import settings as runtime_settings
 from app.services.commits import MANUAL_LABEL_METHOD, default_model_in_table, feature_dict
@@ -20,51 +21,49 @@ from app.timeutil import iso_z, now_naive_utc
 
 # 可评估样本少于 2 条、或标签只有单一类别时算不出 F1：校准只报告、不落库
 MIN_EVALUATED = 2
+# 质量视图的标签口径：manual 为 ground truth（校准只认它），szz 仅作对照
+LABEL_SOURCES = {"manual": MANUAL_LABEL_METHOD, "szz": "szz"}
 # 候选阈值：0.05 ~ 0.95，步长 0.05（与契约「0.1 步进」的展示口径不冲突，内部更细）
 THRESHOLD_CANDIDATES = [round(0.05 * i, 2) for i in range(1, 20)]
 
 
-def resolve_model(model_name: str | None) -> str | None:
-    """显式给定时原样使用（历史模型也可评估）；否则取表内最新模型。"""
-    if model_name:
-        return model_name
-    with SessionLocal() as session:
-        return default_model_in_table(session)
+def _labeled_rows(
+    session, model_name: str, start, end, label_method: str = MANUAL_LABEL_METHOD
+) -> list[tuple[float, int]]:
+    """[(risk_score, is_defect)]：指定标签口径 INNER JOIN 该模型 prediction。
 
-
-def _labeled_rows(model_name: str, start, end) -> list[tuple[float, int]]:
-    """[(risk_score, is_defect)]：manual 标签 INNER JOIN 该模型 prediction。"""
-    with SessionLocal() as session:
-        stmt = (
-            select(Prediction.risk_score, CommitLabel.is_bug_inducing)
-            .join(CommitLabel, CommitLabel.commit_hash == Prediction.commit_hash)
-            .join(Commit, Commit.commit_hash == Prediction.commit_hash)
-            .where(
-                CommitLabel.label_method == MANUAL_LABEL_METHOD,
-                Prediction.model_name == model_name,
-            )
+    接收外部 session：一次质量报告需要「取模型 / 数标签 / 取样本」三次查询，
+    复用同一个 session 可省去重复建连（原先三个函数各自开一次）。
+    """
+    stmt = (
+        select(Prediction.risk_score, CommitLabel.is_bug_inducing)
+        .join(CommitLabel, CommitLabel.commit_hash == Prediction.commit_hash)
+        .join(Commit, Commit.commit_hash == Prediction.commit_hash)
+        .where(
+            CommitLabel.label_method == label_method,
+            Prediction.model_name == model_name,
         )
-        if start is not None:
-            stmt = stmt.where(Commit.committed_at >= start)
-        if end is not None:
-            stmt = stmt.where(Commit.committed_at <= end)
-        return [(float(score), int(label)) for score, label in session.execute(stmt).all()]
+    )
+    if start is not None:
+        stmt = stmt.where(Commit.committed_at >= start)
+    if end is not None:
+        stmt = stmt.where(Commit.committed_at <= end)
+    return [(float(score), int(label)) for score, label in session.execute(stmt).all()]
 
 
-def _labeled_total(start, end) -> int:
-    """区间内 manual 标签总数（含尚无 prediction 的，故可能大于 evaluated）。"""
-    with SessionLocal() as session:
-        stmt = (
-            select(func.count())
-            .select_from(CommitLabel)
-            .join(Commit, Commit.commit_hash == CommitLabel.commit_hash)
-            .where(CommitLabel.label_method == MANUAL_LABEL_METHOD)
-        )
-        if start is not None:
-            stmt = stmt.where(Commit.committed_at >= start)
-        if end is not None:
-            stmt = stmt.where(Commit.committed_at <= end)
-        return int(session.execute(stmt).scalar_one() or 0)
+def _labeled_total(session, start, end, label_method: str = MANUAL_LABEL_METHOD) -> int:
+    """区间内指定口径的标签总数（含尚无 prediction 的，故可能大于 evaluated）。"""
+    stmt = (
+        select(func.count())
+        .select_from(CommitLabel)
+        .join(Commit, Commit.commit_hash == CommitLabel.commit_hash)
+        .where(CommitLabel.label_method == label_method)
+    )
+    if start is not None:
+        stmt = stmt.where(Commit.committed_at >= start)
+    if end is not None:
+        stmt = stmt.where(Commit.committed_at <= end)
+    return int(session.execute(stmt).scalar_one() or 0)
 
 
 def _confusion(rows: list[tuple[float, int]], threshold: float) -> tuple[int, int, int, int]:
@@ -115,15 +114,34 @@ def best_threshold(rows: list[tuple[float, int]], current: float) -> float:
     return best
 
 
-def report(model_name: str | None, threshold: float | None, start, end) -> dict:
-    model = resolve_model(model_name)
+def report(
+    model_name: str | None,
+    threshold: float | None,
+    start,
+    end,
+    label_source: str = "manual",
+) -> dict:
+    """质量报告。
+
+    `model_name`：显式给定时原样使用（历史模型也可评估），缺省取表内最新模型。
+    `label_source`：`manual`（默认，人工标签才是 ground truth）或 `szz`（自动标签，
+    只作对照视图用——SZZ 本身有误报，不能作为验收依据）。
+    """
+    label_method = LABEL_SOURCES.get(label_source)
+    if label_method is None:
+        # 服务层也守一道：API 之外的调用方（脚本/测试）传错枚举不该变成 50000
+        raise AppError(40001, f"参数非法：label_source 取值需为 {' 或 '.join(LABEL_SOURCES)}")
     if threshold is None:
         threshold = runtime_settings.high_threshold()
-    labeled_total = _labeled_total(start, end)
+    with SessionLocal() as session:
+        model = model_name or default_model_in_table(session)
+        labeled_total = _labeled_total(session, start, end, label_method)
+        rows = _labeled_rows(session, model, start, end, label_method) if model else []
     if model is None:
         return {
             "model_name": None,
             "threshold": round(threshold, 4),
+            "label_source": label_source,
             "labeled_total": labeled_total,
             "evaluated": 0,
             "tp": 0,
@@ -134,18 +152,24 @@ def report(model_name: str | None, threshold: float | None, start, end) -> dict:
             "recall": None,
             "f1": None,
             "accuracy": None,
+            "false_discovery_rate": None,
             "avg_risk_defect": None,
             "avg_risk_clean": None,
             "recommended_threshold": None,
             "evaluated_at": iso_z(now_naive_utc()),
         }
-    rows = _labeled_rows(model, start, end)
     tp, fp, tn, fn = _confusion(rows, threshold)
     defects = [score for score, label in rows if label]
     cleans = [score for score, label in rows if not label]
+    # 误发现率（false discovery rate）= fp/(tp+fp) = 1 - precision：
+    # 「被判高风险的里，其实不是缺陷」的占比。与 precision 互补，不是 FPR
+    # （FPR = fp/(fp+tn)，衡量「干净提交被误拦」），两者口径不同，勿混用。
+    discovered = tp + fp
+    false_discovery_rate = fp / discovered if discovered else None
     return {
         "model_name": model,
         "threshold": round(threshold, 4),
+        "label_source": label_source,
         "labeled_total": labeled_total,
         "evaluated": len(rows),
         "tp": tp,
@@ -153,6 +177,9 @@ def report(model_name: str | None, threshold: float | None, start, end) -> dict:
         "tn": tn,
         "fn": fn,
         **_stats(tp, fp, tn, fn),
+        "false_discovery_rate": (
+            round(false_discovery_rate, 4) if false_discovery_rate is not None else None
+        ),
         "avg_risk_defect": round(sum(defects) / len(defects), 4) if defects else None,
         "avg_risk_clean": round(sum(cleans) / len(cleans), 4) if cleans else None,
         "recommended_threshold": (
@@ -187,7 +214,6 @@ def dataset() -> dict:
 
 def calibrate(model_name: str | None) -> dict:
     """按人工标签校准 `high_risk_threshold`；仅在有实质改善时落库。"""
-    model = resolve_model(model_name)
     current = runtime_settings.high_threshold()
     current_mid = runtime_settings.mid_threshold()
     before_stats = {
@@ -196,24 +222,27 @@ def calibrate(model_name: str | None) -> dict:
         "recall": None,
         "f1": None,
     }
-    if model is None:
-        return {
-            "model_name": None,
-            "labeled_total": 0,
-            "evaluated": 0,
-            "applied": False,
-            "reason": "no_model",
-            "before": before_stats,
-            "after": dict(before_stats),
-        }
+    with SessionLocal() as session:
+        model = model_name or default_model_in_table(session)
+        if model is None:
+            return {
+                "model_name": None,
+                "labeled_total": 0,
+                "evaluated": 0,
+                "applied": False,
+                "reason": "no_model",
+                "before": before_stats,
+                "after": dict(before_stats),
+            }
+        rows = _labeled_rows(session, model, None, None)
+        labeled_total = _labeled_total(session, None, None)
 
-    rows = _labeled_rows(model, None, None)
     before = {**_stats(*_confusion(rows, current)), "threshold": round(current, 4)}
     positives = sum(1 for _, label in rows if label)
     if len(rows) < MIN_EVALUATED or positives == 0 or positives == len(rows):
         return {
             "model_name": model,
-            "labeled_total": _labeled_total(None, None),
+            "labeled_total": labeled_total,
             "evaluated": len(rows),
             "applied": False,
             "reason": "insufficient_labels",
@@ -233,7 +262,7 @@ def calibrate(model_name: str | None) -> dict:
         runtime_settings.set_thresholds(high=candidate, mid=min(current_mid, candidate))
     return {
         "model_name": model,
-        "labeled_total": _labeled_total(None, None),
+        "labeled_total": labeled_total,
         "evaluated": len(rows),
         "applied": improved,
         "reason": None if improved else "no_improvement",

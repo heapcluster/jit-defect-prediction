@@ -1,6 +1,18 @@
 <template>
   <div>
     <PageHint text="用人工确认的标签评估预测质量，并按 F1 最优点校准阈值 —— 改完立即生效。">
+      <el-radio-group
+        v-model="labelSource"
+        size="small"
+        @change="load"
+      >
+        <el-radio-button value="manual">
+          人工标签
+        </el-radio-button>
+        <el-radio-button value="szz">
+          SZZ 对照
+        </el-radio-button>
+      </el-radio-group>
       <el-button
         size="small"
         type="primary"
@@ -35,6 +47,11 @@
         hint="精确率与召回率的调和平均"
       />
       <StatCard
+        label="误拦率"
+        :value="pct(quality.false_discovery_rate)"
+        hint="判高风险的里有多少其实不是缺陷（=1−精确率）"
+      />
+      <StatCard
         label="评估样本"
         :value="`${quality.evaluated}/${quality.labeled_total}`"
         hint="已比对 / 已标记"
@@ -47,7 +64,9 @@
       :closable="false"
       class="mb"
     >
-      还没有可评估的样本：先到「风险列表」打开几条提交，标记是否真的引入缺陷。
+      {{ labelSource === 'szz'
+        ? 'SZZ 自动标签对照视图：只有 SZZ 标签且已有预测的提交才计入，结论不能作为验收依据。'
+        : '还没有可评估的样本：先到「风险列表」打开几条提交，标记是否真的引入缺陷。' }}
     </el-alert>
 
     <div class="grid">
@@ -132,6 +151,7 @@ import PageHint from '../components/PageHint.vue'
 const quality = reactive({
   model_name: null,
   threshold: 0.5,
+  label_source: 'manual',
   labeled_total: 0,
   evaluated: 0,
   tp: 0,
@@ -141,8 +161,11 @@ const quality = reactive({
   precision: null,
   recall: null,
   f1: null,
+  false_discovery_rate: null,
   recommended_threshold: null
 })
+// manual = 人工标签（ground truth）；szz = 自动标签对照视图，不参与验收
+const labelSource = ref('manual')
 const cfg = reactive({ high_risk_threshold: null, mid_risk_threshold: null })
 const calibration = ref(null)
 const loading = ref(false)
@@ -169,7 +192,10 @@ const reasonText = computed(() => {
 async function load() {
   loading.value = true
   try {
-    const [q, c] = await Promise.all([getQuality(), getConfig()])
+    const [q, c] = await Promise.all([
+      getQuality({ label_source: labelSource.value }),
+      getConfig()
+    ])
     Object.assign(quality, q)
     Object.assign(cfg, c)
   } catch (e) {
@@ -217,6 +243,7 @@ onMounted(load)
 <style scoped>
 .stats {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 16px;
 }

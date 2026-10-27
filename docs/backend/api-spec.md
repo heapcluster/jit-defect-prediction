@@ -35,7 +35,7 @@
 ## 三、接口清单
 
 ### 1. `GET /api/commits` —— 风险列表
-请求：`page` `size` `min_risk` `model_name` `start_time` `end_time`
+请求：`page` `size` `min_risk` `model_name` `start_time` `end_time` `q`（搜索，≤64 字符；命中「哈希前缀 / 作者 / 提交信息」三者之一，纯查看过滤，不触发预测）
 响应 `data`：`total` / `page` / `size` / `items[]`（每项 `commit_hash` `author_name` `committed_at` `message` `risk_score` `model_name`），按 `risk_score` 降序。
 
 ### 2. `GET /api/commits/{commit_hash}` —— 提交详情
@@ -53,7 +53,7 @@
 - `series` 只返回单模型一组数据，不做同图多模型对比。
 
 ### 4. `POST /api/predict` —— 在线预测（课程硬要求：对外在线预测服务）
-请求体：`{ "commit_hash": "40位十六进制", "model_name"?: "默认最新" }`
+请求体：`{ "commit_hash": "40位十六进制", "model_name"?: "默认模型" }`（缺省取**冠军模型** `champion_model`，未配置时回退 `version_key` 最大者，口径同 §17）
 响应 `data`：`commit_hash` `model_name` `risk_score` `predicted_at` `features{14项}` `explanation[]`（结构与第 2 节一致）。
 - 本次演示的在线模型以 `MODEL_DIR/feature_order.txt` 的 `[models]` 段为准（当前 expert 全量 8 个：`lr_v1` / `rf_v1` / `xgb_v1` / `lgbm_v1` / `et_v1` / `svm_v1` / `mlp_deep_v1` / `tabnet_v1`，#153 组长裁定）；目录内其他训练权重不进入注册表。清单缺失或 `[feature_order]` 与契约二 14 项顺序不一致时，注册表保持空并记录服务端错误；查询接口仍可用，预测返回 50000。
 - `features` 给**口径处理后的值**（除 `fix` 外取自然对数；`la/ld/lt/nuc` 先归一化）。
@@ -79,7 +79,7 @@
 - **耗时口径同 §5**：不适用 500ms 靶子；单 PR 即多条提交 × 8 模型，`limit=30` 必然超过 10s，调用方必须放宽超时。
 
 ### 7. `GET /api/prs` —— open PR 聚合风险列表（change `realtime-pr-prediction`）
-请求：`limit`（默认 20，上限 50）/ `model_name`（默认取全局默认模型，不在清单 → `40001`）。
+请求：`limit`（默认 20，上限 50）/ `model_name`（默认取**冠军模型**，口径同 §17；不在清单 → `40001`）。
 响应 `data`：`items[]`（每项 `number` `title` `author` `state` `html_url` `updated_at` `risk_score` `commit_count` `predicted_count` `predicted_at`）/ `model_name` / `skipped`（聚合失败的 PR 数）。
 - `risk_score` = 该 PR 各提交在指定模型下的**最高**风险分（无预测为 `null`，不得用 0.0 冒充）；`predicted_at` 为该 PR 最新一条预测的时间，ISO 8601 带 `Z`。
 - **纯只读**：数据来自 GitHub API + `prediction` 表，**不依赖 `SOURCE_REPO`** —— 未配置历史索引时本端点照常返回库内已有数据，不得 40400。
@@ -113,9 +113,11 @@
 - DB 不可达或模型数为 0 → `status="degraded"`，HTTP 仍为 200（`MUST NOT` 抛 50000）；响应 `MUST NOT` 回显连接串、口令、堆栈。
 
 ### 14. `GET /api/quality` —— 预测质量指标（change `quality-loop`）
-请求：`model_name`（缺省取表内最新模型）、`threshold`（0.0~1.0，缺省取运行时 `high_risk_threshold`）、`start_time` / `end_time`（语义同 §1，按 `committed_at` 过滤）。
-响应 `data`：`model_name` `threshold` `labeled_total` `evaluated` `tp` `fp` `tn` `fn` `precision` `recall` `f1` `accuracy` `avg_risk_defect` `avg_risk_clean` `recommended_threshold` `evaluated_at`。
+请求：`model_name`（缺省取表内最新模型）、`threshold`（0.0~1.0，缺省取运行时 `high_risk_threshold`）、`start_time` / `end_time`（语义同 §1，按 `committed_at` 过滤）、`label_source`（`manual`｜`szz`，缺省 `manual`）。
+响应 `data`：`model_name` `threshold` `label_source` `labeled_total` `evaluated` `tp` `fp` `tn` `fn` `precision` `recall` `f1` `accuracy` `false_discovery_rate` `avg_risk_defect` `avg_risk_clean` `recommended_threshold` `evaluated_at`。
 - ground truth **只认** `label_method="manual"` 的人工标签，预测侧为 `risk_score >= threshold` 的二值判断。
+- `label_source="szz"` 仅为对照视图（SZZ 自动标签自身有误报，`MUST NOT` 作为验收依据）；`label_source` 不在枚举内 → `40001`。
+- `false_discovery_rate = fp / (tp + fp) = 1 - precision`，即「被判高风险但 label 说不是缺陷」的比例；分母为 0 → `null`。**注意它不等于 `fp/(fp+tn)` 的 FPR**（后者衡量「干净提交被误拦」），两者口径不同，字段名与文案不得混用。
 - 无样本 → `code=0` 且 `evaluated=0`、派生指标为 `null`（`MUST NOT` 用 0.0 冒充）；`labeled_total` 含尚无 prediction 的标签，`evaluated` 只算真正参与比对的行。
 - `threshold` 越界 → `40001`。
 
@@ -150,10 +152,11 @@
 - 纯只读（只用 GitHub 提交清单 + 库内 prediction），可直接作为 CI required check。
 
 ### 20. `POST /api/webhook/github` —— GitHub 事件驱动（change `ops-hardening`）
-请求头：`X-GitHub-Event`、`X-Hub-Signature-256`（HMAC-SHA256，密钥 `WEBHOOK_SECRET`）。响应 `data`：`accepted` `event` `action` `triggered`。
+请求头：`X-GitHub-Event`、`X-Hub-Signature-256`（HMAC-SHA256，密钥 `WEBHOOK_SECRET`）、`X-GitHub-Delivery`（投递 id，参与去重）。响应 `data`：`accepted` `duplicate` `event` `action` `triggered`。
 - **鉴权机制为签名而非 `X-API-Key`**：GitHub 无法发送自定义令牌头；`WEBHOOK_SECRET` 未配置时一律 `40100`（fail closed）。
-- `push` → 后台触发增量同步（`WEBHOOK_SYNC_LIMIT` 条）；`pull_request` 且 action ∈ {`opened`,`synchronize`,`reopened`} → 后台触发 PR 同步。
+- `push` → 后台触发增量同步（`WEBHOOK_SYNC_LIMIT` 条）；`pull_request` 且 action ∈ {`opened`,`synchronize`,`reopened`} → 后台触发 PR 同步（`WEBHOOK_PR_LIMIT` 条，默认 1：每 PR 需一次 commit 清单调用，避免单个事件耗尽 GitHub 配额）。
 - 立即返回（同步是分钟级操作，放后台线程）；并发由同步互斥锁兜底，重复事件只记日志。
+- **投递去重**：GitHub 在超时/5xx 时会重投同一 `X-GitHub-Delivery`；验签通过后按进程内最近 256 个 id 判重，重复投递 → `duplicate=true`、`action=null`、`triggered=false`（`accepted` 仍为 `true`，避免 GitHub 继续重试）。缺 `X-GitHub-Delivery` 时不判重（兼容手工 `curl`）。
 - 签名错误/缺失 → `40100`；非 JSON 对象体 → `40001`。
 
 ## 四、非功能要求与验证（必须有可出示证据）
@@ -171,6 +174,8 @@
 
 | 日期 | 版本 | 变更人 | 主要变更 |
 |---|---|---|---|
+| 2026-10-27 | 2.2 | 后端线（吕建江） | **默认模型口径统一**：§4 单条预测、§7/§8 PR 查询、§19 门禁全部改读冠军模型（`champion_model`，未配置回退 `version_key` 最大者），修正此前「列表/详情/趋势走 champion、predict/门禁走 version_key」的双轨；**§1 登记 `q` 搜索参数**（哈希前缀/作者/提交信息，≤64 字符）；**§14 指标更名** `false_positive_rate` → `false_discovery_rate`（原实现是 `fp/(tp+fp)`＝1−precision，与 FPR 口径不同）；**§20 补 `WEBHOOK_PR_LIMIT`**。实现侧：catchup 差集改分批 SQL、webhook 去重改为「受理成功才登记」、git 仅对网络类错误重试 |
+| 2026-10-27 | 2.1 | 后端线（吕建江） | **§14 质量视图补 `label_source` 入参与误拦指标**（`manual` 默认 / `szz` 仅对照，非法值 `40001`）；**§20 webhook 增加投递去重**：登记 `X-GitHub-Delivery` 请求头与 `duplicate` 响应字段，重复投递 `duplicate=true` 且不再派发后台同步 |
 | 2026-10-27 | 2.0 | 后端线（吕建江） | **新增 §17~§20 运维加固四条（组）端点**（change `ops-hardening`）：§17 `GET/PUT /api/config` 阈值热更新、§18 `health/live`/`health/ready` 探针拆分、§19 `GET /api/prs/{number}/gate` CI 门禁、§20 `POST /api/webhook/github` 事件驱动（HMAC 验签）。§四安全行补记 webhook 的签名鉴权机制 |
 | 2026-10-27 | 1.9 | 后端线（吕建江） | **新增 §14~§16 质量闭环三条端点**（change `quality-loop`）：`GET /api/quality`（人工标签 vs 预测的混淆矩阵与 P/R/F1）、`GET /api/quality/dataset`（回流样本导出）、`POST /api/quality/calibrate`（按标签校准阈值并落 `runtime_setting`）。**阈值来源变更**：§7/§8 `risk_level` 与趋势 `high_risk_count` 改读运行时配置，默认值不变。新增第 6 张表 `runtime_setting` |
 | 2026-10-27 | 1.8 | 后端线（吕建江） | **§三「八个接口」→「接口清单」，补记 §9~§11 并新增 §12~§13**（change `feedback-observability`）：§9 coverage / §10 catchup / §11 sync status·stream（上一 change `startup-baseline-sync` 遗漏登记，一并补齐）；§12 人工反馈标签、§13 健康检查。§12 只用冻结错误码 40001/40400；§13 降级不抛 50000 且不回显连接细节 |
