@@ -71,6 +71,33 @@ export function getHealth() {
   return request.get('/health')
 }
 
+// 预测质量：GET /api/quality（人工标签 vs 预测的混淆矩阵与 P/R/F1）
+export function getQuality(params) {
+  return request.get('/quality', { params })
+}
+
+// 标签回流样本：GET /api/quality/dataset（含 14 维特征，供离线再训练）
+export function getQualityDataset() {
+  return request.get('/quality/dataset')
+}
+
+// 阈值校准：POST /api/quality/calibrate（按标签选 F1 最优点并落库）
+export function postCalibrate(modelName) {
+  return request.post('/quality/calibrate', { model_name: modelName || null })
+}
+
+// 运行时配置：GET /api/config 读取、PUT /api/config 热更新阈值
+export function getConfig() {
+  return request.get('/config')
+}
+
+export function putConfig(highRiskThreshold, midRiskThreshold) {
+  return request.put('/config', {
+    high_risk_threshold: highRiskThreshold,
+    mid_risk_threshold: midRiskThreshold
+  })
+}
+
 // SSE 订阅同步进度（fetch streaming，便于带 X-API-Key 鉴权；EventSource 不支持自定义头）
 export function subscribeSyncProgress(onUpdate) {
   const token = import.meta.env.VITE_API_KEY

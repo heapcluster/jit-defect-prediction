@@ -1,5 +1,46 @@
 <template>
   <div>
+    <PageHint text="按 PR 看聚合风险（取该 PR 内最高风险提交）；未预测的点「同步 PR 预测」现算。">
+      <el-button
+        size="small"
+        type="primary"
+        :loading="syncing"
+        @click="sync"
+      >
+        同步 PR 预测
+      </el-button>
+      <el-button
+        size="small"
+        :loading="loading"
+        @click="load"
+      >
+        刷新
+      </el-button>
+    </PageHint>
+
+    <div class="stats">
+      <StatCard
+        label="PR 总数"
+        :value="items.length"
+        hint="当前拉取范围"
+      />
+      <StatCard
+        label="高风险 PR"
+        :value="highRiskCount"
+        hint="最高提交达到高阈值"
+      />
+      <StatCard
+        label="待预测"
+        :value="unpredictedCount"
+        hint="提交尚未现算"
+      />
+      <StatCard
+        label="模型"
+        :value="filters.model_name || '默认'"
+        hint="切换模型会重算聚合"
+      />
+    </div>
+
     <el-form
       :inline="true"
       class="filters"
@@ -20,35 +61,16 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item>
-        <el-button
-          type="primary"
-          :loading="syncing"
-          @click="sync"
-        >
-          同步最新 PR 预测
-        </el-button>
-        <el-button
-          :loading="loading"
-          @click="load"
-        >
-          刷新
-        </el-button>
-      </el-form-item>
     </el-form>
 
-    <!-- 加载台：现算很贵，把成本和进度讲清楚 -->
+    <!-- 同步进度：一行说清，不铺大段说明 -->
     <el-alert
       v-if="syncing"
       type="info"
       :closable="false"
-      class="sync-tip"
+      class="mb"
     >
-      <p class="sync-msg">
-        正在逐条现算特征并用真实模型预测（每条提交约 15 秒），已处理 {{ syncDone }} 条…
-        <br>
-        页面数据会在同步完成后自动刷新；期间可以切到别的页面，不用守着。
-      </p>
+      正在逐条现算（约 15 秒/条），已处理 {{ syncDone }} 条，完成后自动刷新。
     </el-alert>
 
     <el-alert
@@ -56,14 +78,15 @@
       :title="error"
       type="error"
       show-icon
+      :closable="false"
+      class="mb"
     />
 
-    <!-- 表格不随 error 卸载：出错时仍保留上一次拉到的数据（2026-10-25 修复，
-         此前 v-else 会把整表卸载，用户得手动刷新才能看到数据） -->
+    <!-- 表格不随 error 卸载：出错时仍保留上一次拉到的数据 -->
     <el-table
       v-loading="loading"
       :data="items"
-      style="cursor: pointer"
+      class="table"
       @row-click="openPr"
     >
       <el-table-column
@@ -80,42 +103,29 @@
       <el-table-column
         prop="author"
         label="作者"
-        width="140"
+        width="130"
       />
       <el-table-column
-        label="状态"
-        width="90"
-      >
-        <template #default="{ row }">
-          <el-tag :type="row.state === 'open' ? 'success' : 'info'">
-            {{ row.state }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column
         label="风险"
-        width="210"
+        width="190"
       >
         <template #default="{ row }">
-          <el-tooltip
+          <div
             v-if="row.risk_score == null"
-            content="该 PR 的提交尚未预测：点上方「同步最新 PR 预测」按需现算"
-            placement="top"
+            class="unpredicted"
           >
-            <span style="color: #909399">未预测</span>
-          </el-tooltip>
+            未预测
+          </div>
           <div
             v-else
-            style="display: flex; align-items: center; gap: 6px"
+            class="risk-cell"
           >
-            <el-tag
-              :type="riskTag(row.risk_score)"
+            <RiskTag
+              :level="row.risk_level"
+              :score="row.risk_score"
               effect="dark"
-              size="small"
-            >
-              {{ row.risk_level || riskLevel(row.risk_score) }}
-            </el-tag>
-            <span :style="{ color: riskColor(row.risk_score), fontWeight: 600 }">
+            />
+            <span :style="{ color: riskColor(row.risk_score) }">
               {{ (row.risk_score * 100).toFixed(1) }}%
             </span>
             <el-tooltip
@@ -123,22 +133,22 @@
               :content="row.reason"
               placement="top"
             >
-              <span style="color: #909399; cursor: help">ⓘ</span>
+              <span class="why">ⓘ</span>
             </el-tooltip>
           </div>
         </template>
       </el-table-column>
       <el-table-column
         label="提交"
-        width="110"
+        width="100"
       >
         <template #default="{ row }">
           {{ row.predicted_count }}/{{ row.commit_count }}
         </template>
       </el-table-column>
       <el-table-column
-        label="更新时间"
-        width="180"
+        label="更新"
+        width="170"
       >
         <template #default="{ row }">
           {{ formatTime(row.updated_at) }}
@@ -148,19 +158,31 @@
 
     <el-empty
       v-if="!loading && !error && items.length === 0"
-      description="暂无 PR 或尚未同步预测"
-    />
+      description="暂无 PR"
+    >
+      <el-button
+        size="small"
+        type="primary"
+        :loading="syncing"
+        @click="sync"
+      >
+        同步 PR 预测
+      </el-button>
+    </el-empty>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getPrs, postSyncPrs } from '../api'
 import { MODELS } from '../utils/models'
-import { riskColor, riskLevel, riskTag } from '../utils/risk'
+import { riskColor } from '../utils/risk'
 import { errText } from '../utils/errors'
 import { formatTime } from '../utils/datetime'
+import StatCard from '../components/StatCard.vue'
+import PageHint from '../components/PageHint.vue'
+import RiskTag from '../components/RiskTag.vue'
 
 const router = useRouter()
 const models = MODELS
@@ -170,6 +192,13 @@ const syncing = ref(false)
 const syncDone = ref(0)
 const error = ref('')
 const filters = reactive({ model_name: '' })
+
+const highRiskCount = computed(
+  () => items.value.filter((i) => i.risk_level === '高').length
+)
+const unpredictedCount = computed(
+  () => items.value.filter((i) => i.risk_score == null).length
+)
 
 // 最新请求标识：并发时丢弃过期响应，避免旧响应覆盖新结果
 let requestId = 0
@@ -195,7 +224,7 @@ async function sync() {
   syncDone.value = 0
   error.value = ''
   try {
-    // 分批触发：一次 30 个 PR 的提交现算会顶到前端 300s 超时，改成 3 批 × 10
+    // 分批触发：一次 30 个 PR 的提交现算会顶到前端超时，改成 3 批 × 10
     for (let done = 0; done < 30; done += 10) {
       await postSyncPrs(10)
       syncDone.value = done + 10
@@ -204,8 +233,7 @@ async function sync() {
     error.value = errText(e)
   } finally {
     syncing.value = false
-    // 无论同步成功与否都重新拉一次列表：同步可能只完成一部分（单 PR 失败进 skipped），
-    // 也要让用户看到已入库的那部分结果
+    // 无论成功与否都重新拉一次：同步可能只完成一部分（失败进 skipped）
     await load()
   }
 }
@@ -218,14 +246,31 @@ onMounted(load)
 </script>
 
 <style scoped>
-.filters {
+.stats {
+  display: flex;
+  gap: 12px;
   margin-bottom: 16px;
 }
-.sync-tip {
+.filters {
+  margin-bottom: 4px;
+}
+.mb {
   margin-bottom: 12px;
 }
-.sync-msg {
-  margin: 0;
-  line-height: 1.7;
+.table {
+  cursor: pointer;
+  margin-top: 8px;
+}
+.risk-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.unpredicted {
+  color: #9aa1ab;
+}
+.why {
+  color: #9aa1ab;
+  cursor: help;
 }
 </style>
