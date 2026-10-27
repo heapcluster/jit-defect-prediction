@@ -12,6 +12,7 @@ from datetime import datetime
 from app import model_registry
 from app.db import SessionLocal
 from app.models import Prediction
+
 from tests.conftest import C1, C2, HEADERS
 
 # conftest 的 client 夹具预置了 xgb_v1 的两条预测；测试交付清单里另有 fixture_v1 / fixture_v2，
