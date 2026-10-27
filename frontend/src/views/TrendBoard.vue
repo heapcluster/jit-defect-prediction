@@ -1,5 +1,7 @@
 <template>
   <div>
+    <PageHint text="按周/月看风险走势；点折线上的数据点，下钻到该时段的提交列表。" />
+
     <!-- 筛选栏 -->
     <el-form
       :inline="true"
@@ -69,35 +71,26 @@
       </el-button>
     </el-alert>
 
-    <!-- 汇总卡片 -->
+    <!-- 汇总：三张卡，口径与序列同源，不重复表格里已有的逐期明细 -->
     <div
       v-if="summary"
-      class="cards"
+      class="stats"
     >
-      <div class="stat">
-        <div class="k">
-          区间内提交总数
-        </div>
-        <div class="v">
-          {{ summary.commit_count }}
-        </div>
-      </div>
-      <div class="stat">
-        <div class="k">
-          高风险提交
-        </div>
-        <div class="v">
-          {{ summary.high_risk_count }}
-        </div>
-      </div>
-      <div class="stat">
-        <div class="k">
-          加权平均风险
-        </div>
-        <div class="v">
-          {{ summary.avg_risk }}
-        </div>
-      </div>
+      <StatCard
+        label="区间提交"
+        :value="summary.commit_count"
+        hint="所选范围内合计"
+      />
+      <StatCard
+        label="高风险提交"
+        :value="summary.high_risk_count"
+        hint="后端 high_risk_count 求和"
+      />
+      <StatCard
+        label="加权平均风险"
+        :value="summary.avg_risk"
+        hint="按提交数加权，非算术平均"
+      />
     </div>
 
     <!-- 折线图：容器始终渲染保持高度稳定（pages.md §5） -->
@@ -127,9 +120,9 @@
       </div>
     </div>
 
-    <!-- 明细表 -->
+    <!-- 明细表只在画不出折线时兜底：数据点 ≥ 2 时折线已表达同样的四个字段 -->
     <el-table
-      v-if="series.length > 0"
+      v-if="series.length > 0 && series.length < 2"
       :data="series"
       class="detail-table"
     >
@@ -165,6 +158,8 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getTrends } from '../api'
 import RiskTrendChart from '../components/RiskTrendChart.vue'
+import StatCard from '../components/StatCard.vue'
+import PageHint from '../components/PageHint.vue'
 import { MODELS } from '../utils/models'
 import { errText } from '../utils/errors'
 
@@ -283,26 +278,10 @@ onMounted(load)
 .mb {
   margin-bottom: 12px;
 }
-.cards {
+.stats {
   display: flex;
   gap: 12px;
   margin-bottom: 16px;
-}
-.stat {
-  flex: 1;
-  border: 1px solid #e2e5ea;
-  border-radius: 8px;
-  padding: 12px 16px;
-}
-.stat .k {
-  font-size: 12px;
-  color: #7c838c;
-}
-.stat .v {
-  font-size: 26px;
-  font-weight: 700;
-  font-family: monospace;
-  margin-top: 2px;
 }
 .chart-box {
   border: 1px solid #e2e5ea;

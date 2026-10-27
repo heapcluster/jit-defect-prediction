@@ -27,14 +27,14 @@ import tempfile
 import threading
 import time
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
-from app import config, model_registry
-from app.api.predict import PredictRequest, predict_commit_all_models
+from app import config
+from app.api.predict import predict_commit_all_models
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import INTERNAL_ERROR_MESSAGE, AppError, ok
@@ -208,7 +208,7 @@ def sync_recent(limit: int = 10, mode: str = "manual", scope: str = "latest") ->
         total=0,
         done=0,
         current_hash=None,
-        started_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        started_at=datetime.now(UTC).replace(tzinfo=None),
         last_error=None,
     )
     try:
@@ -274,7 +274,7 @@ def sync_catchup(mode: str = "catchup", scope: str = "catchup-to-head") -> dict:
         total=0,
         done=0,
         current_hash=None,
-        started_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        started_at=datetime.now(UTC).replace(tzinfo=None),
         last_error=None,
     )
     try:

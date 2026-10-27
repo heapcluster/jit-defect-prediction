@@ -36,7 +36,5 @@ def get_config() -> dict:
 @router.put("/api/config", response_model=schemas.ConfigResponse)
 def put_config(body: schemas.ConfigUpdateRequest) -> dict:
     """更新风险等级阈值；约束 `0 <= mid <= high <= 1`，非法 → 40001。"""
-    runtime_settings.set_thresholds(
-        high=body.high_risk_threshold, mid=body.mid_risk_threshold
-    )
+    runtime_settings.set_thresholds(high=body.high_risk_threshold, mid=body.mid_risk_threshold)
     return ok(_snapshot())

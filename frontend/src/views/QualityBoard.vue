@@ -96,34 +96,28 @@
         >
           应用推荐阈值
         </el-button>
-        <p class="note">
-          阈值存于 runtime_setting，改完立即影响风险等级与 PR 门禁。
+        <!-- 校准结果就地说明，不再单独占一张卡（它是一次性事件，刷新后已无意义） -->
+        <p
+          v-if="calibration && !calibration.applied"
+          class="note"
+        >
+          {{ reasonText }}
+        </p>
+        <p
+          v-else-if="calibration"
+          class="note"
+        >
+          已校准：阈值 {{ calibration.before.threshold }} → <b>{{ calibration.after.threshold }}</b>，F1
+          {{ num(calibration.before.f1) }} → <b>{{ num(calibration.after.f1) }}</b>
+        </p>
+        <p
+          v-else
+          class="note"
+        >
+          改完立即生效，同时影响风险等级与 PR 门禁。
         </p>
       </el-card>
     </div>
-
-    <el-card
-      v-if="calibration"
-      shadow="never"
-      class="mt"
-    >
-      <template #header>
-        最近一次校准
-      </template>
-      <p
-        v-if="!calibration.applied"
-        class="note"
-      >
-        {{ reasonText }}
-      </p>
-      <div
-        v-else
-        class="calib"
-      >
-        <span>阈值 {{ calibration.before.threshold }} → <b>{{ calibration.after.threshold }}</b></span>
-        <span>F1 {{ num(calibration.before.f1) }} → <b>{{ num(calibration.after.f1) }}</b></span>
-      </div>
-    </el-card>
   </div>
 </template>
 
@@ -284,13 +278,5 @@ onMounted(load)
   font-size: 12px;
   line-height: 1.6;
 }
-.calib {
-  display: flex;
-  gap: 24px;
-  font-size: 13px;
-  color: #374151;
-}
-.mt {
-  margin-top: 12px;
-}
+
 </style>

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from app.services import settings as runtime_settings
+
 from tests.conftest import C1, C2, C3, HEADERS
 
 

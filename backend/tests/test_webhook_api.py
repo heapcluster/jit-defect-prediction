@@ -10,6 +10,7 @@ import hashlib
 import hmac
 
 from app import config
+
 from tests.conftest import HEADERS
 
 URL = "/api/webhook/github"
@@ -114,7 +115,5 @@ def test_webhook_does_not_require_api_key(client, monkeypatch):
         },
     )
     assert resp.status_code == 200
-    assert "X-API-Key" not in resp.request.headers or resp.request.headers.get(
-        "X-API-Key"
-    ) is None
+    assert "X-API-Key" not in resp.request.headers or resp.request.headers.get("X-API-Key") is None
     assert HEADERS["X-API-Key"]  # 仅说明普通端点仍需令牌

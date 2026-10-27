@@ -13,10 +13,13 @@
 ## 2. 页面重构
 
 - [x] 2.1 `App.vue` 导航加「质量看板」，标题集中一处 — `frontend/src/App.vue`
-- [x] 2.2 `RiskList.vue`：三条重复提示合并为 PageHint + 四张卡；空库引导精简 — `frontend/src/views/RiskList.vue`
+- [x] 2.2 `RiskList.vue`：三条重复提示合并为 PageHint + 三张卡（条数交给分页器）；空库引导精简 — `frontend/src/views/RiskList.vue`
 - [x] 2.3 `CommitDetail.vue`：风险结论一行 + 操作归拢 + 特征中文名 — `frontend/src/views/CommitDetail.vue`
-- [x] 2.4 `PrList.vue`：四张概览卡 + 同步提示压成一行 + RiskTag — `frontend/src/views/PrList.vue`
+- [x] 2.4 `PrList.vue`：两张概览卡（去掉与筛选栏、表格重复的模型与总数）+ 同步提示压成一行 — `frontend/src/views/PrList.vue`
 - [x] 2.5 新增 `QualityBoard.vue`：指标卡 + 混淆矩阵 + 阈值校准 — `frontend/src/views/QualityBoard.vue`
+- [x] 2.6 `TrendBoard.vue`：补 PageHint 与三张 `StatCard`，明细表降为「画不出折线」时的兜底 — `frontend/src/views/TrendBoard.vue`
+- [x] 2.7 `QualityBoard.vue`：校准结果就地显示在阈值卡，去掉独立「最近一次校准」卡 — `frontend/src/views/QualityBoard.vue`
+- [x] 2.8 `PrDetail.vue`：去掉与布局标题重复的 `el-page-header`，改用 PageHint + 返回按钮 — `frontend/src/views/PrDetail.vue`
 
 ## 3. 接线
 
@@ -27,9 +30,10 @@
 
 ### 单元测试
 
-- 前端无单测框架（项目现状），以构建与人工走查为准
-- 命令：`cd frontend; npm run build`
-- 证据：`✓ 2266 modules transformed`、`built in 15.55s`，无编译错误
+- 前端已有 vitest（`frontend/tests/*.spec.js`，`npm run test:unit`）；#81 起即存在，此前 tasks 里「无单测框架」的记录已失效并订正
+- 命令：`cd frontend; npm run test:unit` ｜ 证据：**7 个文件 / 27 条全通过**
+- 本轮同步修掉两处存量红：`risk.spec.js` 阈值口径（0.3 → 0.2）、`RiskList.spec.js` 的 api mock 缺 `getCommitsCoverage`/`getHealth`
+- 构建：`cd frontend; npm run build` ｜ 证据：`✓ built in 3.57s`，无编译错误
 
 ### 集成测试
 
@@ -43,7 +47,8 @@
 
 ### 非功能验证
 
-- 冗余度：`RiskList` 顶部提示由 3 条降为 1 条引导 + 4 张卡；`CommitDetail` 的「尚未预测」由 2 处降为 1 处；`PrList` 同步说明由 2 行降为 1 行
+- 冗余度：`RiskList` 顶部提示由 3 条降为 1 条引导 + 3 张卡；`CommitDetail` 的「尚未预测」由 2 处降为 1 处；`PrList` 同步说明由 2 行降为 1 行
+- 第二轮密度收敛：`TrendBoard` 删掉与折线重复的明细表（仅 <2 点时兜底）、`PrList` 卡片 4→2、`PrDetail` 不再出现两次「PR 详情」与重复的模型名、`QualityBoard` 去掉一次性的「最近一次校准」卡
 - 契约：`MUST NOT` 改接口；后端测试 313 passed 不变即证明
 
 ### 已知缺口

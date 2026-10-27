@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import FastAPI
 
@@ -22,8 +22,8 @@ from app.api import (
     trends,
     webhook,
 )
-from app.services import settings as runtime_settings
 from app.errors import register_error_handlers
+from app.services import settings as runtime_settings
 
 logging.basicConfig(level=logging.INFO)
 
@@ -69,9 +69,7 @@ async def _lifespan(app: FastAPI):
                 "version_key": "".join(map(str, model_registry.version_key(entry.name))),
                 "algo": type(entry.model).__name__,
                 "feature_version": None,
-                "trained_at": datetime.fromtimestamp(entry.mtime, tz=timezone.utc).replace(
-                    tzinfo=None
-                ),
+                "trained_at": datetime.fromtimestamp(entry.mtime, tz=UTC).replace(tzinfo=None),
             }
         )
     try:

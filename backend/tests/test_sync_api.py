@@ -281,7 +281,9 @@ def test_sync_status_reports_idle_and_after_catchup(client, monkeypatch, tmp_pat
     (repo / ".git").mkdir()
     monkeypatch.setattr(sync_module.config, "SOURCE_REPO", repo)
     monkeypatch.setattr(sync_module, "fetch_latest_tip", lambda repo_dir: UNKNOWN)
-    monkeypatch.setattr(sync_module, "list_all_hashes", lambda repo_dir, ref="FETCH_HEAD": [UNKNOWN])
+    monkeypatch.setattr(
+        sync_module, "list_all_hashes", lambda repo_dir, ref="FETCH_HEAD": [UNKNOWN]
+    )
     monkeypatch.setattr(
         sync_module, "ensure_extractable", lambda repo_dir, tip: (repo_dir, lambda: None)
     )
