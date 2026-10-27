@@ -1,3 +1,12 @@
+
+def get_db():
+    """FastAPI 依赖注入：每次请求创建新 Session，请求结束时自动关闭。"""
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+
 """建库与连接：python -m app.db init 一条命令建好表（design D1），并应用最小 BCNF 迁移。
 
 BCNF 迁移（change startup-baseline-sync，幂等、可重复执行）：
