@@ -12,7 +12,9 @@ let inflight = null
 export async function loadThresholds(force = false) {
   if (thresholds.loaded && !force) return thresholds
   if (!inflight) {
-    inflight = getConfig()
+    // 用 Promise 包一层：api 模块缺失导出时是同步抛错，直接写 getConfig() 会绕过下面的 catch
+    inflight = Promise.resolve()
+      .then(() => getConfig())
       .then((cfg) => {
         applyThresholds(
           cfg?.high_risk_threshold ?? thresholds.high,

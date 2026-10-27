@@ -6,11 +6,14 @@ import { ElMessage } from 'element-plus'
 
 const getCommitDetail = vi.fn()
 const postPredict = vi.fn()
+const getConfig = vi.fn()
 
 // mock api：postPredict 是本次新增入口，必须走真实调用路径验证
 vi.mock('../src/api', () => ({
   getCommitDetail: (...args) => getCommitDetail(...args),
-  postPredict: (...args) => postPredict(...args)
+  postPredict: (...args) => postPredict(...args),
+  // 详情页 onMounted 会拉运行时阈值（utils/thresholds），少了这个导出会同步抛错
+  getConfig: (...args) => getConfig(...args)
 }))
 
 vi.mock('element-plus', () => ({
@@ -24,6 +27,8 @@ describe('CommitDetail 重新预测（POST /api/predict 入口）', () => {
   beforeEach(() => {
     getCommitDetail.mockReset()
     postPredict.mockReset()
+    getConfig.mockReset()
+    getConfig.mockResolvedValue({ high_risk_threshold: 0.5, mid_risk_threshold: 0.2 })
   })
 
   it('未预测提交 → 点重新预测 → 刷新 risk_score/model_name/explanation', async () => {

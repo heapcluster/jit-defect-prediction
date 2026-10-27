@@ -10,6 +10,8 @@ const getHealth = vi.fn()
 const postSync = vi.fn()
 const postSyncCatchup = vi.fn()
 const subscribeSyncProgress = vi.fn()
+// 首屏还会拉运行时阈值（utils/thresholds），mock 里缺这个导出会在挂载时同步抛错
+const getConfig = vi.fn()
 
 vi.mock('../src/api', () => ({
   getCommits: (...args) => getCommits(...args),
@@ -17,7 +19,8 @@ vi.mock('../src/api', () => ({
   getHealth: (...args) => getHealth(...args),
   postSync: (...args) => postSync(...args),
   postSyncCatchup: (...args) => postSyncCatchup(...args),
-  subscribeSyncProgress: (...args) => subscribeSyncProgress(...args)
+  subscribeSyncProgress: (...args) => subscribeSyncProgress(...args),
+  getConfig: (...args) => getConfig(...args)
 }))
 
 vi.mock('element-plus', () => ({
@@ -72,6 +75,7 @@ describe('RiskList 三态', () => {
     postSync.mockReset()
     postSyncCatchup.mockReset()
     subscribeSyncProgress.mockReset().mockReturnValue({ abort: vi.fn() })
+    getConfig.mockReset().mockResolvedValue({ high_risk_threshold: 0.5, mid_risk_threshold: 0.2 })
     routeQuery = {}
   })
 

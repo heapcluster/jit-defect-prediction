@@ -20,7 +20,12 @@ const props = defineProps({
   effect: { type: String, default: 'light' }
 })
 
-const text = computed(() => `${props.level || riskLevel(props.score) || '?'}风险`)
+const text = computed(() => {
+  if (props.level) return `${props.level}风险`
+  // 没预测就没有等级可言，别渲染成「?风险」：那是占位符，不是结论
+  if (props.score == null) return '未预测'
+  return `${riskLevel(props.score)}风险`
+})
 
 const type = computed(() => {
   if (props.level) return { 高: 'danger', 中: 'warning', 低: 'success' }[props.level] || 'info'
