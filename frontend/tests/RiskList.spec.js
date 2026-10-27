@@ -4,9 +4,20 @@ import { mount, flushPromises } from '@vue/test-utils'
 import RiskList from '../src/views/RiskList.vue'
 
 const getCommits = vi.fn()
+// 页面首屏会同时拉「已预测覆盖」与「服务状态」，这两个旁路请求不该影响三态断言
+const getCommitsCoverage = vi.fn()
+const getHealth = vi.fn()
+const postSync = vi.fn()
+const postSyncCatchup = vi.fn()
+const subscribeSyncProgress = vi.fn()
 
 vi.mock('../src/api', () => ({
-  getCommits: (...args) => getCommits(...args)
+  getCommits: (...args) => getCommits(...args),
+  getCommitsCoverage: (...args) => getCommitsCoverage(...args),
+  getHealth: (...args) => getHealth(...args),
+  postSync: (...args) => postSync(...args),
+  postSyncCatchup: (...args) => postSyncCatchup(...args),
+  subscribeSyncProgress: (...args) => subscribeSyncProgress(...args)
 }))
 
 vi.mock('element-plus', () => ({
@@ -28,12 +39,19 @@ const stubs = {
   'el-option': true,
   'el-input-number': true,
   'el-date-picker': true,
+  'el-switch': true,
   'el-button': { template: '<button><slot/></button>' },
   'el-table': { template: '<div><slot/></div>' },
   'el-table-column': true,
   'el-tooltip': true,
-  'el-empty': { template: '<div class="empty"><slot/><span>{{description}}</span></div>', props: ['description'] },
-  'el-alert': { template: '<div class="alert"><slot/><span>{{title}}</span></div>', props: ['title'] },
+  'el-empty': {
+    template: '<div class="empty"><slot/><span>{{description}}</span></div>',
+    props: ['description']
+  },
+  'el-alert': {
+    template: '<div class="alert"><slot/><span>{{title}}</span></div>',
+    props: ['title']
+  },
   'el-pagination': true,
   'el-card': { template: '<div class="card"><slot/></div>' },
   'el-progress': true
@@ -49,6 +67,11 @@ function bizErr(code) {
 describe('RiskList 三态', () => {
   beforeEach(() => {
     getCommits.mockReset()
+    getCommitsCoverage.mockReset().mockResolvedValue({ items: [] })
+    getHealth.mockReset().mockResolvedValue({ status: 'ok', models_loaded: 3, db: 'up' })
+    postSync.mockReset()
+    postSyncCatchup.mockReset()
+    subscribeSyncProgress.mockReset().mockReturnValue({ abort: vi.fn() })
     routeQuery = {}
   })
 
@@ -56,7 +79,7 @@ describe('RiskList 三态', () => {
     getCommits.mockResolvedValue({ items: [], total: 0 })
     const wrapper = mount(RiskList, { global: { stubs } })
     await flushPromises()
-    expect(wrapper.text()).toContain('数据库里还没有提交')
+    expect(wrapper.text()).toContain('还没有数据')
     expect(wrapper.text()).toContain('开始同步')
   })
 
@@ -66,6 +89,18 @@ describe('RiskList 三态', () => {
     const wrapper = mount(RiskList, { global: { stubs } })
     await flushPromises()
     expect(wrapper.text()).toContain('当前筛选条件下没有提交')
+  })
+
+  it('所选模型从未预测过：区分「模型无数据」与「筛选没命中」，并给切回默认模型', async () => {
+    getCommits.mockResolvedValue({ items: [], total: 0 })
+    // 库里有 xgb_v1 的预测，但没有 lr_v1 的：切到 lr_v1 时空态必须换个说法
+    getCommitsCoverage.mockResolvedValue({ items: [{ model_name: 'xgb_v1', start: null, end: null }] })
+    routeQuery = { model_name: 'lr_v1' }
+    const wrapper = mount(RiskList, { global: { stubs } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('模型 lr_v1 还没有任何预测数据')
+    expect(wrapper.text()).toContain('切回默认模型')
+    expect(wrapper.text()).not.toContain('当前筛选条件下没有提交')
   })
 
   it('50000 服务错误：显示「服务异常，请稍后重试」', async () => {

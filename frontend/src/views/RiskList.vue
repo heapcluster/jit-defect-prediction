@@ -17,13 +17,8 @@
       </el-button>
     </PageHint>
 
-    <!-- 概览：先给四个数，再看表格 -->
+    <!-- 概览：三张卡各说一件事，条数已在表格与分页器里，不再重复 -->
     <div class="stats">
-      <StatCard
-        label="当前结果"
-        :value="total"
-        hint="筛选后条数"
-      />
       <StatCard
         label="已人工确认"
         :value="health ? health.labeled_count : '—'"
@@ -228,8 +223,17 @@
 
     <el-empty
       v-else-if="!loading && !error && items.length === 0"
-      description="没有符合条件的提交"
+      :description="emptyDescription"
     >
+      <!-- 模型从未预测过 ≠ 筛选没命中：前者给「切回默认模型」，别让人以为没数据 -->
+      <el-button
+        v-if="modelHasNoData"
+        size="small"
+        type="primary"
+        @click="useDefaultModel"
+      >
+        切回默认模型
+      </el-button>
       <el-button
         size="small"
         @click="reset"
@@ -323,6 +327,25 @@ const coverageLabel = computed(() => {
 const coverageHint = computed(() =>
   coverage.value.length ? `${coverage.value.length} 个模型` : '尚无预测'
 )
+
+// ── 空态三分支：无预测数据的模型 / 筛选没命中 / 库为空（后者由 boot 卡片接管）──
+const modelHasNoData = computed(() => {
+  const picked = filters.model_name
+  if (!picked) return false
+  if (!coverage.value.length) return false
+  return !coverage.value.some((c) => c.model_name === picked)
+})
+const emptyDescription = computed(() =>
+  modelHasNoData.value
+    ? `模型 ${filters.model_name} 还没有任何预测数据`
+    : '当前筛选条件下没有提交'
+)
+function useDefaultModel() {
+  filters.model_name = ''
+  filters.page = 1
+  load(1)
+  loadCoverage()
+}
 function loadCoverage() {
   getCommitsCoverage()
     .then((d) => {
@@ -447,10 +470,11 @@ function goDetail(row) {
   router.push(`/commit/${row.commit_hash}`)
 }
 
-// 从 route.query 同步时间范围（趋势下钻跳转带回 start_time/end_time）
+// 从 route.query 同步筛选条件（趋势下钻带回 start_time/end_time，其它页面可带 model_name 深链）
 function applyQueryAndLoad() {
-  const { start_time, end_time } = route.query
+  const { start_time, end_time, model_name } = route.query
   timeRange.value = start_time && end_time ? [start_time, end_time] : []
+  filters.model_name = typeof model_name === 'string' ? model_name : ''
   filters.page = 1
   load(1)
 }

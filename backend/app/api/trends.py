@@ -6,13 +6,13 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 
 from app import schemas
-from app.services import settings as runtime_settings
-from app.services.commits import default_model_in_table
-from app.timeutil import parse_time_param
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import AppError, ok
 from app.models import Commit, Prediction
+from app.services import settings as runtime_settings
+from app.services.commits import default_model_in_table
+from app.timeutil import parse_time_param
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
 

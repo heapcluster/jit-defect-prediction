@@ -253,6 +253,7 @@ def test_config_response_fields_match_contract(client):
     assert _keys(doc, data) == {
         "high_risk_threshold",
         "mid_risk_threshold",
+        "champion_model",
         "sync_initial_limit",
         "sync_catchup_limit",
         "updated_at",

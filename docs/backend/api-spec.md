@@ -132,10 +132,11 @@
 > 阈值口径变更：§7/§8 的 `risk_level` 与趋势的 `high_risk_count` 自本版起读 `runtime_setting`（DB 优先、`.env` 兜底），不再直接取 `config.HIGH_RISK_THRESHOLD`；默认值不变。
 
 ### 17. `GET /api/config` / `PUT /api/config` —— 运行时配置（change `ops-hardening`）
-`GET` 响应 `data`：`high_risk_threshold` `mid_risk_threshold` `sync_initial_limit` `sync_catchup_limit` `updated_at`。
-`PUT` 请求体：`{"high_risk_threshold": float, "mid_risk_threshold": float}`，响应同 `GET`。
+`GET` 响应 `data`：`high_risk_threshold` `mid_risk_threshold` `champion_model` `sync_initial_limit` `sync_catchup_limit` `updated_at`。
+`PUT` 请求体：`{"high_risk_threshold": float, "mid_risk_threshold": float, "champion_model": string|null}`，响应同 `GET`。
 - 约束 `0.0 <= mid_risk_threshold <= high_risk_threshold <= 1.0`，越界 → `40001` 且不写入。
 - 写入落 `runtime_setting` 并**立即生效**（`risk_level`、趋势高风险计数、PR 门禁同步跟随），无需重启。
+- `champion_model` 是**全站默认模型的唯一定义点**：列表 / 详情 / 趋势 / 门禁都经它解析；必须是已加载的模型名，否则 `40001`；传空字符串表示清除，回退「`version_key` 最大者」（design D6）。
 - `sync_*_limit` 为只读（批处理规模仍归 `.env`）。
 
 ### 18. `GET /api/health/live` / `GET /api/health/ready` —— 探针拆分（change `ops-hardening`）

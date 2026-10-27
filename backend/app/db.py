@@ -11,7 +11,7 @@ BCNF 迁移（change startup-baseline-sync，幂等、可重复执行）：
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Engine
@@ -47,6 +47,27 @@ def init_db() -> None:
     engine = get_engine()
     Base.metadata.create_all(engine)
     _apply_bcnf_migration(engine)
+    _ensure_prediction_index(engine)
+
+
+def _ensure_prediction_index(engine: Engine) -> None:
+    """历史库补 `(model_name, risk_score)` 复合索引。
+
+    `create_all` 只建表不 ALTER，已存在的库不会自动获得新索引；没有它时
+    列表/趋势的「某模型 + 风险排序」是全表扫 + filesort（838 万行量级明显）。
+    """
+    inspector = inspect(engine)
+    if "prediction" not in inspector.get_table_names():
+        return
+    if any(
+        idx.get("name") == "ix_prediction_model_risk" for idx in inspector.get_indexes("prediction")
+    ):
+        return
+    ddl = "CREATE INDEX ix_prediction_model_risk ON prediction (model_name, risk_score)"
+    if engine.dialect.name != "mysql":
+        ddl = "CREATE INDEX IF NOT EXISTS ix_prediction_model_risk ON prediction (model_name, risk_score)"
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
 
 
 def _apply_bcnf_migration(engine: Engine) -> None:
@@ -96,8 +117,12 @@ def _apply_bcnf_migration(engine: Engine) -> None:
     # 4. 外键（referenced 列分别为 model PK / commit unique(commit_hash)）
     _add_fk(engine, "prediction", "fk_prediction_model", "model_name", "model", "model_name")
     _add_fk(engine, "prediction", "fk_prediction_commit", "commit_hash", "commit", "commit_hash")
-    _add_fk(engine, "commit_feature", "fk_commit_feature_commit", "commit_hash", "commit", "commit_hash")
-    _add_fk(engine, "commit_label", "fk_commit_label_commit", "commit_hash", "commit", "commit_hash")
+    _add_fk(
+        engine, "commit_feature", "fk_commit_feature_commit", "commit_hash", "commit", "commit_hash"
+    )
+    _add_fk(
+        engine, "commit_label", "fk_commit_label_commit", "commit_hash", "commit", "commit_hash"
+    )
 
 
 def _add_fk(
@@ -133,7 +158,7 @@ def ensure_model_rows(entries: list[dict]) -> None:
     if not entries:
         return
     engine = get_engine()
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(UTC).replace(tzinfo=None)
     with engine.begin() as conn:
         for e in entries:
             conn.execute(

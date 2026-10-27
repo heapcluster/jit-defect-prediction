@@ -14,6 +14,7 @@ from sqlalchemy import (
     DECIMAL,
     BigInteger,
     ForeignKey,
+    Index,
     Integer,
     SmallInteger,
     String,
@@ -49,7 +50,9 @@ class Model(Base):
     trained_at: Mapped[object | None] = mapped_column(DATETIME, nullable=True)
     algo: Mapped[str | None] = mapped_column(String(64), nullable=True)
     feature_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    updated_at: Mapped[object] = mapped_column(DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[object] = mapped_column(
+        DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
 
 
 class RuntimeSetting(Base):
@@ -63,7 +66,9 @@ class RuntimeSetting(Base):
 
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
     value: Mapped[str] = mapped_column(String(255))
-    updated_at: Mapped[object] = mapped_column(DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[object] = mapped_column(
+        DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
 
 
 class Commit(Base):
@@ -77,24 +82,24 @@ class Commit(Base):
     committed_at: Mapped[object] = mapped_column(DATETIME, index=True)
     message: Mapped[str] = mapped_column(Text)
     parent_hash: Mapped[str | None] = mapped_column(CHAR(40), nullable=True)
-    updated_at: Mapped[object] = mapped_column(DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[object] = mapped_column(
+        DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
 
 
 class CommitLabel(Base):
     __tablename__ = "commit_label"
-    __table_args__ = (
-        UniqueConstraint("commit_hash", "label_method", name="uq_label_hash_method"),
-    )
+    __table_args__ = (UniqueConstraint("commit_hash", "label_method", name="uq_label_hash_method"),)
 
     id: Mapped[int] = mapped_column(ID_TYPE, primary_key=True, autoincrement=True)
-    commit_hash: Mapped[str] = mapped_column(
-        CHAR(40), ForeignKey("commit.commit_hash"), index=True
-    )
+    commit_hash: Mapped[str] = mapped_column(CHAR(40), ForeignKey("commit.commit_hash"), index=True)
     is_bug_inducing: Mapped[int] = mapped_column(TINYINT1)
     label_method: Mapped[str] = mapped_column(String(32))
     bug_fix_hash: Mapped[str | None] = mapped_column(CHAR(40), nullable=True)
     labeled_at: Mapped[object] = mapped_column(DATETIME)
-    updated_at: Mapped[object] = mapped_column(DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[object] = mapped_column(
+        DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
 
 
 class CommitFeature(Base):
@@ -119,7 +124,9 @@ class CommitFeature(Base):
     exp: Mapped[float] = mapped_column(DECIMAL(20, 10))
     rexp: Mapped[float] = mapped_column(DECIMAL(20, 10))
     sexp: Mapped[float] = mapped_column(DECIMAL(20, 10))
-    updated_at: Mapped[object] = mapped_column(DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[object] = mapped_column(
+        DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
 
 
 class Prediction(Base):
@@ -127,17 +134,19 @@ class Prediction(Base):
     # design D7：predict 幂等「库里只保留最新一行」落进 schema；契约一允许后端自属冗余索引
     __table_args__ = (
         UniqueConstraint("commit_hash", "model_name", name="uq_prediction_hash_model"),
+        # 列表/趋势按「某模型 + 风险排序」取数；没有这条复合索引时是全表扫 + filesort
+        Index("ix_prediction_model_risk", "model_name", "risk_score"),
     )
 
     id: Mapped[int] = mapped_column(ID_TYPE, primary_key=True, autoincrement=True)
-    commit_hash: Mapped[str] = mapped_column(
-        CHAR(40), ForeignKey("commit.commit_hash"), index=True
-    )
+    commit_hash: Mapped[str] = mapped_column(CHAR(40), ForeignKey("commit.commit_hash"), index=True)
     model_name: Mapped[str] = mapped_column(String(64), ForeignKey("model.model_name"))
     risk_score: Mapped[float] = mapped_column(DECIMAL(6, 5))
     predicted_at: Mapped[object] = mapped_column(DATETIME)
     feature_version: Mapped[str] = mapped_column(String(32))
-    updated_at: Mapped[object] = mapped_column(DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[object] = mapped_column(
+        DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
 
 
 INDEX_ASSERTIONS = (
@@ -145,6 +154,8 @@ INDEX_ASSERTIONS = (
     ("commit", ("committed_at",), False),
     ("prediction", ("commit_hash", "model_name"), True),
     ("prediction", ("commit_hash",), False),
+    # 列表/趋势的取数路径：模型 + 风险分（复核 D7）
+    ("prediction", ("model_name", "risk_score"), False),
 )
 
 
