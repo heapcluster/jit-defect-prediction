@@ -131,12 +131,36 @@
 
 > 阈值口径变更：§7/§8 的 `risk_level` 与趋势的 `high_risk_count` 自本版起读 `runtime_setting`（DB 优先、`.env` 兜底），不再直接取 `config.HIGH_RISK_THRESHOLD`；默认值不变。
 
+### 17. `GET /api/config` / `PUT /api/config` —— 运行时配置（change `ops-hardening`）
+`GET` 响应 `data`：`high_risk_threshold` `mid_risk_threshold` `sync_initial_limit` `sync_catchup_limit` `updated_at`。
+`PUT` 请求体：`{"high_risk_threshold": float, "mid_risk_threshold": float}`，响应同 `GET`。
+- 约束 `0.0 <= mid_risk_threshold <= high_risk_threshold <= 1.0`，越界 → `40001` 且不写入。
+- 写入落 `runtime_setting` 并**立即生效**（`risk_level`、趋势高风险计数、PR 门禁同步跟随），无需重启。
+- `sync_*_limit` 为只读（批处理规模仍归 `.env`）。
+
+### 18. `GET /api/health/live` / `GET /api/health/ready` —— 探针拆分（change `ops-hardening`）
+- `live`：`status` `server_time`，**不查 DB**（DB 故障不应触发进程重启）。
+- `ready`：`status`（`ok`/`degraded`）`db`（`up`/`down`）`models_loaded` `server_time`；DB 不通或模型数为 0 → `degraded`，HTTP 仍为 200。
+- 两者均需 `X-API-Key`（K8s probe 可用 `httpHeaders` 携带）。
+
+### 19. `GET /api/prs/{number}/gate` —— CI 风险门禁（change `ops-hardening`）
+请求：`model_name`（口径同 §7）。响应 `data`：`number` `model_name` `risk_score` `risk_level` `threshold` `blocked` `reason`。
+- `blocked = risk_score >= threshold`（threshold 为运行时 `high_risk_threshold`）；无预测 → `risk_score=null`、`blocked=false`。
+- 纯只读（只用 GitHub 提交清单 + 库内 prediction），可直接作为 CI required check。
+
+### 20. `POST /api/webhook/github` —— GitHub 事件驱动（change `ops-hardening`）
+请求头：`X-GitHub-Event`、`X-Hub-Signature-256`（HMAC-SHA256，密钥 `WEBHOOK_SECRET`）。响应 `data`：`accepted` `event` `action` `triggered`。
+- **鉴权机制为签名而非 `X-API-Key`**：GitHub 无法发送自定义令牌头；`WEBHOOK_SECRET` 未配置时一律 `40100`（fail closed）。
+- `push` → 后台触发增量同步（`WEBHOOK_SYNC_LIMIT` 条）；`pull_request` 且 action ∈ {`opened`,`synchronize`,`reopened`} → 后台触发 PR 同步。
+- 立即返回（同步是分钟级操作，放后台线程）；并发由同步互斥锁兜底，重复事件只记日志。
+- 签名错误/缺失 → `40100`；非 JSON 对象体 → `40001`。
+
 ## 四、非功能要求与验证（必须有可出示证据）
 
 | 要求 | 指标 | 验证 | 证据 |
 |---|---|---|---|
 | 性能 | `POST /api/predict` 95% 请求 < 500ms | 脚本循环 100 次统计分位数 | 脚本 + 输出截图，放 `backend/scripts/` |
-| 安全 | 全部接口（含 `/api/sync`）均需鉴权；非法输入不泄露内部信息 | ① 不带令牌→401；② 畸形参数→不含堆栈/SQL/路径 | 两组返回截图 |
+| 安全 | 全部接口（含 `/api/sync`）均需鉴权；非法输入不泄露内部信息。**webhook 以 HMAC-SHA256 验签替代令牌鉴权**（GitHub 无法发送 `X-API-Key`），未配置密钥时 fail closed | ① 不带令牌→401；② 畸形参数→不含堆栈/SQL/路径；③ webhook 签名错误→40100 | 三组返回截图 |
 
 ## 五、不写进本规格
 
@@ -146,6 +170,7 @@
 
 | 日期 | 版本 | 变更人 | 主要变更 |
 |---|---|---|---|
+| 2026-10-27 | 2.0 | 后端线（吕建江） | **新增 §17~§20 运维加固四条（组）端点**（change `ops-hardening`）：§17 `GET/PUT /api/config` 阈值热更新、§18 `health/live`/`health/ready` 探针拆分、§19 `GET /api/prs/{number}/gate` CI 门禁、§20 `POST /api/webhook/github` 事件驱动（HMAC 验签）。§四安全行补记 webhook 的签名鉴权机制 |
 | 2026-10-27 | 1.9 | 后端线（吕建江） | **新增 §14~§16 质量闭环三条端点**（change `quality-loop`）：`GET /api/quality`（人工标签 vs 预测的混淆矩阵与 P/R/F1）、`GET /api/quality/dataset`（回流样本导出）、`POST /api/quality/calibrate`（按标签校准阈值并落 `runtime_setting`）。**阈值来源变更**：§7/§8 `risk_level` 与趋势 `high_risk_count` 改读运行时配置，默认值不变。新增第 6 张表 `runtime_setting` |
 | 2026-10-27 | 1.8 | 后端线（吕建江） | **§三「八个接口」→「接口清单」，补记 §9~§11 并新增 §12~§13**（change `feedback-observability`）：§9 coverage / §10 catchup / §11 sync status·stream（上一 change `startup-baseline-sync` 遗漏登记，一并补齐）；§12 人工反馈标签、§13 健康检查。§12 只用冻结错误码 40001/40400；§13 降级不抛 50000 且不回显连接细节 |
 | 2026-10-25 | 1.6 | 蒋励（组长，代后端线起草，吕建江复核） | **§三「四个接口」→「五个接口」，新增 §5 `POST /api/sync` 批量同步**（change `realtime-commit-sync`）：fetch SOURCE_REPO → 挑新哈希 → 逐条复用 §4 单条链路；错误码用冻结集合；幂等 `new=0`；并发互斥；`SYNC_ON_STARTUP` 可选启动同步。**不做 PR 状态清理**（另行 change）、不承诺 500ms 靶子。§四安全行改为「全部接口」 |

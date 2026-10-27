@@ -266,4 +266,28 @@ def pr_detail(number: int, model_name: str | None = Query(default=None)) -> dict
     )
 
 
+@router.get("/api/prs/{number}/gate", response_model=schemas.GateResponse)
+def pr_gate(number: int, model_name: str | None = Query(default=None)) -> dict:
+    """CI 风险门禁：以运行时高风险阈值为界给出是否放行。
+
+    纯只读：只用 GitHub 提交清单 + 库内 prediction，不触发任何新预测，
+    因此可以直接挂在 CI 的 required check 上。
+    """
+    model = _resolve_model(model_name)
+    _, _, risk, _, top_hash = _pr_risk(number, model)
+    threshold = runtime_settings.high_threshold()
+    risk_value = float(risk) if risk is not None else None
+    return ok(
+        {
+            "number": number,
+            "model_name": model,
+            "risk_score": risk_value,
+            "risk_level": get_pr_risk_level(risk_value),
+            "threshold": round(threshold, 4),
+            "blocked": bool(risk_value is not None and risk_value >= threshold),
+            "reason": _pr_reason(number, model, top_hash),
+        }
+    )
+
+
 __all__ = ["MAX_LIMIT", "fetch_pr_ref", "router", "sync_prs"]

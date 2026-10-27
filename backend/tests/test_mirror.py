@@ -15,9 +15,13 @@ CONTRACT_PATHS = {
     "/api/commits/coverage",
     "/api/commits/{commit_hash}/label",
     "/api/health",
+    "/api/health/live",
+    "/api/health/ready",
     "/api/quality",
     "/api/quality/dataset",
     "/api/quality/calibrate",
+    "/api/config",
+    "/api/webhook/github",
     "/api/trends",
     "/api/predict",
     "/api/sync",
@@ -25,7 +29,7 @@ CONTRACT_PATHS = {
     "/api/sync/status",
     "/api/sync/stream",
 }
-PR_PATHS = {"/api/sync-prs", "/api/prs", "/api/prs/{number}"}
+PR_PATHS = {"/api/sync-prs", "/api/prs", "/api/prs/{number}", "/api/prs/{number}/gate"}
 
 
 def _schema(client):
@@ -69,7 +73,7 @@ def test_pr_endpoints_methods_and_params_match_contract(client):
         "limit",
         "x-api-key",
     }
-    for path in ("/api/prs", "/api/prs/{number}"):
+    for path in ("/api/prs", "/api/prs/{number}", "/api/prs/{number}/gate"):
         assert set(doc["paths"][path]) == {"get"}, path
         params = {p["name"] for p in doc["paths"][path]["get"]["parameters"]}
         assert "model_name" in params and "x-api-key" in params, path
@@ -237,3 +241,44 @@ def test_calibrate_fields_match_contract(client):
     }
     for key in ("before", "after"):
         assert _keys(doc, data["properties"][key]) == {"threshold", "precision", "recall", "f1"}
+
+
+def test_config_supports_get_and_put(client):
+    """阈值既读也写：GET 查看、PUT 热更新（change ops-hardening）。"""
+    assert set(_schema(client)["paths"]["/api/config"]) == {"get", "put"}
+
+
+def test_config_response_fields_match_contract(client):
+    doc, data = _data_props(client, "/api/config")
+    assert _keys(doc, data) == {
+        "high_risk_threshold",
+        "mid_risk_threshold",
+        "sync_initial_limit",
+        "sync_catchup_limit",
+        "updated_at",
+    }
+
+
+def test_live_and_ready_fields_match_contract(client):
+    doc, live = _data_props(client, "/api/health/live")
+    assert _keys(doc, live) == {"status", "server_time"}
+    doc, ready = _data_props(client, "/api/health/ready")
+    assert _keys(doc, ready) == {"status", "db", "models_loaded", "server_time"}
+
+
+def test_pr_gate_fields_match_contract(client):
+    doc, data = _data_props(client, "/api/prs/{number}/gate")
+    assert _keys(doc, data) == {
+        "number",
+        "model_name",
+        "risk_score",
+        "risk_level",
+        "threshold",
+        "blocked",
+        "reason",
+    }
+
+
+def test_webhook_fields_match_contract(client):
+    doc, data = _data_props(client, "/api/webhook/github", "post")
+    assert _keys(doc, data) == {"accepted", "event", "action", "triggered"}
