@@ -27,23 +27,27 @@
 2. **勾了 `tasks.md` ≠ 功能合格**。必须有可复现命令与证据路径；「已实现」与「已验收」是两个状态，不得混用。
 3. **每个 change 必须有「测试与验证」板块**（模板见 `docs/common/openspec-task-template.md`）。板块缺失 = 提案不完整，不得进入 apply。
 
-## 3. 现状覆盖矩阵（2026-10-13 实测，数字可复现）
+## 3. 现状覆盖矩阵（2026-10-27 快照）
 
-| 线 | 单元测试 | 集成测试 | 验收测试 | 非功能 | 状态 |
+以下状态以 `main@3379d4c` 的 [CI 运行 #245](https://github.com/heapcluster/jit-defect-prediction/actions/runs/40495635657) 为自动化证据。该次运行的 lint、活规格校验、链接与 delta 检查、工程化/后端/前端/模型测试及构建步骤均成功。CI 成功只证明这些自动化步骤通过；浏览器现场走查、真实权重交付和完整业务验收仍须分别取证。
+
+| 线 | 自动化测试（CI） | 跨模块集成 | 验收测试 | 非功能 | 状态 |
 |---|---|---|---|---|---|
-| 后端 `backend/` | **253 条**（`ingest` 随 2026-10-25 裁定移除后重测；`test_prs_api.py` 8 条为 PR 三端点新增） | `test_mirror.py` 8 + `test_model_registry.py` 5 = 13 条 | `docs/repo/demo-script-sprint1.md` API-01~04 | 性能 + 安全两阶段证据齐 | ✅ 最完整 |
-| 前端 `frontend/` | **26 个 it**（7 个测试文件：`tests/api.spec.js` / `request.spec.js` / `RiskList.spec.js` / `CommitDetail.spec.js` / `models.spec.js` / `risk.spec.js` / `features.spec.js`） | **0**（未联调） | **0**（未跑演示） | 易用（三态）待联调 | 🟡 已写未跑 |
-| 数据/模型 `data_model/` | **59 条**（`test_feature_contract.py` 8 + `test_szz_labeling.py` 34 + `test_split_dataset.py` 17） | 以九份统计报告代替，**无自动化** | `data_model/reports/` 九份 | 可靠（版本固定 + 可复现） | 🟡 单测已补，集成待建 |
-| 工程化 `infra/` | **0**（CI 未落地） | —— | —— | —— | 🔴 缺口 |
+| 后端 `backend/` | `backend/tests/test_*.py` 在 CI 的 `Test backend` 步骤通过 | 套件已含接口、数据库、同步、模型注册等跨模块用例；CI 使用一次性 MySQL 测试库 | 以 `docs/backend/acceptance.md` 的场景与证据逐项确认，不能由单测绿灯代替 | 性能、安全结果分别看 `backend/scripts/evidence/` 的对应实测记录 | 🟡 自动化通过；现场验收另核 |
+| 前端 `frontend/` | `frontend/tests/*.spec.js` 共 8 个文件；CI 的 `Test frontend` 为 **31 passed** | `docs/frontend/integration-log.md` 记录联调；浏览器场景已有部分截图 | `docs/frontend/evidence/tf-fe-01-screenshots.md` 明列未取证的加载、空态和契约错误码场景 | 三态与错误分发需按上述未取证项补浏览器证据 | 🟡 单测通过；场景取证未齐 |
+| 数据/模型 `data_model/` | `data_model/tests/test_*.py` 在 CI 的 `Test data model` 步骤通过，**1 条因干净检出无 `.pkl` 而跳过** | 已有特征、交付清单、模型注册等契约测试；跨线完整链路需结合后端验收 | 模型指标见 `data_model/reports/`；实际权重包须另跑 `python -m pipelines.verify_all_weights --check` | CI 的跳过项不证明 8 个权重可加载，交付包要独立核验 | 🟡 自动化通过；权重交付另核 |
+| 工程化 `infra/` | `infra/tests/test_*.py` 在 CI 的 `Test CI contract` 步骤通过 | `.github/workflows/ci.yml` 顺序执行 lint、规格、测试、构建 | `main` 的 CI #245 全绿；是否列为合并必需检查须回读仓库规则 | 门禁误报与执行时间依据后续 CI 运行持续观察 | ✅ 工作流已落地并实跑 |
 
-**复现命令**（环境：conda `jit-defect`）：
+**复现命令**（每行独立从仓库根目录运行；依赖统一由 `data_model/environment.yml` 安装，后端测试需要可用的 MySQL 测试库）：
 ```bash
-cd backend    && python -m pytest -q     # 87 passed
-cd data_model && python -m pytest -q     # 59 passed（2026-10-13 由 8 补到 59）
-cd frontend   && npm ci && npm run test:unit   # 13 it（尚未执行，node_modules 未装）
+(cd backend && python -m pytest -q)
+(cd data_model && python -m pytest -q)
+(cd frontend && npm ci && npm run test:unit)
 ```
 
-## 3.1 数据线补齐记录（2026-10-13，蒋励）
+仓库 CI 还执行 `ruff check`、`ruff format --check`、`openspec validate --specs --strict`、`check_spec_references.py links|deltas` 和构建，完整命令以 `.github/workflows/ci.yml` 为准。以上测试数量仅对应所引的 `main@3379d4c` 运行；后续变更需重新取证，不沿用本快照。
+
+## 3.1 数据线补齐记录（2026-10-13 历史快照，蒋励）
 
 课堂反馈后由**数据线负责人蒋励**按「谁写代码谁写单测」补齐，只覆盖纯函数、不依赖 git 与仓库数据：
 
@@ -57,26 +61,27 @@ cd frontend   && npm ci && npm run test:unit   # 13 it（尚未执行，node_mod
 ① 把「`CAMEL-102 fix the message dispatch handling`」误列为应拒案例 —— 该消息 `fix` 在词首，本就应判为修复提交；
 ② `merge_ranges` 默认阈值预期算错 —— 合并条件是 `start - 上段止行 - 1 <= gap`，间隔 20 仍合并、21 才不合并。
 
-## 4. 缺口清单与责任人（按优先级）
+## 4. 当前验证缺口与责任线
 
-| # | 缺口 | 影响 | 归属 | 计划 |
-|---|---|---|---|---|
-| 1 | **数据线 01–05 无单元测试**（SZZ 判据、特征计算、切分边界全靠重跑全链路肉眼比对） | 改一处判据无法证明没改坏别的，答辩讲不清 | 蒋励 | Sprint 2 |
-| 2 | **前端 13 条单测未执行**、未过 lint/build、未联调 | Sprint 1 验收直接卡住 | 刘帅华 | Sprint 1 收口前 |
-| 3 | **无集成测试套件**（跨线契约只在各线单测里间接覆盖） | 「合并后大版本写集成测试」未落实 | 吕建江（后端线牵头） | Sprint 2 |
-| 4 | **CI 未落地**（`.github/workflows` 为空），测试全靠手动 | 回归无门禁 | 苏哲勋 | Sprint 2 |
-| 5 | **覆盖率未测量**（无 `pytest-cov` / vitest coverage 配置与阈值） | 无法量化「测了多少」 | 各线 | Sprint 2 |
-| 6 | **组件层测试为零**（三态、错误码分发、字段映射无自动化） | 前端最易回归的部分没保护 | 刘帅华 | Sprint 2 |
-| 7 | **G1-1~G1-4 无任何测试** | 附加功能未开始 | 蒋励 / 刘帅华 | Sprint 3 |
+| # | 尚缺的证据 | 下一步 | 责任线 |
+|---|---|---|---|
+| 1 | 前端截图只覆盖部分浏览器状态；详情加载、趋势加载/空态及契约错误码分发尚未取证 | 按 `docs/frontend/evidence/tf-fe-01-screenshots.md` 的「未取证项」补真实场景与截图 | 前端刘帅华，后端配合 |
+| 2 | CI 干净检出不带模型 `.pkl`，1 条磁盘清单测试按设计跳过 | 对实际交付包独立运行权重核验并保存结果，不能把 CI 通过写成 8/8 权重验收 | 数据/模型蒋励 |
+| 3 | 单线及后端跨模块自动化已通过，但从 Camel 提交同步到前端显示的完整现场流程仍需按验收场景留证 | 在真实联调环境依次记录同步、预测、列表/详情/趋势的结果与环境边界 | 后端吕建江牵头，前端/模型配合 |
+| 4 | 本次 CI 运行未输出各线最新覆盖率；既有覆盖率报告属于其记录时的代码版本 | 需要覆盖率结论时按当前提交重新运行并附输出，不沿用旧百分比 | 各代码线作者 |
+| 5 | CI 运行成功与「合并必需检查」是两项不同证据 | 回读仓库规则中 `CI` 的必需检查配置并留链接/截图 | 工程化苏哲勋 |
 
-## 5. 测试配置基线（2026-10-13 补齐）
+具体负责人、截止与进度以飞书《工作周报》为准；本表只登记仓库内可核验的验证缺口。
+
+## 5. 测试配置与 CI 入口（现行）
 
 | 文件 | 作用 |
 |---|---|
 | `backend/pytest.ini` | pytest 测试路径、命名约定、报告输出 |
 | `data_model/pytest.ini` | 同上（数据线） |
 | `frontend/vite.config.js` | vitest 环境（jsdom）与 `frontend/tests/**` 匹配（`setupFiles: ./tests/setup.js`） |
-| `frontend/package.json` `scripts` | `test:unit` / `test:coverage` 统一入口 |
+| `frontend/package.json` `scripts` | `test:unit` 为当前单测入口；目前没有 `test:coverage` 脚本 |
+| `.github/workflows/ci.yml` | 在 PR、`main` 推送和 merge queue 上顺序执行 lint、规格检查、单测与构建 |
 
 > 命名约定：后端 `tests/test_<模块>.py`，用例 `test_<行为>_<期望结果>`；前端 `tests/<对象>.spec.js`。
 > 每个用例必须能**独立复现**：不依赖执行顺序、不依赖上一次运行的残留数据。
@@ -85,15 +90,15 @@ cd frontend   && npm ci && npm run test:unit   # 13 it（尚未执行，node_mod
 
 | 类型 | 位置 |
 |---|---|
-| 单测 / 集成测试结果 | 命令输出贴进 `docs/common/test-report-sprint1.md`（每 Sprint 一份） |
+| 单测 / 集成测试结果 | 对应 PR 的验证记录与 GitHub Actions 运行链接；`docs/common/test-report-sprint1.md` 保留 Sprint 1 历史结果 |
 | 性能 / 安全证据 | `backend/scripts/evidence/*.md` |
 | 数据 / 模型统计 | `data_model/reports/*.md` |
-| 联调记录 | `docs/frontend/frontend-integration-log.md` |
+| 联调记录 | `docs/frontend/integration-log.md`；截图范围与缺口见 `docs/frontend/evidence/tf-fe-01-screenshots.md` |
 | 演示脚本 | `docs/repo/demo-script-sprint1.md` |
 | 缺陷记录 | `docs/repo/defect-records.md`（五项字段） |
 
 ## 7. 答辩口径（50 分，须讲明白的三件事）
 
 1. **分层为什么这么分**：V 模型左支右支对应关系；为什么单测必须由写代码的人做（只有他知道异常路径在哪）。
-2. **每层测到什么程度**：用 §3 的实数讲（87 / 15 / 13 / 8），并说明**哪些没测、为什么、什么时候补**（§4）—— 承认缺口比假装全覆盖更能得分。
+2. **每层测到什么程度**：引用 §3 指向的具体 CI 运行与场景证据，说明哪些已自动化、哪些仍需现场验收，以及 §4 的缺口；历史用例数不能冒充当前结果。
 3. **证据链**：spec 的 SHALL/MUST → change 的「测试与验证」板块 → 测试文件 → 证据 md → `defect-records.md`。**任何一条 SHALL 都能点回测试**，这是 Final Release 验收项。
