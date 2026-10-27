@@ -47,6 +47,27 @@ def init_db() -> None:
     engine = get_engine()
     Base.metadata.create_all(engine)
     _apply_bcnf_migration(engine)
+    _ensure_prediction_index(engine)
+
+
+def _ensure_prediction_index(engine: Engine) -> None:
+    """历史库补 `(model_name, risk_score)` 复合索引。
+
+    `create_all` 只建表不 ALTER，已存在的库不会自动获得新索引；没有它时
+    列表/趋势的「某模型 + 风险排序」是全表扫 + filesort（838 万行量级明显）。
+    """
+    inspector = inspect(engine)
+    if "prediction" not in inspector.get_table_names():
+        return
+    if any(
+        idx.get("name") == "ix_prediction_model_risk" for idx in inspector.get_indexes("prediction")
+    ):
+        return
+    ddl = "CREATE INDEX ix_prediction_model_risk ON prediction (model_name, risk_score)"
+    if engine.dialect.name != "mysql":
+        ddl = "CREATE INDEX IF NOT EXISTS ix_prediction_model_risk ON prediction (model_name, risk_score)"
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
 
 
 def _apply_bcnf_migration(engine: Engine) -> None:

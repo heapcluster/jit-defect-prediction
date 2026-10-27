@@ -91,6 +91,18 @@ describe('RiskList 三态', () => {
     expect(wrapper.text()).toContain('当前筛选条件下没有提交')
   })
 
+  it('所选模型从未预测过：区分「模型无数据」与「筛选没命中」，并给切回默认模型', async () => {
+    getCommits.mockResolvedValue({ items: [], total: 0 })
+    // 库里有 xgb_v1 的预测，但没有 lr_v1 的：切到 lr_v1 时空态必须换个说法
+    getCommitsCoverage.mockResolvedValue({ items: [{ model_name: 'xgb_v1', start: null, end: null }] })
+    routeQuery = { model_name: 'lr_v1' }
+    const wrapper = mount(RiskList, { global: { stubs } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('模型 lr_v1 还没有任何预测数据')
+    expect(wrapper.text()).toContain('切回默认模型')
+    expect(wrapper.text()).not.toContain('当前筛选条件下没有提交')
+  })
+
   it('50000 服务错误：显示「服务异常，请稍后重试」', async () => {
     getCommits.mockRejectedValue(bizErr(50000))
     const wrapper = mount(RiskList, { global: { stubs } })

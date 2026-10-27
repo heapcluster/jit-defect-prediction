@@ -77,7 +77,8 @@ CREATE TABLE IF NOT EXISTS prediction (
 	updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, 
 	PRIMARY KEY (id), 
 	CONSTRAINT uq_prediction_hash_model UNIQUE (commit_hash, model_name), 
-	FOREIGN KEY(commit_hash) REFERENCES commit (commit_hash), 
+	FOREIGN KEY(commit_hash) REFERENCES commit (commit_hash),
 	FOREIGN KEY(model_name) REFERENCES model (model_name),
-	INDEX ix_prediction_commit_hash (commit_hash)
+	INDEX ix_prediction_commit_hash (commit_hash),
+	INDEX ix_prediction_model_risk (model_name, risk_score)
 );
