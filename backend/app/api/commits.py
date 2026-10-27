@@ -42,11 +42,7 @@ def list_commits(
         raise AppError(40001, "参数非法：min_risk 需在 0.0 ~ 1.0")
     # 查看过滤：since/until 与 start_time/end_time 同为按 committed_at 过滤的别名，均不触发预测
     start = parse_time_param((since or start_time), "start_time") if (since or start_time) else None
-    end = (
-        parse_time_param((until or end_time), "end_time", "end")
-        if (until or end_time)
-        else None
-    )
+    end = parse_time_param((until or end_time), "end_time", "end") if (until or end_time) else None
 
     with SessionLocal() as session:
         model = model_name or commit_service.default_model_in_table(session)

@@ -1,9 +1,14 @@
 <template>
   <div>
-    <el-page-header
-      content="PR 详情"
-      @back="$router.push('/prs')"
-    />
+    <!-- 页面标题由布局层统一提供，这里只留引导与操作，避免同屏出现两次「PR 详情」 -->
+    <PageHint text="看这个 PR 各提交的风险；点一行进提交详情看解释与确认标记。">
+      <el-button
+        size="small"
+        @click="$router.push('/prs')"
+      >
+        返回列表
+      </el-button>
+    </PageHint>
 
     <div
       v-if="pr"
@@ -15,7 +20,6 @@
         <el-tag :type="pr.state === 'open' ? 'success' : 'info'">
           {{ pr.state }}
         </el-tag>
-        · 模型 <b>{{ pr.model_name }}</b>
         <el-link
           :href="pr.html_url"
           target="_blank"
@@ -123,6 +127,7 @@ import { MODELS } from '../utils/models'
 import { riskColor } from '../utils/risk'
 import { errText } from '../utils/errors'
 import { formatDateTime } from '../utils/datetime'
+import PageHint from '../components/PageHint.vue'
 
 const route = useRoute()
 const router = useRouter()

@@ -7,6 +7,7 @@ from datetime import datetime
 from app.db import SessionLocal
 from app.models import Prediction
 from app.services import settings as runtime_settings
+
 from tests.conftest import C1, C2, HEADERS
 
 

@@ -17,13 +17,8 @@
       </el-button>
     </PageHint>
 
-    <!-- 概览：先给四个数，再看表格 -->
+    <!-- 概览：三张卡各说一件事，条数已在表格与分页器里，不再重复 -->
     <div class="stats">
-      <StatCard
-        label="当前结果"
-        :value="total"
-        hint="筛选后条数"
-      />
       <StatCard
         label="已人工确认"
         :value="health ? health.labeled_count : '—'"
@@ -228,7 +223,7 @@
 
     <el-empty
       v-else-if="!loading && !error && items.length === 0"
-      description="没有符合条件的提交"
+      description="当前筛选条件下没有提交"
     >
       <el-button
         size="small"

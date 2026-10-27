@@ -49,9 +49,7 @@ def snapshot() -> dict:
         with SessionLocal() as session:
             session.execute(text("SELECT 1"))
             commit_count = session.scalar(select(func.count()).select_from(Commit)) or 0
-            prediction_count = (
-                session.scalar(select(func.count()).select_from(Prediction)) or 0
-            )
+            prediction_count = session.scalar(select(func.count()).select_from(Prediction)) or 0
             labeled_count = session.scalar(select(func.count()).select_from(CommitLabel)) or 0
     except Exception:
         logger.exception("health check: database unreachable")

@@ -11,7 +11,7 @@ BCNF 迁移（change startup-baseline-sync，幂等、可重复执行）：
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Engine
@@ -96,8 +96,12 @@ def _apply_bcnf_migration(engine: Engine) -> None:
     # 4. 外键（referenced 列分别为 model PK / commit unique(commit_hash)）
     _add_fk(engine, "prediction", "fk_prediction_model", "model_name", "model", "model_name")
     _add_fk(engine, "prediction", "fk_prediction_commit", "commit_hash", "commit", "commit_hash")
-    _add_fk(engine, "commit_feature", "fk_commit_feature_commit", "commit_hash", "commit", "commit_hash")
-    _add_fk(engine, "commit_label", "fk_commit_label_commit", "commit_hash", "commit", "commit_hash")
+    _add_fk(
+        engine, "commit_feature", "fk_commit_feature_commit", "commit_hash", "commit", "commit_hash"
+    )
+    _add_fk(
+        engine, "commit_label", "fk_commit_label_commit", "commit_hash", "commit", "commit_hash"
+    )
 
 
 def _add_fk(
@@ -133,7 +137,7 @@ def ensure_model_rows(entries: list[dict]) -> None:
     if not entries:
         return
     engine = get_engine()
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(UTC).replace(tzinfo=None)
     with engine.begin() as conn:
         for e in entries:
             conn.execute(

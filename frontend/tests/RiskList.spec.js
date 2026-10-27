@@ -4,9 +4,20 @@ import { mount, flushPromises } from '@vue/test-utils'
 import RiskList from '../src/views/RiskList.vue'
 
 const getCommits = vi.fn()
+// 页面首屏会同时拉「已预测覆盖」与「服务状态」，这两个旁路请求不该影响三态断言
+const getCommitsCoverage = vi.fn()
+const getHealth = vi.fn()
+const postSync = vi.fn()
+const postSyncCatchup = vi.fn()
+const subscribeSyncProgress = vi.fn()
 
 vi.mock('../src/api', () => ({
-  getCommits: (...args) => getCommits(...args)
+  getCommits: (...args) => getCommits(...args),
+  getCommitsCoverage: (...args) => getCommitsCoverage(...args),
+  getHealth: (...args) => getHealth(...args),
+  postSync: (...args) => postSync(...args),
+  postSyncCatchup: (...args) => postSyncCatchup(...args),
+  subscribeSyncProgress: (...args) => subscribeSyncProgress(...args)
 }))
 
 vi.mock('element-plus', () => ({
@@ -28,12 +39,19 @@ const stubs = {
   'el-option': true,
   'el-input-number': true,
   'el-date-picker': true,
+  'el-switch': true,
   'el-button': { template: '<button><slot/></button>' },
   'el-table': { template: '<div><slot/></div>' },
   'el-table-column': true,
   'el-tooltip': true,
-  'el-empty': { template: '<div class="empty"><slot/><span>{{description}}</span></div>', props: ['description'] },
-  'el-alert': { template: '<div class="alert"><slot/><span>{{title}}</span></div>', props: ['title'] },
+  'el-empty': {
+    template: '<div class="empty"><slot/><span>{{description}}</span></div>',
+    props: ['description']
+  },
+  'el-alert': {
+    template: '<div class="alert"><slot/><span>{{title}}</span></div>',
+    props: ['title']
+  },
   'el-pagination': true,
   'el-card': { template: '<div class="card"><slot/></div>' },
   'el-progress': true
@@ -49,6 +67,11 @@ function bizErr(code) {
 describe('RiskList 三态', () => {
   beforeEach(() => {
     getCommits.mockReset()
+    getCommitsCoverage.mockReset().mockResolvedValue({ items: [] })
+    getHealth.mockReset().mockResolvedValue({ status: 'ok', models_loaded: 3, db: 'up' })
+    postSync.mockReset()
+    postSyncCatchup.mockReset()
+    subscribeSyncProgress.mockReset().mockReturnValue({ abort: vi.fn() })
     routeQuery = {}
   })
 
@@ -56,7 +79,7 @@ describe('RiskList 三态', () => {
     getCommits.mockResolvedValue({ items: [], total: 0 })
     const wrapper = mount(RiskList, { global: { stubs } })
     await flushPromises()
-    expect(wrapper.text()).toContain('数据库里还没有提交')
+    expect(wrapper.text()).toContain('还没有数据')
     expect(wrapper.text()).toContain('开始同步')
   })
 

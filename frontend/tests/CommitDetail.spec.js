@@ -62,8 +62,8 @@ describe('CommitDetail 重新预测（POST /api/predict 入口）', () => {
     })
 
     await flushPromises()
-    // 初始：未预测 → 显示「尚未预测」
-    expect(wrapper.text()).toContain('尚未预测')
+    // 初始：未预测 → 只显示一次「未预测」（RiskTag 兜底文案）
+    expect(wrapper.text()).toContain('未预测')
 
     // 触发重新预测
     await wrapper.vm.predict()
