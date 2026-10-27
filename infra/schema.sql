@@ -23,6 +23,13 @@ CREATE TABLE IF NOT EXISTS model (
 	PRIMARY KEY (model_name)
 );
 
+CREATE TABLE IF NOT EXISTS runtime_setting (
+	`key` VARCHAR(64) NOT NULL, 
+	value VARCHAR(255) NOT NULL, 
+	updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, 
+	PRIMARY KEY (`key`)
+);
+
 CREATE TABLE IF NOT EXISTS commit_feature (
 	commit_hash CHAR(40) NOT NULL, 
 	committed_at DATETIME NOT NULL, 

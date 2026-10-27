@@ -15,6 +15,9 @@ CONTRACT_PATHS = {
     "/api/commits/coverage",
     "/api/commits/{commit_hash}/label",
     "/api/health",
+    "/api/quality",
+    "/api/quality/dataset",
+    "/api/quality/calibrate",
     "/api/trends",
     "/api/predict",
     "/api/sync",
@@ -185,3 +188,52 @@ def test_predict_response_fields_match_contract(client):
         "features",
         "explanation",
     }
+
+
+def test_quality_response_fields_match_contract(client):
+    doc, data = _data_props(client, "/api/quality")
+    assert _keys(doc, data) == {
+        "model_name",
+        "threshold",
+        "labeled_total",
+        "evaluated",
+        "tp",
+        "fp",
+        "tn",
+        "fn",
+        "precision",
+        "recall",
+        "f1",
+        "accuracy",
+        "avg_risk_defect",
+        "avg_risk_clean",
+        "recommended_threshold",
+        "evaluated_at",
+    }
+
+
+def test_quality_dataset_fields_match_contract(client):
+    doc, data = _data_props(client, "/api/quality/dataset")
+    assert _keys(doc, data) == {"count", "items"}
+    assert _keys(doc, data["properties"]["items"]["items"]) == {
+        "commit_hash",
+        "is_defect",
+        "labeled_at",
+        "committed_at",
+        "features",
+    }
+
+
+def test_calibrate_fields_match_contract(client):
+    doc, data = _data_props(client, "/api/quality/calibrate", "post")
+    assert _keys(doc, data) == {
+        "model_name",
+        "labeled_total",
+        "evaluated",
+        "applied",
+        "reason",
+        "before",
+        "after",
+    }
+    for key in ("before", "after"):
+        assert _keys(doc, data["properties"][key]) == {"threshold", "precision", "recall", "f1"}

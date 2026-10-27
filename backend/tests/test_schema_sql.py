@@ -57,6 +57,7 @@ def test_schema_sql_matches_complete_mysql_metadata():
         "commit_feature",
         "prediction",
         "model",
+        "runtime_setting",
     }
     _assert_schema_matches_metadata(SCHEMA_SQL.read_text(encoding="utf-8"))
 

@@ -27,6 +27,7 @@ from app.db import SessionLocal
 from app.errors import INTERNAL_ERROR_MESSAGE, AppError, ok
 from app.explain import explain_label
 from app.models import Commit, CommitFeature, Prediction
+from app.services import settings as runtime_settings
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
 logger = logging.getLogger("backend.prs")
@@ -97,12 +98,18 @@ def sync_prs(limit: int = 10) -> dict:
 
 
 def get_pr_risk_level(risk_score: float | None) -> str | None:
-    """聚合风险等级：>= 高阈值=高；中阈值~高=中；否则低（阈值可配）。"""
+    """聚合风险等级：>= 高阈值=高；中阈值~高=中；否则低。
+
+    阈值来自运行时配置（`runtime_setting`，质量看板校准后即时生效），
+    `MUST NOT` 直接读 `config.HIGH_RISK_THRESHOLD`，否则校准完还得重启。
+    """
     if risk_score is None:
         return None
-    if risk_score >= config.HIGH_RISK_THRESHOLD:
+    high = runtime_settings.high_threshold()
+    mid = runtime_settings.mid_threshold()
+    if risk_score >= high:
         return "高"
-    if risk_score >= config.MID_RISK_THRESHOLD:
+    if risk_score >= mid:
         return "中"
     return "低"
 

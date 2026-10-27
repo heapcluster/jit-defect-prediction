@@ -26,7 +26,7 @@ os.environ["MODEL_DIR"] = str(MODEL_DIR)
 from app import config, model_registry
 from app.db import Base, configure_engine
 from app.main import create_app
-from app.models import Commit, CommitFeature, CommitLabel, Prediction
+from app.models import Commit, CommitFeature, CommitLabel, Prediction, RuntimeSetting
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 
@@ -103,10 +103,12 @@ def engine():
 @pytest.fixture()
 def client(engine):
     from app.db import SessionLocal
+    from app.services import settings as runtime_settings
 
     with SessionLocal() as session:
-        # BCNF 迁移后四表之间存在外键，需先删子表（prediction/feature/label）再删父表（commit）
-        for table in (Prediction, CommitFeature, CommitLabel, Commit):
+        # BCNF 迁移后四表之间存在外键，需先删子表（prediction/feature/label）再删父表（commit）；
+        # runtime_setting 无外键，一并清空，避免上一条用例校准出的阈值串到下一条
+        for table in (Prediction, CommitFeature, CommitLabel, Commit, RuntimeSetting):
             session.query(table).delete()
         session.add_all(
             [
@@ -164,6 +166,7 @@ def client(engine):
             )
         )
         session.commit()
+    runtime_settings.reset_cache()
     model_registry.load_models()
     with TestClient(create_app()) as test_client:
         yield test_client

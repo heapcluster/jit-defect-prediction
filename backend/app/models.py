@@ -52,6 +52,20 @@ class Model(Base):
     updated_at: Mapped[object] = mapped_column(DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
 
 
+class RuntimeSetting(Base):
+    """运行时配置表（change quality-loop）：阈值等「运营参数」，改完即时生效。
+
+    为什么入库而不是留在 `.env`：阈值需要由质量看板按人工标签校准后热更新，
+    `.env` 改一次要重启一次，校准就失去意义。
+    """
+
+    __tablename__ = "runtime_setting"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(String(255))
+    updated_at: Mapped[object] = mapped_column(DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
+
+
 class Commit(Base):
     __tablename__ = "commit"
 
