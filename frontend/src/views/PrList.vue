@@ -18,12 +18,8 @@
       </el-button>
     </PageHint>
 
+    <!-- 只留表格里看不出来的两个聚合值：PR 总数与当前模型在下方的筛选栏里已有 -->
     <div class="stats">
-      <StatCard
-        label="PR 总数"
-        :value="items.length"
-        hint="当前拉取范围"
-      />
       <StatCard
         label="高风险 PR"
         :value="highRiskCount"
@@ -32,12 +28,7 @@
       <StatCard
         label="待预测"
         :value="unpredictedCount"
-        hint="提交尚未现算"
-      />
-      <StatCard
-        label="模型"
-        :value="filters.model_name || '默认'"
-        hint="切换模型会重算聚合"
+        hint="有提交尚未现算"
       />
     </div>
 

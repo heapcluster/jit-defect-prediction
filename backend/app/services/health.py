@@ -49,16 +49,14 @@ def snapshot() -> dict:
         with SessionLocal() as session:
             session.execute(text("SELECT 1"))
             commit_count = session.scalar(select(func.count()).select_from(Commit)) or 0
-            prediction_count = (
-                session.scalar(select(func.count()).select_from(Prediction)) or 0
-            )
+            prediction_count = session.scalar(select(func.count()).select_from(Prediction)) or 0
             labeled_count = session.scalar(select(func.count()).select_from(CommitLabel)) or 0
     except Exception:
         logger.exception("health check: database unreachable")
         db_up = False
     model_names = [entry.name for entry in model_registry.all_models()]
     # last_sync_at 取同步状态快照（进程重启后为 null）
-    from app.api.sync import get_sync_state
+    from app.services.sync_state import get_sync_state
 
     return {
         "status": "ok" if (db_up and model_names) else "degraded",

@@ -109,6 +109,8 @@ FEATURE_COLUMNS = (
 # `WEBHOOK_SECRET` 为空时 webhook 端点一律拒绝（fail closed），避免误开无验签入口。
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
 WEBHOOK_SYNC_LIMIT = int(os.getenv("WEBHOOK_SYNC_LIMIT", "5"))
+# PR 事件触发的一次性 PR 同步条数（每 PR 需一次 commit 清单调用，默认只刷新最新 1 个）
+WEBHOOK_PR_LIMIT = int(os.getenv("WEBHOOK_PR_LIMIT", "1"))
 
 HIGH_RISK_THRESHOLD = float(os.getenv("HIGH_RISK_THRESHOLD", "0.5"))
 # PR 风险等级阈值：>= HIGH 为高；介于 MID~HIGH 之间为中；否则低（可配）

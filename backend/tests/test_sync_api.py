@@ -281,7 +281,9 @@ def test_sync_status_reports_idle_and_after_catchup(client, monkeypatch, tmp_pat
     (repo / ".git").mkdir()
     monkeypatch.setattr(sync_module.config, "SOURCE_REPO", repo)
     monkeypatch.setattr(sync_module, "fetch_latest_tip", lambda repo_dir: UNKNOWN)
-    monkeypatch.setattr(sync_module, "list_all_hashes", lambda repo_dir, ref="FETCH_HEAD": [UNKNOWN])
+    monkeypatch.setattr(
+        sync_module, "list_all_hashes", lambda repo_dir, ref="FETCH_HEAD": [UNKNOWN]
+    )
     monkeypatch.setattr(
         sync_module, "ensure_extractable", lambda repo_dir, tip: (repo_dir, lambda: None)
     )
@@ -291,3 +293,31 @@ def test_sync_status_reports_idle_and_after_catchup(client, monkeypatch, tmp_pat
     after = client.get("/api/sync/status", headers=HEADERS).json()["data"]
     assert after["running"] is False
     assert after["mode"] == "catchup"
+
+
+def test_unpredicted_truncates_at_limit_and_says_so():
+    """catchup 的差集按上限提前截断：不把全历史/全表 prediction 都算完才知道超限。"""
+    hashes = ["f" * 40, "e" * 40, "9" * 40]  # 三条在 DB 均无 prediction
+    pending, truncated = sync_module._unpredicted(hashes, 2)
+    assert pending == hashes[:2]
+    assert truncated is True
+
+
+def test_unpredicted_within_limit_is_not_truncated():
+    hashes = ["f" * 40]
+    assert sync_module._unpredicted(hashes, 5) == (hashes, False)
+
+
+def test_git_failure_without_network_error_is_not_retried(monkeypatch, tmp_path):
+    """仓库不存在/非仓库这类错误重试没有意义：只该调用一次，而不是等满 3 轮 + 10s。"""
+    calls = {"n": 0}
+
+    def _fail(*_a, **_k):
+        calls["n"] += 1
+        raise subprocess.CalledProcessError(128, "git", stderr="fatal: not a git repository")
+
+    monkeypatch.setattr(sync_module.subprocess, "run", _fail)
+    with pytest.raises(AppError) as exc:
+        sync_module.fetch_latest_tip(str(tmp_path), retries=3)
+    assert exc.value.code == 50000
+    assert calls["n"] == 1

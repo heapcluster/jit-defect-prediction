@@ -64,11 +64,13 @@
     <template v-if="detail">
       <!-- 风险与确认状态：一行给结论，避免同一信息重复两遍 -->
       <div class="hero">
+        <!-- 未预测时只留 RiskTag 的「未预测」，不再同时显示一个大字号「—」 -->
         <span
+          v-if="!isNotPredicted"
           class="big"
-          :style="{ color: isNotPredicted ? '#7c838c' : riskColor(detail.risk_score) }"
+          :style="{ color: riskColor(detail.risk_score) }"
         >
-          {{ isNotPredicted ? '—' : `${(detail.risk_score * 100).toFixed(1)}%` }}
+          {{ `${(detail.risk_score * 100).toFixed(1)}%` }}
         </span>
         <RiskTag
           :score="detail.risk_score"
@@ -176,7 +178,7 @@
         </div>
         <el-empty
           v-else
-          description="该模型未提供解释"
+          description="该模型未提供特征解释"
         />
       </template>
 

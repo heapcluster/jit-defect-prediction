@@ -50,7 +50,12 @@ def test_sync_is_post_with_limit(client):
 
 def test_commits_params_match_contract(client):
     params = {p["name"] for p in _schema(client)["paths"]["/api/commits"]["get"]["parameters"]}
-    assert {"page", "size", "min_risk", "model_name", "start_time", "end_time"} <= params
+    assert {"page", "size", "min_risk", "model_name", "start_time", "end_time", "q"} <= params
+
+
+def test_quality_params_match_contract(client):
+    params = {p["name"] for p in _schema(client)["paths"]["/api/quality"]["get"]["parameters"]}
+    assert {"model_name", "threshold", "start_time", "end_time", "label_source"} <= params
 
 
 def test_trends_params_match_contract(client):
@@ -199,6 +204,7 @@ def test_quality_response_fields_match_contract(client):
     assert _keys(doc, data) == {
         "model_name",
         "threshold",
+        "label_source",
         "labeled_total",
         "evaluated",
         "tp",
@@ -209,6 +215,7 @@ def test_quality_response_fields_match_contract(client):
         "recall",
         "f1",
         "accuracy",
+        "false_discovery_rate",
         "avg_risk_defect",
         "avg_risk_clean",
         "recommended_threshold",
@@ -282,4 +289,4 @@ def test_pr_gate_fields_match_contract(client):
 
 def test_webhook_fields_match_contract(client):
     doc, data = _data_props(client, "/api/webhook/github", "post")
-    assert _keys(doc, data) == {"accepted", "event", "action", "triggered"}
+    assert _keys(doc, data) == {"accepted", "duplicate", "event", "action", "triggered"}

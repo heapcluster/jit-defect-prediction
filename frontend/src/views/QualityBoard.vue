@@ -1,6 +1,18 @@
 <template>
   <div>
     <PageHint text="用人工确认的标签评估预测质量，并按 F1 最优点校准阈值 —— 改完立即生效。">
+      <el-radio-group
+        v-model="labelSource"
+        size="small"
+        @change="load"
+      >
+        <el-radio-button value="manual">
+          人工标签
+        </el-radio-button>
+        <el-radio-button value="szz">
+          SZZ 对照
+        </el-radio-button>
+      </el-radio-group>
       <el-button
         size="small"
         type="primary"
@@ -35,6 +47,11 @@
         hint="精确率与召回率的调和平均"
       />
       <StatCard
+        label="误拦率"
+        :value="pct(quality.false_discovery_rate)"
+        hint="判高风险的里有多少其实不是缺陷（=1−精确率）"
+      />
+      <StatCard
         label="评估样本"
         :value="`${quality.evaluated}/${quality.labeled_total}`"
         hint="已比对 / 已标记"
@@ -47,7 +64,9 @@
       :closable="false"
       class="mb"
     >
-      还没有可评估的样本：先到「风险列表」打开几条提交，标记是否真的引入缺陷。
+      {{ labelSource === 'szz'
+        ? 'SZZ 自动标签对照视图：只有 SZZ 标签且已有预测的提交才计入，结论不能作为验收依据。'
+        : '还没有可评估的样本：先到「风险列表」打开几条提交，标记是否真的引入缺陷。' }}
     </el-alert>
 
     <div class="grid">
@@ -96,34 +115,28 @@
         >
           应用推荐阈值
         </el-button>
-        <p class="note">
-          阈值存于 runtime_setting，改完立即影响风险等级与 PR 门禁。
+        <!-- 校准结果就地说明，不再单独占一张卡（它是一次性事件，刷新后已无意义） -->
+        <p
+          v-if="calibration && !calibration.applied"
+          class="note"
+        >
+          {{ reasonText }}
+        </p>
+        <p
+          v-else-if="calibration"
+          class="note"
+        >
+          已校准：阈值 {{ calibration.before.threshold }} → <b>{{ calibration.after.threshold }}</b>，F1
+          {{ num(calibration.before.f1) }} → <b>{{ num(calibration.after.f1) }}</b>
+        </p>
+        <p
+          v-else
+          class="note"
+        >
+          改完立即生效，同时影响风险等级与 PR 门禁。
         </p>
       </el-card>
     </div>
-
-    <el-card
-      v-if="calibration"
-      shadow="never"
-      class="mt"
-    >
-      <template #header>
-        最近一次校准
-      </template>
-      <p
-        v-if="!calibration.applied"
-        class="note"
-      >
-        {{ reasonText }}
-      </p>
-      <div
-        v-else
-        class="calib"
-      >
-        <span>阈值 {{ calibration.before.threshold }} → <b>{{ calibration.after.threshold }}</b></span>
-        <span>F1 {{ num(calibration.before.f1) }} → <b>{{ num(calibration.after.f1) }}</b></span>
-      </div>
-    </el-card>
   </div>
 </template>
 
@@ -138,6 +151,7 @@ import PageHint from '../components/PageHint.vue'
 const quality = reactive({
   model_name: null,
   threshold: 0.5,
+  label_source: 'manual',
   labeled_total: 0,
   evaluated: 0,
   tp: 0,
@@ -147,8 +161,11 @@ const quality = reactive({
   precision: null,
   recall: null,
   f1: null,
+  false_discovery_rate: null,
   recommended_threshold: null
 })
+// manual = 人工标签（ground truth）；szz = 自动标签对照视图，不参与验收
+const labelSource = ref('manual')
 const cfg = reactive({ high_risk_threshold: null, mid_risk_threshold: null })
 const calibration = ref(null)
 const loading = ref(false)
@@ -175,7 +192,10 @@ const reasonText = computed(() => {
 async function load() {
   loading.value = true
   try {
-    const [q, c] = await Promise.all([getQuality(), getConfig()])
+    const [q, c] = await Promise.all([
+      getQuality({ label_source: labelSource.value }),
+      getConfig()
+    ])
     Object.assign(quality, q)
     Object.assign(cfg, c)
   } catch (e) {
@@ -223,6 +243,7 @@ onMounted(load)
 <style scoped>
 .stats {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -284,13 +305,5 @@ onMounted(load)
   font-size: 12px;
   line-height: 1.6;
 }
-.calib {
-  display: flex;
-  gap: 24px;
-  font-size: 13px;
-  color: #374151;
-}
-.mt {
-  margin-top: 12px;
-}
+
 </style>
