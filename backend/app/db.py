@@ -194,6 +194,15 @@ def _assert_indexes(engine: Engine) -> None:
             raise RuntimeError(f"索引自检失败：{table} {list(columns)} unique={must_unique} 未满足")
 
 
+def get_db():
+    """FastAPI 依赖注入：每次请求创建新 Session，请求结束时自动关闭。"""
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
 def main(argv: list[str]) -> int:
     if len(argv) != 2 or argv[1] != "init":
         print("用法：python -m app.db init", file=sys.stderr)

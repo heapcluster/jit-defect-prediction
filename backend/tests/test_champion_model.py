@@ -84,3 +84,13 @@ def test_empty_champion_clears_back_to_version_key(client):
     assert data["champion_model"] is None
     listed = client.get("/api/commits", headers=HEADERS).json()["data"]
     assert {item["model_name"] for item in listed["items"]} == {XGB}
+
+
+def test_predict_uses_champion_model(client):
+    """单条预测的默认模型与列表/详情同源：配置 champion 后不得再回落到 version_key 最大者。"""
+    _seed_prediction(C1, LR, "0.41000")
+    assert _put_config(client, champion_model=LR).status_code == 200
+
+    body = client.post("/api/predict", json={"commit_hash": C1}, headers=HEADERS).json()
+    assert body["code"] == 0
+    assert body["data"]["model_name"] == LR

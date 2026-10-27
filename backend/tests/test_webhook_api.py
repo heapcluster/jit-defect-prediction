@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+from collections import OrderedDict
 
 from app import config
+from app.api import webhook as webhook_module
 
 from tests.conftest import HEADERS
 
@@ -117,3 +119,59 @@ def test_webhook_does_not_require_api_key(client, monkeypatch):
     assert resp.status_code == 200
     assert "X-API-Key" not in resp.request.headers or resp.request.headers.get("X-API-Key") is None
     assert HEADERS["X-API-Key"]  # 仅说明普通端点仍需令牌
+
+
+def _post_with_delivery(client, raw: bytes, event: str, delivery: str):
+    return client.post(
+        URL,
+        content=raw,
+        headers={
+            "X-GitHub-Event": event,
+            "Content-Type": "application/json",
+            "X-Hub-Signature-256": _sign(raw),
+            "X-GitHub-Delivery": delivery,
+        },
+    )
+
+
+def _isolate_dispatch(monkeypatch) -> None:
+    """干净的投递缓存 + 不起后台线程（去重是模块级状态，用例之间必须隔离）。"""
+    monkeypatch.setattr(webhook_module, "_DELIVERY_CACHE", OrderedDict())
+    monkeypatch.setattr(webhook_module, "_spawn", lambda target, **kw: None)
+
+
+def test_duplicate_delivery_is_ignored(client, monkeypatch):
+    """同一 X-GitHub-Delivery 重投：第二次 duplicate=true 且不再派发同步。"""
+    monkeypatch.setattr(config, "WEBHOOK_SECRET", SECRET)
+    _isolate_dispatch(monkeypatch)
+    raw = b'{"ref": "refs/heads/main"}'
+
+    first = _post_with_delivery(client, raw, "push", "delivery-dup").json()["data"]
+    second = _post_with_delivery(client, raw, "push", "delivery-dup").json()["data"]
+    assert (first["duplicate"], first["triggered"]) == (False, True)
+    assert (second["duplicate"], second["triggered"]) == (True, False)
+    assert second["accepted"] is True, "重复投递也要 2xx，否则 GitHub 会继续重试"
+
+
+def test_failed_delivery_is_not_marked_duplicate(client, monkeypatch):
+    """处理失败（40001）不得占用投递 id，否则重投会被自己的缓存判成重复而丢事件。"""
+    monkeypatch.setattr(config, "WEBHOOK_SECRET", SECRET)
+    _isolate_dispatch(monkeypatch)
+    raw_bad = b"{broken"
+    bad = client.post(
+        URL,
+        content=raw_bad,
+        headers={
+            "X-GitHub-Event": "push",
+            "Content-Type": "application/json",
+            "X-Hub-Signature-256": _sign(raw_bad),
+            "X-GitHub-Delivery": "delivery-retry",
+        },
+    )
+    assert bad.status_code == 400
+    assert bad.json()["code"] == 40001
+
+    raw = b'{"ref": "refs/heads/main"}'
+    retried = _post_with_delivery(client, raw, "push", "delivery-retry").json()["data"]
+    assert retried["duplicate"] is False
+    assert retried["triggered"] is True

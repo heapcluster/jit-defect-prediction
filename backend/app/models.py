@@ -89,7 +89,12 @@ class Commit(Base):
 
 class CommitLabel(Base):
     __tablename__ = "commit_label"
-    __table_args__ = (UniqueConstraint("commit_hash", "label_method", name="uq_label_hash_method"),)
+    __table_args__ = (
+        UniqueConstraint("commit_hash", "label_method", name="uq_label_hash_method"),
+        # 质量视图按标签口径过滤（manual / szz），没有这条索引时每次都全表扫；
+        # 唯一约束前缀是 commit_hash，帮不到「只按 label_method 筛」的查询
+        Index("ix_commit_label_label_method", "label_method"),
+    )
 
     id: Mapped[int] = mapped_column(ID_TYPE, primary_key=True, autoincrement=True)
     commit_hash: Mapped[str] = mapped_column(CHAR(40), ForeignKey("commit.commit_hash"), index=True)

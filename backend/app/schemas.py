@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -208,6 +210,7 @@ class QualityData(BaseModel):
 
     model_name: str | None
     threshold: float
+    label_source: Literal["manual", "szz"]
     labeled_total: int
     evaluated: int
     tp: int
@@ -218,6 +221,8 @@ class QualityData(BaseModel):
     recall: float | None
     f1: float | None
     accuracy: float | None
+    # 误发现率 = fp/(tp+fp) = 1 - precision；不是 fp/(fp+tn) 的 FPR（见 services/quality.py）
+    false_discovery_rate: float | None
     avg_risk_defect: float | None
     avg_risk_clean: float | None
     recommended_threshold: float | None
@@ -347,6 +352,7 @@ class WebhookData(BaseModel):
     """GitHub webhook 受理结果：`triggered` 表示是否真的派发了后台同步。"""
 
     accepted: bool
+    duplicate: bool = False
     event: str | None
     action: str | None
     triggered: bool
