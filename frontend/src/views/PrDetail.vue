@@ -18,8 +18,12 @@
       <p class="meta">
         作者 {{ pr.author }} · 状态
         <el-tag :type="pr.state === 'open' ? 'success' : 'info'">
-          {{ pr.state }}
+          {{ pr.state === 'open' ? '打开' : '已关闭' }}
         </el-tag>
+        <span
+          v-if="pr.model_name"
+          class="muted"
+        >· 模型 {{ pr.model_name }}</span>
         <el-link
           :href="pr.html_url"
           target="_blank"
@@ -52,11 +56,28 @@
       </el-form-item>
     </el-form>
 
+    <!-- CI 门禁结论：与列表页的风险数字不同，这里给的是「是否阻断合并」的判定 -->
+    <el-alert
+      v-if="gate"
+      :type="gate.blocked ? 'error' : 'success'"
+      :closable="false"
+      show-icon
+      class="mb"
+    >
+      <template #title>
+        门禁{{ gate.blocked ? '阻断合并' : '放行' }}：最高提交
+        {{ gate.risk_score == null ? '未预测' : (gate.risk_score * 100).toFixed(1) + '%' }}
+        · 等级 {{ gate.risk_level || '—' }} · 阈值 {{ gate.threshold }}
+      </template>
+      <span v-if="gate.reason">{{ gate.reason }}</span>
+    </el-alert>
+
     <el-alert
       v-if="error"
       :title="error"
       type="error"
       show-icon
+      :closable="false"
     />
 
     <!-- 表格不随 error 卸载：出错时仍保留上一次拉到的数据（2026-10-25 修复） -->
@@ -90,16 +111,19 @@
         width="160"
       >
         <template #default="{ row }">
-          <span
-            v-if="row.risk_score == null"
-            style="color: #909399"
-          >未预测</span>
-          <span
-            v-else
-            :style="{ color: riskColor(row.risk_score), fontWeight: 600 }"
-          >
-            {{ (row.risk_score * 100).toFixed(1) }}%
-          </span>
+          <div class="risk-cell">
+            <RiskTag
+              :level="row.risk_level"
+              :score="row.risk_score"
+              effect="dark"
+            />
+            <span
+              v-if="row.risk_score != null"
+              :style="{ color: riskColor(row.risk_score) }"
+            >
+              {{ (row.risk_score * 100).toFixed(1) }}%
+            </span>
+          </div>
         </template>
       </el-table-column>
       <el-table-column
@@ -122,18 +146,22 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getPrDetail } from '../api'
+import { getPrDetail, getPrGate } from '../api'
 import { MODELS } from '../utils/models'
 import { riskColor } from '../utils/risk'
+import { loadThresholds } from '../utils/thresholds'
 import { errText } from '../utils/errors'
 import { formatDateTime } from '../utils/datetime'
 import PageHint from '../components/PageHint.vue'
+import RiskTag from '../components/RiskTag.vue'
 
 const route = useRoute()
 const router = useRouter()
 const models = MODELS
 const pr = ref(null)
 const commits = ref([])
+// 门禁结论独立于详情：拉失败只少一条提示，不影响看提交列表
+const gate = ref(null)
 const loading = ref(false)
 const error = ref('')
 const modelName = ref('')
@@ -145,15 +173,19 @@ async function load() {
   const id = ++requestId
   loading.value = true
   error.value = ''
+  const params = { model_name: modelName.value || undefined }
   try {
-    const data = await getPrDetail(route.params.number, { model_name: modelName.value || undefined })
+    const data = await getPrDetail(route.params.number, params)
     if (id !== requestId) return
     pr.value = data
     commits.value = data.commits || []
+    // 门禁单独失败不该让整页报错：只把结论清空
+    gate.value = await getPrGate(route.params.number, params).catch(() => null)
   } catch (e) {
     if (id !== requestId) return
     pr.value = null
     commits.value = []
+    gate.value = null
     error.value = errText(e)
   } finally {
     if (id === requestId) loading.value = false
@@ -164,7 +196,10 @@ function openCommit(row) {
   if (row.sha) router.push(`/commit/${row.sha}`)
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  loadThresholds()
+})
 watch(() => route.params.number, load)
 </script>
 
@@ -177,5 +212,17 @@ watch(() => route.params.number, load)
 }
 .filters {
   margin-bottom: 16px;
+}
+.mb {
+  margin-bottom: 12px;
+}
+.muted {
+  color: var(--app-muted, #9aa1ab);
+  font-size: 12px;
+}
+.risk-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 </style>

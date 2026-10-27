@@ -33,6 +33,11 @@ export function getPrDetail(number, params) {
   return request.get(`/prs/${number}`, { params })
 }
 
+// CI 门禁结论：GET /api/prs/{number}/gate（只读，不触发新预测）
+export function getPrGate(number, params) {
+  return request.get(`/prs/${number}/gate`, { params })
+}
+
 // 实时同步：POST /api/sync-prs（拉最新 open PR 并逐条现算预测入库）
 // 长耗时：单条提交 × 8 模型约 4.1s，一条 PR 常有 20+ 提交，另加 GitHub 拉取耗时，
 // 默认 10s 超时必挂（2026-10-25 修复）
@@ -91,11 +96,11 @@ export function getConfig() {
   return request.get('/config')
 }
 
-export function putConfig(highRiskThreshold, midRiskThreshold) {
-  return request.put('/config', {
-    high_risk_threshold: highRiskThreshold,
-    mid_risk_threshold: midRiskThreshold
-  })
+// championModel：'' 表示清除（回退 version_key 最大者）；不传表示不改
+export function putConfig({ high, mid, championModel }) {
+  const body = { high_risk_threshold: high, mid_risk_threshold: mid }
+  if (championModel !== undefined) body.champion_model = championModel
+  return request.put('/config', body)
 }
 
 // SSE 订阅同步进度（fetch streaming，便于带 X-API-Key 鉴权；EventSource 不支持自定义头）

@@ -8,7 +8,10 @@
       class="filters"
     >
       <el-form-item label="粒度">
-        <el-radio-group v-model="filters.granularity">
+        <el-radio-group
+          v-model="filters.granularity"
+          @change="load"
+        >
           <el-radio-button value="week">
             周
           </el-radio-button>
@@ -23,6 +26,7 @@
           clearable
           placeholder="全部模型"
           style="width: 150px"
+          @change="load"
         >
           <el-option
             v-for="m in models"
@@ -59,6 +63,7 @@
       :title="error"
       type="error"
       show-icon
+      :closable="false"
       class="mb"
     >
       <el-button
@@ -101,6 +106,7 @@
       <RiskTrendChart
         v-if="series.length >= 2"
         :series="series"
+        :high-threshold="thresholds.high"
         @point-click="onPointClick"
       />
       <div
@@ -122,7 +128,7 @@
 
     <!-- 明细表只在画不出折线时兜底：数据点 ≥ 2 时折线已表达同样的四个字段 -->
     <el-table
-      v-if="series.length > 0 && series.length < 2"
+      v-if="series.length === 1"
       :data="series"
       class="detail-table"
     >
@@ -161,7 +167,8 @@ import RiskTrendChart from '../components/RiskTrendChart.vue'
 import StatCard from '../components/StatCard.vue'
 import PageHint from '../components/PageHint.vue'
 import { MODELS } from '../utils/models'
-import { errText } from '../utils/errors'
+import { errText, isRetryable } from '../utils/errors'
+import { thresholds, loadThresholds } from '../utils/thresholds'
 
 // 模型清单与后端 feature_order.txt 的 [models] 段、utils/models.js 保持一致（8 种在线模型）
 const models = MODELS
@@ -220,7 +227,7 @@ async function load() {
     if (id !== requestId) return
     series.value = []
     error.value = errText(e)
-    retryable.value = e?.code === 50000
+    retryable.value = isRetryable(e)
   } finally {
     if (id === requestId) loading.value = false
   }
@@ -268,7 +275,10 @@ function resetRange() {
   load()
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  loadThresholds()
+})
 </script>
 
 <style scoped>

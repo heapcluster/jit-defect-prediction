@@ -28,6 +28,12 @@
       >
         刷新
       </el-button>
+      <el-button
+        size="small"
+        @click="exportDataset"
+      >
+        导出样本
+      </el-button>
     </PageHint>
 
     <div class="stats">
@@ -96,25 +102,72 @@
 
       <el-card shadow="never">
         <template #header>
-          阈值
+          运行配置
         </template>
         <div class="row">
-          <span>当前高风险</span><b>{{ cfg.high_risk_threshold }}</b>
+          <span>高风险阈值</span>
+          <el-input-number
+            v-model="cfg.high_risk_threshold"
+            :min="0"
+            :max="1"
+            :step="0.05"
+            :precision="2"
+            size="small"
+            controls-position="right"
+            style="width: 110px"
+          />
         </div>
         <div class="row">
-          <span>当前中风险</span><b>{{ cfg.mid_risk_threshold }}</b>
+          <span>中风险阈值</span>
+          <el-input-number
+            v-model="cfg.mid_risk_threshold"
+            :min="0"
+            :max="1"
+            :step="0.05"
+            :precision="2"
+            size="small"
+            controls-position="right"
+            style="width: 110px"
+          />
+        </div>
+        <div class="row">
+          <span>冠军模型</span>
+          <el-select
+            v-model="championModel"
+            clearable
+            placeholder="未配置（取最新）"
+            size="small"
+            style="width: 150px"
+          >
+            <el-option
+              v-for="m in models"
+              :key="m"
+              :label="m"
+              :value="m"
+            />
+          </el-select>
         </div>
         <div class="row">
           <span>标签推荐</span><b>{{ quality.recommended_threshold ?? '样本不足' }}</b>
         </div>
-        <el-button
-          size="small"
-          :disabled="quality.recommended_threshold == null"
-          :loading="applying"
-          @click="applyRecommended"
-        >
-          应用推荐阈值
-        </el-button>
+        <div class="ops">
+          <el-button
+            size="small"
+            type="primary"
+            :loading="saving"
+            @click="saveConfig"
+          >
+            保存配置
+          </el-button>
+          <el-button
+            size="small"
+            :disabled="quality.recommended_threshold == null"
+            :loading="applying"
+            @click="applyRecommended"
+          >
+            应用推荐阈值
+          </el-button>
+        </div>
         <!-- 校准结果就地说明，不再单独占一张卡（它是一次性事件，刷新后已无意义） -->
         <p
           v-if="calibration && !calibration.applied"
@@ -142,11 +195,16 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { getQuality, postCalibrate, getConfig, putConfig } from '../api'
+import { getQuality, getQualityDataset, postCalibrate, getConfig, putConfig } from '../api'
 import { ElMessage } from 'element-plus'
 import { errText } from '../utils/errors'
+import { applyThresholds } from '../utils/thresholds'
+import { MODELS } from '../utils/models'
 import StatCard from '../components/StatCard.vue'
 import PageHint from '../components/PageHint.vue'
+
+// 冠军模型下拉：与其余页面的模型清单同源（后续可整体换成 /api/config 返回）
+const models = MODELS
 
 const quality = reactive({
   model_name: null,
@@ -167,10 +225,13 @@ const quality = reactive({
 // manual = 人工标签（ground truth）；szz = 自动标签对照视图，不参与验收
 const labelSource = ref('manual')
 const cfg = reactive({ high_risk_threshold: null, mid_risk_threshold: null })
+// 冠军模型：全站默认模型的唯一配置入口（空 = 未配置，回退 version_key 最大者）
+const championModel = ref('')
 const calibration = ref(null)
 const loading = ref(false)
 const calibrating = ref(false)
 const applying = ref(false)
+const saving = ref(false)
 
 function pct(v) {
   return v == null ? '—' : `${(v * 100).toFixed(1)}%`
@@ -198,10 +259,53 @@ async function load() {
     ])
     Object.assign(quality, q)
     Object.assign(cfg, c)
+    championModel.value = c.champion_model || ''
+    // 阈值改动要立刻扩散到列表/详情/趋势的配色，否则同屏两个口径
+    applyThresholds(cfg.high_risk_threshold, cfg.mid_risk_threshold)
   } catch (e) {
     ElMessage.error(errText(e))
   } finally {
     loading.value = false
+  }
+}
+
+async function saveConfig() {
+  const high = Number(cfg.high_risk_threshold)
+  const mid = Number(cfg.mid_risk_threshold)
+  if (!Number.isFinite(high) || !Number.isFinite(mid) || mid > high) {
+    ElMessage.error('阈值需满足 0 ≤ 中风险 ≤ 高风险 ≤ 1')
+    return
+  }
+  saving.value = true
+  try {
+    const next = await putConfig({ high, mid, championModel: championModel.value || '' })
+    Object.assign(cfg, next)
+    championModel.value = next.champion_model || ''
+    applyThresholds(next.high_risk_threshold, next.mid_risk_threshold)
+    ElMessage.success('配置已保存并生效')
+    await load()
+  } catch (e) {
+    ElMessage.error(errText(e))
+  } finally {
+    saving.value = false
+  }
+}
+
+// 标签回流：把带 14 维特征的人工标签样本导成 JSON，供离线再训练
+async function exportDataset() {
+  try {
+    const data = await getQualityDataset()
+    const rows = data.items || []
+    const blob = new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `quality-dataset-${new Date().toISOString().slice(0, 10)}.json`
+    link.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success(`已导出 ${rows.length} 条样本`)
+  } catch (e) {
+    ElMessage.error(errText(e))
   }
 }
 
@@ -225,9 +329,11 @@ async function applyRecommended() {
   if (high == null) return
   applying.value = true
   try {
-    // mid 必须 <= high：取原 mid 与推荐值的较小者
+    // mid 必须 <= high：取原 mid 与推荐值的较小者；champion 不动（undefined = 不改）
     const mid = Math.min(cfg.mid_risk_threshold ?? 0, high)
-    Object.assign(cfg, await putConfig(high, mid))
+    const next = await putConfig({ high, mid, championModel: undefined })
+    Object.assign(cfg, next)
+    applyThresholds(next.high_risk_threshold, next.mid_risk_threshold)
     ElMessage.success('阈值已更新并生效')
     await load()
   } catch (e) {
@@ -254,6 +360,15 @@ onMounted(load)
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+}
+.ops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.ops :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 .matrix {
   display: grid;
