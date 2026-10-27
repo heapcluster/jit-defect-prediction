@@ -23,14 +23,33 @@ def test_put_label_marks_commit_as_defect(client):
     assert detail["label"]["labeled_at"].endswith("Z")
 
 
-def test_put_label_revoke_marks_not_defect(client):
+def test_put_label_false_marks_confirmed_clean(client):
+    """`is_defect=false` = 确认非缺陷（保留标签行，会计入质量指标 tn/fp）。"""
     client.put(f"/api/commits/{C1}/label", json={"is_defect": True}, headers=HEADERS)
     resp = client.put(f"/api/commits/{C1}/label", json={"is_defect": False}, headers=HEADERS)
     assert resp.status_code == 200
     assert resp.json()["data"]["is_defect"] is False
-    # 撤销是「改为非缺陷」而非删行：详情仍能看到已确认的事实
     detail = client.get(f"/api/commits/{C1}", headers=HEADERS).json()["data"]
     assert detail["label"]["is_defect"] is False
+
+
+def test_put_label_null_revokes_and_deletes_label(client):
+    """`is_defect=null` 才是撤销：删除 manual 标签行，详情回到未标注。"""
+    client.put(f"/api/commits/{C1}/label", json={"is_defect": True}, headers=HEADERS)
+    resp = client.put(f"/api/commits/{C1}/label", json={"is_defect": None}, headers=HEADERS)
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["is_defect"] is None
+    assert data["labeled_at"] is None
+
+    detail = client.get(f"/api/commits/{C1}", headers=HEADERS).json()["data"]
+    assert detail["label"] is None, "撤销后 MUST 回到未标注，而不是留下「已确认非缺陷」"
+
+
+def test_put_label_null_on_unlabeled_commit_is_idempotent(client):
+    resp = client.put(f"/api/commits/{C2}/label", json={"is_defect": None}, headers=HEADERS)
+    assert resp.status_code == 200
+    assert resp.json()["data"]["is_defect"] is None
 
 
 def test_put_label_unknown_commit_returns_40400(client):

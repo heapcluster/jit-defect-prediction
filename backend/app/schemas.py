@@ -19,7 +19,8 @@ class LabelData(BaseModel):
     """人工反馈标签（feedback capability）：`label_method="manual"` 的那一行。"""
 
     commit_hash: str
-    is_defect: bool
+    # None = 该提交当前没有人工标签（撤销后）
+    is_defect: bool | None
     labeled_at: str | None
 
 

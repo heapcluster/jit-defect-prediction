@@ -14,11 +14,13 @@ from app.services.commits import MANUAL_LABEL_METHOD
 from app.timeutil import iso_z, now_naive_utc
 
 
-def put_label(commit_hash: str, is_defect: bool) -> dict:
-    """写入或更新人工标签。
+def put_label(commit_hash: str, is_defect: bool | None) -> dict:
+    """写入 / 更新 / 撤销人工标签。
 
     - commit 不存在 → 40400（MUST NOT 静默创建孤立标签行）
-    - 撤销 = 再次以 `is_defect=False` 提交（保留「已确认非缺陷」的事实），不删行
+    - `is_defect=None` → 撤销：删除该提交的 manual 标签行（返回 `is_defect=None`），
+      不能实现成 `is_defect=False`，否则「撤销」会变成「已确认非缺陷」并进入质量指标
+    - `True`/`False` → upsert（保留「已确认非缺陷」的事实，不删行）
     """
     with SessionLocal() as session:
         exists = session.execute(
@@ -32,6 +34,11 @@ def put_label(commit_hash: str, is_defect: bool) -> dict:
                 CommitLabel.label_method == MANUAL_LABEL_METHOD,
             )
         ).scalar_one_or_none()
+        if is_defect is None:
+            if row is not None:
+                session.delete(row)
+                session.commit()
+            return {"commit_hash": commit_hash, "is_defect": None, "labeled_at": None}
         if row is None:
             row = CommitLabel(
                 commit_hash=commit_hash,

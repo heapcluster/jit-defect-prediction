@@ -14,7 +14,7 @@
 ## What Changes
 
 - **人工反馈闭环（新增 `feedback` capability）**：
-  - `PUT /api/commits/{commit_hash}/label`：写入/更新该提交的人工标签（`is_defect`），落 `commit_label` 表且 `label_method="manual"`；`commit_hash` 不存在 SHALL 返回 40400；请求体非法 SHALL 返回 40001。撤销标记 SHALL 通过再次提交 `is_defect=false` 完成（保留「已确认非缺陷」这一事实），`MUST NOT` 物理删除历史标签行。
+  - `PUT /api/commits/{commit_hash}/label`：写入/更新/撤销该提交的人工标签，落 `commit_label` 表且 `label_method="manual"`；`is_defect` 为三态 —— `true` 引入缺陷、`false` 确认非缺陷（保留标签行，计入质量指标的 `tn`/`fp`）、`null` 撤销（删除该 commit 的 manual 标签行）。`MUST NOT` 用 `false` 顶替撤销，否则「已撤销」会被当成「已确认非缺陷」留在库里并污染指标。`commit_hash` 不存在 SHALL 返回 40400；请求体非法（缺字段，或值非布尔/非 `null`）SHALL 返回 40001。
   - `GET /api/commits/{commit_hash}` 详情响应附带 `label`（`is_defect` / `labeled_at`），未标记时为 `null`。
   - `GET /api/commits` 支持 `has_label=true` 过滤（仅返回已人工确认的提交），用于「已确认」视图。
 - **健康检查与运行状态（新增 `observability` capability）**：

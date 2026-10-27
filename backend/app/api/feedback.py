@@ -19,10 +19,15 @@ router = APIRouter(dependencies=[Depends(require_api_key)])
 
 
 class LabelRequest(BaseModel):
-    is_defect: bool
+    # True = 引入缺陷；False = 确认非缺陷；None = 撤销（删除该提交的人工标签）
+    is_defect: bool | None
 
 
 @router.put("/api/commits/{commit_hash}/label", response_model=schemas.LabelResponse)
 def put_commit_label(commit_hash: str, body: LabelRequest) -> dict:
-    """写入或更新人工标签：撤销 = 再次提交 `is_defect=false`（保留「已确认非缺陷」事实）。"""
+    """写入 / 更新 / 撤销人工标签。
+
+    三态语义必须区分：`false` 是「已确认非缺陷」（会计入质量指标），`null` 才是撤销
+    （删除标签行）。早先把撤销实现成 `false`，用户以为撤销了，实际留下 fp/tn 样本。
+    """
     return ok(feedback_service.put_label(normalize_commit_hash(commit_hash), body.is_defect))
