@@ -277,6 +277,8 @@ class ConfigData(BaseModel):
 
     high_risk_threshold: float
     mid_risk_threshold: float
+    # 冠军模型：全站默认模型唯一定义点；None 表示未配置（回退 version_key 最大者）
+    champion_model: str | None = None
     sync_initial_limit: int
     sync_catchup_limit: int
     updated_at: str | None
@@ -291,6 +293,8 @@ class ConfigResponse(BaseModel):
 class ConfigUpdateRequest(BaseModel):
     high_risk_threshold: float
     mid_risk_threshold: float
+    # 只改冠军模型时可不传（传 None 表示「不改」；显式清空用空字符串）
+    champion_model: str | None = None
 
 
 class LiveData(BaseModel):

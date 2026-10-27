@@ -147,6 +147,23 @@ def default_model() -> ModelEntry | None:
     return max(_REGISTRY.values(), key=lambda entry: version_key(entry.name))
 
 
+def champion() -> ModelEntry | None:
+    """冠军模型：全站唯一的「默认模型」定义点。
+
+    解析顺序：`runtime_setting.champion_model`（已加载） → 未配置/未加载时回退
+    `default_model()`（version_key 最大，design D6）。回退不抛错，只在配置指向
+    未交付模型时记一次告警。
+    """
+    from app.services import settings as runtime_settings  # 局部导入：避免模块级环
+
+    name = runtime_settings.champion_model()
+    if name and name in _REGISTRY:
+        return _REGISTRY[name]
+    if name:
+        logger.warning("champion_model=%s 不在已加载清单，回退 version_key 最大者", name)
+    return default_model()
+
+
 def predict_proba(model: Any, vector: list[float]) -> float:
     proba = model.predict_proba([vector])[0]
     classes = list(getattr(model, "classes_", [0, 1]))

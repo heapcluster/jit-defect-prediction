@@ -14,6 +14,7 @@ from sqlalchemy import (
     DECIMAL,
     BigInteger,
     ForeignKey,
+    Index,
     Integer,
     SmallInteger,
     String,
@@ -133,6 +134,8 @@ class Prediction(Base):
     # design D7：predict 幂等「库里只保留最新一行」落进 schema；契约一允许后端自属冗余索引
     __table_args__ = (
         UniqueConstraint("commit_hash", "model_name", name="uq_prediction_hash_model"),
+        # 列表/趋势按「某模型 + 风险排序」取数；没有这条复合索引时是全表扫 + filesort
+        Index("ix_prediction_model_risk", "model_name", "risk_score"),
     )
 
     id: Mapped[int] = mapped_column(ID_TYPE, primary_key=True, autoincrement=True)
@@ -151,6 +154,8 @@ INDEX_ASSERTIONS = (
     ("commit", ("committed_at",), False),
     ("prediction", ("commit_hash", "model_name"), True),
     ("prediction", ("commit_hash",), False),
+    # 列表/趋势的取数路径：模型 + 风险分（复核 D7）
+    ("prediction", ("model_name", "risk_score"), False),
 )
 
 
