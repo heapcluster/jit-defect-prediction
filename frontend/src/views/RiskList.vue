@@ -1,21 +1,47 @@
 <template>
   <div>
-    <!-- 运行状态（observability）：DB / 已加载模型 / 已预测条数，一眼看出服务是否可用 -->
-    <el-alert
-      v-if="health"
-      :type="health.status === 'ok' ? 'success' : 'warning'"
-      :closable="false"
-      class="mb"
-    >
-      <span>
-        运行状态：{{ health.status === 'ok' ? '正常' : '降级' }} ・
-        数据库 {{ health.db === 'up' ? '已连接' : '不可用' }} ・
-        已加载模型 {{ health.models_loaded }} 个 ・ 已预测 {{ health.prediction_count }} 条 ・
-        提交 {{ health.commit_count }} 条 ・ 标签 {{ health.labeled_count }} 条
-      </span>
-    </el-alert>
+    <PageHint text="按风险从高到低看提交：点一行看解释，确认后标记是否真的引入缺陷。">
+      <el-button
+        size="small"
+        :loading="catching"
+        @click="catchup"
+      >
+        补齐缺口
+      </el-button>
+      <el-button
+        size="small"
+        type="primary"
+        @click="load(1)"
+      >
+        刷新
+      </el-button>
+    </PageHint>
 
-    <!-- 筛选栏 -->
+    <!-- 概览：先给四个数，再看表格 -->
+    <div class="stats">
+      <StatCard
+        label="当前结果"
+        :value="total"
+        hint="筛选后条数"
+      />
+      <StatCard
+        label="已人工确认"
+        :value="health ? health.labeled_count : '—'"
+        hint="可用于质量校准"
+      />
+      <StatCard
+        label="已预测覆盖"
+        :value="coverageLabel"
+        :hint="coverageHint"
+      />
+      <StatCard
+        label="服务状态"
+        :value="statusLabel"
+        :value-color="statusColor"
+        :hint="statusHint"
+      />
+    </div>
+
     <el-form
       :inline="true"
       class="filters"
@@ -24,7 +50,7 @@
         <el-select
           v-model="filters.model_name"
           clearable
-          placeholder="全部模型"
+          placeholder="默认模型"
           style="width: 150px"
         >
           <el-option
@@ -42,9 +68,10 @@
           :max="1"
           :step="0.1"
           :precision="1"
+          style="width: 120px"
         />
       </el-form-item>
-      <el-form-item label="时间范围">
+      <el-form-item label="时间">
         <el-date-picker
           v-model="timeRange"
           type="daterange"
@@ -60,31 +87,24 @@
       </el-form-item>
       <el-form-item>
         <el-button
-          type="success"
-          :loading="catching"
-          @click="catchup"
-        >
-          补齐到最新
-        </el-button>
-        <el-button
           type="primary"
           @click="load(1)"
         >
           查询
         </el-button>
         <el-button @click="reset">
-          清空筛选
+          重置
         </el-button>
       </el-form-item>
     </el-form>
 
-    <!-- 请求失败：三态之一，按错误码区分 -->
     <el-alert
       v-if="error"
       :title="error"
       type="error"
       show-icon
       class="mb"
+      :closable="false"
     >
       <el-button
         v-if="retryable"
@@ -96,26 +116,6 @@
       </el-button>
     </el-alert>
 
-    <!-- 已预测覆盖：让用户知晓缺口，通过「补齐到最新」由系统补齐（日期筛选只用于查看，不触发预测） -->
-    <el-alert
-      v-if="coverageText"
-      type="info"
-      :closable="false"
-      class="mb"
-    >
-      <span>{{ coverageText }}</span>
-      <el-button
-        size="small"
-        text
-        type="success"
-        :loading="catching"
-        @click="catchup"
-      >
-        补齐到最新
-      </el-button>
-    </el-alert>
-
-    <!-- 表格 -->
     <el-table
       v-loading="loading"
       :data="items"
@@ -125,18 +125,14 @@
     >
       <el-table-column
         label="风险"
-        width="150"
+        width="180"
       >
         <template #default="{ row }">
           <div class="risk-cell">
-            <div class="risk-bar">
-              <i
-                :style="{
-                  width: (row.risk_score * 100).toFixed(0) + '%',
-                  background: riskColor(row.risk_score)
-                }"
-              />
-            </div>
+            <RiskTag
+              :score="row.risk_score"
+              effect="dark"
+            />
             <span
               class="risk-pct"
               :style="{ color: riskColor(row.risk_score) }"
@@ -147,8 +143,8 @@
         </template>
       </el-table-column>
       <el-table-column
-        label="提交哈希"
-        width="120"
+        label="提交"
+        width="110"
       >
         <template #default="{ row }">
           <el-tooltip
@@ -167,12 +163,12 @@
       <el-table-column
         prop="author_name"
         label="作者"
-        width="140"
+        width="130"
         show-overflow-tooltip
       />
       <el-table-column
-        label="提交时间"
-        width="175"
+        label="时间"
+        width="170"
       >
         <template #default="{ row }">
           {{ formatTime(row.committed_at) }}
@@ -185,30 +181,26 @@
       />
     </el-table>
 
-    <!-- 空库 / 空筛选：给「按需现算」的加载台，杜绝任何提前灌库 -->
+    <!-- 空库：给一条明确的「从哪开始」，而不是一堆说明 -->
     <el-card
       v-if="showBootstrap"
       class="boot"
       shadow="never"
     >
-      <h3>数据库里还没有提交</h3>
+      <h3>还没有数据</h3>
       <p class="boot-desc">
-        数据来自 Camel git 历史：<b>逐条现算 14 项特征 → 真实模型预测 → 落库</b>，
-        实测每条约 15 秒。不会预先批量灌库，你同步多少条，页面就有多少条。
-      </p>
-      <p class="boot-desc">
-        前提：backend/.env 已配 SOURCE_REPO（本地 Camel 索引，命令：python infra/clone_camel_history.py --repo apache/camel --path &lt;目录&gt;）。
+        先同步最近若干条提交：逐条现算特征并预测落库，约 15 秒/条。
       </p>
       <div class="boot-row">
         <el-select
           v-model="syncCount"
-          style="width: 150px"
+          style="width: 140px"
           :disabled="syncing"
         >
           <el-option
             v-for="n in [10, 30, 50]"
             :key="n"
-            :label="`最新 ${n} 条（约 ${Math.round(n * 15 / 60)} 分钟）`"
+            :label="`最近 ${n} 条`"
             :value="n"
           />
         </el-select>
@@ -219,6 +211,7 @@
         >
           开始同步
         </el-button>
+        <span class="boot-tip">前提：backend/.env 已配置 SOURCE_REPO</span>
       </div>
       <el-progress
         v-if="syncing"
@@ -233,10 +226,9 @@
       </p>
     </el-card>
 
-    <!-- 空数据（有筛选时）：三态之一，不是错误 -->
     <el-empty
       v-else-if="!loading && !error && items.length === 0"
-      description="当前筛选条件下没有提交"
+      description="没有符合条件的提交"
     >
       <el-button
         size="small"
@@ -246,7 +238,6 @@
       </el-button>
     </el-empty>
 
-    <!-- 分页 -->
     <el-pagination
       v-if="total > 0"
       class="pager"
@@ -271,15 +262,18 @@ import {
   getHealth
 } from '../api'
 import { ElMessage } from 'element-plus'
-import { riskColor, riskLevel } from '../utils/risk'
+import { riskColor } from '../utils/risk'
 import { MODELS } from '../utils/models'
 import { errText, isRetryable } from '../utils/errors'
 import { formatTime } from '../utils/datetime'
+import StatCard from '../components/StatCard.vue'
+import PageHint from '../components/PageHint.vue'
+import RiskTag from '../components/RiskTag.vue'
 
 const router = useRouter()
 const route = useRoute()
 
-// 模型清单与后端 feature_order.txt 的 [models] 段、utils/models.js 保持一致（8 种在线模型）
+// 模型清单与后端 feature_order.txt 的 [models] 段、utils/models.js 保持一致
 const models = MODELS
 
 const filters = reactive({
@@ -296,7 +290,7 @@ const loading = ref(false)
 const error = ref('')
 const retryable = ref(false)
 
-// ── 运行状态（observability）：DB / 模型 / 已预测条数 ──
+// ── 运行状态（observability）──
 const health = ref(null)
 function loadHealth() {
   getHealth()
@@ -305,17 +299,30 @@ function loadHealth() {
     })
     .catch(() => {})
 }
+const statusLabel = computed(() => {
+  if (!health.value) return '—'
+  return health.value.status === 'ok' ? '正常' : '降级'
+})
+const statusColor = computed(() => (health.value?.status === 'ok' ? '#4e9b68' : '#d98a2b'))
+const statusHint = computed(() => {
+  if (!health.value) return '状态未知'
+  return `模型 ${health.value.models_loaded} 个 · DB ${health.value.db === 'up' ? '正常' : '异常'}`
+})
 
-// ── 已预测覆盖 + 补齐到最新（change startup-baseline-sync）──
+// ── 已预测覆盖 + 补齐到最新 ──
 const catching = ref(false)
 const coverage = ref([])
-const coverageText = computed(() => {
-  if (!coverage.value.length) return ''
-  const parts = coverage.value.map(
-    (c) => `${c.model_name}: ${c.start ? c.start.slice(0, 10) : '—'} ~ ${c.end ? c.end.slice(0, 10) : '—'}`
-  )
-  return '已预测覆盖：' + parts.join('；')
+const coverageLabel = computed(() => {
+  if (!coverage.value.length) return '—'
+  const picked =
+    coverage.value.find((c) => c.model_name === filters.model_name) || coverage.value[0]
+  const start = picked.start ? picked.start.slice(0, 10) : '—'
+  const end = picked.end ? picked.end.slice(0, 10) : '—'
+  return `${start} ~ ${end}`
 })
+const coverageHint = computed(() =>
+  coverage.value.length ? `${coverage.value.length} 个模型` : '尚无预测'
+)
 function loadCoverage() {
   getCommitsCoverage()
     .then((d) => {
@@ -344,7 +351,7 @@ function catchup() {
     })
 }
 
-// ── 按需现算（加载台）：空库时引导用户分批同步，绝不提前灌库 ──
+// ── 空库引导：分批同步，绝不提前灌库 ──
 const syncing = ref(false)
 const syncCount = ref(10)
 const syncPct = ref(0)
@@ -363,7 +370,6 @@ const showBootstrap = computed(
   () => !loading.value && !error.value && !hasFilter.value && items.value.length === 0
 )
 
-// 分批触发 POST /api/sync：实测现算约 15s/条，一批 10 条控制在 3 分钟内（前端超时 300s）
 async function runSync() {
   syncing.value = true
   syncPct.value = 0
@@ -376,18 +382,17 @@ async function runSync() {
       syncPct.value = Math.round((done / syncCount.value) * 100)
       syncMsg.value = `已落库 ${done}/${syncCount.value} 条`
     }
-    ElMessage.success(`同步完成，共 ${done} 条提交已现算并预测落库`)
+    ElMessage.success(`同步完成，共 ${done} 条`)
     await load(1)
   } catch (e) {
     ElMessage.error(errText(e))
-    syncMsg.value = `同步中断：${errText(e)}（已落库 ${done} 条，可再次点击继续）`
+    syncMsg.value = `中断：已落库 ${done} 条，可再次点击继续`
   } finally {
     syncing.value = false
   }
 }
 
 // 最新请求标识：并发时丢弃过期响应，避免快速翻页时旧响应覆盖新结果
-// （2026-10-25 修复：此前 RiskList 无守卫，TrendBoard 有）
 let requestId = 0
 
 async function load(page = filters.page) {
@@ -432,9 +437,9 @@ function reset() {
 async function copyHash(hash) {
   try {
     await navigator.clipboard.writeText(hash)
-    ElMessage.success('已复制提交哈希')
+    ElMessage.success('已复制')
   } catch {
-    ElMessage.error(`复制失败，请手动复制：${hash}`)
+    ElMessage.error(`复制失败：${hash}`)
   }
 }
 
@@ -456,70 +461,66 @@ onMounted(() => {
   loadHealth()
 })
 
-// 响应同路由 query 变化：query 变化重新查；query 移除清日期 + 重置分页
 watch(() => route.query, applyQueryAndLoad)
 </script>
 
 <style scoped>
-.filters {
-  margin-bottom: 4px;
-}
-.boot {
+.stats {
+  display: flex;
+  gap: 12px;
   margin-bottom: 16px;
 }
-.boot h3 {
-  margin: 0 0 10px;
-}
-.boot-desc {
-  margin: 0 0 8px;
-  color: #555;
-  line-height: 1.6;
-}
-.boot-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 14px 0 10px;
-}
-.boot-progress {
-  margin-bottom: 8px;
-}
-.sync-msg {
-  margin: 0;
-  color: #6b7280;
+.filters {
+  margin-bottom: 4px;
 }
 .mb {
   margin-bottom: 12px;
 }
 .risk-table {
   cursor: pointer;
+  margin-top: 8px;
 }
 .risk-cell {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.risk-bar {
-  width: 60px;
-  height: 6px;
-  border-radius: 3px;
-  background: #eceef2;
-  overflow: hidden;
-  flex: 0 0 auto;
-}
-.risk-bar i {
-  display: block;
-  height: 100%;
-  border-radius: 3px;
-}
 .risk-pct {
   font-family: monospace;
   font-weight: 600;
-  min-width: 52px;
   white-space: nowrap;
 }
 .mono {
   font-family: monospace;
+}
+.boot {
+  margin-bottom: 16px;
+}
+.boot h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.boot-desc {
+  margin: 0 0 12px;
+  color: #6b7280;
+  line-height: 1.6;
+}
+.boot-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.boot-tip {
+  color: #9aa1ab;
+  font-size: 12px;
+}
+.boot-progress {
+  margin-top: 10px;
+}
+.sync-msg {
+  margin: 6px 0 0;
+  color: #6b7280;
 }
 .pager {
   margin-top: 16px;

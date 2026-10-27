@@ -4,6 +4,7 @@ import CommitDetail from '../views/CommitDetail.vue'
 import TrendBoard from '../views/TrendBoard.vue'
 import PrList from '../views/PrList.vue'
 import PrDetail from '../views/PrDetail.vue'
+import QualityBoard from '../views/QualityBoard.vue'
 
 const routes = [
   { path: '/', name: 'risk-list', component: RiskList },
@@ -12,6 +13,8 @@ const routes = [
   { path: '/trend', name: 'trend-board', component: TrendBoard },
   { path: '/prs', name: 'pr-list', component: PrList },
   { path: '/prs/:number', name: 'pr-detail', component: PrDetail, props: true },
+  // 质量看板：人工标签评估预测质量 + 阈值校准（quality-loop / ops-hardening）
+  { path: '/quality', name: 'quality-board', component: QualityBoard },
   // 兜底路由：没有 catch-all 时，未知路径会渲染空白页（2026-10-25 修复）
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('../views/NotFound.vue') }
 ]
