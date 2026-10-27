@@ -14,9 +14,32 @@ from sqlalchemy import func, select, text
 from app import model_registry
 from app.db import SessionLocal
 from app.models import Commit, CommitLabel, Prediction
-from app.timeutil import iso_z
+from app.timeutil import iso_z, now_naive_utc
 
 logger = logging.getLogger("backend.health")
+
+
+def liveness() -> dict:
+    """liveness 探针：只证明进程活着，**不碰 DB**（DB 挂了不该重启进程）。"""
+    return {"status": "ok", "server_time": iso_z(now_naive_utc())}
+
+
+def readiness() -> dict:
+    """readiness 探针：DB 通 + 至少加载一个模型才算就绪。"""
+    db_up = True
+    try:
+        with SessionLocal() as session:
+            session.execute(text("SELECT 1"))
+    except Exception:  # noqa: BLE001 —— 探针不能抛错，只报告状态
+        logger.exception("readiness: database unreachable")
+        db_up = False
+    models_loaded = len(model_registry.all_models())
+    return {
+        "status": "ok" if (db_up and models_loaded) else "degraded",
+        "db": "up" if db_up else "down",
+        "models_loaded": models_loaded,
+        "server_time": iso_z(now_naive_utc()),
+    }
 
 
 def snapshot() -> dict:
