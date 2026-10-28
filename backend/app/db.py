@@ -116,7 +116,7 @@ def _apply_bcnf_migration(engine: Engine) -> None:
             else:
                 conn.execute(
                     text(
-                        f"ALTER TABLE {ident} ADD COLUMN \"updated_at\" "
+                        f'ALTER TABLE {ident} ADD COLUMN "updated_at" '
                         "DATETIME NOT NULL DEFAULT '1970-01-01 00:00:00'"
                     )
                 )

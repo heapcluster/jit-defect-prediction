@@ -55,12 +55,18 @@ def legacy_sqlite_engine(tmp_path):
     with eng.begin() as conn:
         for ddl in LEGACY_DDL.values():
             conn.execute(text(ddl))
-        conn.execute(text('INSERT INTO "commit" (commit_hash, committed_at) '
-                          "VALUES (:h, '2020-01-01')"), {"h": "a" * 40})
+        conn.execute(
+            text("INSERT INTO \"commit\" (commit_hash, committed_at) VALUES (:h, '2020-01-01')"),
+            {"h": "a" * 40},
+        )
         for name in ("xgb_v1", "lr_v1"):
-            conn.execute(text('INSERT INTO "prediction" (commit_hash, model_name, risk_score) '
-                              "VALUES (:h, :m, 0.5)"),
-                         {"h": "a" * 40, "m": name})
+            conn.execute(
+                text(
+                    'INSERT INTO "prediction" (commit_hash, model_name, risk_score) '
+                    "VALUES (:h, :m, 0.5)"
+                ),
+                {"h": "a" * 40, "m": name},
+            )
 
     original = db._engine
     eng_ = eng
@@ -89,8 +95,9 @@ def test_legacy_sqlite_db_migrates_without_raising(legacy_sqlite_engine):
         assert "updated_at" in _columns(legacy_sqlite_engine, table), table
         # 回填过的历史行不能是常量占位值（那是「没填」的伪装）
         with legacy_sqlite_engine.begin() as conn:
-            n_null = conn.execute(text(
-                f'SELECT COUNT(*) FROM "{table}" WHERE updated_at IS NULL')).scalar()
+            n_null = conn.execute(
+                text(f'SELECT COUNT(*) FROM "{table}" WHERE updated_at IS NULL')
+            ).scalar()
         assert n_null == 0, f"{table}.updated_at 出现 NULL：历史行没被回填"
 
 
@@ -103,8 +110,16 @@ def test_migration_backfills_model_table_from_prediction(legacy_sqlite_engine):
 
 def test_ensure_model_rows_is_portable_and_idempotent(legacy_sqlite_engine):
     """改动前这里抛 `near "DUPLICATE": syntax error`；且启动期从不检查它成没成。"""
-    entries = [{"model_name": f"m{i}_v1", "version_key": "m", "algo": "Pipeline",
-                "feature_version": "v1", "trained_at": None} for i in range(8)]
+    entries = [
+        {
+            "model_name": f"m{i}_v1",
+            "version_key": "m",
+            "algo": "Pipeline",
+            "feature_version": "v1",
+            "trained_at": None,
+        }
+        for i in range(8)
+    ]
     ensure_model_rows(entries)
     with legacy_sqlite_engine.begin() as conn:
         assert conn.execute(text("SELECT COUNT(*) FROM `model`")).scalar() == 8
@@ -112,7 +127,9 @@ def test_ensure_model_rows_is_portable_and_idempotent(legacy_sqlite_engine):
     # 再跑一次（模拟重启）：仍是 8 行，且元数据被更新而不是插出第二行
     ensure_model_rows([{**e, "algo": "Changed"} for e in entries])
     with legacy_sqlite_engine.begin() as conn:
-        rows = conn.execute(text("SELECT model_name, algo FROM `model` ORDER BY model_name")).fetchall()
+        rows = conn.execute(
+            text("SELECT model_name, algo FROM `model` ORDER BY model_name")
+        ).fetchall()
     assert len(rows) == 8, f"重复启动插出多余行：{len(rows)}"
     assert {r[1] for r in rows} == {"Changed"}
 
