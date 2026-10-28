@@ -76,6 +76,14 @@
       </el-button>
     </el-alert>
 
+    <!-- 当前模型回显：趋势是谁出的分，必须显式标出 -->
+    <div
+      v-if="loadedModelName"
+      class="model-badge"
+    >
+      当前模型：<span class="mono">{{ loadedModelName }}</span>
+    </div>
+
     <!-- 汇总：三张卡，口径与序列同源，不重复表格里已有的逐期明细 -->
     <div
       v-if="summary"
@@ -182,6 +190,8 @@ const series = ref([])
 const loading = ref(false)
 // 已加载数据的粒度（下钻跳转用它，不能用尚未查询的筛选器粒度）
 const loadedGranularity = ref('week')
+// 当前数据出分的模型名（trends 响应回显，避免界面不标「谁出的分」）
+const loadedModelName = ref('')
 const error = ref('')
 const retryable = ref(false)
 
@@ -223,6 +233,7 @@ async function load() {
     series.value = data.series || []
     // 粒度与 series 一起提交，用本次请求快照，保证两者对应
     loadedGranularity.value = granularity
+    loadedModelName.value = data.model_name || ''
   } catch (e) {
     if (id !== requestId) return
     series.value = []
@@ -287,6 +298,14 @@ onMounted(() => {
 }
 .mb {
   margin-bottom: 12px;
+}
+.model-badge {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 12px;
+}
+.mono {
+  font-family: monospace;
 }
 .stats {
   display: flex;
