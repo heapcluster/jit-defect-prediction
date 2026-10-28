@@ -313,6 +313,8 @@ async function predict() {
       explanation: data.explanation || [],
       features: data.features || detail.value.features
     }
+    // 回填下拉：默认模型时后端实际用的是哪个，下拉就显示哪个（切换后立刻可核对）
+    predictModel.value = data.model_name
     ElMessage.success('预测完成')
   } catch (e) {
     // 40100 令牌失效：不给重试，禁用预测按钮
