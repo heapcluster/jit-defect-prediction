@@ -1,21 +1,15 @@
-"""PR 同步必须让该 PR 的历史对抽取器可达（改动前：拿 SOURCE_REPO 直接算，必算不出来）。
-
-回归点：`sync_prs` 原先把 `repo=str(SOURCE_REPO)` 交给 `predict_commit_all_models`，而特征
-抽取器的历史扫描是 `git log … HEAD`（`data_model/preparation/03_extract_features.py`）；
-PR 的提交只被 `git fetch origin pull/<n>/head` 取进对象库、**不在默认分支 HEAD 的历史上**，
-于是每条 sha 都算不出来 —— 表现为接口返回 200、`commits_predicted=0`、
-`GET /api/prs` 整表 `risk_score=null`（本机实测：该端点 67s、全表 null）。
-
-本文件是纯单元测试，不连数据库也不起服务（因此不依赖 MySQL 测试库 jit_test）。
-"""
+"""PR 历史可达性与临时 worktree 释放的单元和本地 Git 集成测试。"""
 
 from __future__ import annotations
 
-from pathlib import Path
+import subprocess
 
 import pytest
+from app import config, feature_source, model_registry
 from app.api import prs
+from app.db import SessionLocal
 from app.errors import AppError
+from app.models import Commit, CommitFeature, Prediction
 
 
 class Pr:
@@ -120,7 +114,62 @@ def test_limit_still_validated_before_touching_git(harness):
     assert calls["fetch"] == []
 
 
-def test_repo_path_is_a_path_object_for_production_callers():
-    """_repo_path 的返回类型是 Path；ensure_extractable 收的是 str，别把 Path 直接喂进去。"""
-    src = Path(prs.__file__).read_text(encoding="utf-8")
-    assert "ensure_extractable(str(repo)" in src, "worktree 入口仍按 str 传仓库路径"
+def test_pr_branch_extracts_and_persists_without_changing_source(client, monkeypatch, tmp_path):
+    repo = tmp_path / "source"
+    repo.mkdir()
+    for key in ("GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME"):
+        monkeypatch.setenv(key, "Test Author")
+    for key in ("GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL"):
+        monkeypatch.setenv(key, "test@example.com")
+
+    def git(*args):
+        return subprocess.run(
+            ["git", "-C", str(repo), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=30,
+        ).stdout.strip()
+
+    git("init", "-b", "main")
+    source = repo / "example.txt"
+    source.write_text("base\n", encoding="utf-8")
+    git("add", "example.txt")
+    git("commit", "-m", "base")
+    git("switch", "-c", "pr")
+    source.write_text("base\nnew line\n", encoding="utf-8")
+    git("add", "example.txt")
+    git("commit", "-m", "change")
+    head = git("rev-parse", "HEAD")
+    git("switch", "main")
+    source.write_text("uncommitted local work\n", encoding="utf-8")
+    before = (
+        git("rev-parse", "HEAD"),
+        git("status", "--porcelain"),
+        git("worktree", "list", "--porcelain"),
+    )
+
+    with pytest.raises(ValueError, match="HEAD"):
+        feature_source.extract(head, repo=repo)
+    monkeypatch.setattr(config, "SOURCE_REPO", repo)
+    monkeypatch.setattr(prs.github, "list_open_prs", lambda limit: [Pr(101)])
+    monkeypatch.setattr(prs.github, "list_pr_commit_shas", lambda number: [head])
+    monkeypatch.setattr(prs, "fetch_pr_ref", lambda repo, number: head)
+
+    out = prs.sync_prs(limit=1)
+
+    assert out["commits_predicted"] == 1 and out["skipped"] == []
+    with SessionLocal() as session:
+        assert session.query(Commit).filter_by(commit_hash=head).count() == 1
+        assert session.query(CommitFeature).filter_by(commit_hash=head).count() == 1
+        rows = session.query(Prediction).filter_by(commit_hash=head).all()
+        assert {row.model_name for row in rows} == {
+            entry.name for entry in model_registry.all_models()
+        }
+    assert (
+        git("rev-parse", "HEAD"),
+        git("status", "--porcelain"),
+        git("worktree", "list", "--porcelain"),
+    ) == before
+    assert source.read_text(encoding="utf-8") == "uncommitted local work\n"

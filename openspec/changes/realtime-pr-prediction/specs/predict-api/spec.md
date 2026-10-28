@@ -9,6 +9,11 @@
 - **WHEN** 服务端已配置 `SOURCE_REPO` 与 `GITHUB_REPO`，上游存在 open PR
 - **THEN** 每个 PR 的提交逐条现算特征后以各在线模型预测入库，`prs[]` 报各 PR 的 `commits_predicted`，查询接口可按 PR 查到新行
 
+#### Scenario: PR head 不在本地 HEAD 历史上
+
+- **WHEN** fetch 已取得 PR head，但其提交不在 `SOURCE_REPO` 的 HEAD 可达历史中
+- **THEN** 服务端 SHALL 使用以 PR head 为 HEAD 的一次性 detached `--no-checkout` worktree 进行特征抽取，并在成功或失败后释放；MUST NOT 改变 `SOURCE_REPO` 的 HEAD、分支、索引或未提交文件
+
 #### Scenario: 单 PR 失败不中断（边界场景）
 
 - **WHEN** 某 PR 的 head ref fetch 失败或其某提交现算失败

@@ -165,6 +165,9 @@ def test_sync_prs_predicts_each_pr_and_reports_skipped(client, monkeypatch, tmp_
         return "0" * 40
 
     monkeypatch.setattr(prs_module, "fetch_pr_ref", fake_fetch)
+    monkeypatch.setattr(
+        prs_module, "ensure_extractable", lambda repo, head: (str(tmp_path), lambda: None)
+    )
     predicted: list[str] = []
 
     def fake_predict(sha, repo=None):
@@ -189,6 +192,9 @@ def test_sync_prs_single_commit_failure_does_not_stop_the_pr(client, monkeypatch
     monkeypatch.setattr(prs_module, "_repo_path", lambda: tmp_path)
     _wire_github(monkeypatch, [_pr(15)], {15: ["a" * 40, "b" * 40]})
     monkeypatch.setattr(prs_module, "fetch_pr_ref", lambda repo, number: "0" * 40)
+    monkeypatch.setattr(
+        prs_module, "ensure_extractable", lambda repo, head: (str(tmp_path), lambda: None)
+    )
 
     def fake_predict(sha, repo=None):
         if sha == "a" * 40:
