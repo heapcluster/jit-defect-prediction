@@ -18,6 +18,7 @@ from app.db import SessionLocal
 from app.errors import INTERNAL_ERROR_MESSAGE, AppError
 from app.explain import with_labels
 from app.models import Commit, CommitFeature, Prediction
+from app.services import champion
 from app.timeutil import iso_z
 from app.validate import normalize_commit_hash
 
@@ -25,21 +26,26 @@ logger = logging.getLogger("backend.predict.service")
 
 
 def resolve_model_name(model_name: str | None) -> str:
-    """确定本次打分使用的模型名：显式给定时校验存在，否则取全站冠军模型。
+    """确定本次打分使用的模型名：显式给定时校验存在，否则走全站唯一入口。
 
-    `champion()` 是契约 §17 规定的「全站默认模型唯一定义点」（未配置时回退
-    `version_key` 最大者）。列表 / 详情 / 趋势 / 门禁 / 单条预测必须同源，
-    否则切换 `champion_model` 后同一条提交在不同页面会得到不同分数。
+    未显式指定时**不再单独读 `model_registry.champion()`**，而是与列表 / 详情 / 趋势 /
+    PR 门禁共用 `services.champion.resolve()`（契约三 §17）：冠军在 `prediction` 表里
+    还没有行时，两边会各自降级到不同模型，同一提交就得到两份分、两个模型名。
+    共用之后，降级规则只有一处实现，响应里的 `model_name` 回显即真实所用模型。
     """
     if model_name:
         if not model_registry.has(model_name):
             # 契约三错误码表：枚举值不存在 → 40001；注册表整体为空才是 50000
             raise AppError(40001, "参数非法：model_name 不在已加载模型清单")
         return model_name
-    entry = model_registry.champion()
-    if entry is None:
-        raise AppError(50000, INTERNAL_ERROR_MESSAGE)
-    return entry.name
+    with SessionLocal() as session:
+        name = champion.resolve(session)
+    if name is None:
+        entry = model_registry.champion()
+        if entry is None:
+            raise AppError(50000, INTERNAL_ERROR_MESSAGE)
+        return entry.name
+    return name
 
 
 def _missing_message(commit: Commit | None) -> str:

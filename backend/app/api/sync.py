@@ -21,13 +21,14 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 
 from app import config
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import INTERNAL_ERROR_MESSAGE, AppError, ok
 from app.models import Prediction
-from app.services import sync_state
+from app.services import champion, sync_state
 from app.services.git import (
     build_fetch_args,
     ensure_extractable,
@@ -54,21 +55,32 @@ _sync_lock = sync_state._sync_lock
 # plan(repo_dir) → (scanned, pending, truncated)；truncated 为 None 表示该场景不截断
 
 
-def _unpredicted(hashes: list[str], limit: int | None = None) -> tuple[list[str], bool]:
-    """按输入顺序挑出尚无 prediction 行的哈希；分批 IN，不整表载入。
+_AUTO = object()  # 哨兵：不传就按全站默认模型解析，传 None 才表示「任意模型有行即算已完成」
+
+
+def _unpredicted(
+    hashes: list[str], limit: int | None = None, model_name: str | None | object = _AUTO
+) -> tuple[list[str], bool]:
+    """按输入顺序挑出「有效默认模型尚无 prediction 行」的哈希；分批 IN，不整表载入。
+
+    判据必须带 `model_name`：不带时，只要某提交被任何模型预测过（例如有人先对
+    它调过一次 `POST /api/predict`）就被永久跳过，其余在线模型再也补不上，
+    与 change `realtime-commit-sync` 的「全模型落库」相反，且与列表口径脱节。
+    默认模型解析与列表 / 详情 / 趋势 / 门禁同源于 `services.champion`。
 
     `limit` 非空时最多返回 limit 条，并在「还有更多」时把第二项置为 True。
     """
     pending: list[str] = []
+    if model_name is _AUTO:
+        with SessionLocal() as session:
+            model_name = champion.resolve(session)
     with SessionLocal() as session:
         for start in range(0, len(hashes), _PREDICTED_CHUNK):
             chunk = hashes[start : start + _PREDICTED_CHUNK]
-            predicted = {
-                row[0]
-                for row in session.query(Prediction.commit_hash)
-                .filter(Prediction.commit_hash.in_(chunk))
-                .distinct()
-            }
+            stmt = select(Prediction.commit_hash).where(Prediction.commit_hash.in_(chunk))
+            if model_name is not None:
+                stmt = stmt.where(Prediction.model_name == model_name)
+            predicted = {row[0] for row in session.execute(stmt.distinct())}
             for commit_hash in chunk:
                 if commit_hash in predicted:
                     continue
