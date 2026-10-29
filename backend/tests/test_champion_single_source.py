@@ -13,10 +13,12 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 from app import db, model_registry
 from app.api import sync as sync_api
+from app.errors import AppError
 from app.models import Prediction
 from app.services import champion
 from app.services.predict import resolve_model_name
@@ -60,9 +62,10 @@ def session(tmp_path):
     eng.dispose()
 
 
-def _as_champion(monkeypatch, name):
-    """把注册表冠军钉成某个名字（resolve 只认 `champion().name`）。"""
-    monkeypatch.setattr(model_registry, "champion", lambda: type("E", (), {"name": name})())
+def _as_champion(monkeypatch, name, loaded=None):
+    entries = {n: SimpleNamespace(name=n) for n in (loaded or {name, "lr_v1", "xgb_v1"})}
+    monkeypatch.setattr(model_registry, "champion", lambda: entries[name])
+    monkeypatch.setattr(model_registry, "all_models", lambda: list(entries.values()))
 
 
 def test_champion_with_rows_wins(session, monkeypatch):
@@ -76,12 +79,11 @@ def test_champion_without_rows_degrades_to_model_with_rows(session, monkeypatch)
     assert champion.resolve(session) == "xgb_v1", "降级要按 version_key 降序取有行的模型"
 
 
-def test_empty_table_returns_none_and_predict_falls_back_to_registry(session, monkeypatch):
-    """表内一行都没有：读路径不加过滤（None），predict 侧才回退注册表冠军。"""
+def test_empty_table_uses_same_registry_champion_for_reads_and_writes(session, monkeypatch):
     session.query(Prediction).delete()
     session.commit()
     _as_champion(monkeypatch, "rf_v1")
-    assert champion.resolve(session) is None
+    assert champion.resolve(session) == "rf_v1"
     assert resolve_model_name(None) == "rf_v1"
 
 
@@ -98,10 +100,21 @@ def test_predict_default_is_same_source_as_list(session, monkeypatch):
     assert calls == ["hit"]
 
 
-def test_predict_default_falls_back_when_no_rows_anywhere(session, monkeypatch):
-    monkeypatch.setattr(champion, "resolve", lambda _s: None)
-    _as_champion(monkeypatch, "svm_v1")
+def test_historical_unloaded_models_are_not_inference_candidates(session, monkeypatch):
+    _as_champion(monkeypatch, "svm_v1", loaded={"svm_v1"})
+    assert champion.resolve(session) == "svm_v1"
     assert resolve_model_name(None) == "svm_v1"
+
+
+def test_empty_registry_reports_internal_error_even_with_historical_predictions(
+    session, monkeypatch
+):
+    monkeypatch.setattr(model_registry, "_REGISTRY", {})
+    assert champion.resolve(session) is None
+    with pytest.raises(AppError) as exc:
+        resolve_model_name(None)
+    assert exc.value.code == 50000
+    assert exc.value.message == "internal error"
 
 
 def test_explicit_model_name_is_still_validated(session, monkeypatch):

@@ -15,9 +15,9 @@ from app.models import Prediction
 
 from tests.conftest import C1, C2, HEADERS
 
-# conftest 的 client 夹具预置了 xgb_v1 的两条预测；测试交付清单里另有 fixture_v1 / fixture_v2，
+# conftest 的 client 夹具预置了 fixture_v2 的两条预测；测试交付清单里另有 fixture_v1 / fixture_v2，
 # 其中 fixture_v2 才是 version_key 最大者 → 用它验证「冠军可覆盖 version_key 兜底」。
-XGB = "xgb_v1"
+XGB = "fixture_v2"
 LR = "fixture_v1"
 
 
@@ -72,7 +72,7 @@ def test_invalid_champion_is_40001_and_not_written(client):
     resp = _put_config(client, champion_model="not_delivered_v9")
     assert resp.status_code == 400
     assert resp.json()["code"] == 40001
-    # 未写入：仍是 version_key 兜底的 xgb_v1
+    # 未写入：仍是 version_key 兜底的 fixture_v2
     data = client.get("/api/config", headers=HEADERS).json()["data"]
     assert data["champion_model"] is None
 

@@ -41,10 +41,7 @@ def resolve_model_name(model_name: str | None) -> str:
     with SessionLocal() as session:
         name = champion.resolve(session)
     if name is None:
-        entry = model_registry.champion()
-        if entry is None:
-            raise AppError(50000, INTERNAL_ERROR_MESSAGE)
-        return entry.name
+        raise AppError(50000, INTERNAL_ERROR_MESSAGE)
     return name
 
 

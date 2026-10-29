@@ -51,21 +51,16 @@ def _seed_predictions(scores: dict[str, float], model: str = "fixture_v2") -> No
                         message="CAMEL-1 fix",
                     )
                 )
-            if (
+            row = (
                 session.query(Prediction)
                 .filter_by(commit_hash=commit_hash, model_name=model)
                 .first()
-                is None
-            ):
-                session.add(
-                    Prediction(
-                        commit_hash=commit_hash,
-                        model_name=model,
-                        risk_score=score,
-                        predicted_at=datetime(2026, 10, 25, 10, 0, 0),
-                        feature_version="v1",
-                    )
-                )
+            )
+            if row is None:
+                row = Prediction(commit_hash=commit_hash, model_name=model, feature_version="v1")
+                session.add(row)
+            row.risk_score = score
+            row.predicted_at = datetime(2026, 10, 25, 10, 0, 0)
         session.commit()
 
 
