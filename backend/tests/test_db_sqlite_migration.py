@@ -17,31 +17,60 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 from app import db
+from app.config import FEATURE_COLUMNS
 from app.db import Base, _apply_bcnf_migration, ensure_model_rows
 from sqlalchemy import create_engine, inspect, text
 
-# 只建到「迁移前」的形态：四表在、无 updated_at、无 model 表。
+# 「迁移前」的库形态：与 ORM 同列同可空性，只少 `updated_at`（也没有 `model` 表）。
+# 必须照着 ORM 的真实约束写 —— 重建路径会把旧数据拷进当前 ORM DDL，
+# 夹具若比真旧库松（例如漏了 NOT NULL），测的就不是真实迁移。
 # 表名一律加双引号：`commit` 在 SQLite 是保留字（不加引号直接 syntax error）。
+_FEATURE_COLS = ",\n        ".join(
+    f'"{name}" {"SMALLINT" if name == "fix" else "DECIMAL(20, 10)"} NOT NULL'
+    for name in FEATURE_COLUMNS
+)
 LEGACY_DDL = {
     "commit": """CREATE TABLE "commit" (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, commit_hash CHAR(40) NOT NULL UNIQUE,
-        repo_name VARCHAR(64), author_name VARCHAR(128), author_email VARCHAR(254),
-        message TEXT, committed_at DATETIME, parent_hash VARCHAR(255))""",
+        id INTEGER NOT NULL PRIMARY KEY,
+        repo_name VARCHAR(64) NOT NULL,
+        commit_hash CHAR(40) NOT NULL,
+        author_name VARCHAR(128) NOT NULL,
+        author_email VARCHAR(128),
+        committed_at DATETIME NOT NULL,
+        message TEXT NOT NULL,
+        parent_hash CHAR(40),
+        UNIQUE (commit_hash))""",
     "commit_label": """CREATE TABLE "commit_label" (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, commit_hash CHAR(40) NOT NULL,
-        is_bug_inducing BOOLEAN, label_method VARCHAR(32), bug_fix_hash CHAR(40),
-        labeled_at DATETIME, UNIQUE (commit_hash, label_method))""",
-    "commit_feature": """CREATE TABLE "commit_feature" (
-        commit_hash CHAR(40) PRIMARY KEY, committed_at DATETIME,
-        feature_version VARCHAR(32), ns DECIMAL(20,10))""",
+        id INTEGER NOT NULL PRIMARY KEY,
+        commit_hash CHAR(40) NOT NULL,
+        is_bug_inducing SMALLINT NOT NULL,
+        label_method VARCHAR(32) NOT NULL,
+        bug_fix_hash CHAR(40),
+        labeled_at DATETIME NOT NULL,
+        CONSTRAINT uq_label_hash_method UNIQUE (commit_hash, label_method))""",
+    "commit_feature": f"""CREATE TABLE "commit_feature" (
+        commit_hash CHAR(40) NOT NULL PRIMARY KEY,
+        committed_at DATETIME NOT NULL,
+        feature_version VARCHAR(32) NOT NULL,
+        {_FEATURE_COLS})""",
     "prediction": """CREATE TABLE "prediction" (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, commit_hash CHAR(40) NOT NULL,
-        risk_score DECIMAL(6,5), model_name VARCHAR(64) NOT NULL,
-        predicted_at DATETIME, feature_version VARCHAR(32),
-        UNIQUE (commit_hash, model_name))""",
+        id INTEGER NOT NULL PRIMARY KEY,
+        commit_hash CHAR(40) NOT NULL,
+        model_name VARCHAR(64) NOT NULL,
+        risk_score DECIMAL(6, 5) NOT NULL,
+        predicted_at DATETIME NOT NULL,
+        feature_version VARCHAR(32) NOT NULL,
+        CONSTRAINT uq_prediction_hash_model UNIQUE (commit_hash, model_name))""",
 }
+# 旧库上已有的索引（重建时会先删掉再按 ORM 规范名重建，用来验证这条路径）
+LEGACY_INDEXES = [
+    'CREATE INDEX ix_commit_committed_at ON "commit" (committed_at)',
+    "CREATE INDEX ix_prediction_commit_hash ON prediction (commit_hash)",
+]
 
 
 @pytest.fixture
@@ -55,15 +84,20 @@ def legacy_sqlite_engine(tmp_path):
     with eng.begin() as conn:
         for ddl in LEGACY_DDL.values():
             conn.execute(text(ddl))
+        for ddl in LEGACY_INDEXES:
+            conn.execute(text(ddl))
         conn.execute(
-            text("INSERT INTO \"commit\" (commit_hash, committed_at) VALUES (:h, '2020-01-01')"),
+            text(
+                'INSERT INTO "commit" (id, repo_name, commit_hash, author_name, committed_at, '
+                "message) VALUES (1, 'camel', :h, 'jdoe', '2020-01-01 00:00:00', 'CAMEL-1 fix')"
+            ),
             {"h": "a" * 40},
         )
         for name in ("xgb_v1", "lr_v1"):
             conn.execute(
                 text(
-                    'INSERT INTO "prediction" (commit_hash, model_name, risk_score) '
-                    "VALUES (:h, :m, 0.5)"
+                    'INSERT INTO "prediction" (commit_hash, model_name, risk_score, '
+                    "predicted_at, feature_version) VALUES (:h, :m, 0.5, '2026-01-01 00:00:00', 'v1')"
                 ),
                 {"h": "a" * 40, "m": name},
             )
@@ -142,3 +176,72 @@ def test_fresh_sqlite_db_still_needs_no_migration_steps(tmp_path):
     _apply_bcnf_migration(eng)
     after = {t: sorted(_columns(eng, t)) for t in inspect(eng).get_table_names()}
     assert before == after, "全新库上迁移改动了结构，说明不幂等"
+
+
+def test_migrated_column_default_matches_orm(legacy_sqlite_engine):
+    """评审要求：迁移后列默认值必须与 models.py 的 CURRENT_TIMESTAMP 一致。
+
+    SQLite 不能改已有列的默认值，所以这里走「按 ORM DDL 重建表」；
+    用常量默认值建列的话，之后任何未显式赋值的新行都会落成 1970-01-01。
+    """
+    _apply_bcnf_migration(legacy_sqlite_engine)
+    with legacy_sqlite_engine.begin() as conn:
+        for table in LEGACY_DDL:
+            dflt = conn.execute(
+                text(
+                    'SELECT dflt_value FROM pragma_table_info(:t) WHERE name="updated_at"'
+                ).bindparams(t=table)
+            ).scalar()
+            assert "CURRENT_TIMESTAMP" in (dflt or "").upper(), (
+                f"{table}.updated_at 的列默认值是 {dflt!r}，与 ORM 的 server_default 不一致"
+            )
+
+
+def test_insert_after_migration_gets_current_time_not_epoch(legacy_sqlite_engine):
+    """评审要求的 INSERT 回归：迁移后新写入行拿到当前时间，而不是 1970 常量。"""
+    _apply_bcnf_migration(legacy_sqlite_engine)
+    stamp = "e" * 40
+    with legacy_sqlite_engine.begin() as conn:
+        conn.execute(
+            text(
+                'INSERT INTO "prediction" (commit_hash, model_name, risk_score, '
+                "predicted_at, feature_version) VALUES (:h, :m, 0.5, :p, :v)"
+            ),
+            {"h": stamp, "m": "xgb_v1", "p": "2026-01-01 00:00:00", "v": "v1"},
+        )
+        got = str(
+            conn.execute(
+                text('SELECT updated_at FROM "prediction" WHERE commit_hash = :h'),
+                {"h": stamp},
+            ).scalar()
+        )
+    year = datetime.now().year
+    assert got.startswith(str(year)), f"新行 updated_at={got}，仍是常量默认值而不是当前时间"
+    assert "1970" not in got
+
+
+def test_rebuild_preserves_rows_and_unique_constraint(legacy_sqlite_engine):
+    """重建表不能丢数据、也不能丢唯一约束（prediction 的幂等靠它）。"""
+    with legacy_sqlite_engine.begin() as conn:
+        before = conn.execute(text('SELECT COUNT(*) FROM "prediction"')).scalar()
+    _apply_bcnf_migration(legacy_sqlite_engine)
+    with legacy_sqlite_engine.begin() as conn:
+        after = conn.execute(text('SELECT COUNT(*) FROM "prediction"')).scalar()
+        assert after == before == 2, "重建后行数变了"
+        assert (
+            conn.execute(
+                text('SELECT COUNT(*) FROM "commit" WHERE commit_hash = :h'), {"h": "a" * 40}
+            ).scalar()
+            == 1
+        )
+    # 唯一约束仍在：同 (commit_hash, model_name) 再插一行必须被拒
+    with pytest.raises(Exception) as exc:
+        with legacy_sqlite_engine.begin() as conn:
+            conn.execute(
+                text(
+                    'INSERT INTO "prediction" (commit_hash, model_name, risk_score, '
+                    "predicted_at, feature_version) VALUES (:h, :m, 0.5, :p, :v)"
+                ),
+                {"h": "a" * 40, "m": "xgb_v1", "p": "2026-01-01", "v": "v1"},
+            )
+    assert "UNIQUE" in str(exc.value).upper(), f"唯一约束在重建后丢失：{exc.value}"
