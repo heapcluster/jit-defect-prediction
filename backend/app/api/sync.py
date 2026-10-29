@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
-from app import config
+from app import config, model_registry
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import INTERNAL_ERROR_MESSAGE, AppError, ok
@@ -55,34 +55,67 @@ _sync_lock = sync_state._sync_lock
 # plan(repo_dir) → (scanned, pending, truncated)；truncated 为 None 表示该场景不截断
 
 
-_AUTO = object()  # 哨兵：不传就按全站默认模型解析，传 None 才表示「任意模型有行即算已完成」
+_AUTO = object()  # 哨兵：不传 = 按当前已加载模型集合判断覆盖缺口
+
+
+def _loaded_model_names() -> set[str]:
+    """本批要对齐的在线模型集合。
+
+    注册表为空（全部加载失败）时无从判断“全模型覆盖”，退回有效默认模型单模型判据，
+    避免把整批候选当成缺口反复重试；默认模型解析与读路径同源于 `services.champion`。
+    """
+    names = {entry.name for entry in model_registry.all_models()}
+    if names:
+        return names
+    with SessionLocal() as session:
+        default = champion.resolve(session)
+    return {default} if default else set()
 
 
 def _unpredicted(
-    hashes: list[str], limit: int | None = None, model_name: str | None | object = _AUTO
+    hashes: list[str], limit: int | None = None, models: set[str] | str | None | object = _AUTO
 ) -> tuple[list[str], bool]:
-    """按输入顺序挑出「有效默认模型尚无 prediction 行」的哈希；分批 IN，不整表载入。
+    """按输入顺序挑出「在线模型覆盖不全」的哈希；分批 IN，不整表载入。
 
-    判据必须带 `model_name`：不带时，只要某提交被任何模型预测过（例如有人先对
-    它调过一次 `POST /api/predict`）就被永久跳过，其余在线模型再也补不上，
-    与 change `realtime-commit-sync` 的「全模型落库」相反，且与列表口径脱节。
-    默认模型解析与列表 / 详情 / 趋势 / 门禁同源于 `services.champion`。
+    `models` 三种取值：
+    - `_AUTO`（默认）：当前**已加载模型集合**，缺任一模型的行即算待预测 —— 这是
+      change `realtime-commit-sync`「全模型落库」的判据。只看默认模型不够：某提交
+      已有默认模型行、却缺其余在线模型行时会被永久跳过，补齐永远不会发生。
+    - `str` / 集合：按指定模型（集合）判断，供定向补齐与测试使用。
+    - `None`：旧语义「任意模型有行即算完成」，仅显式传入时生效。
 
     `limit` 非空时最多返回 limit 条，并在「还有更多」时把第二项置为 True。
     """
     pending: list[str] = []
-    if model_name is _AUTO:
-        with SessionLocal() as session:
-            model_name = champion.resolve(session)
+    wanted: set[str] | None
+    if models is _AUTO:
+        wanted = _loaded_model_names()
+    elif isinstance(models, str):
+        wanted = {models}
+    else:
+        wanted = set(models) if models is not None else None
     with SessionLocal() as session:
         for start in range(0, len(hashes), _PREDICTED_CHUNK):
             chunk = hashes[start : start + _PREDICTED_CHUNK]
-            stmt = select(Prediction.commit_hash).where(Prediction.commit_hash.in_(chunk))
-            if model_name is not None:
-                stmt = stmt.where(Prediction.model_name == model_name)
-            predicted = {row[0] for row in session.execute(stmt.distinct())}
+            if wanted is None:
+                rows = session.execute(
+                    select(Prediction.commit_hash)
+                    .where(Prediction.commit_hash.in_(chunk))
+                    .distinct()
+                )
+                covered = {row[0] for row in rows}
+            else:
+                rows = session.execute(
+                    select(Prediction.commit_hash, Prediction.model_name).where(
+                        Prediction.commit_hash.in_(chunk)
+                    )
+                )
+                have: dict[str, set[str]] = {}
+                for commit_hash, model_name in rows:
+                    have.setdefault(commit_hash, set()).add(model_name)
+                covered = {h for h, names in have.items() if wanted <= names}
             for commit_hash in chunk:
-                if commit_hash in predicted:
+                if commit_hash in covered:
                     continue
                 if limit is not None and len(pending) >= limit:
                     return pending, True
@@ -91,7 +124,7 @@ def _unpredicted(
 
 
 def _predicted_among(hashes: list[str]) -> set[str]:
-    """给定哈希里已有 prediction 行的子集（供 pick_hashes_to_predict 做纯函数过滤）。"""
+    """给定哈希里**在线模型已覆盖全**的子集（供 pick_hashes_to_predict 做纯函数过滤）。"""
     pending, _ = _unpredicted(hashes)
     return set(hashes) - set(pending)
 

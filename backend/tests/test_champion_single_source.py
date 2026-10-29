@@ -6,8 +6,9 @@
    表内一行都没有 → 注册表冠军）。
 2. 单条预测的默认模型与列表同源：`resolve_model_name(None)` 必须走同一个 `champion.resolve`，
    不得自己再读一遍注册表（否则冠军还没补齐数据时，列表按 A 模型排、predict 按 B 模型打分）。
-3. `sync` 的「待预测」判据必须带 `model_name`：只要某提交被**任意**模型预测过就跳过，
-   会让其余在线模型永远补不上，与 change `realtime-commit-sync` 的「全模型落库」相反。
+3. `sync` 的「待预测」判据按**在线模型集合**判断覆盖缺口：只要缺任一已加载模型的行就算待预测。
+   改动前是「任意模型有行即跳过」，先被某个模型预测过的提交永远补不齐其余在线模型，
+   与 change `realtime-commit-sync` 的「全模型落库」相反。
 """
 
 from __future__ import annotations
@@ -124,29 +125,45 @@ def test_explicit_model_name_is_still_validated(session, monkeypatch):
     assert getattr(exc.value, "code", None) == 40001
 
 
-def test_sync_pending_is_model_aware(session, monkeypatch):
-    """H1 只有 lr_v1 行、H2 只有 xgb_v1 行：默认模型=lr_v1 时，H2 必须仍算待预测。
+def test_sync_pending_covers_every_loaded_model(session, monkeypatch):
+    """评审要求的回归：默认模型已有行、但另一在线模型缺行 → 仍算待预测。
 
-    改动前判据不带 model_name（`SELECT commit_hash … distinct`），H2 会被当成已完成，
-    于是「先被某个模型预测过的提交」永远不会被补齐到默认模型 —— 全模型落库形同虚设。
+    只看默认模型时，这类提交会被永久跳过，`predict_commit_all_models` 再也不会被调用，
+    change `realtime-commit-sync` 的「全模型落库」形同虚设。
     """
-    _as_champion(monkeypatch, "lr_v1")
+    _as_champion(monkeypatch, "lr_v1", loaded={"lr_v1", "xgb_v1"})
     with db.SessionLocal() as s:
         s.add(_row(H3, "lr_v1", 0.7))
+        s.add(_row(H3, "xgb_v1", 0.7))
         s.commit()
     pending, truncated = sync_api._unpredicted([H1, H2, H3])
-    assert pending == [H2], "只有默认模型无行的提交才该进待预测队列"
+    assert pending == [H1, H2], "H1 缺 xgb_v1、H2 缺 lr_v1，都必须补齐；H3 两个模型都有行"
     assert truncated is False
+
+
+def test_sync_pending_single_model_target(session, monkeypatch):
+    """显式指定单个模型 = 只补该模型的缺口（定向补齐/测试用）。"""
+    _as_champion(monkeypatch, "lr_v1", loaded={"lr_v1", "xgb_v1"})
+    pending, _ = sync_api._unpredicted([H1, H2, H3], models="lr_v1")
+    assert pending == [H2, H3], "只有缺 lr_v1 行的提交才进队列"
 
 
 def test_sync_pending_explicit_none_keeps_legacy_any_model_semantics(session):
     """传 None = 显式要「任意模型有行即算完成」，与 AUTO 区分开，别把两种语义混掉。"""
-    pending, _ = sync_api._unpredicted([H1, H2, H3], model_name=None)
+    pending, _ = sync_api._unpredicted([H1, H2, H3], models=None)
     assert pending == [H3]
+
+
+def test_sync_pending_falls_back_to_default_model_when_registry_empty(session, monkeypatch):
+    """注册表为空时无从判断“全模型覆盖”，退回有效默认模型判据，不把整批当缺口。"""
+    monkeypatch.setattr(model_registry, "_REGISTRY", {})
+    _as_champion(monkeypatch, "lr_v1", loaded={"lr_v1"})
+    pending, _ = sync_api._unpredicted([H1, H2, H3])
+    assert pending == [H2, H3]
 
 
 def test_sync_pending_limit_truncates_and_reports_more(session):
     """三条都没有 tabnet_v1 行 → 全是待预测；limit 截断时要如实置 truncated。"""
-    pending, truncated = sync_api._unpredicted([H1, H2, H3], limit=2, model_name="tabnet_v1")
+    pending, truncated = sync_api._unpredicted([H1, H2, H3], limit=2, models="tabnet_v1")
     assert pending == [H1, H2]
     assert truncated is True, "还有剩余时必须报 truncated，否则「补齐到最新」会静默少补"

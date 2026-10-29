@@ -65,7 +65,7 @@
 ### 5. `POST /api/sync` —— 批量同步最新提交并在线预测（change `realtime-commit-sync`）
 请求：`limit`（默认 10，上限 50，越界 `40001`）。
 响应 `data`：`tip`（本次同步到的最新提交哈希）/ `scanned` / `new` / `predicted[]`（每项 `commit_hash` `model_name` `risk_score`）/ `skipped[]`（每项 `commit_hash` `code` `message`）。
-- 行为：对服务端 `SOURCE_REPO` 执行 `git fetch`（经命令行参数禁用代理）→ 确保最新提交 HEAD 可达 → 挑出**有效默认模型（§17）尚无 `prediction` 行**的哈希 → **逐条复用第 4 节单条链路**（现算特征、幂等写 `prediction`，一次写全部在线模型行）；本端点 MUST NOT 引入新的预测口径。判据 MUST NOT 只看「该提交是否被任意模型预测过」：那会让先被某个模型预测过的提交永久跳过，其余在线模型再也补不上。
+- 行为：对服务端 `SOURCE_REPO` 执行 `git fetch`（经命令行参数禁用代理）→ 确保最新提交 HEAD 可达 → 挑出**在线模型集合尚未覆盖全**的哈希（缺任一已加载模型的 `prediction` 行即算待预测；注册表为空时退回 §17 的有效默认模型单模型判据）→ **逐条复用第 4 节单条链路**（现算特征、幂等写 `prediction`，一次写全部在线模型行）；本端点 MUST NOT 引入新的预测口径。判据 MUST NOT 只看「该提交是否被任意模型预测过」或「是否有默认模型行」：那会让先被某个模型预测过的提交永久跳过，其余在线模型再也补不上。
 - `SOURCE_REPO` 未配置 → `40400`；单条失败（如提交不可达）计入 `skipped` 不中断整批；无新提交时幂等返回 `new=0`；同一时刻仅允许一个同步任务，重入 → `50000`。
 - 可选 `SYNC_ON_STARTUP=1`：服务启动后台预同步一次，失败只记日志不阻塞启动。
 - **不做 PR 状态跟踪与删除**（预测对象是 commit；close/merged 的生命周期标记另行 change）。
@@ -177,7 +177,7 @@
 
 | 日期 | 版本 | 变更人 | 主要变更 |
 |---|---|---|---|
-| 2026-10-28 | 2.3 | 后端线（吕建江） | **默认模型口径落到全部写入路径**：§5 同步判据改为「有效默认模型（§17）尚无 `prediction` 行」（原实现只看"任意模型有行即算已预测"，导致先被 `POST /api/predict` 打过的提交被永久跳过、其余在线模型补不上，与 change `realtime-commit-sync` 的全模型落库相反）；§17 补记**降级规则**与「列表/详情/趋势/门禁/§4/§5 共用同一处实现」（`backend/app/services/champion.py`），此前 §4 与读路径各解一次，冠军刚切换且尚无数据时同一提交会得到两份分、两个模型名 |
+| 2026-10-28 | 2.3 | 后端线（吕建江） | **默认模型口径落到全部写入路径**：§5 同步判据改为「**在线模型集合尚未覆盖全**即待预测」（原实现只看"任意模型有行即算已预测"，先被 `POST /api/predict` 打过的提交会被永久跳过；仅按默认模型判断也不够——默认模型有行而其余在线模型缺行时同样会被跳过，与 change `realtime-commit-sync` 的全模型落库相反）；§17 补记**降级规则**与「列表/详情/趋势/门禁/§4/§5 共用同一处实现」（`backend/app/services/champion.py`），此前 §4 与读路径各解一次，冠军刚切换且尚无数据时同一提交会得到两份分、两个模型名 |
 | 2026-10-27 | 2.2 | 后端线（吕建江） | **默认模型口径统一**：§4 单条预测、§7/§8 PR 查询、§19 门禁全部改读冠军模型（`champion_model`，未配置回退 `version_key` 最大者），修正此前「列表/详情/趋势走 champion、predict/门禁走 version_key」的双轨；**§1 登记 `q` 搜索参数**（哈希前缀/作者/提交信息，≤64 字符）；**§14 指标更名** `false_positive_rate` → `false_discovery_rate`（原实现是 `fp/(tp+fp)`＝1−precision，与 FPR 口径不同）；**§20 补 `WEBHOOK_PR_LIMIT`**。实现侧：catchup 差集改分批 SQL、webhook 去重改为「受理成功才登记」、git 仅对网络类错误重试 |
 | 2026-10-27 | 2.1 | 后端线（吕建江） | **§14 质量视图补 `label_source` 入参与误拦指标**（`manual` 默认 / `szz` 仅对照，非法值 `40001`）；**§20 webhook 增加投递去重**：登记 `X-GitHub-Delivery` 请求头与 `duplicate` 响应字段，重复投递 `duplicate=true` 且不再派发后台同步 |
 | 2026-10-27 | 2.0 | 后端线（吕建江） | **新增 §17~§20 运维加固四条（组）端点**（change `ops-hardening`）：§17 `GET/PUT /api/config` 阈值热更新、§18 `health/live`/`health/ready` 探针拆分、§19 `GET /api/prs/{number}/gate` CI 门禁、§20 `POST /api/webhook/github` 事件驱动（HMAC 验签）。§四安全行补记 webhook 的签名鉴权机制 |
