@@ -43,7 +43,7 @@
 
 - `semantic-features`：预训练语义特征提取、三类设置对比、契约边界与降级策略。规格见 `specs/semantic-features/spec.md`（7 Requirement / 10 Scenario）。
 
-## 影响与边界
+## Impact（影响与边界）
 
 | 项 | 内容 |
 |---|---|

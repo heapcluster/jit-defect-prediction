@@ -26,7 +26,7 @@
 - `public-dataset`：公开 JIT 数据集加载、质量治理与基线对照。
 - ~~`semantic-feature`~~：**已移出**至 change `semantic-feature-mainline`（capability 改名 `semantic-features`，规格更完整）。
 
-## 影响与边界
+## Impact（影响与边界）
 | 项 | 内容 |
 |---|---|
 | 影响目录 | frontend/（详情页）、data_model/（可选检索脚本、数据集加载器、语义特征提取） |
