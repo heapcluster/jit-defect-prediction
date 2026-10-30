@@ -4,7 +4,7 @@
 
 ## 合入门禁
 
-仓库只保留一条 GitHub Actions 工作流、一个 job，名称均为「应用运行与核心回归」。它在 PR、`main` 推送、merge queue 和手动触发时运行；任一命令失败，检查失败。合入仍须按仓库规则由非作者审阅，CI 不自动审批。
+仓库只保留一条 GitHub Actions 工作流、一个 job。工作流显示名称是「应用运行与核心回归」，job 的必需检查标识保持 `CI`，让既有 PR 不必为改名全部重跑。它在 PR、`main` 推送、merge queue 和手动触发时运行；任一命令失败，检查失败。合入仍须按仓库规则由非作者审阅，CI 不自动审批。
 
 | 阶段 | 执行内容 | 防止的问题 |
 |---|---|---|
@@ -22,8 +22,8 @@ CI 通过只说明这些可自动运行的检查在该提交通过，不能保�
 
 只读 PR 自动审阅原型的脚本保留在 `infra/pr_auto_review.py`，但其自动触发工作流已移除；CodeQL 定时扫描工作流也已移除。如需恢复安全扫描，应另行明确触发方式与责任人。
 
-## 检查名称迁移
+## 合入检查
 
-GitHub ruleset 的必需检查依据 **job 名称**，因此把 `CI` 改为「应用运行与核心回归」后，必须在该 PR 的新检查出现时同步更新 `protect_main` ruleset：仅要求新的 GitHub Actions 检查，保留原有一位非作者批准、禁止强推和禁止删除。修改规则后回读设置，并核验 PR 新检查全绿，再合入。旧 PR 需要同步最新 `main` 后重跑。
+GitHub ruleset 的必需检查依据 **job 名称**。本次保持 `CI`（来源 GitHub Actions）不变，只改工作流显示名称。合入前回读 `protect_main` ruleset，确认仍要求 1 位非作者批准、禁止强推和删除，无 bypass；PR 上 `CI` 全绿后再合入。既有 PR 不会因名称迁移出现永久等待。
 
 本地复现与具体依赖准备见 `docs/common/local-runbook.md`。历史 CI 故障与证据见 `infra/ci-validation.md`。

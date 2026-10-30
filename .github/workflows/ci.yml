@@ -17,8 +17,8 @@ concurrency:
 
 jobs:
   ci:
-    # ruleset 的必需检查须同步改为此 job 名；仓库只保留这一条工作流。
-    name: 应用运行与核心回归
+    # 保留 ruleset 的必需检查标识 CI，避免既有 PR 因检查名迁移而卡住。
+    name: CI
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     # 后端测试套件依赖 MySQL（conftest 的 session 级 engine 读 DATABASE_URL 指向 jit_test）：

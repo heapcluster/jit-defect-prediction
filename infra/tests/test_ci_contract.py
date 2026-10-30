@@ -15,7 +15,7 @@ class CIContractTests(unittest.TestCase):
         self.assertIn("name: 应用运行与核心回归\n", WORKFLOW)
         jobs = WORKFLOW.split("\njobs:\n", 1)[1]
         self.assertEqual(re.findall(r"^  ([a-z_]+):$", jobs, re.MULTILINE), ["ci"])
-        self.assertIn("    name: 应用运行与核心回归\n", jobs)
+        self.assertIn("    name: CI\n", jobs)
 
     def test_runtime_checks_are_unconditional(self):
         for name, command in (
