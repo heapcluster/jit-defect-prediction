@@ -62,7 +62,7 @@
 > **集成测试**在大版本合并后做、**验收测试**在交付时做，非功能验证并行。
 > 铁律：**勾了 tasks ≠ 功能合格，必须有可复现的运行证据。**
 
-### 1. 单元测试（本 change 新增/改动代码的作者负责）
+### 1. 单元测试
 | 项 | 内容 |
 |---|---|
 | 覆盖对象 | ① `budget_order`/`effort_aware_metrics` 的评审下限按口径取值与无下限跳过；② 报告结论由本轮 `results` 计算（非负、子集两形态）；③ 三线 `DEFAULT_MODELS`=8 且 `MODEL_NAMES`=12；④ `semantic`/`fused` 报告标题取实际训练数；⑤ `--from-saved` 报告与图表双隔离 |
@@ -72,7 +72,7 @@
 | 正向用例 | LOC 口径 floor=10 按行挡、nf 口径 floor=2 按文件挡（`test_floor_unit_follows_effort_unit`）；`--from-saved` 图表落 `figs_from_saved/` 且权威 `figs/` 哨兵文件逐字节不变（`test_from_saved_isolation.py`） |
 | 异常 / 边界用例 | nf 口径误用 floor=10 → 全部被判「太小」、排序退化为按分数（`test_floor_unit_follows_effort_unit` 末段断言）；P_norm 全非负 → 报告不出现「全为负」且不写死模型名（`test_narrative_does_not_claim_all_negative_when_results_are_positive`）；`--models lr` 子集 → 报告只含 `lr`（`test_narrative_scales_to_model_subset`） |
 
-### 2. 集成测试（大版本合并后，由负责合入的一条线组织）
+### 2. 集成测试
 | 项 | 内容 |
 |---|---|
 | 集成范围 | 训练入口 ↔ 05 时间序切分产物 ↔ 03 原始特征表（effort 列）↔ 交付清单 `models/feature_order.txt` |
@@ -81,7 +81,7 @@
 | 复现命令 | `cd data_model && python -m pipelines.expert.train --from-saved --models lr`（隔离验证）；`python -m pipelines.expert.matrix`（与基线报告逐项比对） |
 | 关键断言 | ① 训练/检验 `commit_hash` 交集为空，人为构造交集时退出码 2 且不写任何报告（泄漏闸门）；② `--from-saved` 运行后 `reports/model_metrics.md` mtime 不变、`reports/figs/` 在 `git status` 中零改动；③ `models/feature_order.txt` 的 `[models]` 段仍为 `lr/rf/xgb`（交付清单不随训练口径变化） |
 
-### 3. 验收测试（交付时，按 `specs/model-training-scope/spec.md` 的 Scenario 逐条走）
+### 3. 验收测试
 | 项 | 内容 |
 |---|---|
 | 验收依据 | `specs/model-training-scope/spec.md` 的 4 条 Requirement + 6 个 Scenario |
@@ -89,7 +89,7 @@
 | 复现命令 / 步骤 | ① 8 分类器：`grep -A2 "DEFAULT_MODELS" data_model/pipelines/{expert,semantic,fused}/config.py` 三处逐字相同；② 预算口径：`reports/model_metrics.md` §2 每模型 3 行且「20% 预算审到的条数」有值；③ 结论计算：`--models lr` 子集重跑报告只含 `lr`；④ 权威指标：`reports/model_metrics.md`「数据与参数」段 58,760 / 25,183 与 `preparation/reports/split_stats.md` 一致 |
 | 证据归档 | `data_model/pipelines/expert/reports/model_metrics.md`、`data_model/pipelines/expert/reports/model_matrix.md`、`data_model/ENVIRONMENT.md` §5、`data_model/pipelines/expert/models/feature_order.txt` |
 
-### 4. 非功能验证（本 change 触及则必填，否则写「本 change 不触及」）
+### 4. 非功能验证
 | 维度 | 是否触及 | 证据 |
 |---|---|---|
 | 性能 | 否 | 训练为离线批处理，不触及接口 SLA |

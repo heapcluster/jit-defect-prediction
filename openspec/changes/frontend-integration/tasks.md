@@ -1,3 +1,10 @@
+# frontend-integration — 任务清单
+
+> 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/risk-list/spec.md`、`specs/commit-detail/spec.md`、`specs/trend-board/spec.md`、`specs/frontend-error-envelope/spec.md`
+> 负责人：frontend 刘帅华 ｜ 创建：2026-10-09 ｜ 状态：进行中（4.3/4.4 尚未勾选）
+> 用户故事：F2 / F3 / F4
+> 统一格式见 `docs/common/openspec-task-template.md`；末尾「测试与验证」为强制板块。
+
 ## 1. 页面实现
 
 - [x] 1.1 风险列表页 `RiskList.vue`：筛选（model_name / min_risk / 时间范围）+ 表格 + 分页 + 点击行跳详情
@@ -23,9 +30,26 @@
 - [ ] 4.3 提交 PR 并写明关联 change id `frontend-integration`，由非作者审阅合入
 - [ ] 4.4 回飞书看板更新任务状态
 
-## 5. 测试与验证
+## 测试与验证（强制板块）
 
-### 5.1 场景覆盖矩阵
+### 1. 单元测试
+
+- 覆盖对象：三页面的加载、空数据、错误码分发和日期筛选；测试文件位于 `frontend/tests/`。
+- 复现命令：在 `frontend/` 运行 `npm run test:unit`。本节是测试入口，不把历史构建成功写成当前提交的单测通过；当前结果以 CI 为准。
+- 正向与边界：列表数据展示、缺失结果与非法参数提示均需有具体断言。浏览器取证缺口见下文及 `docs/frontend/evidence/tf-fe-01-screenshots.md`。
+
+### 2. 集成测试
+
+- 范围：前端请求封装与 `GET /api/commits`、`GET /api/commits/{hash}`、`GET /api/trends`、`POST /api/predict` 的响应契约。
+- 复现步骤：按 `docs/frontend/integration-log.md` §0 起前后端服务，逐一核对正常响应、缺少 `X-API-Key` 的 40100、详情不存在的 40400 和服务错误的 50000。
+- 历史联调结果见 `docs/frontend/integration-log.md`；本次格式整理未重新执行联调。
+
+### 3. 验收测试
+
+- 验收依据：`specs/risk-list/spec.md`、`specs/commit-detail/spec.md`、`specs/trend-board/spec.md`、`specs/frontend-error-envelope/spec.md` 的 Scenario。
+- 提案结构复现命令：`openspec validate frontend-integration --strict --no-interactive`；页面现场走查按 `docs/frontend/evidence/tf-fe-01-screenshots.md` 执行。
+
+#### 场景覆盖矩阵（实现范围，非现场通过率）
 
 > 下表是**实现覆盖**（代码里有没有做）。**浏览器取证覆盖**是另一张表，见 `docs/frontend/evidence/tf-fe-01-screenshots.md`「覆盖范围」——两表不要混用，截图只证明了其中部分格子。
 
@@ -50,14 +74,14 @@
 | 粒度切换不查询就下钻 | ✅ 下钻用 loadedGranularity（已加载粒度） |
 | 并发乱序响应 | ✅ requestId 防过期，粒度与 series 一起提交 |
 
-### 5.2 验证清单
+#### 历史验证清单
 
 - [x] 5.2.1 `npm run build` 通过 —— 判据：exit 0 且输出 `✓ built`
 - [x] 5.2.2 `npm run lint` 0 error —— 判据：exit 0 且无 error / warning
 - [x] 5.2.3 `openspec validate --changes frontend-integration` 通过 —— 判据：显示 valid
 - [x] 5.2.4 前后端联调 —— 判据：带 `X-API-Key` 请求 `GET /api/commits` 返回 `code=0` 且有 `items`；无 key 返回 401
 
-### 5.3 执行证据
+#### 历史执行证据
 
 | 项 | 证据 |
 |---|---|
@@ -68,11 +92,18 @@
 | 联调证据 | `GET /api/commits?page=1&size=3`（`X-API-Key: dev-token-*`）→ `{"code":0,...,"items":[...3 条]}`；无 key → HTTP 401；详情 `GET /api/commits/{hash}`、趋势 `GET /api/trends` 同链路可达 |
 | 完整联调记录 | `docs/frontend/integration-log.md`（含请求、脱敏响应、预期/实际结果、启动命令） |
 
-### 5.4 阻断 / 不适用说明
+### 4. 非功能验证
+
+- 易用性涉及加载、空数据与错误提示，实景截图只证明已覆盖场景；未取证场景不得算通过。
+- 本 change 未登记独立性能测量；页面构建成功不能代替接口性能验收。
+
+### 5. 已知缺口与后续计划
+
+#### 阻断 / 不适用说明
 
 - **阻断（已解除）**：#62（时间范围闭区间语义）已于 2026-10-16 合入，前端送纯日期的端到端含当天行为可验证。
 - **范围变更**：`POST /api/predict` 原标注「无页面依赖」，现已在详情页加「重新预测」入口（`postPredict` + 模型下拉），纳入本 change；结果一次性展示（刷新回到默认模型），联调见 integration-log.md API-04 节。
 
-### 5.5 落地结论
+#### 落地结论与缺口
 
 F2/F3 已落地（三页面 + 提案 + 规格）；F4 后端联调已打通（API-01~04 + 鉴权均验证，含 predict 真模型推理）；浏览器人工冒烟**已部分完成**——9 张场景截图见 `docs/frontend/evidence/tf-fe-01-screenshots.md` 与 PR #117，覆盖风险列表 4 / 提交详情 3 / 趋势看板 2，**未取证项**见该文件同名章节（详情页加载中、趋势看板加载中与空数据、契约错误码 40001/40100/50000 的前端分发）。联调记录见 `docs/frontend/integration-log.md`。
