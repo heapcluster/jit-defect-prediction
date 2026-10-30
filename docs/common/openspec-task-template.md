@@ -80,6 +80,14 @@
 - **进行中的 2 份**（`frontend-integration`、`feature-addons-sprint3`）：补齐板块，且缺口必须如实列出（如前端三页面尚未 lint/build 实跑、未联调）。
 - 回溯补录**只记已发生的验证**；当时没做的，写进 §5 已知缺口，**不许倒填**。
 
+## 5. 归档前自检（archive 前逐条打勾）
+
+1. `tasks.md` 是否含完整的「测试与验证」板块，且三层测试各有可复现命令？
+2. `specs/<cap>/spec.md` 的每条 SHALL/MUST 是否都有对应测试或验收证据？
+3. 测试命令是否在 CI 或 `docs/common/test-strategy.md` §4 的入口里能跑通？
+4. 证据文件是否已归档到 `backend/scripts/evidence/` 或 `data_model/reports/`，路径是否可点？
+5. 已知缺口是否已同步到看板与周报？
+
 ## 6. PR 审阅时的 openspec 检查清单（把关人：苏哲勋）
 
 > 2026-10-13 组长指派：每人写完自己的 openspec 后，由**苏哲勋统一把关风格与格式**（他负责 PR 审阅与仓库管理）。
@@ -113,11 +121,3 @@
 - **Comment**：仅建议、不阻塞。
 
 > 若同一类格式问题在 3 个以上 PR 反复出现，先回来改**本模板**（把规则写得更可执行），而不是每次口头打回。
-
-## 5. 归档前自检（archive 前逐条打勾）
-
-1. `tasks.md` 是否含完整的「测试与验证」板块，且三层测试各有可复现命令？
-2. `specs/<cap>/spec.md` 的每条 SHALL/MUST 是否都有对应测试或验收证据？
-3. 测试命令是否在 CI 或 `docs/common/test-strategy.md` §4 的入口里能跑通？
-4. 证据文件是否已归档到 `backend/scripts/evidence/` 或 `data_model/reports/`，路径是否可点？
-5. 已知缺口是否已同步到看板与周报？
