@@ -3,6 +3,7 @@ name: PR auto-review prototype
 on:
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
 
 # This workflow only runs trusted base-branch code. Never check out PR head here.
 # No model credentials and no permission to submit a GitHub review.
@@ -11,12 +12,20 @@ permissions:
   pull-requests: read
   checks: read
 
+concurrency:
+  group: pr-review-dry-run-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   dry-run:
-    runs-on: ubuntu-latest
+    name: Read-only PR review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout trusted base
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
       - name: Evaluate review gates without publishing
         env:
