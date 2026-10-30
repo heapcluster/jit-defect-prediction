@@ -50,7 +50,7 @@ npm install --global @fission-ai/openspec@1.11.0 --ignore-scripts --no-audit --n
 
 ## GitHub 配置与故障定位
 
-YAML 本身不阻断合入；合入门禁以 GitHub `protect_main` ruleset 的实时配置为准。**2026-10-30 回读该 ruleset 时，已有 1 位批准、禁删除和禁强推规则，但没有 `required_status_checks`；CI 失败尚未形成服务端合入门禁。**仓库管理员应在 CI 检查名称已上报后，将来源 GitHub Actions 的 job `CI` 设为必需检查，再回读规则并用 PR 验证失败确实阻断合入；保留既有审阅/禁强推/禁删除规则和无豁免设置。当前工作流从 `data_model/environment.yml` 安装 Python 依赖，已不引用删除的 `requirements.txt`。
+YAML 本身不阻断合入；合入门禁以 GitHub `protect_main` ruleset 的实时配置为准。**2026-10-30 已将 GitHub Actions 的 job `CI` 设为必需检查，并要求分支与最新 `main` 基线一致**；回读确认 1 位批准、禁删除、禁强推和无豁免规则保留。变更记录见 [ruleset 23522853](https://github.com/heapcluster/jit-defect-prediction/rules/23522853)。仍需在后续实际失败的 PR 上核验阻断行为，不能把配置回读冒充失败场景演练。当前工作流从 `data_model/environment.yml` 安装 Python 依赖，已不引用删除的 `requirements.txt`。
 
 若 PR 显示 `Expected / Waiting for status`，先确认该提交触发了 `pull_request` 检查且分支已同步 `main`，再对照 ruleset 中的检查名称与来源；不要用手动运行替代 PR 的必需检查。若工作流已经报错，打开失败步骤定位业务代码、依赖或环境问题，交对应线修复，不在 CI 中静默排除。
 
