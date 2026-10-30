@@ -63,4 +63,4 @@ propose（写码前）→ 规范评审（提案人≠审阅人）→ apply（按
 
 ## 7. 文档线合入规则
 
-组长蒋励（GitHub 账号 `jolly326`）的 `docs/` 类 PR，除 `repo/collaboration.md` §3.8 列出的六种必须 Request changes 的情形外，sober 直接 Approve 放行，不再逐条挑格式；**但不是无条件合入**——§3.8 是硬阻断，优先于「文档线合入更快」的约定（见 `repo/collaboration.md` §3.8）。
+组长蒋励（GitHub 账号 `jolly326`）的 `docs/` 类 PR 按 `docs/repo/collaboration.md` §3.8 判断：会造成运行失败、契约冲突、虚假证据或泄露敏感信息的问题须修复；纯格式和非关键措辞先留评论，不因小问题阻断。仍须非作者审阅。
