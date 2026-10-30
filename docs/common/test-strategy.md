@@ -36,7 +36,7 @@
 | 后端 `backend/` | `backend/tests/test_*.py` 在 CI 的 `Test backend` 步骤通过 | 套件已含接口、数据库、同步、模型注册等跨模块用例；CI 使用一次性 MySQL 测试库 | 以 `docs/backend/acceptance.md` 的场景与证据逐项确认，不能由单测绿灯代替 | 性能、安全结果分别看 `backend/scripts/evidence/` 的对应实测记录 | 🟡 自动化通过；现场验收另核 |
 | 前端 `frontend/` | `frontend/tests/*.spec.js` 共 8 个文件；CI 的 `Test frontend` 为 **31 passed** | `docs/frontend/integration-log.md` 记录联调；浏览器场景已有部分截图 | `docs/frontend/evidence/tf-fe-01-screenshots.md` 明列未取证的加载、空态和契约错误码场景 | 三态与错误分发需按上述未取证项补浏览器证据 | 🟡 单测通过；场景取证未齐 |
 | 数据/模型 `data_model/` | `data_model/tests/test_*.py` 在 CI 的 `Test data model` 步骤通过，**1 条因干净检出无 `.pkl` 而跳过** | 已有特征、交付清单、模型注册等契约测试；跨线完整链路需结合后端验收 | 模型指标见 `data_model/reports/`；实际权重包须另跑 `python -m pipelines.verify_all_weights --check` | CI 的跳过项不证明 8 个权重可加载，交付包要独立核验 | 🟡 自动化通过；权重交付另核 |
-| 工程化 `infra/` | `infra/tests/test_*.py` 在 CI 的 `Test CI contract` 步骤通过 | `.github/workflows/ci.yml` 顺序执行 lint、规格、测试、构建 | `main` 的 CI #245 全绿；是否列为合并必需检查须回读仓库规则 | 门禁误报与执行时间依据后续 CI 运行持续观察 | ✅ 工作流已落地并实跑 |
+| 工程化 `infra/` | `infra/tests/test_*.py` 可按需单独运行；本次精简后不在自动门禁中 | `.github/workflows/ci.yml` 顺序执行三线测试与构建 | 历史 `main` CI #245 全绿只对应旧配置；新工作流待首次运行取证 | 检查名称与门禁须按 `infra/ci.md` 迁移 | 🟡 配置已精简，运行证据待补 |
 
 **复现命令**（每行独立从仓库根目录运行；依赖统一由 `data_model/environment.yml` 安装，后端测试需要可用的 MySQL 测试库）：
 ```bash
@@ -45,7 +45,7 @@
 (cd frontend && npm ci && npm run test:unit)
 ```
 
-仓库 CI 还执行 `ruff check`、`ruff format --check`、`openspec validate --specs --strict`、`check_spec_references.py links|deltas` 和构建，完整命令以 `.github/workflows/ci.yml` 为准。以上测试数量仅对应所引的 `main@3379d4c` 运行；后续变更需重新取证，不沿用本快照。
+仓库精简后的 CI 只运行三线测试与构建；Ruff、OpenSpec 和链接检查改为按需人工执行，具体见 `infra/ci.md`。以上测试数量仅对应所引的 `main@3379d4c` 旧运行；后续变更需重新取证，不沿用本快照。
 
 ## 3.1 数据线补齐记录（2026-10-13 历史快照，蒋励）
 
@@ -69,7 +69,7 @@
 | 2 | CI 干净检出不带模型 `.pkl`，1 条磁盘清单测试按设计跳过 | 对实际交付包独立运行权重核验并保存结果，不能把 CI 通过写成 8/8 权重验收 | 数据/模型蒋励 |
 | 3 | 单线及后端跨模块自动化已通过，但从 Camel 提交同步到前端显示的完整现场流程仍需按验收场景留证 | 在真实联调环境依次记录同步、预测、列表/详情/趋势的结果与环境边界 | 后端吕建江牵头，前端/模型配合 |
 | 4 | 本次 CI 运行未输出各线最新覆盖率；既有覆盖率报告属于其记录时的代码版本 | 需要覆盖率结论时按当前提交重新运行并附输出，不沿用旧百分比 | 各代码线作者 |
-| 5 | CI 运行成功与「合并必需检查」是两项不同证据 | 回读仓库规则中 `CI` 的必需检查配置并留链接/截图 | 工程化苏哲勋 |
+| 5 | CI 运行成功与「合并必需检查」是两项不同证据 | 回读仓库规则中「应用运行与核心回归」的必需检查配置并留链接/截图 | 工程化苏哲勋 |
 
 具体负责人、截止与进度以飞书《工作周报》为准；本表只登记仓库内可核验的验证缺口。
 
@@ -81,7 +81,7 @@
 | `data_model/pytest.ini` | 同上（数据线） |
 | `frontend/vite.config.js` | vitest 环境（jsdom）与 `frontend/tests/**` 匹配（`setupFiles: ./tests/setup.js`） |
 | `frontend/package.json` `scripts` | `test:unit` 为当前单测入口；目前没有 `test:coverage` 脚本 |
-| `.github/workflows/ci.yml` | 在 PR、`main` 推送和 merge queue 上顺序执行 lint、规格检查、单测与构建 |
+| `.github/workflows/ci.yml` | 在 PR、`main` 推送和 merge queue 上顺序执行三线测试与构建 |
 
 > 命名约定：后端 `tests/test_<模块>.py`，用例 `test_<行为>_<期望结果>`；前端 `tests/<对象>.spec.js`。
 > 每个用例必须能**独立复现**：不依赖执行顺序、不依赖上一次运行的残留数据。
