@@ -4,6 +4,7 @@
 > 维护：蒋励（统稿）｜ 供稿：吕建江（后端/集成）、刘帅华（前端/联调）、蒋励（模型）、苏哲勋（工程/缺陷）
 > 依据：`common/acceptance-overview.md`（验收板块）、`design/non-functional.md`（NFR）、`repo/defect-management.md`（缺陷流程）、`backend/api-spec.md`（契约三 v1.7）
 > **本文件是测试唯一入口**：各包 `acceptance.md` 只做本线细化，不重复总纲；飞书《产品设计文档》「六、测试方案」为本文件的指针。
+> 课程测试考核截图的分值、AI 来源规则、交付物与本仓库执行映射见 `docs/common/test-assessment-guide.md`；该文件是本方案的考核对照，不另立测试计划。
 
 ---
 
