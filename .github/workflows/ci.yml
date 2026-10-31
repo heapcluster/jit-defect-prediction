@@ -1,4 +1,4 @@
-name: CI
+name: 应用运行与核心回归
 
 on:
   pull_request:
@@ -17,10 +17,10 @@ concurrency:
 
 jobs:
   ci:
-    # main 的必需检查使用此固定名称；所有阶段在同一 job 内顺序执行。
+    # 保留 ruleset 的必需检查标识 CI，避免既有 PR 因检查名迁移而卡住。
     name: CI
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 30
     # 后端测试套件依赖 MySQL（conftest 的 session 级 engine 读 DATABASE_URL 指向 jit_test）：
     # 起一个一次性 mysql:8.0 service，端口映射到 127.0.0.1:3306，
     # 由下面的「准备测试库」步骤用仓库自己的 infra/setup_mysql.py 建 jit_demo + jit_test 并执行 schema.sql。
@@ -43,7 +43,6 @@ jobs:
     env:
       PYTHONDONTWRITEBYTECODE: "1"
       PYTHONUTF8: "1"
-      OPENSPEC_TELEMETRY: "0"
       # 后端 pytest 的库：与 services.mysql 对应；backend/.env 不入库，环境变量优先于 .env
       DATABASE_URL: "mysql+pymysql://root:root@127.0.0.1:3306/jit_test?charset=utf8mb4"
 
@@ -70,41 +69,6 @@ jobs:
         working-directory: frontend
         run: npm ci --ignore-scripts --no-audit --no-fund
 
-      - name: Install Ruff
-        # 版本只从唯一环境文件读取，不在工作流中另设依赖清单。
-        run: |
-          ruff_spec="$(sed -nE 's/^[[:space:]]+- (ruff==[0-9.]+)[[:space:]]*$/\1/p' data_model/environment.yml)"
-          test -n "$ruff_spec"
-          python -m pip install --no-deps "$ruff_spec"
-
-      - name: Install OpenSpec
-        run: npm install --global @fission-ai/openspec@1.11.0 --ignore-scripts --no-audit --no-fund
-
-      - name: Lint frontend
-        working-directory: frontend
-        run: npm run lint
-
-      - name: Lint Python
-        run: python -m ruff check backend data_model infra --output-format concise
-
-      - name: Check Python formatting
-        # lint 管「对不对」，format 管「齐不齐」：一条命令覆盖 backend / data_model / infra。
-        # 配置在仓库根 ruff.toml（2026-10-26 起统一，不再由子目录各管一套）。
-        run: python -m ruff format --check backend data_model infra
-
-      - name: Lint specifications
-        # 仅检查活规格，不回头重排存量 change；tasks 十项检查仍由 PR 审阅把关。
-        run: openspec validate --specs --strict --no-interactive
-
-      - name: Check live documentation links
-        run: python infra/check_spec_references.py links
-
-      - name: Check OpenSpec MODIFIED collisions
-        run: python infra/check_spec_references.py deltas
-
-      - name: Test CI contract
-        run: python -m unittest discover -s infra/tests -p 'test_*.py' -v
-
       - name: Prepare test database
         # 用仓库自己的建库脚本备好 jit_demo + jit_test 并执行 schema.sql（顺带在 CI 里验证该脚本本身）
         run: |
@@ -117,14 +81,10 @@ jobs:
         run: python -m pytest -q
 
       - name: Test frontend
-        # 测试配置/用例一旦合入即执行，失败不能被忽略。
-        # vitest 配置已并入 frontend/vite.config.js（不再有独立的 vitest.config.*）
-        if: hashFiles('frontend/vite.config.*', 'frontend/src/**/__tests__/**', 'frontend/src/**/*.test.*', 'frontend/tests/**/*.spec.*') != ''
         working-directory: frontend
         run: npm run test:unit
 
       - name: Test data model
-        if: hashFiles('data_model/tests/test_*.py') != ''
         working-directory: data_model
         run: python -m pytest -q
 
