@@ -1,7 +1,10 @@
 # architecture-refactor — 任务清单
 
-> 提案：`proposal.md` ｜ 规格：无（纯重构，对外行为不变，故无 ADDED Requirements）
-> 创建：2026-10-27 ｜ 状态：进行中
+> 提案：`proposal.md` ｜ 设计决策：无独立 design.md ｜ 规格：无（纯重构）
+> 负责人：backend 吕建江 ｜ 创建：2026-10-27 ｜ 状态：进行中（以任务勾选和证据为准）
+> 用户故事：无（纯重构）
+> 统一格式见 `docs/common/openspec-task-template.md`；末尾「测试与验证」为强制板块。
+
 
 ## 1. 共享工具模块
 
@@ -28,28 +31,28 @@
 - [x] 4.1 `test_health_api.py`：monkeypatch 目标改为 `app.services.health.SessionLocal` — `backend/tests/test_health_api.py`
 - [x] 4.2 `test_commits_api.py`：「查看过滤不触发预测」改为断言 `prediction` 行数不变 — `backend/tests/test_commits_api.py`
 
-## 测试与验证
+## 测试与验证（强制板块）
 
-### 单元测试
+### 1. 单元测试
 
 - 命令：`cd backend; $env:PYTHONPATH="."; python -m pytest tests/ -o addopts="" -q`
 - 证据：281 passed（与重构前一致，证明行为未漂移）
 
-### 集成测试
+### 2. 集成测试
 
 - 同上（同一套件含 MySQL `jit_test` 集成路径）；标签落库、详情/列表联读、health 三态在重构后仍全绿
 
-### 验收测试
+### 3. 验收测试
 
 - 按 `feedback-observability` 的既有 Scenario 回归：标记 → 详情可见 → `has_label` 过滤 → 撤销；health ok / degraded / 无模型
 - 证据：`tests/test_feedback_api.py`（9 条）、`tests/test_health_api.py`（4 条）全通过
 
-### 非功能验证
+### 4. 非功能验证
 
 - 契约镜像：`tests/test_mirror.py` 13 条通过（路径集与字段集与重构前完全一致，证明对外契约零漂移）
 - 前端构建：`cd frontend; npm run build` 通过（本 change 未改前端，用于确认无回归）
 
-### 已知缺口
+### 5. 已知缺口与后续计划
 
 - `sync.py` / `prs.py` 的业务仍未下沉到服务层（链路长、风险高，留待后续 change）
 - 未引入依赖注入，服务层仍直接 `with SessionLocal()`；后续若要单测业务需改为注入 session

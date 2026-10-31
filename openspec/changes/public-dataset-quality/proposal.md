@@ -45,7 +45,7 @@
 
 - `public-dataset`：公开 JIT 数据集加载、三维度质量治理、与 Apache Camel 基线并列对照。规格见 `specs/public-dataset/spec.md`。
 
-## 影响与边界
+## Impact（影响与边界）
 
 | 项 | 内容 |
 |---|---|

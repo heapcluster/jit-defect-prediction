@@ -17,15 +17,14 @@ GitHub 仓库配置、分支规范与分支保护、PR / Issue 模板、CI 流�
 ## 边界
 
 - `main` 分支受保护，禁止直接推送；合并前至少 1 位非作者审阅。
-- CI 已落地（`.github/workflows/ci.yml`：lint → 规格检查 → 三线测试 → 构建；后端测试跑在一次性
+- CI 已落地（`.github/workflows/ci.yml`：三线核心测试 → 构建；后端测试跑在一次性
   `mysql:8.0` service 上，库由 `infra/setup_mysql.py` 建）。
 - 只在本目录内写代码。
 
-## PR 自动审阅原型（默认只读）
+## PR 自动审阅原型（仅本地，默认只读）
 
-`.github/workflows/pr-auto-review-prototype.yml` 在 PR 打开、更新、重开或退出草稿时触发，
-只检出可信的目标分支代码；工作流没有模型凭据，也没有提交审阅的权限。
-工作流须先合入默认分支，之后的新 PR/更新才会触发；不能把本 PR 自己未发生的 Actions 运行写成验收证据。
+为使仓库只保留一条核心功能 CI，原型的 GitHub Actions 触发器已停用；`infra/pr_auto_review.py`
+和测试仍可在本地运行，不会自动批准或打回 PR。
 当前 `infra/pr_review_config.json` 设置 `provider: none`、`publish: false`，因此线上只会检查
 PR 差异是否可完整获取，并输出 `SKIP: no model decision`，**不会自动批准或打回**。
 
@@ -42,7 +41,7 @@ PR 差异是否可完整获取，并输出 `SKIP: no model decision`，**不会�
 若模型认为可通过，`action` 为 `APPROVE` 且 `findings` 必须为空。发布前还会检查差异未截断、
 决策对应当前提交、`CI` 必需检查成功（批准时）、重复审阅、PR 是否仍开放。
 即使提供决策文件，发布仍需 `--publish` 与配置 `publish: true` **同时满足**；当前工作流两者
-都不提供。不得直接把此 `pull_request_target` 工作流改成写权限并检出 PR 代码。
+CI 不调用此程序。不得直接新建有写权限的 `pull_request_target` 工作流并检出 PR 代码。
 正式启用前还需选定模型服务及代码差异外发范围、配置凭据、补独立可信发布流程，
 并实测机器人身份能否满足本仓库非作者审阅门禁。没有模型决策时绝不推断“无问题即通过”。
 

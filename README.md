@@ -119,7 +119,7 @@ python -V                                               # 必须是 3.12.x
 | 三条契约（数据字段 / 特征列名 / 接口格式） | ⚠️ 草案，**冻结时间见各文件头部** |
 | OpenSpec 目录与三套 AI 工具集成文件 | ✅ 已入库，`openspec/config.yaml` 的 `context:` 与 `rules:` 已填 |
 | AI 规则入口（`AGENTS.md` + `CLAUDE.md`） | ✅ 已入库 |
-| CI（代码风格检查 + 测试） | ✅ 已入库：`.github/workflows/ci.yml`（Python lint + pytest + OpenSpec 校验 + 文档链接检查 + 前端 lint/单测）、`pr-auto-review-prototype.yml`（PR 自动审阅原型，只读）、`codeql.yml`（安全扫描）；**后端测试在 CI 里真正跑**（自 #160 起有 MySQL service 与建库步骤） |
+| CI（应用运行与核心回归） | `.github/workflows/ci.yml` 是唯一自动工作流，执行后端/前端/模型测试及构建；后端使用一次性 MySQL 测试库。OpenSpec、格式和安全扫描改为按需人工运行，不作为 PR 合入门禁。 |
 
 ---
 
