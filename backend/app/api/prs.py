@@ -5,7 +5,9 @@
 预测与入库：复用 POST /api/predict 的单条链（predict_commit_all_models 一次现算、逐模型打分）。
 
 边界（沿用 realtime-commit-sync 的纪律）：
-1. 绝不改动 SOURCE_REPO 的检出状态：拉 PR head 仅用 `git fetch origin pull/<n>/head` 取对象，不 checkout。
+1. 绝不改动 SOURCE_REPO 的检出状态：拉 PR head 仅用 `git fetch origin pull/<n>/head` 取对象，不
+   checkout；需要让该 PR 的历史对抽取器可达时，用 `ensure_extractable` 建一次性
+   detached `--no-checkout` worktree，用后即焚（PR 提交默认不在 HEAD 历史上）。
 2. 不从请求接收仓库路径；不做 PR open/merged/closed 状态清理。
 3. 复用冻结错误码集合（0/40001/40400/50000）。
 """
@@ -25,7 +27,7 @@ from app.errors import AppError, ok
 from app.explain import explain_label
 from app.models import Commit, CommitFeature, Prediction
 from app.services import settings as runtime_settings
-from app.services.git import run_git
+from app.services.git import ensure_extractable, run_git
 from app.services.predict import predict_commit_all_models, resolve_model_name
 from app.timeutil import iso_z
 
@@ -67,21 +69,34 @@ def sync_prs(limit: int = 10) -> dict:
     commits_predicted = 0
     for pr in prs:
         try:
-            fetch_pr_ref(repo, pr.number)
+            head = fetch_pr_ref(repo, pr.number)
         except AppError as exc:
             skipped.append({"pr": pr.number, "reason": f"fetch failed: {exc.message}"})
             continue
         shas = github.list_pr_commit_shas(pr.number)[:MAX_COMMITS_PER_PR]
+        # PR 的提交默认分支 HEAD 不可达，而抽取器的 scan_history 是 `git log … HEAD`
+        # （03_extract_features.py）—— 直接把 SOURCE_REPO 交过去会让每条 sha 都算不出来，
+        # 表现为「接口 200、commits_predicted=0、/api/prs 整表 risk_score=null」。
+        # 用临时 detached --no-checkout worktree 让该 PR 的历史可达，用后即焚：
+        # 与 ensure_extractable 的既有约定一致，不改动 SOURCE_REPO 的检出状态。
+        try:
+            extract_repo, release = ensure_extractable(str(repo), head)
+        except AppError as exc:
+            skipped.append({"pr": pr.number, "reason": f"worktree failed: {exc.message}"})
+            continue
         done = 0
-        for sha in shas:
-            try:
-                predict_commit_all_models(sha, repo=str(repo))
-                done += 1
-                commits_predicted += 1
-            except AppError as exc:
-                skipped.append(
-                    {"pr": pr.number, "commit": sha, "code": exc.code, "message": exc.message}
-                )
+        try:
+            for sha in shas:
+                try:
+                    predict_commit_all_models(sha, repo=extract_repo)
+                    done += 1
+                    commits_predicted += 1
+                except AppError as exc:
+                    skipped.append(
+                        {"pr": pr.number, "commit": sha, "code": exc.code, "message": exc.message}
+                    )
+        finally:
+            release()
         pr_results.append({"pr": pr.number, "title": pr.title, "commits_predicted": done})
     return {
         "prs_scanned": len(prs),
