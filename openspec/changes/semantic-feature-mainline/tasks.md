@@ -76,7 +76,7 @@
 > 分层口径见 `docs/common/test-strategy.md`；模板见 `docs/common/openspec-task-template.md`。
 > 铁律：勾了 tasks ≠ 功能合格，必须有可复现命令与证据路径。
 
-### 1. 单元测试（蒋励，写代码的人自己写）
+### 1. 单元测试
 | 项 | 内容 |
 |---|---|
 | 覆盖对象 | 变更文本构造（`10_semantic_text.py`：文件切分、截断统计、增删行剥离）、按提交聚合（均值、单文件直取）、融合左连接与缺失标注、留一法消融的样本数守恒 |
@@ -86,7 +86,7 @@
 | 正向用例 | 多文件提交的语义向量 = 各文件向量均值；专家 14 项与语义列左连接后行数守恒、无重复 `commit_hash` |
 | 异常 / 边界用例 | 单文件文本超上限 → 按行截断且**记录**截断文件数与行数（不静默丢）；提交无任何改动文件 → 显式报错而非产出空向量；融合时某提交缺语义向量 → 单列计数，**不用 0 填充** |
 
-### 2. 集成测试（大版本合并后，吕建江组织的跨线契约）
+### 2. 集成测试
 | 项 | 内容 |
 |---|---|
 | 集成范围 | 语义特征样本集 → 时间序切分 → 8 模型训练 → 评估汇总，与既有 `05`/`06`/`08` 脚本的衔接 |
@@ -95,7 +95,7 @@
 | 复现命令 | `conda activate jit-defect-prediction && cd data_model && python -m pytest tests/test_compare_settings_pipeline.py -q` |
 | 关键断言 | 三类设置用**同一切分下标**（train/test 的 `commit_hash` 集合逐字相同）；契约二 14 项列名与顺序未被改动；`feature_version` 正确标为 v2 |
 
-### 3. 验收测试（交付时，按 spec 的 SHALL/MUST 逐条走）
+### 3. 验收测试
 | 项 | 内容 |
 |---|---|
 | 验收依据 | `specs/semantic-features/spec.md` 的 7 条 Requirement 与全部 Scenario |
