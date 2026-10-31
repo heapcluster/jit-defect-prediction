@@ -1,7 +1,10 @@
 # frontend-redesign — 任务清单
 
-> 提案：`proposal.md` ｜ 规格：`specs/ui/spec.md`
-> 创建：2026-10-27 ｜ 状态：进行中
+> 提案：`proposal.md` ｜ 设计决策：无独立 design.md ｜ 规格：`specs/ui/spec.md`
+> 负责人：frontend 刘帅华 ｜ 创建：2026-10-27 ｜ 状态：进行中（以任务勾选和证据为准）
+> 用户故事：无（界面优化）
+> 统一格式见 `docs/common/openspec-task-template.md`；末尾「测试与验证」为强制板块。
+
 
 ## 1. 共享组件
 
@@ -26,32 +29,32 @@
 - [x] 3.1 `api/index.js` 补 `getQuality` / `getQualityDataset` / `postCalibrate` / `getConfig` / `putConfig` — `frontend/src/api/index.js`
 - [x] 3.2 `router/index.js` 注册 `/quality` — `frontend/src/router/index.js`
 
-## 测试与验证
+## 测试与验证（强制板块）
 
-### 单元测试
+### 1. 单元测试
 
 - 前端已有 vitest（`frontend/tests/*.spec.js`，`npm run test:unit`）；#81 起即存在，此前 tasks 里「无单测框架」的记录已失效并订正
 - 命令：`cd frontend; npm run test:unit` ｜ 证据：**7 个文件 / 27 条全通过**
 - 本轮同步修掉两处存量红：`risk.spec.js` 阈值口径（0.3 → 0.2）、`RiskList.spec.js` 的 api mock 缺 `getCommitsCoverage`/`getHealth`
 - 构建：`cd frontend; npm run build` ｜ 证据：`✓ built in 3.57s`，无编译错误
 
-### 集成测试
+### 2. 集成测试
 
 - 后端全量：`cd backend; $env:PYTHONPATH="."; python -m pytest tests/ -o addopts="" -q`
 - 证据：`313 passed`（本 change 未改后端，用于确认无回归）
 
-### 验收测试
+### 3. 验收测试
 
 - 按 `specs/ui/spec.md` 逐条走：首屏结构 → 空库引导 → 降级状态卡 → 未预测 PR → 质量看板无样本 → 校准未改善 → 特征中文名
 - 证据：`npm run build` 产物 + 五个页面人工检查
 
-### 非功能验证
+### 4. 非功能验证
 
 - 冗余度：`RiskList` 顶部提示由 3 条降为 1 条引导 + 3 张卡；`CommitDetail` 的「尚未预测」由 2 处降为 1 处；`PrList` 同步说明由 2 行降为 1 行
 - 第二轮密度收敛：`TrendBoard` 删掉与折线重复的明细表（仅 <2 点时兜底）、`PrList` 卡片 4→2、`PrDetail` 不再出现两次「PR 详情」与重复的模型名、`QualityBoard` 去掉一次性的「最近一次校准」卡
 - 契约：`MUST NOT` 改接口；后端测试 313 passed 不变即证明
 
-### 已知缺口
+### 5. 已知缺口与后续计划
 
 - 未做前端单元测试（项目无测试框架）
 - 未做暗色主题与移动端适配

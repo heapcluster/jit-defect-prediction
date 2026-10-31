@@ -12,7 +12,13 @@ PR 量增多后，审阅人需要重复核对差异完整性、CI 状态与上�
 2. 提供模型决策 JSON 的离线输入格式，以及自动批准/请求修改前的安全校验。
 3. 加入离线单元测试与工程化说明。
 
-## 影响与边界
+## Capabilities
+
+### Added Capabilities
+
+- `pr-review-automation`：只读预审与离线模型决策约束，详见 `specs/pr-review-automation/spec.md`。
+
+## Impact（影响与边界）
 
 | 项 | 内容 |
 |---|---|
