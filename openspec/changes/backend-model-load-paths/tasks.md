@@ -2,7 +2,7 @@
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/predict-api/spec.md`
 > 负责人：backend 吕建江 ｜ 创建：2026-10-23 ｜ 更新：2026-10-24 ｜ 状态：进行中（8/11；已 rebase 到 main `f5ca61d` 并叠加在 #96 清单加载之上，SQLite 验证完成，PR #99 head `d806e73` 待复审，真实环境验收与清单范围裁定待收口）
-> 用户故事：无（工程化）；支撑契约三 POST /api/predict 与四接口 SQLite 联调
+> 关联需求：无（工程化）；支撑契约三 POST /api/predict 与四接口 SQLite 联调
 > 统一格式见 `docs/common/openspec-task-template.md`；本文件末的「测试与验证」为强制板块。
 
 ## 1. 模型加载与配置说明
@@ -22,7 +22,7 @@
 - [x] 3.1 严格校验单 change 和全量规格，逐场景核对并提交独立 PR — 交付物：PR #99（https://github.com/heapcluster/jit-defect-prediction/pull/99）；2026-10-24 按苏哲勋 CHANGES_REQUESTED 意见 rebase 到 main `f5ca61d`，实现提交 `15164a0`，两处冲突按「在清单加载之上叠加导入路径与失败汇总」解决；仍未合入，不代表T9验收完成。
 - [ ] 3.2 向模型线蒋励说明当前 TabNet 权重的 __main__ 导出问题并核验重新导出结果 — 交付形式：PR 中的复现条件与模型交付回执；本机真实权重复验仍7/8，此项不得勾选。
 - [ ] 3.3 2026-10-24 按已授权环境补实际模型 API 与 MySQL 证据 — 交付给 backend 吕建江；包括T9逐个model_name请求、非空真实解释、幂等与性能。未执行前只报告SQLite结果。
-- [x] 3.4 把「#96 清单只声明 3 模型 vs T9 要求 8 模型全加载」的冲突提交裁定 — 交付物：PR #99 评论（https://github.com/heapcluster/jit-defect-prediction/pull/99#issuecomment-6370955484），附 2026-10-24 只读实测 `loaded models: ['lr_v1', 'rf_v1', 'xgb_v1']` 与 A/B 两条路；已重新请求 sober-hub + jolly326 复审。裁定前不自行改清单范围，3.2/3.3 不得勾选。
+- [x] 3.4 把「#96 原三模型清单 vs T9 八模型验收」提交裁定 — 交付物：PR #99 评论（https://github.com/heapcluster/jit-defect-prediction/pull/99#issuecomment-6370955484）与历史 3/8 实测。后续 owner 已批准扩为八模型清单；3.2/3.3 仍须凭当前权重实测后勾选。
 - [ ] 3.5 飞书把同一裁定问题发给蒋励/苏哲勋 — 交付形式：吕建江本人粘贴我给的串；发出前本项不勾，不以 PR 评论代替飞书通知。
 
 ## 测试与验证（强制板块）
@@ -63,7 +63,7 @@
 | `__main__`坏导出真实失败 | `backend/tests/test_model_registry.py::test_main_module_model_is_reported_without_alias` |
 | HTTP不泄露加载异常 | `backend/tests/test_integration_api.py::test_auth_validation_and_failed_load_do_not_leak` |
 
-本 change 的8个Scenario均有测试覆盖；T9八模型真实联调仍未通过，且当前清单只声明三模型（见§5实测）。复现：cwd=backend `python -m pytest tests/`；cwd=仓库根 `openspec validate backend-model-load-paths --strict`、`openspec validate --all --strict`。证据见本文件§5与PR描述。
+本 change 的8个Scenario均有测试覆盖；T9八模型真实联调仍未通过，§5 的三模型结果是历史基线。现行清单已扩至八项，不把清单扩容视为 8/8 实测通过。复现：cwd=backend `python -m pytest tests/`；cwd=仓库根 `openspec validate backend-model-load-paths --strict`、`openspec validate --all --strict`。
 
 ### 4. 非功能验证
 
@@ -79,8 +79,8 @@
 | 缺口 | 原因 | 归属 | 计划 |
 |---|---|---|---|
 | PR审阅与合入 | PR #99 首轮 CHANGES_REQUESTED（与已合并的 #96 清单加载冲突、夹具缺清单、措辞像反对白名单）；2026-10-24 已 rebase 到 `f5ca61d` 并逐条修正，待复审 | backend 吕建江 + 苏哲勋 | 复审通过后 squash 合入；不把「已 rebase」当成合入或T9验收 |
-| 清单三模型 vs T9 八模型（裁定项） | #96 已把在线模型收敛为 `feature_order.txt` 的 `[models]` 三项，T9 要求八个权重全部加载并逐个POST | 苏哲勋 + 蒋励 + backend 吕建江 | 提交裁定：扩清单（模型线重新导出并改 train.py 交付清单）或把T9收敛到三模型；裁定前不动清单、不报8/8 |
-| TabNet 权重不可反序列化 | 引用 `__main__.TabNetWithEarlyStop`；当前清单未声明它，连加载都不触发，缺陷被掩盖而非修复 | model 蒋励 + backend 吕建江 | 需按可导入类路径重新导出，且先解决上一行的清单范围；不做任意主模块别名 |
+| 八模型实际加载与性能待验收 | 原三模型冲突已裁定为扩充清单；当前清单八项，但本 change 的历史实测仅覆盖三项 | 苏哲勋 + 蒋励 + backend 吕建江 | 使用现行权重逐项加载、预测、压测并附当前提交证据；此前不报 8/8 |
+| TabNet 权重可加载性待复核 | 旧权重引用 `__main__.TabNetWithEarlyStop`；当前清单已声明该项，旧报告不能证明新包可加载 | model 蒋励 + backend 吕建江 | 用现行交付包在独立进程实测；不做任意主模块别名 |
 | 八模型逐个POST非空解释与P95 | 路径修复不等于新增非线性SHAP支持；fixture非空不代替真权重验证 | backend 吕建江 | 后续补真正解释器及八模型证据，不返回伪造非空值 |
 | MySQL建表、灌库和幂等实测 | `infra/schema.sql` 已随 #100 合入 main，但本轮按要求只跑SQLite | backend 吕建江 | 2026-10-24 在已授权隔离库实跑建表两次 + `app.db init` 双路径对照 |
 | D-09独立change | 用户最新要求另开，不与模型导入小修混合 | backend 吕建江 | 后续单独change统一GET/POST小写查库；现P3记录不等于修复 |

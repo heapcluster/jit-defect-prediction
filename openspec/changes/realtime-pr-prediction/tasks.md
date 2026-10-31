@@ -2,7 +2,7 @@
 
 > 提案：`proposal.md` ｜ 设计决策：无独立 design.md ｜ 规格：`specs/predict-api/spec.md`
 > 负责人：backend 吕建江 ｜ 创建：2026-10-26 ｜ 状态：进行中（以任务勾选和证据为准）
-> 用户故事：无（PR 预测能力）
+> 关联需求：无（PR 预测能力）
 > 统一格式见 `docs/common/openspec-task-template.md`；末尾「测试与验证」为强制板块。
 
 ## 1. 后端 PR 实时预测能力
@@ -15,7 +15,7 @@
 
 ## 2. 契约与文档
 
-- [x] 2.1 `docs/backend/api-spec.md` §6~§8 登记三条端点（v1.7，路径数 5→8），§4 在线模型清单口径同步回填 8 模型
+- [x] 2.1 [历史版 `docs/backend/api-spec.md`](https://github.com/heapcluster/jit-defect-prediction/blob/100008e787c8902c35760c9cef6d61d279d921b7/docs/backend/api-spec.md) §6~§8 登记三条端点（v1.7，路径数 5→8），§4 在线模型清单口径同步回填 8 模型
 - [x] 2.2 `backend/.env.example` 补 GITHUB_REPO / GITHUB_TOKEN 注释行
 - [x] 2.3 本 change 提案（openspec/changes/realtime-pr-prediction/）补齐 —— 功能先行落地后的追溯补录
 

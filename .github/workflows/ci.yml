@@ -76,6 +76,13 @@ jobs:
             --database-url "mysql+pymysql://root:root@127.0.0.1:3306/jit_demo?charset=utf8mb4" \
             --test-db jit_test --skip-start
 
+      - name: Check OpenSpec consistency
+        run: |
+          python -m pytest -q infra/tests/test_spec_references.py
+          python infra/check_spec_references.py format
+          python infra/check_spec_references.py links
+          python infra/check_spec_references.py deltas
+
       - name: Test backend
         working-directory: backend
         run: python -m pytest -q

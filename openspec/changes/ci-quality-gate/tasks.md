@@ -2,7 +2,7 @@
 
 > 提案：[proposal.md](proposal.md) ｜ 设计决策：[design.md](design.md) ｜ 规格：[ci-quality-gate](specs/ci-quality-gate/spec.md)
 > 负责人：repo 苏哲勋 ｜ 创建：2026-10-16 ｜ 状态：进行中
-> 用户故事：无（工程化）
+> 关联需求：无（工程化）
 > 统一格式见 `docs/common/openspec-task-template.md`（团队已定规范，随 #67 合入）；本文件末的「测试与验证」为强制板块。
 
 ## 1. 流水线与交付

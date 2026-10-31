@@ -1,7 +1,7 @@
 # model-training Specification
 
 ## Purpose
-把带标签样本集训练成可用的 JIT 缺陷预测模型：按 `committed_at` 时间序切分，训练 2–3 个经典模型，产出 Effort-unaware 与 Effort-aware 两类评估指标，全部结果可复现。
+把带标签样本集训练成可用的 JIT 缺陷预测模型：按 `committed_at` 时间序切分，expert、semantic、fused 三条分类器线各训练同一组 8 个分类器，产出 Effort-unaware 与 Effort-aware 两类评估指标，全部结果可复现。e2e 为单独的端到端方案。
 
 ## Requirements
 
@@ -33,17 +33,17 @@
 - **WHEN** 样本集中不存在 `szz` 标签列（例如只产出了 `szz_lite`）
 - **THEN** 训练以非零退出码终止并提示缺列；MUST NOT 静默回退用 `szz_lite` 训练主模型
 
-### Requirement: MUST 训练 2–3 个经典模型
+### Requirement: MUST 训练 8 个分类器
 
-MUST 训练 2–3 个经典机器学习模型（如逻辑回归 / 随机森林 / XGBoost）。前提：课程「至少 2 类不少于 8 种」的要求按 MVP 分期执行，口径待老师确认（飞书周报任务 12）。
+expert、semantic、fused 三条分类器线 MUST 各训练相同的 8 个分类器：`lr`、`rf`、`xgb`、`lgbm`、`et`、`svm`、`mlp_deep`、`tabnet`。模型集合 MUST 同时覆盖经典机器学习与神经网络两类；e2e 作为单独的端到端方案，不计入此处每条线的 8 个分类器。
 
 #### Scenario: 模型数量达标
 - **WHEN** 训练流程完成
-- **THEN** 产出 2–3 个模型文件，每个模型有独立 `model_name` 与评估指标
+- **THEN** 每条分类器线产出上述 8 个模型的独立结果，每个模型有独立 `model_name` 与评估指标；三线默认集合逐字一致
 
-#### Scenario: 时间不足时的取舍（边界场景）
-- **WHEN** 时间预算只够训 1 个模型
-- **THEN** MUST NOT 以「不足 2 个」交付 —— 规格下限是 2：宁可选更轻的算法把第二个凑出来，也不交付单模型
+#### Scenario: 任一分类器线回退为子集（边界场景）
+- **WHEN** 任一分类器线的默认训练集合少于上述 8 个，或三线集合不一致
+- **THEN** 判定训练覆盖未达标，MUST NOT 将子集标为本 Requirement 的完整交付
 
 ### Requirement: MUST 产出两类评估指标
 

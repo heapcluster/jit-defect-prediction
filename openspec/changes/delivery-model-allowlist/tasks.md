@@ -2,7 +2,7 @@
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/predict-api/spec.md`
 > 负责人：backend 吕建江（PO 苏哲勋把关）｜ 创建：2026-10-23 ｜ 状态：进行中（实现与本地回归，待真实权重验收）
-> 用户故事：在线预测演示三模型交付；8 模型训练结果保留为离线扩展
+> 关联需求：当前在线交付八模型；本 change 只约束“按获批清单加载”，八项枚举与验收见 `online-eight-model-selection`
 > 统一格式见 `docs/common/openspec-task-template.md`；本文件末的「测试与验证」为强制板块。
 
 ## 1. 后端加载门禁
@@ -12,7 +12,7 @@
 
 ## 2. 跨线交付
 
-- [ ] 2.1 模型线蒋励交付 `data_model/pipelines/expert/models/feature_order.txt` 与三款同名权重给 backend 吕建江 — 后端对照 `docs/backend/api-spec.md` 做真实加载与预测截图，未交付前不勾选。
+- [ ] 2.1 模型线蒋励交付 `data_model/pipelines/expert/models/feature_order.txt` 与八款同名权重给 backend 吕建江 — 后端对照当前在线清单做 8/8 真实加载与预测取证，未取得可复核证据前不勾选。
 
 ## 测试与验证（强制板块）
 
@@ -24,7 +24,7 @@
 | 测试文件 | `backend/tests/test_model_registry.py` |
 | 用例数与结果 | 定向回归 16 passed，后端全套 102 passed；真实权重仍待验收 |
 | 复现命令 | `cd backend && python -m pytest -q tests/test_model_registry.py` |
-| 正向用例 | 目录四权重、清单三模型 → 注册表仅三项 |
+| 正向用例 | 历史合成用例为目录四权重、清单三模型 → 注册表仅三项；八模型现行清单须另验 |
 | 异常 / 边界用例 | 无清单或列序被改 → 注册表为空 |
 
 ### 2. 集成测试
@@ -42,15 +42,15 @@
 | 项 | 内容 |
 |---|---|
 | 验收依据 | `specs/predict-api/spec.md` 三个 Scenario |
-| 用例数与结果 | 合成模型测试通过；真实三权重未验收 |
+| 用例数与结果 | 合成模型测试通过；真实八权重仍须按当前提交取证 |
 | 复现命令 / 步骤 | `cd backend && python -m pytest -q tests/test_model_registry.py`；`openspec validate delivery-model-allowlist --strict --no-interactive` |
-| 证据归档 | `backend/scripts/evidence/archive/delivery-model-allowlist-2026-10-23.md` |
+| 证据归档 | 旧证据已随 #187 删除；真实八模型验收证据待重建，不能视为已通过 |
 
 ### 4. 非功能验证
 
 | 维度 | 是否触及 | 证据 |
 |---|---|---|
-| 性能 | 是，未验收 | 需真实三权重压测；`backend/scripts/evidence/archive/delivery-model-allowlist-2026-10-23.md` |
+| 性能 | 是，未验收 | 需现行八权重逐项压测并提供可点证据；旧证据已删除 |
 | 安全 | 是 | 清单模型名限安全文件名，错误不回显路径；`cd backend && python -m pytest -q tests/test_model_registry.py` |
 | 可靠 | 是 | 缺清单/错序拒载、单个模型损坏可降级；同上 |
 | 易用 | 否 | 前端本 change 不触及；`cd backend && python -m pytest -q tests/test_model_registry.py` 仅覆盖后端 |
@@ -59,5 +59,5 @@
 
 | 缺口 | 原因 | 归属 | 计划时间 |
 |---|---|---|---|
-| 真实三权重未在干净环境加载 | `.pkl` 不入库，需模型线交付受控压缩包 | model 蒋励 / backend 吕建江 | 联调交付时 |
+| 真实八权重未在干净环境逐项复核 | `.pkl` 不入库，需模型线交付受控压缩包并留 8/8 证据 | model 蒋励 / backend 吕建江 | 联调交付时 |
 | 预测 p95 未验证 | 本变更只限加载清单，不含在线特征现算优化 | backend 吕建江 | 单条特征接入 PR 时 |

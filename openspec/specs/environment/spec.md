@@ -4,7 +4,7 @@
 
 统一四条线（expert / semantic / fused / e2e）的 Python 运行环境来源：`data_model/environment.yml` 是唯一权威清单，仓库内不再保留各自的 `requirements.txt`。
 
-存在意义是「可复现」：同一份文件要能在 Windows（win-64）与 Linux/WSL、CPU 与 GPU 机器上建出依赖版本一致的环境，否则四条线的指标差异无法区分是模型差异还是环境差异。配套约束是 `data_model/ENVIRONMENT.md` 记录建环境、最小数据拷贝与国内网络镜像处理，任何人换机后按该文档可复现出同一环境。
+存在意义是「可复现」：同一份文件要能在 Windows（win-64）与 Linux/WSL、CPU 与 GPU 机器上建出依赖版本一致的环境，否则四条线的指标差异无法区分是模型差异还是环境差异。安装与 GPU 补充步骤以 `data_model/environment.yml` 中的说明为准；旧环境说明文件已移除，不得再作为当前操作入口。
 
 ## Requirements
 

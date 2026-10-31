@@ -2,7 +2,7 @@
 
 > 提案：`proposal.md` ｜ 设计决策：无独立 design.md ｜ 规格：`specs/db-schema/spec.md`、`specs/query-api/spec.md`、`specs/sync-api/spec.md`
 > 负责人：跨线（吕建江、刘帅华） ｜ 创建：2026-10-27 ｜ 状态：未开始（以任务勾选和证据为准）
-> 用户故事：未登记编号（见 proposal.md，待负责人补关联）
+> 关联需求：未登记编号（见 proposal.md，待负责人补关联）
 > 统一格式见 `docs/common/openspec-task-template.md`；末尾「测试与验证」为强制板块。
 
 

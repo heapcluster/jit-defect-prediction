@@ -2,7 +2,7 @@
 
 > 提案：`proposal.md` ｜ 设计决策：无独立 design.md ｜ 规格：`specs/predict-api/spec.md`
 > 负责人：backend 吕建江 ｜ 创建：2026-10-25 ｜ 状态：进行中（以任务勾选和证据为准）
-> 用户故事：无（同步能力）
+> 关联需求：无（同步能力）
 > 统一格式见 `docs/common/openspec-task-template.md`；末尾「测试与验证」为强制板块。
 
 ## 1. 后端同步能力

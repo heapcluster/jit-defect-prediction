@@ -2,7 +2,7 @@
 
 > 提案：`proposal.md` ｜ 设计决策：无独立 design.md ｜ 规格：`specs/feedback/spec.md`、`specs/observability/spec.md`、`specs/query-api/spec.md`
 > 负责人：backend 吕建江 ｜ 创建：2026-10-27 ｜ 状态：进行中（以任务勾选和证据为准）
-> 用户故事：未登记编号（见 proposal.md，待负责人补关联）
+> 关联需求：未登记编号（见 proposal.md，待负责人补关联）
 > 统一格式见 `docs/common/openspec-task-template.md`；末尾「测试与验证」为强制板块。
 
 
@@ -34,7 +34,7 @@
 
 - [x] 5.1 `tests/test_mirror.py`：路径集加入 `/api/health` 与 `/api/commits/{commit_hash}/label`；详情字段集加入 `label` — `backend/tests/test_mirror.py`
 - [x] 5.2 新增 `tests/test_feedback_api.py`（标记 / 撤销 / 404 / 参数非法）与 `tests/test_health_api.py`（ok / degraded / 无模型）— `backend/tests/`
-- [x] 5.3 `docs/backend/api-spec.md` 登记两个新端点 — `docs/backend/api-spec.md`
+- [x] 5.3 [历史版 `docs/backend/api-spec.md`](https://github.com/heapcluster/jit-defect-prediction/blob/100008e787c8902c35760c9cef6d61d279d921b7/docs/backend/api-spec.md) 登记两个新端点 — [历史版 `docs/backend/api-spec.md`](https://github.com/heapcluster/jit-defect-prediction/blob/100008e787c8902c35760c9cef6d61d279d921b7/docs/backend/api-spec.md)
 
 ## 测试与验证（强制板块）
 

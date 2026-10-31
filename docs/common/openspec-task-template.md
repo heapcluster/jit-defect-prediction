@@ -2,6 +2,8 @@
 
 适用新建和正在推进的 `openspec/changes/<change-id>/tasks.md`。完整协作规则与目录入口见 [`../../openspec/README.md`](../../openspec/README.md)。`changes/archive/` 保留历史原貌，不为统一排版回改。
 
+活跃 change 还须有 `.openspec.yaml`，至少写 `schema: spec-driven`、`created: YYYY-MM-DD`；无规格增量时写 `skip_specs: true`。下方“文件头四行”指标题和空行之后的四条 `>` 元数据行。
+
 ## 文件头
 
 ```markdown

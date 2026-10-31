@@ -2,11 +2,11 @@
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/public-dataset/spec.md`
 > 负责人：model 蒋励 ｜ 创建：2026-10-13 ｜ 状态：进行中（Sprint 2 启动）
-> 用户故事：C1-2（数据集加载）/ C1-3（数据质量治理）—— 回应课程附加功能 (3) 三条问题
+> 关联需求：C1-2（数据集加载）/ C1-3（数据质量治理）—— 回应课程附加功能 (3) 三条问题
 > 统一格式见 `docs/common/openspec-task-template.md`；**本文件末的「测试与验证」为强制板块，缺失视为提案不完整。**
 
 ## 1. 阻塞前置：可下载性验证（第 1 号任务，不过则整体降级）
-- [x] 1.1 逐个验证候选公开 JIT 数据集的可下载性（网络、链接、体积、许可证），输出 `data_model/preparation/reports/public_dataset_probe.md`：候选清单 / 可达性 / 体积 / 许可证 / 字段完备性
+- [x] 1.1 逐个验证候选公开 JIT 数据集的可下载性（网络、链接、体积、许可证），输出 [历史版 `data_model/preparation/reports/public_dataset_probe.md`](https://github.com/heapcluster/jit-defect-prediction/blob/100008e787c8902c35760c9cef6d61d279d921b7/data_model/preparation/reports/public_dataset_probe.md)：候选清单 / 可达性 / 体积 / 许可证 / 字段完备性
 - [ ] 1.2 **若全部不可达**：本 change 降级为「加载器 + 质量评价框架 + 用 Apache Camel 数据自验」，并在 1.1 报告与周报中**如实写明「未能获取公开数据集及原因」**，**不虚构数据** —— **本轮未触发**（有可达且字段可用的数据集），保留条目以便后续复核
 - [x] 1.3 若部分可达：按「字段完备性优先、语种多样性优先」选定 1–2 个入change，其余记入候选清单备查 —— 选定 Trac（`3910003`，提交级 + 标签 + 非 Java），CPJITSDP 备查，ApacheJIT 探测为不可达（记录在报告 §1）
 
