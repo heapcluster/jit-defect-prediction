@@ -2,7 +2,7 @@
 
 > 提案：`proposal.md` ｜ 设计决策：无独立 `design.md`（口径收敛与取舍已在 `proposal.md` §Why / §不在本次范围 写明） ｜ 规格：`specs/model-training-scope/spec.md`
 > 负责人：model 蒋励 ｜ 创建：2026-10-23 ｜ 状态：进行中
-> 用户故事：C1-1（特征工程）/ C2-1（模型训练）/ A2-3（两类评估指标）—— 训练口径收敛与 effort 预算感知对照
+> 关联需求：C1-1（特征工程）/ C2-1（模型训练）/ A2-3（两类评估指标）—— 训练口径收敛与 effort 预算感知对照
 > 统一格式见 `docs/common/openspec-task-template.md`；**本文件末的「测试与验证」为强制板块，缺失视为提案不完整。**
 
 ## 1. 训练口径收敛
@@ -13,7 +13,7 @@
       · 验证：`data_model/tests/test_model_registry_parity.py::test_all_three_lines_share_the_same_default_model_set`（注册表 12 / 训练口径 8 双断言）
 - [x] 1.3 `semantic` / `fused` 报告标题的分类器数量改为 `len(results)`
       · 验证：`data_model/tests/test_fused_report_coverage.py::test_report_title_states_trained_classifier_count`
-- [x] 1.4 `data_model/ENVIRONMENT.md` §5 的「均为 12 个」改为「训练口径 8 个、注册表 12 个」
+- [x] 1.4 [历史版 `data_model/ENVIRONMENT.md`](https://github.com/heapcluster/jit-defect-prediction/blob/100008e787c8902c35760c9cef6d61d279d921b7/data_model/ENVIRONMENT.md) §5 的「均为 12 个」改为「训练口径 8 个、注册表 12 个」
       · 验证：`data_model/ENVIRONMENT.md` §5 与三处 `config.py` 口径一致（人工核对 + 本 change 引用）
 - [ ] 1.5 用 12 个训过的 semantic / fused 报告，按 8 个重跑覆盖
       · 验证：两份报告标题分别显示「8 分类器」，表格模型行数 = 8

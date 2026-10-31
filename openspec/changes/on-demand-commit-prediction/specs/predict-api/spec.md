@@ -2,7 +2,7 @@
 
 ### Requirement: 在线预测入口
 
-`POST /api/predict` SHALL 对请求的 `commit_hash` 实时运行模型推理（MUST NOT 以查 `prediction` 表代替），返回 `commit_hash`、`model_name`、`risk_score`（0.0~1.0）、`predicted_at`（ISO 8601 UTC）、`features` 与 `explanation`；`model_name` 缺省 SHALL 取注册表中版本序最大模型（`version_key`）。当服务端配置 `SOURCE_REPO` 且提交或特征行尚未入库时，系统 SHALL 从该本地 Git 仓库现算与冻结 v1 一致的 14 项特征并落库后推理；仓库路径 MUST NOT 由请求方提供。
+`POST /api/predict` SHALL 对请求的 `commit_hash` 实时运行模型推理（MUST NOT 以查 `prediction` 表代替），返回 `commit_hash`、`model_name`、`risk_score`（0.0~1.0）、`predicted_at`（ISO 8601 UTC）、`features` 与 `explanation`；`model_name` 缺省 SHALL 使用全站有效默认模型解析入口（冠军优先，冠军无预测行时回退到已有预测行的最高版本已加载模型；空库取冠军）。当服务端配置 `SOURCE_REPO` 且提交或特征行尚未入库时，系统 SHALL 从该本地 Git 仓库现算与冻结 v1 一致的 14 项特征并落库后推理；仓库路径 MUST NOT 由请求方提供。
 
 #### Scenario: 正常预测
 
@@ -12,7 +12,7 @@
 #### Scenario: 缺省模型
 
 - **WHEN** 请求体不带 `model_name` 且注册表含多个模型
-- **THEN** 使用注册表中最新的模型并在响应中回显其 `model_name`
+- **THEN** 按全站有效默认模型规则选择已加载模型并回显实际使用的 `model_name`
 
 #### Scenario: 新提交现算
 

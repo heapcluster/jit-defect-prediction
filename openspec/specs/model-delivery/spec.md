@@ -1,29 +1,29 @@
 # model-delivery Specification
 
 ## Purpose
-把训练产物交付给后端线（A+C 方案）：A = `.pkl` 文件 + 特征顺序清单 + SHAP 依赖；C = 全量预测结果文件（由后端灌入 `prediction` 表）。数据线只产出文件，不碰数据库。
+把训练产物交付给后端线：模型权重不入库，在线模型集合与特征顺序由 `data_model/pipelines/expert/models/feature_order.txt` 声明，后端按该清单加载；预测数据只由实时同步或在线预测产生。离线评估文件不得作为运行时灌库入口。
 
 ## Requirements
 
-### Requirement: `.pkl` 导出的特征顺序 MUST 以契约二第三节为唯一权威
+### Requirement: `.pkl` 导出的特征顺序 MUST 以现行交付清单为准
 
-模型 MUST 序列化为 `.pkl` 落 `data_model/models/`（已被 `.gitignore` 排除，不入库）。
+expert 在线模型 MUST 序列化为 `.pkl` 落 `data_model/pipelines/expert/models/`（权重被 `.gitignore` 排除，不入库）。
 
-**特征顺序的唯一权威是契约二第三节**（冻结版）—— **不另立一份权威清单**。允许随交付包附一份**「交付副本」**（让交付包自包含，便于后端离线安装），但该副本 MUST 满足三件事：
+**在线特征顺序的运行时权威是 `data_model/pipelines/expert/models/feature_order.txt` 的 `[feature_order]`**；字段含义与 `docs/database/commit_feature.md` 对照。交付包可包含该清单的副本，但不得另立第二套顺序：
 
-- 明确标注**它不是权威**，一致性以 `docs/model/feature-columns.md` 第三节为准
-- 契约二升版时副本 MUST 同步；**两者不一致时，以契约为准**
-- 副本不构成「第二个要维护的清单」—— 任何「要不要改副本」的判断都回到契约
+- 交付副本 MUST 与仓库清单逐字一致；不一致时拒绝加载并报告差异
+- 字段名或列序变更 MUST 通过 change 同步更新清单、特征表定义与后端加载校验
+- 交付副本不构成第二份独立口径，维护判断回到仓库清单与已批准的规格
 
-> **为什么必须这样写**：`docs/sprint0-scope.md` 的 A 方案交付约定写的是「特征顺序以 `contracts/feature-columns.md` 为准，**不另发清单**（出两份早晚不一致）」。本条原先写「MUST 随包交付特征顺序清单」，会被读成清单与契约并列 —— 那就造出了第二个权威。**降级为副本后，交付包仍然自包含，但权威只有一个。**
+> 历史交付约定曾同时提到独立契约和随包清单。当前以仓库的 `feature_order.txt` 为运行时清单，旧目录及旧契约文件已移除；历史记录不再作为现行路径使用。
 
 #### Scenario: 后端按清单组装特征
 - **WHEN** 后端加载 `.pkl` 并按特征顺序清单构造输入向量推理
 - **THEN** 对同一条提交，推理结果与训练侧离线预测一致
 
 #### Scenario: 模型文件不入库（边界场景）
-- **WHEN** 全量运行后执行 `git status --short`
-- **THEN** `data_model/models/` 下产物不出现（被忽略规则排除），不使用 `git add -f`
+- **WHEN** 交付权重后执行 `git status --short`
+- **THEN** `data_model/pipelines/expert/models/` 下的 `.pkl` 权重不出现（被忽略规则排除），不使用 `git add -f`
 
 ### Requirement: model_name MUST 按 <算法>_v<序号> 命名
 
@@ -37,17 +37,17 @@
 - **WHEN** 新模型沿用了已有 `model_name`（如重训后仍叫 `xgb_v1`）
 - **THEN** MUST 换新序号（`xgb_v2`）；MUST NOT 覆盖旧名字 —— 覆盖会让 `prediction` 表里新旧结果混作一批，趋势看板无法解释
 
-### Requirement: 全量预测结果文件 MUST 对应契约一表三字段
+### Requirement: 离线预测结果 MUST 与在线入库隔离
 
-C 方案交付物 `prediction_result.csv` MUST 且仅含契约一表三字段：`commit_hash` / `model_name` / `risk_score`（0.00000–1.00000）/ `predicted_at`（UTC）/ `feature_version`。**数据线 MUST NOT 直连数据库写 `prediction` 表**，灌库责任在后端线。
+模型线可产出 `prediction_result.csv` 用于离线评估；该文件 MUST NOT 被后端服务、启动过程或 CI 当作运行时灌库输入。`prediction` 表由实时同步或在线预测按 `(commit_hash, model_name)` 幂等写入；模型线 MUST NOT 直连运行库。
 
-#### Scenario: 字段逐项对齐
-- **WHEN** 后端线拿 `prediction_result.csv` 与契约一表三逐字段比对
-- **THEN** 字段名、类型、取值范围全部一致，可直接灌库
+#### Scenario: 离线文件存在
+- **WHEN** 模型线生成离线预测结果文件
+- **THEN** 文件可用于评估报告，但运行库仍只由实时同步或在线预测写入，不提供 CSV 灌库入口
 
 #### Scenario: 数据线不碰库（边界场景）
 - **WHEN** 审查数据线脚本与依赖
-- **THEN** 无数据库连接代码、无 MySQL 驱动依赖；写库逻辑仅存在于后端线
+- **THEN** 模型训练与离线预测脚本不连接运行数据库；写库逻辑仅存在于后端线
 
 ### Requirement: SHAP 依赖 MUST 随交付清单钉版本
 

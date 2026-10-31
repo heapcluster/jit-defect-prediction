@@ -7,7 +7,7 @@
 
 ### Requirement: 统一包络与错误码
 
-所有接口 SHALL 返回 `{ "code": 0, "message": "ok", "data": {...} }` 包络；错误码 SHALL 只取 `docs/backend/api-spec.md`（契约三 v1.5）的 0 / 40001 / 40100 / 40400 / 50000，MUST NOT 自造。
+所有接口 SHALL 返回 `{ "code": 0, "message": "ok", "data": {...} }` 包络；错误码 SHALL 只取本规格与后端错误定义 `backend/app/errors.py` 的 0 / 40001 / 40100 / 40400 / 50000，MUST NOT 自造。
 
 #### Scenario: 成功响应
 
@@ -40,7 +40,7 @@
 
 ### Requirement: 风险列表查询
 
-`GET /api/commits` SHALL 按 `risk_score` 降序返回提交列表，支持 `page`/`size` 分页（默认 1/20）与 `min_risk`/`model_name`/`start_time`/`end_time` 筛选；`items` SHALL 只取单个 `model_name` 的预测行，`model_name` 缺省 SHALL 取 `prediction` 表内模型中**版本序**（`version_key`，design D6）最大者，MUST NOT 跨模型混排（否则同一提交会翻出多条重复项）。`start_time`/`end_time` SHALL 按**闭区间** `[start, end]` 以 `committed_at` 过滤（契约三 1.5 区间语义）：**纯日期串**（`YYYY-MM-DD`）start 解释为当天 `00:00:00.000000`、end 解释为当天 `23:59:59.999999`（结束日含全天）；带时间分量的串按原样解析；带时区的串先转 UTC；紧凑基本格式（如 `20260803`，含带 `Z`/偏移后缀变体）SHALL 被拒（40001），同一日期只允许一种写法。
+`GET /api/commits` SHALL 按 `risk_score` 降序返回提交列表，支持 `page`/`size` 分页（默认 1/20）与 `min_risk`/`model_name`/`start_time`/`end_time` 筛选；`items` SHALL 只取单个 `model_name` 的预测行，`model_name` 缺省 SHALL 与在线预测、详情和趋势共用有效默认模型解析：冠军有行用冠军，否则在已加载且有预测行的模型中取 `version_key` 最大者，空库用冠军；MUST NOT 跨模型混排。`start_time`/`end_time` SHALL 按**闭区间** `[start, end]` 以 `committed_at` 过滤：**纯日期串**（`YYYY-MM-DD`）start 解释为当天 `00:00:00.000000`、end 解释为当天 `23:59:59.999999`（结束日含全天）；带时间分量的串按原样解析；带时区的串先转 UTC；紧凑基本格式（如 `20260803`，含带 `Z`/偏移后缀变体）SHALL 被拒（40001），同一日期只允许一种写法。
 
 #### Scenario: 默认排序与分页
 
@@ -69,7 +69,7 @@
 
 ### Requirement: 提交详情查询
 
-`GET /api/commits/{commit_hash}` SHALL 返回提交元信息、14 项特征值与 `explanation`；`features` SHALL 读自 `commit_feature` 表，键名与 `docs/model/feature-columns.md` 逐字一致；本响应 MUST NOT 返回真实标签。
+`GET /api/commits/{commit_hash}` SHALL 返回提交元信息、14 项特征值与 `explanation`；`features` SHALL 读自 `commit_feature` 表，键名与 `docs/database/commit_feature.md` 逐字一致；本响应 MUST NOT 返回真实标签。
 
 #### Scenario: 哈希不存在
 
@@ -116,7 +116,7 @@
 
 ### Requirement: Swagger 实现镜像
 
-系统 SHALL 暴露 FastAPI 自动生成的 OpenAPI/Swagger；生成 schema 中的路径、字段名与类型 SHALL 与 `docs/backend/api-spec.md`（契约三 v1.5）逐字一致，偏离 SHALL 修改代码消除，MUST NOT 反向修改契约。
+系统 SHALL 暴露 FastAPI 自动生成的 OpenAPI/Swagger；生成 schema 中的路径、字段名与类型 SHALL 与本规格、`docs/api/commits.md` 及相关接口分册一致。出现偏离时 SHALL 提交变更并由接口负责人核对，MUST NOT 为迎合现有实现而静默改口径。
 
 #### Scenario: 镜像比对零偏离
 

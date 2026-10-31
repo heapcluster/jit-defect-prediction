@@ -7,7 +7,7 @@
 
 ### Requirement: 识别修缺陷提交
 
-系统 MUST 按可复核的判据识别修缺陷提交，且判据 MUST 作为文字写进 `docs/model/data-pipeline.md`，MUST NOT 只存在于实现代码里。
+系统 MUST 按可复核的判据识别修缺陷提交；本规格中的文字判据与 `data_model/preparation/02_szz_labeling.py` 实现 MUST 一致，MUST NOT 只存在于代码里。
 
 #### Scenario: 修复提交被识别
 
@@ -17,11 +17,11 @@
 #### Scenario: 修复语义的匹配口径
 
 - **WHEN** 判定一条提交的 message 是否含修复语义
-- **THEN** 用**词首边界**匹配（`\b(fix|bug|patch)`，大小写不敏感）；**不用**无边界子串匹配 —— 后者会把 `dispatch`（内含 `patch`）、`debug`（内含 `bug`）、`prefix`（内含 `fix`）这类功能词误判为修复语义；也**不收窄成严格词表** —— 会漏掉 `fixe` / `fixinng` / `patchh` 这类拼写错误的真修复（假阳性条数须在 Apache Camel 完整固定版本上重测后回填，登记于 `docs/model/data-pipeline.md` 第 7 节）
+- **THEN** 用**词首边界**匹配（`\b(fix|bug|patch)`，大小写不敏感）；**不用**无边界子串匹配 —— 后者会把 `dispatch`（内含 `patch`）、`debug`（内含 `bug`）、`prefix`（内含 `fix`）这类功能词误判为修复语义；也**不收窄成严格词表** —— 会漏掉 `fixe` / `fixinng` / `patchh` 这类拼写错误的真修复。假阳性条数须在 Apache Camel 完整固定版本上重测并保存报告。
 
 #### Scenario: 判据可复算
 
-- **WHEN** 他人拿到同一固定版本、照 `docs/model/data-pipeline.md` 第 7 节登记的判据文字复算
+- **WHEN** 他人拿到同一固定版本、照本规格及 `data_model/preparation/02_szz_labeling.py` 的判据复算
 - **THEN** 三个命中外沿与登记值逐项一致（Camel 编号 38,716 ／ 编号且修复语义 7,787 ／ 编号且 `fix` 词形 6,631），且实现自带的自检与登记值比对，不相等即报错 —— 判据文字与实现必须同源
 
 #### Scenario: 判据全部落空
@@ -45,7 +45,7 @@
 
 ### Requirement: 标签字段与方法标记
 
-标签 MUST 满足 `docs/design/data-fields.md` 表二 `commit_label` 的字段定义；MUST 记录 `label_method`，取值只在契约定义的方法集合内。
+标签 MUST 满足 `docs/database/commit_label.md` 的字段定义；MUST 记录 `label_method`，取值只在现行定义的方法集合内。
 
 #### Scenario: 两套方法并存
 
@@ -59,7 +59,7 @@
 
 ### Requirement: 正样本比例异常时先自查
 
-打标结果 MUST 报出正样本比例。**判据 MUST 与实现同源** —— 唯一来源是 `02_szz_labeling.py` 的 `ABNORMAL_LOW` / `ABNORMAL_HIGH`（当前为 0.40 / 0.60），`docs/model/data-pipeline.md` 第 6 节 MUST 引用同一组数值。
+打标结果 MUST 报出正样本比例。**判据 MUST 与实现同源** —— 来源是 `data_model/preparation/02_szz_labeling.py` 的 `ABNORMAL_LOW` / `ABNORMAL_HIGH`（当前为 0.40 / 0.60）；本规格及当前运行报告 MUST 使用同一组数值。
 
 #### Scenario: 比例落在异常区间
 
@@ -74,7 +74,7 @@
 #### Scenario: 用经验描述充当判据
 
 - **WHEN** 有人以「JIT 数据集的正样本比例是个位数到十几百分点」这类**经验描述**作为判据
-- **THEN** 该说法 MUST NOT 被采纳 —— 旧 ActiveMQ 实验 `szz` 38.98%、`szz_lite` 27.74%，既不在「个位数到十几」之内、也够不上「接近 50%」，两套话术都判不了它。经验描述无法复算，判据只能是**在固定版本上实测并登记的一对比例**（登记处：`data_model/preparation/reports/szz_labeling_stats.md` 与 `docs/model/data-pipeline.md` §6），既不由「个位数到十几」的经验区间判定、也不由「接近 50%」的经验话术判定。**主对象 Apache Camel 实测：`szz` 22.23% / `szz_lite` 14.38%**（来源上游提交 `866b7dc` 的全量报告，非本机重跑）
+- **THEN** 该说法 MUST NOT 被采纳 —— 旧 ActiveMQ 实验 `szz` 38.98%、`szz_lite` 27.74%，既不在「个位数到十几」之内、也够不上「接近 50%」，两套话术都判不了它。判据只能是**在固定版本上实测并登记的一对比例**。历史 Camel 实测记录为 `szz` 22.23% / `szz_lite` 14.38%（来源上游提交 `866b7dc`，当前仓库已不含原全量报告；本次复核前不得当作新实测证据）
 
 ### Requirement: 打标结果可复现
 

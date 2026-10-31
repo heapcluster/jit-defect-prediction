@@ -1,12 +1,12 @@
 ## ADDED Requirements
 
-### Requirement: 服务模型唯一（冠军单跑）
+### Requirement: 冠军模型配置
 
-系统 SHALL 维护一个「冠军模型」作为运行时的缺省服务模型，取值顺序为：`runtime_setting.champion_model` → 该键缺失或指向未加载模型时回退注册表中版本序最大模型（`version_key`，design D6）。回退 MUST NOT 报错、MUST NOT 返回 50000。
+系统 SHALL 维护一个「冠军模型」配置；配置缺失或指向未加载模型时回退到注册表中版本序最大模型（`version_key`）作为冠军候选。读写路径 SHALL 共用 `default-model-resolution` 的有效默认模型解析入口，MUST NOT 在本变更另定义解析顺序。
 
-`POST /api/predict` 在请求未指定 `model_name` 时 SHALL 使用冠军模型，并在响应 `model_name` 中回显实际所用模型。
+`POST /api/predict` 在请求未指定 `model_name` 时 SHALL 使用全站有效默认模型解析入口，并在响应 `model_name` 中回显实际所用模型。
 
-> 与活规格 `predict-api / 在线预测入口` 的关系：该条当前把「缺省 = `version_key` 最大」写死在正文。本 Requirement 把缺省口径升级为「冠军优先、`version_key` 兜底」，待并行 change `on-demand-commit-prediction` 归档后由本 change 收编为 MODIFIED，避免两个活跃 change 同时改同一标题。
+> 有效默认模型的单一完整判据由 `default-model-resolution` change 承接，本 Requirement 只声明引用关系与响应回显。
 
 #### Scenario: 冠军缺省
 
@@ -16,30 +16,30 @@
 #### Scenario: 冠军未配置时回退
 
 - **WHEN** 请求体不带 `model_name`，且 `runtime_setting` 中没有 `champion_model`
-- **THEN** 用注册表中 `version_key` 最大的模型推理，响应 `model_name` 为该模型，HTTP 200
+- **THEN** 若有已加载模型存在预测行，使用其中 `version_key` 最大者；否则使用注册表中 `version_key` 最大模型，响应回显实际 `model_name`，HTTP 200
 
 #### Scenario: 冠军配置了未交付的模型
 
 - **WHEN** `champion_model` 指向一个不在交付清单内、因而未加载的模型名
-- **THEN** 回退到 `version_key` 最大模型并在服务端日志记录一次告警，请求仍 200
+- **THEN** 在服务端日志记录告警，再按有效默认模型顺序选择已加载模型，请求仍 200
 
 ### Requirement: 批量预测的模型范围
 
-批量入口（`POST /api/sync`、`POST /api/sync/catchup`、`POST /api/sync-prs`）默认 SHALL 只对冠军模型打分并落库，即每条提交只写一行 `prediction`。
+批量入口（`POST /api/sync`、`POST /api/sync/catchup`、`POST /api/sync-prs`）默认 SHALL 对全部已加载模型逐一打分并按 `(commit_hash, model_name)` 幂等落库；每条提交最多写入与已加载模型数相同的预测行。
 
-仅当请求显式带 `all_models=true` 时，才 SHALL 对全部已加载模型各写一行；该路径行为 MUST 与本改动前一致（一次特征提取、逐模型打分）。
+每条提交 SHALL 只现算一次特征，再逐模型打分；MUST NOT 把 `all_models=true` 当作全模型落库的前置条件。
 
 响应 SHALL 回显本次实际使用的模型清单（`models` 数组），调用方 MUST NOT 靠 `prediction` 表行数反推跑了几种模型。
 
-#### Scenario: 默认单模型同步
+#### Scenario: 默认全模型同步
 
 - **WHEN** `POST /api/sync?limit=10`（不带 `all_models`），且这 10 条均无预测
-- **THEN** 新增 10 行 `prediction`，`model_name` 全为冠军模型，响应 `models` 长度为 1
+- **THEN** 每条提交对全部已加载模型产生预测行；若已加载 8 个模型，最多新增 80 行，响应 `models` 长度为 8
 
-#### Scenario: 显式全模型同步
+#### Scenario: 显式参数不得缩小落库范围
 
-- **WHEN** `POST /api/sync?limit=10&all_models=true`，且已加载 8 个模型
-- **THEN** 新增最多 80 行 `prediction`，响应 `models` 长度为 8
+- **WHEN** 调用方未传 `all_models` 或仍传旧参数，且已加载 8 个模型
+- **THEN** 全模型落库范围保持 8 项；未支持的旧参数不得改变默认范围
 
 #### Scenario: 幂等
 

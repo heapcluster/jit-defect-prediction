@@ -7,11 +7,11 @@
 
 ### Requirement: 模型加载
 
-系统 SHALL 在启动时从 `MODEL_DIR`（`.env` 配置，默认 `data_model/models/`）加载 `.pkl` 模型文件并建立注册表；`model_name` SHALL 取文件名主干；加载失败 SHALL NOT 阻断服务启动。
+系统 SHALL 在启动时从 `MODEL_DIR`（`.env` 配置，默认 `data_model/pipelines/expert/models/`）读取 `feature_order.txt` 的 `[models]` 与 `[feature_order]`，仅加载清单声明且特征列序匹配的 `.pkl` 模型并建立注册表；`model_name` SHALL 取文件名主干；单个权重加载失败 SHALL NOT 阻断查询服务启动，失败详情只写日志。八项清单的验收须另核对 8/8 实际加载证据。
 
 #### Scenario: 正常加载
 
-- **WHEN** `MODEL_DIR` 下存在可反序列化的 `.pkl` 文件
+- **WHEN** `MODEL_DIR` 下存在有效清单和可反序列化的清单内 `.pkl` 文件
 - **THEN** 启动日志记录已加载的 `model_name` 清单，注册表可按名取用
 
 #### Scenario: 模型文件缺失或损坏
@@ -21,7 +21,7 @@
 
 ### Requirement: 在线预测入口
 
-`POST /api/predict` SHALL 对请求的 `commit_hash` 实时运行模型推理（MUST NOT 以查 `prediction` 表代替），返回 `commit_hash`、`model_name`、`risk_score`（0.0~1.0）、`predicted_at`（ISO 8601 UTC）、`features` 与 `explanation`；`model_name` 缺省 SHALL 取注册表中版本序最大模型（`version_key`，design D6）。
+`POST /api/predict` SHALL 对请求的 `commit_hash` 实时运行模型推理（MUST NOT 以查 `prediction` 表代替），返回 `commit_hash`、`model_name`、`risk_score`（0.0~1.0）、`predicted_at`（ISO 8601 UTC）、`features` 与 `explanation`；`model_name` 缺省 SHALL 与查询、趋势和 PR 路径共用同一个有效默认模型解析入口：冠军有预测行时用冠军，否则取版本序最高且已有预测行的已加载模型；空库时取冠军。未配置或未加载的冠军按注册表版本序回退。
 
 #### Scenario: 正常预测
 
@@ -31,7 +31,7 @@
 #### Scenario: 缺省模型
 
 - **WHEN** 请求体不带 `model_name` 且注册表含多个模型
-- **THEN** 使用注册表中最新的模型并在响应中回显其 `model_name`
+- **THEN** 按全站有效默认模型规则选择已加载模型，并在响应中回显实际使用的 `model_name`
 
 ### Requirement: 预测请求校验
 

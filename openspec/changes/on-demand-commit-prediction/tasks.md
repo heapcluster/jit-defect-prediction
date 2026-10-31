@@ -2,7 +2,7 @@
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/predict-api/spec.md`、`specs/query-api/spec.md`
 > 负责人：backend 吕建江（PO 苏哲勋联调把关）｜ 创建：2026-10-23 ｜ 状态：进行中（合成联调通过，真实环境待验收）
-> 用户故事：新提交现算 14 维特征并通过三模型在线预测
+> 关联需求：新提交现算 14 维特征并通过现行八模型交付清单在线预测
 > 统一格式见 `docs/common/openspec-task-template.md`；本文件末的「测试与验证」为强制板块。
 
 ## 1. 接口接入
@@ -13,8 +13,8 @@
 
 ## 2. 跨线真实交付
 
-- [ ] 2.1 模型线蒋励将 Camel Git 副本、三模型权重与入库 CSV 交付 backend 吕建江 — `data_model/data/camel/`、`data_model/pipelines/expert/models/{lr,rf,xgb}_v1.pkl` 及清单、`data_model/data/{commits,commit_features}.csv`；后端按 `docs/backend/api-spec.md` 对新 hash 完成真实 HTTP 演示并存证。
-- [ ] 2.2 以真实 Camel 新提交和三模型做 100 次 p95、启动/首次请求耗时验证 — 结果归档 `backend/scripts/evidence/`；未达 500ms 时按提案记录与调整，不静默降级。
+- [ ] 2.1 模型线蒋励将 Camel Git 副本与现行清单内八模型权重交付 backend 吕建江 — 交付清单在 `data_model/pipelines/expert/models/feature_order.txt`；后端按 `docs/api/predict.md` 对新 hash 完成真实 HTTP 演示并存证；受控权重与数据不入库。
+- [ ] 2.2 以真实 Camel 新提交和当前八模型逐项做 100 次 p95、启动/首次请求耗时验证 — 结果存入本 change 的 `evidence/` 并在 PR 中链接；未达 500ms 时按提案记录与调整，不静默降级。
 
 ## 测试与验证（强制板块）
 
@@ -44,15 +44,15 @@
 | 项 | 内容 |
 |---|---|
 | 验收依据 | `specs/predict-api/spec.md`、`specs/query-api/spec.md` 的新增场景 |
-| 用例数与结果 | 合成场景通过；真实 Camel 三模型/浏览器联调待验收 |
+| 用例数与结果 | 合成场景通过；真实 Camel 八模型/浏览器联调待验收 |
 | 复现命令 / 步骤 | `cd backend && python -m pytest -o addopts='' -q`；`openspec validate on-demand-commit-prediction --strict --no-interactive` |
-| 证据归档 | `backend/scripts/evidence/on-demand-commit-2026-10-23.md` |
+| 证据归档 | 旧证据已随 #187 删除；需在本 change 新建当前提交的可复核证据 |
 
 ### 4. 非功能验证
 
 | 维度 | 是否触及 | 证据 |
 |---|---|---|
-| 性能 | 是，尚未验收 | 真实 Camel 首次请求及 100 次 p95 缺失，见 `backend/scripts/evidence/on-demand-commit-2026-10-23.md` |
+| 性能 | 是，尚未验收 | 真实 Camel 首次请求及 100 次 p95 缺失；需新证据 |
 | 安全 | 是 | 来源路径仅服务端环境配置、50000 不回显路径；`cd backend && python -m pytest -o addopts='' -q tests/test_predict_api.py` |
 | 可靠 | 是 | 同键幂等、异常来源拒绝、列序来自模型线；同上 |
 | 易用 | 间接触及 | 详情回退有自动测试；浏览器三页截图待后续联调 |
@@ -63,5 +63,5 @@
 |---|---|---|---|
 | Camel 完整历史、副本 HEAD 及 CSV 不在当前工作环境 | 原始数据和模型权重按规则不入库，需队友交付 | model 蒋励 / backend 吕建江 | 联调交付时 |
 | 首次新提交全量历史扫描可能超过 500ms | 模型线单条入口复用批量算法，尚无索引预热或缓存 | model 蒋励 / backend 吕建江 | 真实 Camel 100 次压测后优化 |
-| 随机森林 SHAP p95 旧报告高于 500ms | 三模型交付仍包含 rf；不能用夹具测试冒充性能验收 | model 蒋励 / backend 吕建江 | 真实权重压测并记录取舍 |
+| 随机森林 SHAP p95 旧报告高于 500ms | 现行八模型交付仍包含 rf；不能用夹具测试冒充性能验收 | model 蒋励 / backend 吕建江 | 真实权重压测并记录取舍 |
 | 前端三页真实走查与截图缺失 | 当前只测 HTTP 合成链路 | frontend 刘帅华 / PO 苏哲勋 | 三线部署后 |

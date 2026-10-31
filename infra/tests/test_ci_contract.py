@@ -40,6 +40,19 @@ class CIContractTests(unittest.TestCase):
         self.assertIn("image: mysql:8.0", WORKFLOW)
         self.assertIn("python infra/setup_mysql.py", WORKFLOW)
 
+    def test_openspec_consistency_runs_in_existing_ci_job(self):
+        block = WORKFLOW.split("- name: Check OpenSpec consistency\n", 1)[1].split(
+            "- name:", 1
+        )[0]
+        for command in (
+            "python -m pytest -q infra/tests/test_spec_references.py",
+            "python infra/check_spec_references.py format",
+            "python infra/check_spec_references.py links",
+            "python infra/check_spec_references.py deltas",
+        ):
+            self.assertIn(command, block)
+        self.assertNotIn("if:", block)
+
     def test_pr_and_merge_queue_supported_with_read_only_token(self):
         self.assertIn("  pull_request:\n    branches: [main]", WORKFLOW)
         self.assertIn("  merge_group:\n", WORKFLOW)

@@ -15,13 +15,13 @@
 - D3：不注册 `__main__` 别名。独立进程仅加搜索路径后，当前 TabNet 权重仍抛 `AttributeError`；在 `python -c` 顶层先 `from pipelines.expert.model import TabNetWithEarlyStop` 会把类绑定进 `__main__`，这种验证不能证明单纯路径修复有效。正例测试须先在生产者子进程按规范模块路径保存，再在独立消费者中加载。
 - D4：扩充 `test_model_registry.py` 验证导入、重复调用、损坏文件、宽度拒收与日志；`test_integration_api.py` 使用独立 SQLite engine 和临时四类 CSV，真实调用 ingest 与 TestClient 四接口。夹具负责恢复全局 engine/registry，禁止依赖外部 .env、MySQL 或真实权重。
 - D5：D-09 已在 `docs/repo/defect-records.md:25` 登记处理方式，按用户最新要求后续单独开 change，而非仅以登记结案。当前SQLite集成测试不改变大写哈希行为；GET/POST归一化及MySQL对照不混入模型导入PR。
-- D6（rebase 到 `f5ca61d` 后补记）：#96 已把在线模型收敛为清单声明的三个（`lr_v1`/`rf_v1`/`xgb_v1`）。2026-10-24 只读实测：cwd=`backend`，`MODEL_DIR` 指向本机含 8 个权重的 `data_model/pipelines/expert/models`（其中 `feature_order.txt` 与仓库同源、只声明 3 个），`load_models()` 输出 `loaded models: ['lr_v1', 'rf_v1', 'xgb_v1']`；其余 5 个权重根本不进入反序列化，`tabnet_v1` 的 `__main__` 导出缺陷因此被掩盖而非修复。T9 的「8 个模型全部加载、逐个 POST 返回非空解释」与已合并的清单语义直接冲突，属裁定项：或由模型线扩清单并重新导出 TabNet，或把 T9 收敛到清单内三模型。本 change 不自行改清单范围，也不以 3/8 冒充 8/8。
+- D6（2026-10-24 历史记录）：#96 当时只声明三个在线模型，8 权重目录里只加载 3 项。后续 owner 已批准八模型在线清单，详见 `online-eight-model-selection`；该三模型裁定项已被新裁定取代。当前仍须实测八项清单与 8/8 加载，不以当时 3/8 的结果冒充现行验收。
 
 ## Risks / Trade-offs
 
 - Python 搜索路径属于进程全局状态 → 仅添加确定的仓库路径且幂等，测试隔离并恢复路径。
 - Pickle/joblib 可执行代码 → 只验证已信任的团队交付权重，不建立上传或任意路径加载入口。
-- 当前 TabNet 旧权重不在清单声明内，连反序列化都不触发 → 导出类路径问题转模型线，且需先裁定清单范围（3 还是 8），不能报 8/8 验收通过。
+- TabNet 旧权重曾因未在三模型清单内而未触发反序列化 → 现行八模型清单下必须逐项复核新权重，不能沿用旧 3/8 验收结果。
 - SQLite 不能证明 MySQL 方言和并发行为 → MySQL证据留待后续，不把测试框架覆盖写成生产联调完成。
 
 ## Migration Plan

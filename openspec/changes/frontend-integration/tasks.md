@@ -2,7 +2,7 @@
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/risk-list/spec.md`、`specs/commit-detail/spec.md`、`specs/trend-board/spec.md`、`specs/frontend-error-envelope/spec.md`
 > 负责人：frontend 刘帅华 ｜ 创建：2026-10-09 ｜ 状态：进行中（4.3/4.4 尚未勾选）
-> 用户故事：F2 / F3 / F4
+> 关联需求：F2 / F3 / F4
 > 统一格式见 `docs/common/openspec-task-template.md`；末尾「测试与验证」为强制板块。
 
 ## 1. 页面实现
@@ -15,20 +15,20 @@
 ## 2. 三态与错误码
 
 - [x] 2.1 三态齐全：加载中 / 空数据 / 请求失败（空数据不是错误）
-- [x] 2.2 错误码按 `docs/frontend/pages.md` 第 5 节区分处理（40001 / 40100 / 40400 / 50000）
+- [x] 2.2 错误码按 [历史版 `docs/frontend/pages.md`](https://github.com/heapcluster/jit-defect-prediction/blob/100008e787c8902c35760c9cef6d61d279d921b7/docs/frontend/pages.md) 第 5 节区分处理（40001 / 40100 / 40400 / 50000）
 
 ## 3. 字段核对
 
-- [x] 3.1 每页字段名与 `docs/frontend/pages.md` 映射表逐字一致，不改名、不驼峰
+- [x] 3.1 每页字段名与 [历史版 `docs/frontend/pages.md`](https://github.com/heapcluster/jit-defect-prediction/blob/100008e787c8902c35760c9cef6d61d279d921b7/docs/frontend/pages.md) 映射表逐字一致，不改名、不驼峰
 - [x] 3.2 风险值由前端 ×100 转百分比；概率字段取 0~1 小数不转字符串
 
 ## 4. 联调与交付
 
-- [x] 4.1 三页面对接 API-01/02/03（curl 层联调已通），留联调记录；已采集 9 张场景截图见 PR #117（`docs/frontend/screenshots/`）
-- [ ] 4.1b 浏览器人工冒烟补齐剩余取证：见 `docs/frontend/evidence/tf-fe-01-screenshots.md`「未取证项」——提交详情页加载中、趋势看板加载中/空数据、契约错误码（40001/40100/50000）的前端分发证据；已完成的 9 张截图只覆盖风险列表 4 / 提交详情 3 / 趋势看板 2
+- [x] 4.1 三页面对接 API-01/02/03（curl 层联调已通），留联调记录；已采集 9 张场景截图见 PR #117（[历史版 `docs/frontend/screenshots/`](https://github.com/heapcluster/jit-defect-prediction/tree/100008e787c8902c35760c9cef6d61d279d921b7/docs/frontend/screenshots)）
 - [ ] 4.2 API-04 独立联调：`POST /api/predict` 用真实 40 位 commit_hash（阻塞于真实 commit 灌库；seed 占位 `000...001` 仅证明接口通，不作为通过证据）
 - [ ] 4.3 提交 PR 并写明关联 change id `frontend-integration`，由非作者审阅合入
 - [ ] 4.4 回飞书看板更新任务状态
+- [ ] 4.5 浏览器人工冒烟补齐剩余取证：见 `docs/frontend/evidence/tf-fe-01-screenshots.md`「未取证项」——提交详情页加载中、趋势看板加载中/空数据、契约错误码（40001/40100/50000）的前端分发证据；已完成的 9 张截图只覆盖风险列表 4 / 提交详情 3 / 趋势看板 2
 
 ## 测试与验证（强制板块）
 

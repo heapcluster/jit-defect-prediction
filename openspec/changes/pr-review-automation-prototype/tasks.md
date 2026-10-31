@@ -2,14 +2,14 @@
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/pr-review-automation/spec.md`
 > 负责人：repo 苏哲勋｜ 创建：2026-10-23 ｜ 状态：进行中
-> 用户故事：无（工程化）
+> 关联需求：无（工程化）
 > 统一格式见 `docs/common/openspec-task-template.md`；本文件末的「测试与验证」为强制板块，缺失视为提案不完整。
 
 ## 1. 原型实现（工程化）
 
-- [x] 1.1 实现只读 PR 触发工作流 — `.github/workflows/pr-auto-review-prototype.yml`；核对权限仅为 read、无 PR 头 checkout。
-- [x] 1.2 实现差异完整性、SHA、CI 与证据校验 — `infra/pr_auto_review.py`；运行 `python -m unittest discover -s infra/tests -v` 为 8 passed。
-- [x] 1.3 落地默认不发布配置与使用说明 — `infra/pr_review_config.json`、`infra/README.md`；配置为 `provider=none`、`publish=false`。
+- [x] 1.1 实现只读 PR 触发工作流 — [历史版 `.github/workflows/pr-auto-review-prototype.yml`](https://github.com/heapcluster/jit-defect-prediction/blob/100008e787c8902c35760c9cef6d61d279d921b7/.github/workflows/pr-auto-review-prototype.yml)；核对权限仅为 read、无 PR 头 checkout。
+- [x] 1.2 实现差异完整性、SHA、CI 与证据校验 — [历史版 `infra/pr_auto_review.py`](https://github.com/heapcluster/jit-defect-prediction/blob/100008e787c8902c35760c9cef6d61d279d921b7/infra/pr_auto_review.py)；运行 `python -m unittest discover -s infra/tests -v` 为 8 passed。
+- [x] 1.3 落地默认不发布配置与使用说明 — `infra/pr_review_config.json`、[历史版 `infra/README.md`](https://github.com/heapcluster/jit-defect-prediction/blob/100008e787c8902c35760c9cef6d61d279d921b7/infra/README.md)；配置为 `provider=none`、`publish=false`。
 - [ ] 1.4 在线验证 Actions 在 PR 更新时只读执行 — GitHub Actions 运行链接与日志；工作流先合入默认分支，再由后续 PR 更新触发并补证据。
 
 ## 测试与验证（强制板块）

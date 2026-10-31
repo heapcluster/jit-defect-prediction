@@ -7,7 +7,7 @@
 
 ### Requirement: 建表字段逐字对齐契约
 
-系统 SHALL 按 `docs/design/data-fields.md`（契约一 v1.6，表一/二/三与 ER 图）与 `docs/model/feature-columns.md`（契约二）§2/§3 建立 `commit`、`commit_label`、`commit_feature`、`prediction` 四张表：列名逐字一致、一律 snake_case、时间字段统一 UTC 且以 `_at` 结尾；`commit_hash` SHALL 建唯一索引，`committed_at` SHALL 建普通索引；四张表 SHALL 由同一份迁移脚本建立。
+系统 SHALL 按 `docs/database/commit.md`、`docs/database/commit_label.md`、`docs/database/commit_feature.md`、`docs/database/prediction.md` 建立四张业务表：列名逐字一致、一律 snake_case、时间字段统一 UTC 且以 `_at` 结尾；`commit_hash` SHALL 建唯一索引，`committed_at` SHALL 建普通索引；四张表 SHALL 由同一份建库脚本建立。模型元数据表等现行补充结构见 `docs/database/model.md`。
 
 #### Scenario: 列名逐字对齐
 
@@ -21,7 +21,7 @@
 
 ### Requirement: 一条命令建库
 
-系统 SHALL 提供单条命令在干净 clone 的环境下完成建库，并 SHALL 把该命令与「数据由实时同步产出、需先配置本地历史索引（`SOURCE_REPO`）」的前提写进 `backend/README.md`。
+系统 SHALL 提供 `infra/setup_mysql.py` 单条命令在干净 clone 的环境下完成建库；执行者须先配置数据库连接，并在实时同步前配置本地历史索引 `SOURCE_REPO`。命令参数以脚本帮助信息为准。
 
 #### Scenario: 干净环境建库
 
@@ -35,7 +35,7 @@
 
 ### Requirement: 特征列名与顺序
 
-`commit_feature` 的 14 项特征列名 SHALL 与 `docs/model/feature-columns.md`（契约二）§3 逐字一致；后端组装模型输入向量时 SHALL 按 §3 的列顺序取值，MUST NOT 依赖字典插入顺序或文件列顺序。
+`commit_feature` 的 14 项特征列名 SHALL 与 `docs/database/commit_feature.md` 逐字一致；后端组装模型输入向量时 SHALL 按 `data_model/pipelines/expert/models/feature_order.txt` 的 `[feature_order]` 顺序取值，MUST NOT 依赖字典插入顺序或文件列顺序。
 
 #### Scenario: 特征列名对齐
 

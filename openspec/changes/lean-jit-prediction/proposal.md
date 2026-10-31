@@ -1,11 +1,11 @@
-# 预测服务瘦身：冠军模型单跑 + 只要最新，不做历史回填
+# 预测服务范围收敛：只同步最新提交，不做历史回填
 
 ## Why
 
 两件事让「预测」比它该有的样子重：
 
-1. **一条提交写 8 行**：`predict_commit_all_models()` 对注册表里每个模型都打一次分并落库。演示库 83,943 条提交 → 约 67 万行 `prediction`。8 个模型是课程验收（≥2 类、不少于 8 种）与离线横评的产物，**不该成为运行时默认**：真实 JIT 场景里，评审只需要「这次改动有多大概率引入缺陷」一个数。
-2. **同一件事三条入口**：启动基线（`run_startup_sync`）、手动 `POST /api/sync`、webhook（`opened/synchronize/reopened`）都走「全模型」这条最重的路径。标准 JIT 的主链路只有一条——代码事件进来，对**这一次**改动打分。
+1. **全量历史同步成本高**：`predict_commit_all_models()` 对每个已加载模型打分并落库。演示库 83,943 条提交若全部同步，8 模型约产生 67 万行 `prediction`。现行裁定保留每条提交的全模型结果，通过限制同步到最新 N 条控制总量。
+2. **同一件事三条入口**：启动基线（`run_startup_sync`）、手动 `POST /api/sync`、webhook（`opened/synchronize/reopened`）都须遵守最新提交数量上限。代码事件进来，对本次范围内的改动逐模型打分。
 
 ## 立场：库里的数据只应该是最新的
 
@@ -17,8 +17,8 @@
 
 ## What Changes
 
-- **服务模型收敛**：新增 `runtime_setting.champion_model`；预测默认只对冠军模型打分并落库（1 行/提交）。其余已交付模型保留「按需单跑」（`POST /api/predict` 指定 `model_name`）。
-- **显式 `all_models` 开关**：`POST /api/sync`、`/api/sync/catchup`、`/api/sync-prs` 增加 `all_models=false`（默认），演示八模型对比时显式置 `true`，行为与改动前一致。
+- **统一缺省模型**：新增 `runtime_setting.champion_model`；所有读写入口共用有效默认模型解析规则。冠军有预测行时用冠军，否则回退到有行的最高版本已加载模型；空库选冠军。具体判据由 `default-model-resolution` 变更维护。
+- **同步范围**：`POST /api/sync`、`/api/sync/catchup`、`/api/sync-prs` 默认对全部已加载模型落预测行；`all_models` 不作为启用全模型的前置条件。
 - **入口分层**：
   - 实时（webhook / PR 事件）→ 只处理最新 `WEBHOOK_SYNC_LIMIT` 条与该 PR 内提交；
   - 显式拉取（`POST /api/sync?limit=N`）→ 只处理最新 N 条，N ≤ 50；
@@ -30,7 +30,7 @@
 
 ### Added Capabilities
 
-- `predict-api`：服务模型唯一（冠军）、批量模型范围、入口分层、量-不-回填、预算阈值。
+- `predict-api`：共享缺省模型解析、批量模型范围、入口分层、限制历史回填、预算阈值。
 
 ### Modified Capabilities
 
@@ -39,8 +39,8 @@
 ## Impact
 
 - 后端：`app/model_registry.py`（冠军选择）、`app/api/{predict,sync,prs}.py`、`app/services/settings.py`（新增 champion 键）、`app/schemas.py`（响应补 `models` 字段）。
-- 前端：无破坏性改动；模型下拉仍可用，非冠军模型需单条重算才会出数。
-- 数据：`prediction` 从 8 行/提交降为 1 行/提交；**已有历史行不回删**（避免删数据带来的不可逆风险），新提交按新口径写。
+- 前端：无破坏性改动；模型下拉仍可用，展示各模型已同步预测结果。
+- 数据：新同步提交对全部已加载模型落库；以最新 N 条的范围上限控制数据量。**已有历史行不回删**。
 - 文档：`README.md` / `docs/common/local-runbook.md` 里的「第一次启动」只说清「先拉最新 N 条」，不提供任何灌库捷径。
 
 ## 不做什么

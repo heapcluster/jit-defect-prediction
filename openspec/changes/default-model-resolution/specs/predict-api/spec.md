@@ -10,7 +10,7 @@
 
 候选集合 MUST 限于运行时注册表：`prediction` / `model` 表里的历史模型名 MUST NOT 被提升为缺省推理模型。显式传入的 `model_name` 不受本条限制——未加载模型名调用 `POST /api/predict` SHALL 返回 40001，查询接口按该模型读取历史分数仍 SHALL 允许。注册表为空时缺省预测 SHALL 返回 50000 与固定 message，MUST NOT 降级为 40001。
 
-> 口径衔接：本条取代「在线预测入口」中「`model_name` 缺省 SHALL 取注册表中版本序最大模型（`version_key`，design D6）」一句的解析规则。之所以用 ADDED 而不是 MODIFIED 该 Requirement，是因为 change `on-demand-commit-prediction`（状态：进行中，负责人 backend 吕建江）已 MODIFIED 同一 Requirement，两个未归档 change 同时 MODIFIED 会被 `infra/check_spec_references.py deltas` 判为冲突；该 change 归档时须把这句一并对齐到本条。
+> 口径衔接：本条是有效默认模型顺序的唯一完整定义。`on-demand-commit-prediction` 与 `lean-jit-prediction` 只引用此规则；归档时不得再保留不同的缺省顺序。
 
 #### Scenario: 冠军有预测行
 

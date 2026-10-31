@@ -2,13 +2,13 @@
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/db-schema/spec.md`
 > 负责人：backend 吕建江 ｜ 创建：2026-10-23 ｜ 状态：进行中（5/8；SQL与静态验证完成，PR #100已创建，MySQL未执行）
-> 用户故事：无（工程化）；SQL客户端四表初始化交付，infra/schema.sql由用户明确交给后端
+> 关联需求：无（工程化）；SQL客户端四表初始化交付，infra/schema.sql由用户明确交给后端
 > 统一格式见 `docs/common/openspec-task-template.md`；本文件末的「测试与验证」为强制板块。
 
 ## 1. SQL 与使用入口
 
 - [x] 1.1 按 `Base.metadata` 的 MySQL dialect 生成四表 `CREATE TABLE IF NOT EXISTS`，主键、唯一约束与普通索引内联 — 交付物：`infra/schema.sql`；不得缺失 metadata 的标签表约束与普通索引。
-- [x] 1.2 补已有目标库的 mysql 客户端执行步骤，明确 SQL 只建表、数据由 ingest 灌、IF NOT EXISTS不修错误schema — 交付物：`backend/README.md`；不含真实凭据。
+- [x] 1.2 补已有目标库的 mysql 客户端执行步骤，明确 SQL 只建表、数据由 ingest 灌、IF NOT EXISTS不修错误schema — 交付物：[历史版 `backend/README.md`](https://github.com/heapcluster/jit-defect-prediction/blob/100008e787c8902c35760c9cef6d61d279d921b7/backend/README.md)；不含真实凭据。
 
 ## 2. 静态测试与独立 PR
 

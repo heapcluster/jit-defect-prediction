@@ -1,20 +1,19 @@
 # online-eight-model-selection — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/model-coverage/spec.md`、`specs/predict-api/spec.md`
-> 负责人：repo 苏哲勋（跨线契约协调）｜ 创建：2026-10-24
-> **状态：已裁定执行（蒋励 2026-10-25，Issue #139）；实现中，未勾选项不得当作已完成**
-> 用户故事：owner 要求——八个已训练模型均可在线切换（已由组长裁定落地）
+> 负责人：repo 苏哲勋（跨线契约协调）｜ 创建：2026-10-24 ｜ 状态：已裁定执行（蒋励 2026-10-25，Issue #139）；实现中，未勾选项不得当作已完成
+> 关联需求：owner 要求——八个已训练模型均可在线切换（已由组长裁定落地）
 > 统一格式见 `docs/common/openspec-task-template.md`；本文件末的「测试与验证」为强制板块。
 
 ## 1. 冻结口径变更（契约评审）
 
 - [x] 1.1 非作者评审与共签 —— **由组长裁定代替三线共签**（蒋励 2026-10-25：「空归因降级」方案批准，R6 冻结解除）；`openspec validate` 归档输出待苏哲勋补跑。
-- [x] 1.2 契约三同步八项枚举、40001/50000 规则与空归因边界 —— 文案已按 **v1.7** 写好（§三.4 枚举 3→8 + 归因口径 + 变更日志行）；因 `docs/backend/api-spec.md` 与 `docs/common/local-runbook.md` 正被未合入的 PR #149 修改，**这两份文件的落地改在本 PR 合入、#149 先合后的跟进 PR**（同文件不双开，防互相冲掉）；`docs/frontend/pages.md` 的模型清单描述随前端线核对（4.1 同批）。
+- [x] 1.2 契约三同步八项枚举、40001/50000 规则与空归因边界 —— 文案已按 **v1.7** 写好（§三.4 枚举 3→8 + 归因口径 + 变更日志行）；因 [历史版 `docs/backend/api-spec.md`](https://github.com/heapcluster/jit-defect-prediction/blob/100008e787c8902c35760c9cef6d61d279d921b7/docs/backend/api-spec.md) 与 [历史版 `docs/common/local-runbook.md`](https://github.com/heapcluster/jit-defect-prediction/blob/100008e787c8902c35760c9cef6d61d279d921b7/docs/common/local-runbook.md) 正被未合入的 PR #149 修改，**这两份文件的落地改在本 PR 合入、#149 先合后的跟进 PR**（同文件不双开，防互相冲掉）；[历史版 `docs/frontend/pages.md`](https://github.com/heapcluster/jit-defect-prediction/blob/100008e787c8902c35760c9cef6d61d279d921b7/docs/frontend/pages.md) 的模型清单描述随前端线核对（4.1 同批）。
 
 ## 2. 模型线交付（蒋励）
 
-- [x] 2.1 五个新增权重从 `[evaluated]` 移至 `[models]`，保留原三项、14 项列序与依赖说明 —— `data_model/pipelines/expert/models/feature_order.txt`（`[dependencies]` 补 lightgbm/torch/pytorch_tabnet，`[how_to_load]` 补 Pipeline 加载注意）；`data_model/tests/test_feature_contract.py` 的交付边界断言同步改 8 项并通过。权重本体不入库（走包分发）。
-- [x] 2.2 模型线权威说明标明八项在线 —— `docs/model/model-line-plan.md` §6/§7；证据：`backend/scripts/evidence/online-eight-model-selection-2026-10-25.md`（8/8 加载 9.8s、逐模型延迟与归因）。
+- [x] 2.1 五个新增权重从 `[evaluated]` 移至 `[models]`，保留原三项、14 项列序与依赖说明 —— `data_model/pipelines/expert/models/feature_order.txt`（`[dependencies]` 补 lightgbm/torch/pytorch_tabnet，`[how_to_load]` 补 Pipeline 加载注意）；[历史版 `data_model/tests/test_feature_contract.py`](https://github.com/heapcluster/jit-defect-prediction/blob/100008e787c8902c35760c9cef6d61d279d921b7/data_model/tests/test_feature_contract.py) 的交付边界断言同步改 8 项并通过。权重本体不入库（走包分发）。
+- [x] 2.2 模型线权威说明标明八项在线 —— [历史版 `docs/model/model-line-plan.md`](https://github.com/heapcluster/jit-defect-prediction/blob/100008e787c8902c35760c9cef6d61d279d921b7/docs/model/model-line-plan.md) §6/§7；证据：[历史版 `backend/scripts/evidence/online-eight-model-selection-2026-10-25.md`](https://github.com/heapcluster/jit-defect-prediction/blob/100008e787c8902c35760c9cef6d61d279d921b7/backend/scripts/evidence/online-eight-model-selection-2026-10-25.md)（8/8 加载 9.8s、逐模型延迟与归因）。
 
 ## 3. 后端八模型加载与预测（吕建江）
 
