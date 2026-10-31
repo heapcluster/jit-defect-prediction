@@ -1,7 +1,10 @@
 # feedback-observability — 任务清单
 
-> 提案：`proposal.md` ｜ 规格：`specs/feedback/spec.md`、`specs/observability/spec.md`、`specs/query-api/spec.md`
-> 创建：2026-10-27 ｜ 状态：进行中
+> 提案：`proposal.md` ｜ 设计决策：无独立 design.md ｜ 规格：`specs/feedback/spec.md`、`specs/observability/spec.md`、`specs/query-api/spec.md`
+> 负责人：backend 吕建江 ｜ 创建：2026-10-27 ｜ 状态：进行中（以任务勾选和证据为准）
+> 用户故事：未登记编号（见 proposal.md，待负责人补关联）
+> 统一格式见 `docs/common/openspec-task-template.md`；末尾「测试与验证」为强制板块。
+
 
 ## 1. 解释因子中文名集中（query-api）
 
@@ -33,30 +36,30 @@
 - [x] 5.2 新增 `tests/test_feedback_api.py`（标记 / 撤销 / 404 / 参数非法）与 `tests/test_health_api.py`（ok / degraded / 无模型）— `backend/tests/`
 - [x] 5.3 `docs/backend/api-spec.md` 登记两个新端点 — `docs/backend/api-spec.md`
 
-## 测试与验证
+## 测试与验证（强制板块）
 
-### 单元测试
+### 1. 单元测试
 
 - 命令：`cd backend; $env:PYTHONPATH="."; python -m pytest tests/test_feedback_api.py tests/test_health_api.py tests/test_mirror.py -o addopts="" -q`
 - 证据：终端输出 `N passed`；覆盖标记 / 撤销、commit 不存在 40400、参数非法 40001、health 的 ok / degraded / 无模型三种分支、解释项中文名与未知因子回退
 
-### 集成测试
+### 2. 集成测试
 
 - 命令：`cd backend; $env:PYTHONPATH="."; python -m pytest tests/ -o addopts="" -q`
 - 证据：全量套件全绿（MySQL 测试库 `jit_test`；标签行真实落库，详情与列表联读一致）
 
-### 验收测试
+### 3. 验收测试
 
 - 按 `specs/feedback/spec.md`、`specs/observability/spec.md`、`specs/query-api/spec.md` 的 Scenario 逐条走：标记 → 详情可见 → 列表 `has_label=true` 过滤 → 撤销；health 三种状态；解释项中文名与未知因子回退
 - 证据：每个 Scenario 在集成测试中均有对应用例（见 `test_feedback_api.py` / `test_health_api.py` 的用例名）
 
-### 非功能验证
+### 4. 非功能验证
 
 - 前端构建：`cd frontend; npm run build`
 - 证据：终端输出 `✓ built in Xs`，无编译错误
 - 安全：health 的 degraded 分支断言响应体不含 `mysql+pymysql`、口令或堆栈字串
 
-### 已知缺口
+### 5. 已知缺口与后续计划
 
 - 人工标签暂不触发再训练（本 change 只落地回流入库）
 - `/api/health` 的 `last_sync_at` 依赖内存态 `_sync_state`，进程重启后为 `null`

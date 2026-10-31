@@ -1,7 +1,10 @@
 # ops-hardening — 任务清单
 
-> 提案：`proposal.md` ｜ 规格：`specs/ops/spec.md`
-> 创建：2026-10-27 ｜ 状态：进行中
+> 提案：`proposal.md` ｜ 设计决策：无独立 design.md ｜ 规格：`specs/ops/spec.md`
+> 负责人：backend 吕建江 ｜ 创建：2026-10-27 ｜ 状态：进行中（以任务勾选和证据为准）
+> 用户故事：无（工程化）
+> 统一格式见 `docs/common/openspec-task-template.md`；末尾「测试与验证」为强制板块。
+
 
 ## 1. 运行时配置
 
@@ -31,30 +34,30 @@
 - [x] 5.4 新增 `tests/test_webhook_api.py`（未配置 / 错签 / 缺签 / ping / push / PR / 无关动作）— `backend/tests/test_webhook_api.py`
 - [x] 5.5 `docs/backend/api-spec.md` 登记 §17~§20 与 §四安全行 — `docs/backend/api-spec.md`
 
-## 测试与验证
+## 测试与验证（强制板块）
 
-### 单元测试
+### 1. 单元测试
 
 - 命令：`cd backend; $env:PYTHONPATH="."; python -m pytest tests/test_ops_api.py tests/test_webhook_api.py tests/test_mirror.py -o addopts="" -q`
 - 证据：`37 passed`；覆盖阈值倒挂 40001、未配置密钥 40100、错签 40100、无关动作不触发
 
-### 集成测试
+### 2. 集成测试
 
 - 命令：`cd backend; $env:PYTHONPATH="."; python -m pytest tests/ -o addopts="" -q`
 - 证据：全量 `313 passed`（MySQL `jit_test`）；门禁读库内 prediction，配置落 `runtime_setting`
 
-### 验收测试
+### 3. 验收测试
 
 - 按 `specs/ops/spec.md` 逐条：热更新 → 探针就绪/降级 → 门禁拦截/放行 → webhook 四条分支
 - 证据：`test_ops_api.py` / `test_webhook_api.py` 用例名与 Scenario 对应
 
-### 非功能验证
+### 4. 非功能验证
 
 - 安全：webhook 无签名/错签/无密钥三路均 40100；其余端点不带 `X-API-Key` 仍 40100
 - 响应性：webhook 立即返回，同步在守护线程内执行（测试用 `_spawn` 替换为同步执行以断言）
 - 前端构建：`cd frontend; npm run build`（本 change 不改前端）
 
-### 已知缺口
+### 5. 已知缺口与后续计划
 
 - webhook 未做投递重试队列（GitHub 自带重投 + 本系统幂等）
 - 门禁未接入 CI 配置文件（需在仓库侧配置 required check，属于部署动作）

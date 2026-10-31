@@ -1,7 +1,10 @@
 # startup-baseline-sync — 任务清单
 
-> 提案：`proposal.md` ｜ 规格：`specs/sync-api/spec.md`、`specs/db-schema/spec.md`、`specs/query-api/spec.md`
-> 创建：2026-10-26 ｜ 状态：草稿（头脑风暴产出，含五项修正：全模型落库 / 取消前端日期预测 / BCNF / 增量追到 HEAD / 补齐到最新）
+> 提案：`proposal.md` ｜ 设计决策：无独立 design.md ｜ 规格：`specs/db-schema/spec.md`、`specs/query-api/spec.md`、`specs/sync-api/spec.md`
+> 负责人：跨线（吕建江、刘帅华） ｜ 创建：2026-10-27 ｜ 状态：未开始（以任务勾选和证据为准）
+> 用户故事：未登记编号（见 proposal.md，待负责人补关联）
+> 统一格式见 `docs/common/openspec-task-template.md`；末尾「测试与验证」为强制板块。
+
 
 ## 1. 启动分级基线
 

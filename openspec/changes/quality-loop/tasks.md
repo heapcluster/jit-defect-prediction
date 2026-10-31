@@ -1,7 +1,10 @@
 # quality-loop — 任务清单
 
-> 提案：`proposal.md` ｜ 规格：`specs/quality/spec.md`
-> 创建：2026-10-27 ｜ 状态：进行中
+> 提案：`proposal.md` ｜ 设计决策：无独立 design.md ｜ 规格：`specs/quality/spec.md`
+> 负责人：backend 吕建江 ｜ 创建：2026-10-27 ｜ 状态：进行中（以任务勾选和证据为准）
+> 用户故事：未登记编号（见 proposal.md，待负责人补关联）
+> 统一格式见 `docs/common/openspec-task-template.md`；末尾「测试与验证」为强制板块。
+
 
 ## 1. 运行时配置底座
 
@@ -29,30 +32,30 @@
 - [x] 4.1 `conftest.py` 清空 `runtime_setting` 并 `reset_cache()`，避免阈值串味 — `backend/tests/conftest.py`
 - [x] 4.2 新增 `tests/test_quality_api.py`：指标、无标签、标签无预测、导出、校准落库、样本不足、阈值即时生效 — `backend/tests/test_quality_api.py`
 
-## 测试与验证
+## 测试与验证（强制板块）
 
-### 单元测试
+### 1. 单元测试
 
 - 命令：`cd backend; $env:PYTHONPATH="."; python -m pytest tests/test_quality_api.py tests/test_schema_sql.py tests/test_mirror.py -o addopts="" -q`
 - 证据：终端 `N passed`；覆盖混淆矩阵、派生指标为 null、导出、校准成功与样本不足两条分支
 
-### 集成测试
+### 2. 集成测试
 
 - 命令：`cd backend; $env:PYTHONPATH="."; python -m pytest tests/ -o addopts="" -q`
 - 证据：全量套件全绿（MySQL `jit_test`；`runtime_setting` 真实落库，校准后 `GET /api/prs` 等级变化）
 
-### 验收测试
+### 3. 验收测试
 
 - 按 `specs/quality/spec.md` 逐条走：指标 → 无标签边界 → 标签无预测边界 → 导出 → 校准 → 样本不足 → 等级即时生效
 - 证据：`test_quality_api.py` 用例名与 Scenario 一一对应
 
-### 非功能验证
+### 4. 非功能验证
 
 - 前端构建：`cd frontend; npm run build`（本 change 不改前端，用于确认无回归）
 - 安全：`GET /api/quality/dataset` 与其它查询端点一样要求 `X-API-Key`，未带令牌 → 40100
 - 性能：`GET /api/quality` 为单条聚合 SQL，标签量级（百级）下 < 100ms
 
-### 已知缺口
+### 5. 已知缺口与后续计划
 
 - 不做离线再训练（本 change 只产出回流样本）
 - 校准只调阈值，不动模型权重
