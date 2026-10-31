@@ -20,12 +20,19 @@
 - 报告新增「20% 预算审到的条数」列与由结果计算的读法段；`--from-saved` 的输出改落到 `model_metrics_from_saved.md`，并在文首标注「探索性、非权威指标」。
 - 训练入口加泄漏闸门：训练集与检验集 `commit_hash` 有交集时直接拒绝出报告。
 
+## Capabilities
+
+### Modified Capabilities
+
+- `model-training`：默认训练 8 个分类器并保持三线口径一致。
+- `model-training-scope`：预算感知对照、报告口径与训练/检验防泄漏，详见本 change 的 delta。
+
 ## 不在本次范围
 
 - 不切换契约三的排序主口径（`risk_score` 降序保持不变），口径切换另立提案（Issue #37）。
 - 不补 semantic / fused / e2e 的产物，它们按 `semantic-feature-mainline` 的 SF-5 推进。
 
-## 影响面
+## Impact（影响与边界）
 
 | 受影响 | 变化 |
 |---|---|

@@ -1,4 +1,9 @@
-# 附加功能 — 任务清单
+# feature-addons-sprint3 — 任务清单
+
+> 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/defect-visualization/spec.md`、`specs/fix-suggestion/spec.md`
+> 负责人：跨线（蒋励统稿） ｜ 创建：2026-10-11 ｜ 状态：进行中（以任务勾选和证据为准）
+> 用户故事：G1-1 / G1-2（G1-3 / G1-4 已移出）
+> 统一格式见 `docs/common/openspec-task-template.md`；末尾「测试与验证」为强制板块。
 
 ## 1. 立项与看板
 - [x] 1.1 看板新增 Sprint 3 两行（缺陷可视化定位 `reczz28LeOxoj2h2` / 高质量修复建议 `reczz28LeOxolfuA`），「规格变更或任务」列填 `feature-addons-sprint3`，可点开；迭代=Sprint 3、状态=未开始、优先级=中
@@ -29,7 +34,7 @@
 > 分层口径见 `docs/common/test-strategy.md`；模板见 `docs/common/openspec-task-template.md`。
 > 本 change 截至 2026-10-13 **仅完成立项（§6），功能任务全部未开始**，故本节先立**验收标准与测试计划**，实现时逐条落证据。
 
-### 1. 单元测试（各功能作者自己写，动代码前先写）
+### 1. 单元测试
 | 项 | 内容 |
 |---|---|
 | 覆盖对象 | G1-1 行级定位降级逻辑；G1-2 修复建议检索与空态；G1-3 数据集加载器 + 三类质量治理；G1-4 语义特征提取与融合 |
@@ -46,7 +51,7 @@
 | 用例数与结果 | 0 条（未开始） |
 | 关键断言 | **不新增字段名、不改契约二 14 项列名与顺序**（新特征另起 `feature_version` v2）；**不静默切换交付模型**（spec `semantic-feature` R2 / `model-coverage` R6） |
 
-### 3. 验收测试（交付时，按各 spec 的 Scenario 逐条走）
+### 3. 验收测试
 | 项 | 内容 |
 |---|---|
 | 验收依据 | `specs/defect-visualization/spec.md`、`specs/fix-suggestion/spec.md`、`specs/public-dataset/spec.md`、`specs/semantic-feature/spec.md` |
