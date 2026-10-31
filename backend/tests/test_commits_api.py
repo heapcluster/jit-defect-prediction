@@ -64,12 +64,16 @@ def test_detail_bad_hash_format(client):
     assert resp.json()["code"] == 40001
 
 
-def test_default_model_is_version_order_not_recency(client):
+def test_default_model_is_version_order_not_recency(client, monkeypatch):
+    from dataclasses import replace
     from datetime import datetime
 
+    from app import model_registry
     from app.db import SessionLocal
     from app.models import Prediction
 
+    entry = replace(model_registry.get_model("fixture_v2"), name="xgb_v9")
+    monkeypatch.setitem(model_registry._REGISTRY, entry.name, entry)
     with SessionLocal() as session:
         session.add(
             Prediction(
@@ -140,10 +144,10 @@ def test_commits_coverage_reports_time_ranges(client):
     body = client.get("/api/commits/coverage", headers=HEADERS).json()
     assert body["code"] == 0
     items = body["data"]["items"]
-    # conftest 已为 C1(07-20)/C2(08-03) 以 xgb_v1 灌 prediction
+    # conftest 已为 C1(07-20)/C2(08-03) 以 fixture_v2 灌 prediction
     by_model = {it["model_name"]: it for it in items}
-    assert "xgb_v1" in by_model
-    cov = by_model["xgb_v1"]
+    assert "fixture_v2" in by_model
+    cov = by_model["fixture_v2"]
     assert cov["start"] is not None and cov["end"] is not None
     assert cov["start"] <= cov["end"]
 

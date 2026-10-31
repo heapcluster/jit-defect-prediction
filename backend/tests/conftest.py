@@ -150,7 +150,7 @@ def client(engine):
         session.add(
             Prediction(
                 commit_hash=C1,
-                model_name="xgb_v1",
+                model_name="fixture_v2",
                 risk_score=0.87320,
                 predicted_at=datetime(2026, 9, 1, 8, 0, 0),
                 feature_version="v1",
@@ -159,7 +159,7 @@ def client(engine):
         session.add(
             Prediction(
                 commit_hash=C2,
-                model_name="xgb_v1",
+                model_name="fixture_v2",
                 risk_score=0.21000,
                 predicted_at=datetime(2026, 9, 1, 8, 0, 0),
                 feature_version="v1",

@@ -10,40 +10,21 @@ from sqlalchemy.orm import Session
 
 from app import config, model_registry
 from app.explain import with_labels
-from app.models import CommitFeature, CommitLabel, Model, Prediction
+from app.models import CommitFeature, CommitLabel
+from app.services import champion
 from app.timeutil import iso_z
 
 # 人工反馈标签的 label_method 取值：与 SZZ 自动标签靠唯一约束隔离
 MANUAL_LABEL_METHOD = "manual"
 
 
-def _has_predictions(session: Session, model_name: str) -> bool:
-    """该模型是否存在任意预测行：走 `(model_name, risk_score)` 索引前缀，不做全表扫。"""
-    return (
-        session.execute(
-            select(Prediction.commit_hash).where(Prediction.model_name == model_name).limit(1)
-        ).first()
-        is not None
-    )
-
-
 def default_model_in_table(session: Session) -> str | None:
-    """「默认模型」单一定义点：冠军优先，不存在预测行时按 version_key 降序回退。
+    """「默认模型」的取值入口；规则本身单一定义在 `services.champion`（契约三 §17）。
 
-    与 `model_registry.champion()` 同源，确保列表 / 详情 / 趋势 / PR 拿到同一个模型名
-    （此前详情页还会「按该提交可用行取 version_key 最大」，导致同一提交两处不同分）。
-    不再使用 `SELECT DISTINCT model_name`：`model` 表只有已加载模型十几行。
+    列表 / 详情 / 趋势与 predict / sync / PR 门禁共用那一处实现，避免同一提交在两处
+    拿到不同模型的不同分。不在本文件重复解析规则。
     """
-    champ = model_registry.champion()
-    if champ is not None and _has_predictions(session, champ.name):
-        return champ.name
-    names = session.execute(select(Model.model_name)).scalars().all()
-    for name in sorted(names, key=model_registry.version_key, reverse=True):
-        if _has_predictions(session, name):
-            return name
-    # 兜底：`model` 表为空的历史库（迁移已回填，正常不会走到）
-    legacy = session.execute(select(Prediction.model_name).distinct()).scalars().all()
-    return max(legacy, key=model_registry.version_key) if legacy else None
+    return champion.resolve(session)
 
 
 def feature_dict(feature: CommitFeature | None) -> dict | None:

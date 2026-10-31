@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from app.db import SessionLocal
 from app.models import Prediction
 from app.services import settings as runtime_settings
@@ -70,15 +68,8 @@ def test_health_ready_reports_db_and_models(client):
 def test_pr_gate_blocks_high_risk(client, monkeypatch):
     """高风险 PR 被门禁拦截；数据只从本地 prediction 读，不依赖网络。"""
     with SessionLocal() as session:
-        session.add(
-            Prediction(
-                commit_hash=C1,
-                model_name="fixture_v2",
-                risk_score=0.91,
-                predicted_at=datetime(2026, 9, 1, 8, 0, 0),
-                feature_version="v1",
-            )
-        )
+        row = session.query(Prediction).filter_by(commit_hash=C1, model_name="fixture_v2").one()
+        row.risk_score = 0.91
         session.commit()
     monkeypatch.setattr("app.api.prs.github.list_pr_commit_shas", lambda number: [C1, C2])
 
@@ -94,15 +85,8 @@ def test_pr_gate_blocks_high_risk(client, monkeypatch):
 
 def test_pr_gate_allows_low_risk(client, monkeypatch):
     with SessionLocal() as session:
-        session.add(
-            Prediction(
-                commit_hash=C2,
-                model_name="fixture_v2",
-                risk_score=0.12,
-                predicted_at=datetime(2026, 9, 1, 8, 0, 0),
-                feature_version="v1",
-            )
-        )
+        row = session.query(Prediction).filter_by(commit_hash=C2, model_name="fixture_v2").one()
+        row.risk_score = 0.12
         session.commit()
     monkeypatch.setattr("app.api.prs.github.list_pr_commit_shas", lambda number: [C2])
 

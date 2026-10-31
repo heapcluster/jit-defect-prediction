@@ -128,7 +128,7 @@ def test_week_drilldown_monday_to_sunday_keeps_sunday(client):
         session.add(
             Prediction(
                 commit_hash=sunday,
-                model_name="xgb_v1",
+                model_name="fixture_v2",
                 risk_score=0.50000,
                 predicted_at=datetime(2026, 9, 1, 8, 0, 0),
                 feature_version="v1",

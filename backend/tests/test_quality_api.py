@@ -25,7 +25,7 @@ def test_quality_metrics_with_labels(client):
     _label(client, C2, False)
 
     body = client.get(
-        "/api/quality", params={"model_name": "xgb_v1", "threshold": 0.5}, headers=HEADERS
+        "/api/quality", params={"model_name": "fixture_v2", "threshold": 0.5}, headers=HEADERS
     ).json()
     assert body["code"] == 0
     data = body["data"]
@@ -54,7 +54,7 @@ def test_quality_without_labels_returns_zero_and_null(client):
 def test_quality_label_without_prediction_counts_in_total_only(client):
     """C3 无 prediction：计入 labeled_total，不计入 evaluated。"""
     _label(client, C3, True)
-    body = client.get("/api/quality", params={"model_name": "xgb_v1"}, headers=HEADERS).json()
+    body = client.get("/api/quality", params={"model_name": "fixture_v2"}, headers=HEADERS).json()
     assert body["data"]["labeled_total"] == 1
     assert body["data"]["evaluated"] == 0
 
@@ -100,7 +100,7 @@ def test_calibrate_applies_threshold_and_takes_effect(client):
     assert high_threshold() == 0.9
 
     body = client.post(
-        "/api/quality/calibrate", json={"model_name": "xgb_v1"}, headers=HEADERS
+        "/api/quality/calibrate", json={"model_name": "fixture_v2"}, headers=HEADERS
     ).json()
     assert body["code"] == 0
     data = body["data"]
@@ -149,7 +149,7 @@ def test_false_discovery_rate_is_complement_of_precision(client):
     _label(client, C1, False)
     _label(client, C2, True)
     data = client.get(
-        "/api/quality", params={"model_name": "xgb_v1", "threshold": 0.5}, headers=HEADERS
+        "/api/quality", params={"model_name": "fixture_v2", "threshold": 0.5}, headers=HEADERS
     ).json()["data"]
     assert (data["tp"], data["fp"], data["tn"], data["fn"]) == (0, 1, 0, 1)
     assert data["precision"] == 0.0
@@ -167,7 +167,7 @@ def test_szz_label_source_is_separate_from_manual(client):
     """label_source=szz 只统计 SZZ 标签：只有人工标签时该视图无样本。"""
     _label(client, C1, True)
     data = client.get(
-        "/api/quality", params={"model_name": "xgb_v1", "label_source": "szz"}, headers=HEADERS
+        "/api/quality", params={"model_name": "fixture_v2", "label_source": "szz"}, headers=HEADERS
     ).json()["data"]
     assert data["label_source"] == "szz"
     assert data["labeled_total"] == 0
