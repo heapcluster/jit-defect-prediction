@@ -5,8 +5,8 @@ model_name)` 的唯一性是 `POST /api/predict` 幂等回落（`IntegrityError`
 的前提，自检失守会让幂等静默变成双插。
 
 本文件依赖本机 MySQL 测试库 jit_test（由仓库 infra/setup_mysql.py 建好）：
-`_new_engine()` 直接读 config.DATABASE_URL，并在每个用例前 drop/create 四表做隔离。
-原 SQLite 内存库夹具已废除，全项目统一 MySQL。
+`_new_engine()` 直接读 config.DATABASE_URL，并在每个用例前 drop/create 表做隔离。
+全项目统一 MySQL。
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ from sqlalchemy import (
 
 
 def _new_engine():
-    # 读 config.DATABASE_URL（指向本机 MySQL 测试库 jit_test）；不再用 SQLite 内存库
+    # 读 config.DATABASE_URL（指向本机 MySQL 测试库 jit_test）
     eng = db.get_engine()
     Base.metadata.drop_all(eng)  # 测试隔离：每个用例从干净表开始
     Base.metadata.create_all(eng)

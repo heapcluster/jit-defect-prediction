@@ -2,7 +2,7 @@
 
 所有测试依赖本机 MySQL：连接由 `backend/.env` 的分字段（DB_HOST / DB_USER / DB_PASSWORD …）
 或整段 `DATABASE_URL` 提供；库名由 `config.test_database_url()` 自动换成 `DB_TEST_NAME`（默认
-jit_test，由仓库 `infra/setup_mysql.py` 一键建好）。代码里不再写死 SQLite 内存库。
+jit_test，由仓库 `infra/setup_mysql.py` 一键建好）。
 """
 
 from __future__ import annotations

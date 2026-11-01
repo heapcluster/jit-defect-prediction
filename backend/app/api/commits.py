@@ -25,7 +25,7 @@ router = APIRouter(dependencies=[Depends(require_api_key)])
 
 # 全 hex（1~40 位）输入按哈希前缀查：走 commit_hash 的唯一索引，不做三列全表匹配
 _HEX_PREFIX = re.compile(r"^[0-9a-fA-F]{1,40}$")
-# LIKE 转义符必须显式声明：MySQL 默认认反斜杠，PG/SQLite 不认，不写 escape 等于没转义
+# LIKE 转义符必须显式声明：不写 escape 等于没转义
 _LIKE_ESCAPE = "\\"
 
 

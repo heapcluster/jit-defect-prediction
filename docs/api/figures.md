@@ -1,7 +1,7 @@
 # figures
 
 ## 处理功能
-- **用途**：获取某模型的性能图（ROC / PR / 混淆矩阵 / 校准曲线 / 特征重要性）
+- **用途**：获取某模型的性能图（ROC / PR / 混淆矩阵 / 校准曲线 / Effort-aware / 特征重要性）
 - **方式一（索引）**：`GET /api/figures?model_name=`，返回图清单
 - **方式二（静态）**：`StaticFiles` 挂 `backend/static/figures/{line}/{model}/*.png`，前端直接取
 - **权限**：沿用后端既有统一鉴权
@@ -16,7 +16,7 @@
 |---|---|
 | `model_name` | 模型名 |
 | `figures[]` | 图数组 |
-| `figures[].figure_type` | `roc` / `pr` / `confusion` / `calibration` / `feat_importance` |
+| `figures[].figure_type` | `roc` / `pr` / `confusion` / `calibration` / `effort` / `feat_importance` |
 | `figures[].title` | 图标题 |
 | `figures[].file_path` | 图 URL（指向静态目录） |
 

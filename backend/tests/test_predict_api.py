@@ -150,7 +150,7 @@ def test_predict_uppercase_hash_uses_normalized_key(client):
     assert resp.json()["data"]["commit_hash"] == C1
     # 大写与小写必须落在同一个 (commit_hash, model_name) 键上：库里只留一行、且是小写哈希。
     # 注意：MySQL 默认 utf8mb4_0900_ai_ci 排序规则下 `=` 比较大小写不敏感，
-    # 「按大写查得 0 行」这种大小写敏感断言在 MySQL 上永远不成立（SQLite 上才成立），
+    # 「按大写查得 0 行」这种大小写敏感断言在 MySQL 上永远不成立，
     # 故用 BINARY 比较单独验大写不落行、再验落库值全为小写。
     client.post("/api/predict", json={"commit_hash": C1}, headers=HEADERS)
     assert _rows_for(C1, "fixture_v2") == 1
