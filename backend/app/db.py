@@ -63,11 +63,10 @@ def _ensure_prediction_index(engine: Engine) -> None:
         idx.get("name") == "ix_prediction_model_risk" for idx in inspector.get_indexes("prediction")
     ):
         return
-    ddl = "CREATE INDEX ix_prediction_model_risk ON prediction (model_name, risk_score)"
-    if engine.dialect.name != "mysql":
-        ddl = "CREATE INDEX IF NOT EXISTS ix_prediction_model_risk ON prediction (model_name, risk_score)"
     with engine.begin() as conn:
-        conn.execute(text(ddl))
+        conn.execute(
+            text("CREATE INDEX ix_prediction_model_risk ON prediction (model_name, risk_score)")
+        )
 
 
 def _apply_bcnf_migration(engine: Engine) -> None:
@@ -102,13 +101,11 @@ def _apply_bcnf_migration(engine: Engine) -> None:
                 )
 
     # 3. 从 prediction 去重回填 model 表（仅补缺失的 model_name）
-    # 时间函数方言适配：MySQL 用 NOW()，SQLite（仅 preflight 校验用）用 CURRENT_TIMESTAMP
-    now_fn = "NOW()" if engine.dialect.name == "mysql" else "CURRENT_TIMESTAMP"
     with engine.begin() as conn:
         conn.execute(
             text(
-                f"""INSERT INTO `model` (`model_name`, `version_key`, `trained_at`, `algo`, `feature_version`, `updated_at`)
-                   SELECT DISTINCT p.model_name, '', NULL, NULL, NULL, {now_fn}
+                """INSERT INTO `model` (`model_name`, `version_key`, `trained_at`, `algo`, `feature_version`, `updated_at`)
+                   SELECT DISTINCT p.model_name, '', NULL, NULL, NULL, NOW()
                    FROM prediction p LEFT JOIN `model` m ON m.model_name = p.model_name
                    WHERE m.model_name IS NULL"""
             )
@@ -133,10 +130,6 @@ def _add_fk(
     ref_table: str,
     ref_col: str,
 ) -> None:
-    # 仅 MySQL：SQLite 不支持 ALTER ADD FOREIGN KEY，且默认不强制外键
-    # （SQLite 的 FK 由 create_all 内联生成，已满足结构要求）
-    if engine.dialect.name != "mysql":
-        return
     exists = inspect(engine).get_foreign_keys(table)
     if any(fk.get("name") == fk_name for fk in exists):
         return

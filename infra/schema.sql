@@ -19,8 +19,10 @@ CREATE TABLE IF NOT EXISTS model (
 	trained_at DATETIME, 
 	algo VARCHAR(64), 
 	feature_version VARCHAR(32), 
+	line VARCHAR(16) NOT NULL DEFAULT 'expert', 
 	updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, 
-	PRIMARY KEY (model_name)
+	PRIMARY KEY (model_name),
+	INDEX ix_model_line (line)
 );
 
 CREATE TABLE IF NOT EXISTS runtime_setting (
@@ -48,9 +50,11 @@ CREATE TABLE IF NOT EXISTS commit_feature (
 	exp DECIMAL(20, 10) NOT NULL, 
 	rexp DECIMAL(20, 10) NOT NULL, 
 	sexp DECIMAL(20, 10) NOT NULL, 
+	is_test TINYINT(1) NOT NULL DEFAULT 0, 
 	updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, 
 	PRIMARY KEY (commit_hash), 
-	FOREIGN KEY(commit_hash) REFERENCES commit (commit_hash)
+	FOREIGN KEY(commit_hash) REFERENCES commit (commit_hash),
+	INDEX ix_commit_feature_is_test (is_test)
 );
 
 CREATE TABLE IF NOT EXISTS commit_label (
@@ -68,6 +72,20 @@ CREATE TABLE IF NOT EXISTS commit_label (
 	INDEX ix_commit_label_label_method (label_method)
 );
 
+CREATE TABLE IF NOT EXISTS model_figure (
+	id BIGINT NOT NULL AUTO_INCREMENT, 
+	model_name VARCHAR(64) NOT NULL, 
+	figure_type VARCHAR(32) NOT NULL, 
+	title VARCHAR(128) NOT NULL, 
+	file_path VARCHAR(255) NOT NULL, 
+	generated_at DATETIME NOT NULL, 
+	updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, 
+	PRIMARY KEY (id), 
+	CONSTRAINT uq_model_figure UNIQUE (model_name, figure_type), 
+	FOREIGN KEY(model_name) REFERENCES model (model_name),
+	INDEX ix_model_figure_model_name (model_name)
+);
+
 CREATE TABLE IF NOT EXISTS prediction (
 	id BIGINT NOT NULL AUTO_INCREMENT, 
 	commit_hash CHAR(40) NOT NULL, 
@@ -78,7 +96,7 @@ CREATE TABLE IF NOT EXISTS prediction (
 	updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, 
 	PRIMARY KEY (id), 
 	CONSTRAINT uq_prediction_hash_model UNIQUE (commit_hash, model_name), 
-	FOREIGN KEY(commit_hash) REFERENCES commit (commit_hash),
+	FOREIGN KEY(commit_hash) REFERENCES commit (commit_hash), 
 	FOREIGN KEY(model_name) REFERENCES model (model_name),
 	INDEX ix_prediction_commit_hash (commit_hash),
 	INDEX ix_prediction_model_risk (model_name, risk_score)

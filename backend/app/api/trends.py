@@ -31,7 +31,7 @@ def _period(committed_at, granularity: str) -> str:
 def build_aggregate_stmt(base, granularity: str, high: float):
     """MySQL 侧的聚合语句：分桶 / 计数 / 均值 / 高风险计数全部下推到 SQL。
 
-    单测跑 SQLite（不支持 `date_format`）走不到这条路径，故抽成纯函数，
+    该聚合依赖 MySQL 方言函数（`date_format`），故抽成纯函数，
     由 `test_trends_sql.py` 用 MySQL 方言编译后断言 SQL 结构 —— 否则生产唯一
     使用的那条 SQL 在 CI 里一次都不会被执行。
     """

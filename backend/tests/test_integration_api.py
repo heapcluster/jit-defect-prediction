@@ -20,7 +20,7 @@ C4 = "e" * 40
 
 @pytest.fixture()
 def integration_db(tmp_path, monkeypatch):
-    # 读 config.DATABASE_URL（指向本机 MySQL 测试库 jit_test）；不再用 SQLite 内存库
+    # 读 config.DATABASE_URL（指向本机 MySQL 测试库 jit_test）
     engine = db.get_engine()
     previous_bind = db.SessionLocal.kw.get("bind")
     monkeypatch.setattr(db, "_engine", engine)

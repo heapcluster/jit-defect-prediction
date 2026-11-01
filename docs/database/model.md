@@ -9,17 +9,18 @@
 | trained_at | 训练完成时间 |
 | algo | 算法：`lr` `rf` `xgb` `lgbm` `et` `svm` `mlp_deep` `tabnet` / `codebert_e2e` |
 | feature_version | 该模型训练所用特征版本 |
+| **line（新增）** | 所属主方案：`expert` / `semantic` / `fused` / `e2e`，供前端两级切换分组 |
 
 **模型总量**：expert 8 + semantic 8 + fused 8 + e2e 1 = **25**，`model_name` 全部唯一。
 
-## 线别（line）怎么来的——不加列
-`line` **不落数据库列**，由 `model_name` 后缀约定推导，与磁盘上的交付目录同名同口径：
+## 线别（line）落库
+`line` 是新增列，由交付时写入（见 `data_model/evaluation/export_sql.py`），不从 `model_name` 后缀现场推导：
 
-| 判定 | 归属 line | 交付目录 |
+| line | 模型名示例 | 交付目录 |
 |---|---|---|
-| `*_v1` 且不含 `semantic` / `fused` / `e2e` | `expert` | `data_model/pipelines/expert/` |
-| `*_semantic_v1` | `semantic` | `data_model/pipelines/semantic/` |
-| `*_fused_v1` | `fused` | `data_model/pipelines/fused/` |
-| `*e2e*` | `e2e` | `data_model/pipelines/e2e/` |
+| `expert` | `lr_v1` | `data_model/pipelines/expert/` |
+| `semantic` | `lr_semantic_v1` | `data_model/pipelines/semantic/` |
+| `fused` | `lr_fused_v1` | `data_model/pipelines/fused/` |
+| `e2e` | `codebert_e2e_v1` | `data_model/pipelines/e2e/` |
 
-**理由**：加一列要为 4 张老表做迁移、重灌权重、还可能与目录名不一致；后缀与目录同源，一条规则就能算出来，前端两级切换（line → model）直接用规则分组即可。新增线时必须同步更新本表，MUST NOT 靠猜。
+**理由**：前端两级切换（line → model）直接按列 `GROUP BY line`，不依赖命名约定；与磁盘交付目录同名同口径，但**以数据库列为准**，避免「改了名字没改目录」的漂移。新增线时必须同步写入 `line`，MUST NOT 靠猜。

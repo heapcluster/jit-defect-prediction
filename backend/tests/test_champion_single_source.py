@@ -1,4 +1,4 @@
-"""「默认模型」只有一个入口（契约三 §17）—— 用临时 SQLite 文件跑，不依赖 MySQL 测试库。
+"""「默认模型」只有一个入口（契约三 §17）—— 用 MySQL 测试库 jit_test 跑。
 
 钉三件事：
 
@@ -17,13 +17,13 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
-from app import db, model_registry
+from app import config, db, model_registry
 from app.api import sync as sync_api
 from app.errors import AppError
 from app.models import Prediction
 from app.services import champion
 from app.services.predict import resolve_model_name
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 H1 = "1" * 40
@@ -43,10 +43,16 @@ def _row(commit_hash: str, model_name: str, risk: float = 0.6) -> Prediction:
 
 
 @pytest.fixture
-def session(tmp_path):
-    eng = create_engine(f"sqlite:///{(tmp_path / 'champ.db').as_posix()}")
-    db.Base.metadata.drop_all(eng)
-    db.Base.metadata.create_all(eng)
+def session():
+    url = config.test_database_url()
+    if not url:
+        pytest.fail("未配置 MySQL 测试库：见 backend/.env 与 infra/setup_mysql.py", pytrace=False)
+    eng = create_engine(url, pool_pre_ping=True)
+    with eng.begin() as conn:
+        conn.execute(text("SET FOREIGN_KEY_CHECKS=0"))
+        db.Base.metadata.drop_all(eng)
+        db.Base.metadata.create_all(eng)
+        conn.execute(text("SET FOREIGN_KEY_CHECKS=1"))
     original = db._engine
     db.configure_engine(eng)
     local = sessionmaker(bind=eng)
