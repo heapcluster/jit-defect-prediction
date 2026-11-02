@@ -9,7 +9,7 @@
 - 缺陷判定从**人工标记**改为 **SZZ 算法自动标记**：不再由人点「确认非缺陷 / 标记为引入缺陷」，改用 `commit_label` 的 szz 行作为真标签展示。
 - 顶部人工标记提示与 3 个操作按钮整体移除。
 - 「重新预测」由单下拉改为**架构 → 模型级联双下拉**。
-- 提交信息卡片新增「预测时间」「PR 提交时间」两个字段。
+- 提交信息卡片新增「预测时间」字段。
 
 ## 布局（从上到下）
 
@@ -26,7 +26,6 @@
 │ │ 作者        dev1                                          │     │
 │ │ 时间        2024-03-01 10:00                               │     │
 │ │ 预测时间    2024-03-01 11:30                               │     │
-│ │ PR 提交时间 2024-03-01 09:00                               │     │
 │ │ 信息        fix: null ptr                                 │     │
 │ └───────────────────────────────────────────────────────────┘     │
 ├────────────────────────────────────────────────────────────────────┤
@@ -46,7 +45,7 @@
    - 无 szz 行 → 标签「无 SZZ 标记」（info 色）
    - 有标记时附带「标记于 <labeled_at>」。
 3. **重新预测行**：架构下拉 → 模型下拉（联动）→「预测」按钮。
-4. **提交信息卡片**（6 行，键值对排版）：提交、作者、时间、**预测时间**、**PR 提交时间**、信息。
+4. **提交信息卡片**（5 行，键值对排版）：提交、作者、时间、**预测时间**、信息。
 5. **风险解释**：正负贡献条，按 `|contribution|` 降序取前 8 项。
 6. **14 项特征**：按五维度分组展示 Kamei 14 维。
 
@@ -76,7 +75,6 @@
   "model_name": "lr_v1",
   "risk_score": 0.83,
   "predicted_at": "2024-03-01T11:30:00",
-  "pr_submitted_at": "2024-03-01T09:00:00",
   "label": { "is_defect": 1, "labeled_at": "2024-03-01T12:00:00" },
   "features": { "ns": 3, "…": "…" },
   "explanation": [ { "feature": "ns", "contribution": 0.21, "direction": "increase", "label": "变更子系统多" } ]
@@ -91,16 +89,15 @@
 
 | # | 项 | 方法 / 路径 | 期望入参 | 期望出参 | 说明 |
 |---|---|---|---|---|---|
-| 1 | 详情接口补字段 | `GET /api/commits/{commit_hash}` | `commit_hash`（path） | 新增 `predicted_at`、`pr_submitted_at`；`label` 改读 szz 行 | 现状 `label` 只读 manual 行（恒 null），需改指 `commit_label` 的 `label_method='szz'` |
+| 1 | 详情接口补字段 | `GET /api/commits/{commit_hash}` | `commit_hash`（path） | 新增 `predicted_at`；`label` 改读 szz 行 | 现状 `label` 只读 manual 行（恒 null），需改指 `commit_label` 的 `label_method='szz'` |
 | 2 | 架构 → 模型层级 | `GET /api/models` | 无 | `{ "lines": [ { "line", "label", "models": ["lr_v1", …] } ] }` | 级联下拉一次拉全量（同风险列表页） |
 
 字段口径补充（供后端）：
 
 - `label`：`{ "is_defect": 0|1, "labeled_at": "ISO" }`，数据源 `commit_label` 的 szz 行；无 szz 行时 `label = null`。
 - `predicted_at`：该提交**当前选中模型**的预测时间，来自 `prediction` 表（`commit_hash` + `model_name` 对应行）。
-- `pr_submitted_at`：该提交所属 PR 的提交时间。**当前无 commit→PR 关联数据源**（PR 能力已在 #195 下线），需后端重新建立关联或另定数据源。
 
 ## 说明
 - 真标签（SZZ）展示依赖后端把 `label` 数据源从 manual 改指 szz，未改前恒为「无 SZZ 标记」。
-- 「预测时间」「PR 提交时间」两个新字段当前接口都不返回，需后端补充（见缺失接口清单）。
+- 「预测时间」新字段当前接口不返回，需后端补充（见缺失接口清单）。
 - 级联数据源与风险列表页共用同一个 `GET /api/models`。

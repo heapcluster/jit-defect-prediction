@@ -6,7 +6,7 @@
 - 入口：顶部导航栏「模型性能」（新增菜单项）
 
 ## 功能概述
-集中展示各机器学习模型的综合性能：选定模型后查看其**性能评估图**（ROC / PR / 混淆矩阵 / 校准 / effort 等），并在下方表格中按提交逐条查看**14 维特征、SZZ 自动缺陷判断、所选模型的缺陷引入概率**，支持联动查询与可视化。
+集中展示各机器学习模型的综合性能：顶部通过级联下拉选定模型后点「查看」，打开**模型图片展示页**（多图导航）；下方表格按提交逐条展示 14 维特征、SZZ 自动缺陷判断、所选模型的缺陷引入概率，支持联动查询与可视化。
 
 ## 布局（从上到下）
 
@@ -16,7 +16,7 @@
 ├────────────────────────────────────────────────────────────────────┤
 │ 模型： 架构[▾] 模型[▾]  [查看]                                      │
 ├────────────────────────────────────────────────────────────────────┤
-│ 搜索[哈希/作者/提交信息]  时间范围[____ 至 ____]  [查询] [重置]      │
+│ 搜索[____]  时间范围[____ 至 ____]  [查询] [重置]                    │
 ├────────────────────────────────────────────────────────────────────┤
 │ 提交      作者   时间      提交信息    14维特征  SZZ判断  缺陷引入概率│
 │ a1b2c3d4  dev1  2024-03-01 fix:null   [预览]   是       83.0%       │
@@ -35,11 +35,41 @@
 
 ## 交互
 - **架构 → 模型级联**：选「架构」后「模型」联动展示该架构下的模型；切换架构清空已选模型；两级都不选 = 后端默认模型。
-- **「查看」→ 性能评估图**：点击后**右侧弹出抽屉（Drawer）**，展示该模型的性能评估图集；随所选模型刷新。
-- **查询**：按 搜索 / 时间范围 过滤表格；点「查询」或搜索框回车触发。
-- **重置**：清空搜索与时间范围，重新查询。
+- **「查看」→ 模型图片展示页**：点击后打开该模型的**多图导航展示页**（全屏弹层或独立路由），见下节。
+- **查询 / 重置**：按 搜索 / 时间范围 过滤表格；点「查询」或搜索框回车触发；重置清空筛选。
 - **动态概率**：「缺陷引入概率」列随顶部所选模型变化。
-- **14 维特征**：单元格提供悬浮预览 / 点击抽屉，按五维度分组展示 Kamei 14 维。
+- **14 维特征**：单元格悬浮预览 / 点击抽屉，按五维度分组展示 Kamei 14 维。
+
+## 模型图片展示页（多图导航）
+
+### 打开方式
+- 选定模型后点「查看」→ 打开**全屏弹层（`el-dialog fullscreen`）或独立路由**（如 `/model-performance/images?model_name=lr_v1`）。
+
+### 组件结构
+
+```
+┌─ 模型图片 · lr_v1 ─────────────────────────────────────────────┐
+│ [ROC] [PR] [混淆矩阵] [校准] [Effort] [特征重要性]   ← 导航 Tabs │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│            （主展示区：当前选中图片的大图，可点击放大）           │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+```
+
+- **顶部导航栏（Tabs）**：菜单项由 `GET /api/figures?model_name=` 返回的 `figures[].title` **动态生成**；无图时显示空态。
+- **主展示区**：`<el-image>`（带 `preview-src-list` 支持放大查看），渲染当前选中的 `figure.file_path`。
+
+### State 管理
+- `figures`：该模型图列表（`figure_type` / `title` / `file_path`）。
+- `activeIndex`：当前选中图索引，默认 `0`（第一张）。
+- `loading`：图片加载态；切图时置 loading，加载完成清除。
+
+### 切换与取图逻辑
+1. 打开页面 → `GET /api/figures?model_name=` 拉取图列表，渲染 Tabs。
+2. 点击某个 Tab → 更新 `activeIndex` → 主区渲染对应 `file_path`。
+3. 取图：`file_path` 走静态目录，`<img>` 带不了 `X-API-Key`，用 `fetch`（带鉴权头）取二进制转 `ObjectURL` 渲染（同 `docs/api/figures.md` 口径）。
+4. 图片资源：逐模型图集在 `backend/static/figures/{line}/{model}/`（由 `data_model/pipelines` 生成并拷贝），`file_path` 已含该路径。
 
 ## 表格列定义
 | 列 | 字段 | 说明 |
@@ -56,15 +86,27 @@
 | 用途 | 接口 |
 |---|---|
 | 架构 → 模型层级 | `GET /api/models` |
-| 模型性能评估图 | `GET /api/figures?model_name=` |
+| 模型图片列表（多图导航） | `GET /api/figures?model_name=` |
 | 多维指标表格 | `GET /api/commits?page=&size=&q=&model_name=&start_time=&end_time=` |
 
-### 性能评估图取图方式
-- `GET /api/figures?model_name=` 返回该模型的逐模型图集：`figure_type`（`roc` / `pr` / `confusion` / `calibration` / `effort` / `feat_importance`）、`title`、`file_path`。
-- `<img>` 带不了 `X-API-Key`，前端用 `fetch`（带鉴权头）取图片二进制再转 `ObjectURL` 渲染。
-- 每线对比图（`roc_curves.png` / `metric_bars.png` / `effort_curves_loc.png`）挂在 `data_model/pipelines/{line}/reports/figs/*.png`，如看板需要可按线补充展示。
+`GET /api/figures?model_name=` 响应（供多图导航动态生成 Tabs）：
+
+```json
+{
+  "model_name": "lr_v1",
+  "figures": [
+    { "figure_type": "roc", "title": "ROC curve", "file_path": "/static/figures/expert/lr_v1/roc.png" },
+    { "figure_type": "pr", "title": "PR curve", "file_path": "/static/figures/expert/lr_v1/pr.png" },
+    { "figure_type": "confusion", "title": "Confusion matrix", "file_path": "/static/figures/expert/lr_v1/confusion.png" },
+    { "figure_type": "calibration", "title": "Calibration curve", "file_path": "/static/figures/expert/lr_v1/calibration.png" },
+    { "figure_type": "effort", "title": "Effort-aware curve", "file_path": "/static/figures/expert/lr_v1/effort.png" },
+    { "figure_type": "feat_importance", "title": "Feature importance", "file_path": "/static/figures/expert/lr_v1/feat_importance.png" }
+  ]
+}
+```
 
 ## 说明
-- 14 维特征只展示 Kamei 14 维（可读特征），语义 / 融合 / 端到端特征不落关系表。
-- SZZ 真标签来自 `commit_label`（`label_method='szz'`），manual 不纳入。
+- 导航栏图片名称 = `figures[].title`，图片地址 = `figures[].file_path`；列表完全由后端返回，前端不硬编码图类型。
+- 每线对比图（`roc_curves.png` / `metric_bars.png` / `effort_curves_loc.png`）挂在 `data_model/pipelines/{line}/reports/figs/*.png`，属「线级」对比，不在「单模型多图导航」内，如需要可另行补充。
+- 14 维特征只展示 Kamei 14 维；SZZ 真标签来自 `commit_label`（`label_method='szz'`），manual 不纳入。
 - 「缺陷引入概率」= 所选模型的 `risk_score`，模型切换后整列刷新。
