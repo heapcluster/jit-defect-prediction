@@ -1,14 +1,20 @@
 # 趋势分析
 
-纵向功能点：按时间粒度聚合提交量与高风险量。跨后端、前端。
+**一句话**：按时间粒度聚合提交量与风险度。它支撑前端 **趋势看板** 的两条折线图。
+
+## 对应前端功能
+| 页面 / 入口 | 用这个功能点的哪部分 |
+|---|---|
+| 趋势看板 | 选线 → 选模型（复用风险列表的选择器）→ 选时间范围，看两条折线：提交量 + 风险度 |
 
 ## 各层职责
 | 层 | 职责 |
 |---|---|
-| 后端 | `GET /api/trends` 聚合（`granularity` / `start_time` / `end_time` / `model_name`） |
-| 前端 | 趋势看板双 y 轴绘图与交互 |
+| 后端 | `GET /api/trends` 聚合（`granularity` / `start_time` / `end_time` / `line` / `model_name`） |
+| 前端 | 趋势看板两条折线绘图（提交数 + 风险度）；线 → 模型两级切换 |
 
 ## 验收
-- 切换粒度 / 选中模型 / commit 时间区间都能刷新两条 y 轴；
-- 两条轴分别绑定 `commit_count` 与 `high_risk_count`，MUST NOT 用 `avg_risk` 顶替提交数；
+- 切换粒度 / 选中线 / 选中模型 / commit 时间区间都能刷新两条折线；
+- 折线一绑定 `commit_count`（提交量），折线二绑定 `avg_risk`（风险度，0~1 按百分比显示）；MUST NOT 用 `high_risk_count` 顶替风险度折线；
+- `high_risk_count` 按 `.env` 写死阈值统计，作辅助展示；
 - 数据来自 `prediction` 按选中模型聚合，不含未预测提交。
