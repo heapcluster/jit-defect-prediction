@@ -1,9 +1,10 @@
-"""SQLAlchemy 模型：四张表逐字对齐契约一 v2 与契约二 §2/§3，并补齐最小 BCNF 化（change startup-baseline-sync）。
+"""SQLAlchemy 模型：逐字对齐契约一 v2 与契约二 §2/§3，并补齐最小 BCNF 化（change startup-baseline-sync）。
 
 BCNF 化要点：
 - 新增 `model` 表承载模型元数据（model_name PK），`prediction.model_name` 改为引用它的外键；
 - `prediction` / `commit_feature` / `commit_label` 的 `commit_hash` 改为引用 `commit.commit_hash` 的外键；
-- 四表统一加 `updated_at` 审计列。
+- 各表统一加 `updated_at` 审计列。
+- 测试集评估看板：`model.line`、`commit_feature.is_test`、新增 `model_figure`（change 见 docs/database）。
 """
 
 from __future__ import annotations
@@ -15,8 +16,6 @@ from sqlalchemy import (
     BigInteger,
     ForeignKey,
     Index,
-    Integer,
-    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -26,10 +25,10 @@ from sqlalchemy import (
 from sqlalchemy.dialects.mysql import TINYINT
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-# 契约一/二要求 MySQL TINYINT(1)；用 with_variant 在 MySQL 方言下映射为 TINYINT(1)
-TINYINT1 = SmallInteger().with_variant(TINYINT(1), "mysql")
+# 本项目只支持 MySQL 8.0：TINYINT(1) / BIGINT 直接使用，不再做方言变体
+TINYINT1 = TINYINT(1)
 # MySQL 自增主键用 BIGINT（契约要求）
-ID_TYPE = Integer().with_variant(BigInteger, "mysql")
+ID_TYPE = BigInteger
 
 
 class Base(DeclarativeBase):
@@ -50,6 +49,9 @@ class Model(Base):
     trained_at: Mapped[object | None] = mapped_column(DATETIME, nullable=True)
     algo: Mapped[str | None] = mapped_column(String(64), nullable=True)
     feature_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    line: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="expert", server_default=text("'expert'"), index=True
+    )
     updated_at: Mapped[object] = mapped_column(
         DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
@@ -129,6 +131,9 @@ class CommitFeature(Base):
     exp: Mapped[float] = mapped_column(DECIMAL(20, 10))
     rexp: Mapped[float] = mapped_column(DECIMAL(20, 10))
     sexp: Mapped[float] = mapped_column(DECIMAL(20, 10))
+    is_test: Mapped[int] = mapped_column(
+        TINYINT1, nullable=False, default=0, server_default=text("0"), index=True
+    )
     updated_at: Mapped[object] = mapped_column(
         DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
@@ -154,6 +159,25 @@ class Prediction(Base):
     )
 
 
+class ModelFigure(Base):
+    """模型性能图索引：后端据它列出某模型有哪些图，前端拿 file_path 渲染。"""
+
+    __tablename__ = "model_figure"
+    __table_args__ = (UniqueConstraint("model_name", "figure_type", name="uq_model_figure"),)
+
+    id: Mapped[int] = mapped_column(ID_TYPE, primary_key=True, autoincrement=True)
+    model_name: Mapped[str] = mapped_column(
+        String(64), ForeignKey("model.model_name"), index=True
+    )
+    figure_type: Mapped[str] = mapped_column(String(32))
+    title: Mapped[str] = mapped_column(String(128))
+    file_path: Mapped[str] = mapped_column(String(255))
+    generated_at: Mapped[object] = mapped_column(DATETIME)
+    updated_at: Mapped[object] = mapped_column(
+        DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
 INDEX_ASSERTIONS = (
     ("commit", ("commit_hash",), True),
     ("commit", ("committed_at",), False),
@@ -161,29 +185,23 @@ INDEX_ASSERTIONS = (
     ("prediction", ("commit_hash",), False),
     # 列表/趋势的取数路径：模型 + 风险分（复核 D7）
     ("prediction", ("model_name", "risk_score"), False),
+    # 测试集评估看板：检验集筛选 + 四线分组 + 图索引
+    ("commit_feature", ("is_test",), False),
+    ("model", ("line",), False),
+    ("model_figure", ("model_name",), False),
+    ("model_figure", ("model_name", "figure_type"), True),
 )
 
 
 # BCNF 外键完整性兜底：预测落库前确保 `model` 表存在对应 model_name 行。
 # 生产由 db.ensure_model_rows 启动时预注册（此处 INSERT IGNORE 幂等 no-op）；
 # 测试或历史数据直接写 prediction 时也能保持外键成立，不必逐条手工补 model 行。
-# 方言适配：MySQL 用 INSERT IGNORE/NOW()；SQLite（仅单测、默认不强制外键）用 OR IGNORE/CURRENT_TIMESTAMP。
 @event.listens_for(Prediction, "before_insert")
 def _ensure_model_row(mapper, connection, target) -> None:
-    dialect = connection.dialect.name
-    if dialect == "mysql":
-        connection.execute(
-            text(
-                "INSERT IGNORE INTO `model` (`model_name`, `version_key`, `updated_at`) "
-                "VALUES (:n, '', NOW())"
-            ),
-            {"n": target.model_name},
-        )
-    elif dialect == "sqlite":
-        connection.execute(
-            text(
-                "INSERT OR IGNORE INTO `model` (`model_name`, `version_key`, `updated_at`) "
-                "VALUES (:n, '', CURRENT_TIMESTAMP)"
-            ),
-            {"n": target.model_name},
-        )
+    connection.execute(
+        text(
+            "INSERT IGNORE INTO `model` (`model_name`, `version_key`, `updated_at`) "
+            "VALUES (:n, '', NOW())"
+        ),
+        {"n": target.model_name},
+    )

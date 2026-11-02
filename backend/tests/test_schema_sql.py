@@ -1,4 +1,4 @@
-"""静态检查 MySQL DDL 快照；只编译元数据，不连接 MySQL 或用 SQLite 执行 SQL。"""
+"""静态检查 MySQL DDL 快照；只编译元数据，不连接数据库。"""
 
 from __future__ import annotations
 
@@ -58,6 +58,7 @@ def test_schema_sql_matches_complete_mysql_metadata():
         "prediction",
         "model",
         "runtime_setting",
+        "model_figure",
     }
     _assert_schema_matches_metadata(SCHEMA_SQL.read_text(encoding="utf-8"))
 
