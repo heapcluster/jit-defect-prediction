@@ -17,18 +17,22 @@ class CIContractTests(unittest.TestCase):
         self.assertEqual(re.findall(r"^  ([a-z_]+):$", jobs, re.MULTILINE), ["ci"])
         self.assertIn("    name: CI\n", jobs)
 
-    def test_runtime_checks_are_unconditional(self):
-        for name, command in (
-            ("Test backend", "python -m pytest -q"),
-            ("Test frontend", "npm run test:unit"),
-            ("Test data model", "python -m pytest -q"),
-            ("Build frontend", "npm run build"),
-            ("Build Python", "python -m compileall"),
+    def test_runtime_checks_follow_changed_paths(self):
+        self.assertIn("fetch-depth: 0", WORKFLOW)
+        self.assertIn("python3 infra/ci_scope.py", WORKFLOW)
+        self.assertIn("- name: Report lightweight PR", WORKFLOW)
+        for name, command, scope in (
+            ("Test infra", "python -m pytest -q infra/tests", "infra"),
+            ("Test backend", "python -m pytest -q", "backend"),
+            ("Test frontend", "npm run test:unit", "frontend"),
+            ("Test data model", "python -m pytest -q", "model"),
+            ("Build frontend", "npm run build", "frontend"),
+            ("Build Python", "python -m compileall", "python"),
         ):
             with self.subTest(name=name):
                 block = WORKFLOW.split(f"- name: {name}\n", 1)[1].split("- name:", 1)[0]
                 self.assertIn(command, block)
-                self.assertNotIn("if:", block)
+                self.assertIn(f"if: steps.scope.outputs.{scope} == 'true'", block)
         for bypass in ("continue-on-error", "|| true", "--if-present", "--passWithNoTests"):
             self.assertNotIn(bypass, WORKFLOW)
 
