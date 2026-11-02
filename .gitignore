@@ -8,6 +8,8 @@
 # ===== 数据集、模型等大文件（严禁入库）=====
 data/
 datasets/
+# Apache Camel 本地克隆（SOURCE_REPO 指向，大体积不入库）
+camel/
 # 模型产物：任意 pipeline 的 models/ 下权重不入库；feature_order.txt / manifest.txt /
 # load_manifest.txt 是**交付清单（纯文本）**，必须入库才能被审阅/比对（否则干净 clone 缺清单）。
 #   - manifest.txt      = verify_all_weights 的 md5 权重清单（5 列）
