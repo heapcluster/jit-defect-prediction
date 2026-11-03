@@ -23,7 +23,7 @@
 |---|---|
 | `model.line` | 架构分组（`expert` / `semantic` / `fused` / `e2e`，小写） |
 | `commit_feature.is_test` | 性能图、指标与表格的数据范围（时间序后 30% 测试集） |
-| `commit_feature.is_bug_inducing` | SZZ 真标签；**对外字段名 `is_defect`**（`1` / `0` / `null`） |
+| `commit_feature.is_bug_inducing` | SZZ 真标签；库内外同名（`1` / `0` / `null`） |
 | `commit_feature` 14 维 | 表格特征列；log 变换值，可负 |
 | `prediction.risk_score` | 所选模型对每条提交的概率，随模型切换整列刷新 |
 | `model_figure` | 逐模型图索引与静态路径 |
@@ -47,7 +47,7 @@
    - 图 + 指标：`GET /api/figures?model_name=` 读 `model_figure` 与 `out/model_metrics.csv`。
 ## 验收
 - 切换架构 / 模型或时间范围：表格概率列与「查看」抽屉图集同步刷新；模型不选时走后端默认模型。
-- 表格列齐全：提交、作者、时间、提交信息、14 维特征、SZZ 判断（`is_defect`）、缺陷引入概率（`risk_score`）；`with_features=1&is_test=1` 才能拿到测试集特征列。
+- 表格列齐全：提交、作者、时间、提交信息、14 维特征、SZZ 判断（`is_bug_inducing`）、缺陷引入概率（`risk_score`）；`with_features=1&is_test=1` 才能拿到测试集特征列。
 - SZZ 三态正确：有标签 `1` / `0`，未打标 `null`；不得把 `null` 显示成「非缺陷」。
 - 图集覆盖 `roc` / `pr` / `confusion` / `calibration` / `effort`，expert 架构另有 `feat_importance`；effort-unaware 与 effort-aware 两类指标图各至少一张（课程硬要求）。
 - 图片请求带鉴权头；`<img>` 直连静态路径不算通过。

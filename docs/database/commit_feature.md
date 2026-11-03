@@ -23,7 +23,7 @@
 | rexp | DECIMAL(20,10) | — | `ln(作者近期提交数)` |
 | sexp | DECIMAL(20,10) | — | `ln(作者在这些文件上的专属经验)` |
 | is_test | TINYINT(1) | 索引 | 是否检验集（时间序后 30%），`1` = 测试集 |
-| is_bug_inducing | TINYINT(1) | — | **SZZ 真标签**（`1` = 引入缺陷 / `0` = 非缺陷），**可空**；对外字段名 `is_defect`，未打标为 `NULL` |
+| is_bug_inducing | TINYINT(1) | — | **SZZ 真标签**（`1` = 引入缺陷 / `0` = 非缺陷），**可空**；库内外同名，未打标为 `NULL` |
 | labeled_at | DATETIME | — | SZZ 批量打标时间（**审计列，不对外**；同一批打标整列同值） |
 
 ## 14 维落库口径（对数变换，MUST 知悉）
@@ -51,6 +51,6 @@
 - **`is_bug_inducing` 由原 `commit_label` 表并入**（`commit_label` 已删除）：
   - `label_method` 恒为 `szz`，列已删除；`bug_fix_hash` 是死字段，已删除；
   - `labeled_at` 保留为审计列，**不对外**；实测同一批打标整列同值，不能当「缺陷发生/修复时间」展示；
-  - 对外统一叫 `is_defect`；库内名与对外名不同，MUST 在接口层做一次映射，不得把两个名字混用；
+  - 库内外统一叫 `is_bug_inducing`，无映射；
   - 该列**可空**：SZZ 只覆盖打标范围内的提交，新同步且尚未打标的提交必须返回 `NULL`，不得默认成 `0`。
 - `is_test` / `is_bug_inducing` / `labeled_at` 与 14 维特征同版本（`feature_version`），由模型线切分/打标产物写入。

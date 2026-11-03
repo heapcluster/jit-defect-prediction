@@ -56,7 +56,7 @@ flowchart LR
 ## 数据库口径（5 张表）
 `model` / `commit` / `commit_feature` / `prediction` / `model_figure`。
 
-- `commit_label` 并入 `commit_feature`：`is_bug_inducing`（可空）+ `labeled_at`（审计、不对外）入表，删除 `commit_label`；对外字段名统一 `is_defect`。
+- `commit_label` 并入 `commit_feature`：`is_bug_inducing`（可空）+ `labeled_at`（审计、不对外）入表，删除 `commit_label`；库内外字段名统一 `is_bug_inducing`。
 - `runtime_setting` 删除：阈值写死 `.env`，默认模型统一 `version_key` 最大者。
 - 删除 `commit` / `prediction` / `model_figure` 的自增 `id`，改 `commit_hash` / 联合主键。
 - 各表不再保留 `updated_at` 审计列。
@@ -66,7 +66,7 @@ flowchart LR
 
 ## 范围边界（落地以此为准）
 - **特征**：页面只展示 Kamei 14 维（模型性能表与提交详情）；语义 768 维、融合 782 维、e2e 文本**不落关系表**。14 维是四线共享的抽取产物，但**只有 expert 线把它当模型输入**，其余线展示时必须说明这一点。
-- **真标签**：只取 SZZ（`commit_feature.is_bug_inducing`，对外 `is_defect`），`1` / `0` / `null`；人工标签已下线，未打标不得当 `0`。
+- **真标签**：只取 SZZ（`commit_feature.is_bug_inducing`），`1` / `0` / `null`；人工标签已下线，未打标不得当 `0`。
 - **模型范围**：四方案 25 模型，`model.line` 分组；可先 expert 8 打样。模型清单由 `GET /api/models` 返回，前端不写死。
 - **e2e 特殊性**：端到端模型不使用结构化特征层；`commit_feature` 里共享的 14 维不是它的模型输入。
 - **图集**：每个模型一组性能图（roc / pr / confusion / calibration / effort），expert 线另有 feat_importance；离线生成、后端静态托管。

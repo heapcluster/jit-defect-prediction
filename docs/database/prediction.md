@@ -28,5 +28,5 @@
 - 导入范围按需求覆盖**四线 25 模型**（可先 expert 8 个）。
 - **`predicted_at` 对外**：提交详情按选中模型返回该行的预测时间；该提交没有选中模型的预测行时，`risk_score` / `predicted_at` 同为 `null`。
 - **特征版本不落本表**：由 `model_name → model.feature_version` 决定（BCNF，避免传递依赖）；需要时 join `model` 取。
-- **真标签不在这张表**：SZZ 真标签已并入 `commit_feature.is_bug_inducing`（对外 `is_defect`），算性能指标时 join `commit_feature` 取。
+- **真标签不在这张表**：SZZ 真标签已并入 `commit_feature.is_bug_inducing`，算性能指标时 join `commit_feature` 取。
 - 判定（高/中/低）不由本表字段给出，由调用方按 `.env` 写死阈值对 `risk_score` 现算。

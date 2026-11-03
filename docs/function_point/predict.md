@@ -28,7 +28,7 @@
 ## 验收
 - 给定 commit + `model_name` 能返回风险分；风险等级（高/中/低）由前端按 `risk_score` 与阈值常量判定（与后端 `.env` 的 `HIGH_RISK_THRESHOLD` / `MID_RISK_THRESHOLD` 同值，见前端 `utils/risk.js`）；接口不返回等级、不返回阈值；
 - 未预测的提交在列表与模型性能表里表现为**缺行**、在详情里表现为 `risk_score` / `predicted_at` 为 `null`，前端必须显示「未预测」而非风险 0；
-- 详情返回 `predicted_at`（选中模型的预测时间）与 `is_defect`（`1` / `0` / `null`）；未打标的提交不得显示成非缺陷；
+- 详情返回 `predicted_at`（选中模型的预测时间）与 `is_bug_inducing`（`1` / `0` / `null`）；未打标的提交不得显示成非缺陷；
 - 补算幂等：同一提交重复请求不产生重复行；
 - 补算异步：前端不靠超时判断成败，靠 `/api/sync/status`；
 - 页面文案与测试报告里的耗时数字一律用实测值，不得沿用旧的「4 秒」。

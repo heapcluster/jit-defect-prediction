@@ -40,7 +40,7 @@
 | `items[].commit_hash` / `author_name` / `committed_at` / `message` | 提交信息 |
 | `items[].model_name` / `risk_score` | 选中模型与该提交的风险分 |
 | `items[].features{ns..sexp}` | **仅 `with_features=1` 时返回**：Kamei 14 维，log 变换值（可负），见 `database/commit_feature.md` |
-| `items[].is_defect` | SZZ 真标签：`1` = 引入缺陷 / `0` = 非缺陷 / `null` = 未打标 |
+| `items[].is_bug_inducing` | SZZ 真标签：`1` = 引入缺陷 / `0` = 非缺陷 / `null` = 未打标 |
 
 ### 详情响应 `data`
 | 字段 | 含义 |
@@ -50,7 +50,7 @@
 | `predicted_at` | 该模型对该提交的预测时间；无预测行时为 `null` |
 | `features{ns..sexp}` | Kamei 14 维（log 变换值，见 `database/commit_feature.md`） |
 | `explanation[]` | 解释因子：`feature` + `contribution` + `direction` + `label`（中文名；与已下线的人工标签 `label` 对象无关） |
-| `is_defect` | SZZ 真标签：`1` / `0` / `null`（未打标） |
+| `is_bug_inducing` | SZZ 真标签：`1` / `0` / `null`（未打标） |
 
 **详情不返回 `label` 对象**（人工标签已下线），**也不返回 `pr_submitted_at`**（无 commit→PR 持久数据源，见口径）。
 
@@ -62,7 +62,7 @@
 | 40400 | 404 | 提交或特征不存在 |
 
 ## 口径
-- **真标签对外字段名统一 `is_defect`**：库内列是 `commit_feature.is_bug_inducing`（`1` = 引入缺陷，`0` = 非缺陷），对外做一次改名映射。未打标返回 `null`，**不是 `0`**（不能把「不知道」当负样本）。
+- **真标签字段名统一 `is_bug_inducing`**（库内外同名，无映射）：`1` = 引入缺陷，`0` = 非缺陷；未打标返回 `null`，**不是 `0`**（不能把「不知道」当负样本）。
 - **真标签来源**：SZZ 自动标签（`commit_feature.is_bug_inducing`；原 `commit_label` 已并入）。人工标签与 `label` 对象已下线。
 - **`predicted_at`**：来自 `prediction` 表 `(commit_hash, model_name)` 对应行；该提交没有选中模型的预测行时为 `null`。
 - **`pr_submitted_at` 本期不提供**：没有 commit→PR 持久关联；PR 能力已在 #195 下线。一个 PR 可包含多个 commit，PR 时间不是提交自身属性，不放进提交详情。

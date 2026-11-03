@@ -6,7 +6,7 @@
 - 入口：风险列表点击某行进入
 
 ## 概述
-- 缺陷判定从**人工标记**改为 **SZZ 算法自动标记**：不再由人点「确认非缺陷 / 标记为引入缺陷」，改用 SZZ 真标签展示——库内列名是 `commit_feature.is_bug_inducing`，对外字段统一叫 `is_defect`（同一个 0/1 值的两个名字，接口层做一次映射，前端只见 `is_defect`）。
+- 缺陷判定从**人工标记**改为 **SZZ 算法自动标记**：不再由人点「确认非缺陷 / 标记为引入缺陷」，改用 SZZ 真标签 `is_bug_inducing`（库内外同名，无映射）展示。
 - 顶部人工标记提示与 3 个操作按钮整体移除。
 - 「重新预测」由单下拉改为**架构 → 模型级联双下拉**。
 - 提交信息卡片新增「预测时间」一个字段。
@@ -40,9 +40,9 @@
 
 1. **顶部操作行**：仅「← 返回」按钮。**无人工标记提示文本**（原「这条提交是否真的引入缺陷？…」整条移除），**无「撤销标记 / 确认非缺陷 / 标记为引入缺陷」三个按钮**。
 2. **风险结论行**：风险百分比 + 风险等级标签 + 模型名标签；右侧为 **SZZ 标记状态**：
-   - `is_defect = 1` → 标签「SZZ：引入缺陷」（danger 色）
-   - `is_defect = 0` → 标签「SZZ：非缺陷」（success 色）
-   - `is_defect = null` → 标签「无 SZZ 标记」（info 色）
+   - `is_bug_inducing = 1` → 标签「SZZ：引入缺陷」（danger 色）
+   - `is_bug_inducing = 0` → 标签「SZZ：非缺陷」（success 色）
+   - `is_bug_inducing = null` → 标签「无 SZZ 标记」（info 色）
 3. **重新预测行**：架构下拉 → 模型下拉（联动）→「预测」按钮。
 4. **提交信息卡片**（5 行，键值对排版）：提交、作者、时间、**预测时间**、信息。
 5. **风险解释**：正负贡献条，按 `|contribution|` 降序取前 8 项。
@@ -75,7 +75,7 @@
   "model_name": "lr_v1",
   "risk_score": 0.83,
   "predicted_at": "2024-03-01T11:30:00",
-  "is_defect": 1,
+  "is_bug_inducing": 1,
   "features": { "ns": 3, "…": "…" },
   "explanation": [ { "feature": "ns", "contribution": 0.21, "direction": "increase", "label": "变更子系统多" } ]
 }
@@ -89,17 +89,17 @@
 
 | # | 项 | 方法 / 路径 | 期望入参 | 期望出参 | 说明 |
 |---|---|---|---|---|---|
-| 1 | 详情接口补字段 | `GET /api/commits/{commit_hash}` | `commit_hash`（path） | 新增 `predicted_at`、`is_defect` | 现状 `label` 只读 manual 行；改为返回 SZZ 真标签 `is_defect`（库内 `commit_feature.is_bug_inducing`，未打标 `null`） |
+| 1 | 详情接口补字段 | `GET /api/commits/{commit_hash}` | `commit_hash`（path） | 新增 `predicted_at`、`is_bug_inducing` | 现状 `label` 只读 manual 行；改为返回 SZZ 真标签 `is_bug_inducing`（库内 `commit_feature.is_bug_inducing`，未打标 `null`） |
 | 2 | 架构 → 模型层级 | `GET /api/models` | 无 | `{ "lines": [ { "line", "label", "models": ["lr_v1", …] } ] }` | 级联下拉一次拉全量（同风险列表页） |
 
 字段口径补充（供后端）：
 
-- `is_defect`：`0` / `1` / `null`，数据源 `commit_feature.is_bug_inducing`（SZZ 真标签）；未打标为 `null`。不再返回 `label` 对象与 `labeled_at`。
+- `is_bug_inducing`：`0` / `1` / `null`，数据源 `commit_feature.is_bug_inducing`（SZZ 真标签）；未打标为 `null`。不再返回 `label` 对象与 `labeled_at`。
 - `predicted_at`：该提交**当前选中模型**的预测时间，来自 `prediction` 表（`commit_hash` + `model_name` 对应行）；无预测行时为 `null`。
 - `pr_submitted_at`：**本期不做**。没有 commit→PR 持久数据源（PR 能力已在 #195 下线），且一个 PR 可含多个 commit，该时间不是提交自身属性。
 
 ## 说明
-- 真标签（SZZ）展示依赖后端返回 `is_defect`（库内 `commit_feature.is_bug_inducing`）；未实现前详情没有该字段。
+- 真标签（SZZ）展示依赖后端返回 `is_bug_inducing`（库内 `commit_feature.is_bug_inducing`）；未实现前详情没有该字段。
 - 「预测时间」当前接口不返回，需后端补充；`pr_submitted_at` 本期不做（无 commit→PR 数据源）。
 - 级联数据源与风险列表页共用同一个 `GET /api/models`。
-- 风险等级标签由 `risk_score` 前端判定（阈值与后端 `.env` 同值）；SZZ 状态来自 `is_defect`，二者不是同一个接口字段。
+- 风险等级标签由 `risk_score` 前端判定（阈值与后端 `.env` 同值）；SZZ 状态来自 `is_bug_inducing`，二者不是同一个接口字段。
