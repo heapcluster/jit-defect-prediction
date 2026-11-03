@@ -42,5 +42,6 @@
 - **模型标识统一用 `model_name`**：参数与响应都用 `model_name`，与库表外键同名，无中间转换。
 - **模型名已隐含架构**：`/api/trends` 不接收 `line`；架构只用于 `GET /api/models` 的级联选择。
 - **页面筛选**：架构 → 模型两级级联 + 独立时间范围；前两级来自 `GET /api/models`，时间范围可单独选择，走 `start_time` / `end_time`。
+- **汇总卡由前端对 `series` 聚合，不提供单独接口**：区间提交数 = Σ `commit_count`，高风险数 = Σ `high_risk_count`，加权平均风险 = Σ(`avg_risk` × `commit_count`) / Σ `commit_count`。
 - 要按 SZZ 真标签统计缺陷，走模型性能看板的 `is_defect` 列，不在本接口聚合。
 - MySQL 路径把分桶/计数/均值全部下推 SQL（`build_aggregate_stmt`）；Python 侧分桶仅作单测方言回退。

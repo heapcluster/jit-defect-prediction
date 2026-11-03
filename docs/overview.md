@@ -15,6 +15,25 @@
 ## 项目范围
 后端为 JIT 缺陷预测系统，提供提交风险预测、数据同步、趋势分析、模型性能看板与健康探针；前端四个页面展示；模型线四方案共 25 个模型。PR 门禁、质量看板、人工标注与测试集评估独立页均已下线，相关接口与文档不再保留。
 
+## 页面 ↔ 接口（按钮级）
+
+| 页面 | 按钮 / 交互 | 对应接口 / 数据 |
+|---|---|---|
+| 风险列表 | 架构 / 模型下拉（同步范围行、查询栏各一套） | `GET /api/models` |
+| | 刷新 | `POST /api/sync`（按同步范围行）+ `GET /api/sync/status` |
+| | 查询 / 重置 / 搜索 / 分页 | `GET /api/commits` |
+| | 风险「高 / 中 / 低」标签 | `risk_score` + 前端阈值常量（无接口） |
+| | 点击行 | 跳详情页 → `GET /api/commits/{commit_hash}` |
+| 提交详情 | 风险结论 / SZZ / 特征 / 解释 / 预测时间 | `GET /api/commits/{commit_hash}` |
+| | 风险等级标签 | `risk_score` + 前端阈值常量（无接口） |
+| | 重新预测（架构 / 模型 / 预测） | `GET /api/models` + `POST /api/predict` |
+| 趋势看板 | 粒度 / 架构 / 模型 / 时间 / 查询 | `GET /api/models` + `GET /api/trends` |
+| | 两张图 | `series[].commit_count` / `series[].high_risk_count` |
+| | 三张汇总卡 | 前端对 `series` 聚合（无独立接口） |
+| 模型性能看板 | 架构 / 模型 | `GET /api/models` |
+| | 查看（抽屉图 + 指标） | `GET /api/figures?model_name=` |
+| | 搜索 / 时间 / 查询 / 重置 / 分页 | `GET /api/commits?...&with_features=1&is_test=1` |
+
 ## 端到端数据流
 ```mermaid
 flowchart LR

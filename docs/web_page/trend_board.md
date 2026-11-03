@@ -66,5 +66,6 @@
 
 ## 说明
 - 两个图表共用 `GET /api/trends` 的同一份 `series`，**无需两个独立趋势接口**。
+- 三张汇总卡（区间提交数 / 高风险数 / 加权平均风险）由同一份 `series` 前端聚合，无独立接口。
 - 筛选由架构 → 模型两级级联与独立时间范围组成：前两级联动，时间范围可单独选择。本页查询只传 `model_name` 与 `start_time` / `end_time`，`line` 仅用于下拉联动，不进入查询参数。
 - 高风险数口径 = `risk_score >= HIGH_RISK_THRESHOLD`（`.env` 写死，`runtime_setting` 已删除）；平均风险（`avg_risk`）仅出现在汇总卡，不再单列成折线。

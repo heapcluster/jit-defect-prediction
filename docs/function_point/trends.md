@@ -17,5 +17,6 @@
 - 切换粒度 / 架构 / 模型 / commit 时间区间都能刷新两张图；
 - 图一绑定 `commit_count`（提交数），图二绑定 `high_risk_count`（高风险数）；MUST NOT 用 `avg_risk` 顶替图二；
 - `avg_risk` 只用于汇总卡「加权平均风险」，不单列折线；
+- 三张汇总卡由同一份 `series` 前端聚合（Σ `commit_count` / Σ `high_risk_count` / 加权平均风险），无独立接口；
 - `high_risk_count` 按 `.env` 写死的 `HIGH_RISK_THRESHOLD` 统计；
 - 数据来自 `prediction` 按选中模型聚合，不含未预测提交。
