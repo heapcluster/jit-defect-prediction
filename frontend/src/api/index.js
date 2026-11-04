@@ -1,6 +1,6 @@
 import request, { SYNC_TIMEOUT } from './request'
 
-// 风险列表：GET /api/commits
+// 风险列表：GET /api/commits（with_features / is_test 可选）
 export function getCommits(params) {
   return request.get('/commits', { params })
 }
@@ -23,32 +23,28 @@ export function postPredict(commitHash, modelName) {
   })
 }
 
-// PR 列表：GET /api/prs（实时拉 Camel 最新 open PR 的聚合风险）
-export function getPrs(params) {
-  return request.get('/prs', { params })
+// 架构 → 模型层级：GET /api/models（级联选择器唯一数据源，前端不写死）
+export function getModels(line) {
+  return request.get('/models', { params: line ? { line } : undefined })
 }
 
-// PR 详情：GET /api/prs/{number}（该 PR 各 commit 的风险分）
-export function getPrDetail(number, params) {
-  return request.get(`/prs/${number}`, { params })
+// 模型性能图 + 指标：GET /api/figures?model_name=
+export function getFigures(modelName) {
+  return request.get('/figures', { params: { model_name: modelName } })
 }
 
-// CI 门禁结论：GET /api/prs/{number}/gate（只读，不触发新预测）
-export function getPrGate(number, params) {
-  return request.get(`/prs/${number}/gate`, { params })
-}
-
-// 实时同步：POST /api/sync-prs（拉最新 open PR 并逐条现算预测入库）
-// 长耗时：单条提交 × 8 模型约 4.1s，一条 PR 常有 20+ 提交，另加 GitHub 拉取耗时，
-// 默认 10s 超时必挂（2026-10-25 修复）
-export function postSyncPrs(limit) {
-  return request.post('/sync-prs', null, { params: { limit }, timeout: SYNC_TIMEOUT })
-}
-
-// 实时同步：POST /api/sync（同步 Camel 仓库的提交历史并逐条现算预测入库）
-// 同样属于长耗时端点，超时口径与 /api/sync-prs 一致
-export function postSync(limit) {
-  return request.post('/sync', null, { params: { limit }, timeout: SYNC_TIMEOUT })
+// 数据同步：POST /api/sync（异步，提交即返回，靠 GET /api/sync/status 轮进度）
+// 现算一条实测 P50 ≈ 108 秒，前端 MUST NOT 同步等结果
+export function postSync({ line, modelName, startTime, endTime } = {}) {
+  return request.post('/sync', null, {
+    params: {
+      line: line || undefined,
+      model_name: modelName || undefined,
+      start_time: startTime || undefined,
+      end_time: endTime || undefined
+    },
+    timeout: SYNC_TIMEOUT
+  })
 }
 
 // 同步状态快照：GET /api/sync/status
@@ -56,87 +52,11 @@ export function getSyncStatus() {
   return request.get('/sync/status')
 }
 
-// 已预测时间覆盖：GET /api/commits/coverage（每个 model_name 的起止 committed_at）
-export function getCommitsCoverage() {
-  return request.get('/commits/coverage')
-}
-
-// 补齐到最新：POST /api/sync/catchup（无日期参数，补齐 DB→HEAD 缺口，不触发历史区间预测）
-export function postSyncCatchup() {
-  return request.post('/sync/catchup', null, { timeout: SYNC_TIMEOUT })
-}
-
-// 人工反馈：PUT /api/commits/{commit_hash}/label（标记 / 撤销「是否真的引入缺陷」）
-export function putCommitLabel(hash, isDefect) {
-  return request.put(`/commits/${hash}/label`, { is_defect: isDefect })
-}
-
-// 健康检查与运行状态：GET /api/health（observability）
-export function getHealth() {
-  return request.get('/health')
-}
-
-// 预测质量：GET /api/quality（人工标签 vs 预测的混淆矩阵与 P/R/F1）
-export function getQuality(params) {
-  return request.get('/quality', { params })
-}
-
-// 标签回流样本：GET /api/quality/dataset（含 14 维特征，供离线再训练）
-export function getQualityDataset() {
-  return request.get('/quality/dataset')
-}
-
-// 阈值校准：POST /api/quality/calibrate（按标签选 F1 最优点并落库）
-export function postCalibrate(modelName) {
-  return request.post('/quality/calibrate', { model_name: modelName || null })
-}
-
-// 运行时配置：GET /api/config 读取、PUT /api/config 热更新阈值
-export function getConfig() {
-  return request.get('/config')
-}
-
-// championModel：'' 表示清除（回退 version_key 最大者）；不传表示不改
-export function putConfig({ high, mid, championModel }) {
-  const body = { high_risk_threshold: high, mid_risk_threshold: mid }
-  if (championModel !== undefined) body.champion_model = championModel
-  return request.put('/config', body)
-}
-
-// SSE 订阅同步进度（fetch streaming，便于带 X-API-Key 鉴权；EventSource 不支持自定义头）
-export function subscribeSyncProgress(onUpdate) {
+// 带鉴权头取图（<img> 带不了 X-API-Key）：fetch 二进制转 ObjectURL（docs/api/figures.md）
+export async function fetchFigureBlob(filePath) {
   const token = import.meta.env.VITE_API_KEY
-  const ctrl = new AbortController()
-  ;(async () => {
-    try {
-      const resp = await fetch('/api/sync/stream', {
-        headers: { 'X-API-Key': token },
-        signal: ctrl.signal,
-      })
-      if (!resp.ok || !resp.body) return
-      const reader = resp.body.getReader()
-      const decoder = new TextDecoder()
-      let buf = ''
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buf += decoder.decode(value, { stream: true })
-        const parts = buf.split('\n\n')
-        buf = parts.pop() || ''
-        for (const part of parts) {
-          const line = part.trim()
-          if (line.startsWith('data: ')) {
-            try {
-              onUpdate(JSON.parse(line.slice(6)))
-            } catch {
-              // 忽略坏帧
-            }
-          }
-        }
-      }
-    } catch {
-      // 终止或网络错误：静默
-    }
-  })()
-  return ctrl
+  const resp = await fetch(filePath, { headers: { 'X-API-Key': token } })
+  if (!resp.ok) throw new Error(`图片加载失败：${resp.status}`)
+  const blob = await resp.blob()
+  return URL.createObjectURL(blob)
 }

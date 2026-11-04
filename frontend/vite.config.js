@@ -11,6 +11,11 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true
+      },
+      // 模型性能图集由后端 StaticFiles 挂在 /static/figures 下（带鉴权头 fetch 取图）
+      '/static': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
       }
     }
   },

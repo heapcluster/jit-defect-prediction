@@ -4,23 +4,15 @@ import { mount, flushPromises } from '@vue/test-utils'
 import RiskList from '../src/views/RiskList.vue'
 
 const getCommits = vi.fn()
-// 页面首屏会同时拉「已预测覆盖」与「服务状态」，这两个旁路请求不该影响三态断言
-const getCommitsCoverage = vi.fn()
-const getHealth = vi.fn()
 const postSync = vi.fn()
-const postSyncCatchup = vi.fn()
-const subscribeSyncProgress = vi.fn()
-// 首屏还会拉运行时阈值（utils/thresholds），mock 里缺这个导出会在挂载时同步抛错
-const getConfig = vi.fn()
+const getSyncStatus = vi.fn()
+const getModels = vi.fn()
 
 vi.mock('../src/api', () => ({
   getCommits: (...args) => getCommits(...args),
-  getCommitsCoverage: (...args) => getCommitsCoverage(...args),
-  getHealth: (...args) => getHealth(...args),
   postSync: (...args) => postSync(...args),
-  postSyncCatchup: (...args) => postSyncCatchup(...args),
-  subscribeSyncProgress: (...args) => subscribeSyncProgress(...args),
-  getConfig: (...args) => getConfig(...args)
+  getSyncStatus: (...args) => getSyncStatus(...args),
+  getModels: (...args) => getModels(...args)
 }))
 
 vi.mock('element-plus', () => ({
@@ -38,12 +30,9 @@ vi.mock('vue-router', () => ({
 const stubs = {
   'el-form': { template: '<div><slot/></div>' },
   'el-form-item': { template: '<div><slot/></div>' },
-  'el-select': true,
-  'el-option': true,
-  'el-input-number': true,
+  'el-input': true,
   'el-date-picker': true,
-  'el-switch': true,
-  'el-button': { template: '<button><slot/></button>' },
+  'el-button': { template: '<button @click="$emit(\'click\')"><slot/></button>' },
   'el-table': { template: '<div><slot/></div>' },
   'el-table-column': true,
   'el-tooltip': true,
@@ -56,8 +45,8 @@ const stubs = {
     props: ['title']
   },
   'el-pagination': true,
-  'el-card': { template: '<div class="card"><slot/></div>' },
-  'el-progress': true
+  LineModelCascade: true,
+  RiskTag: true
 }
 
 function bizErr(code) {
@@ -67,24 +56,35 @@ function bizErr(code) {
   return err
 }
 
-describe('RiskList 三态', () => {
+describe('RiskList 三态与刷新', () => {
   beforeEach(() => {
     getCommits.mockReset()
-    getCommitsCoverage.mockReset().mockResolvedValue({ items: [] })
-    getHealth.mockReset().mockResolvedValue({ status: 'ok', models_loaded: 3, db: 'up' })
     postSync.mockReset()
-    postSyncCatchup.mockReset()
-    subscribeSyncProgress.mockReset().mockReturnValue({ abort: vi.fn() })
-    getConfig.mockReset().mockResolvedValue({ high_risk_threshold: 0.5, mid_risk_threshold: 0.2 })
+    getSyncStatus.mockReset()
+    getModels.mockReset()
+    getModels.mockResolvedValue({ lines: [{ line: 'expert', label: '专家特征', models: ['lr_v1'] }] })
     routeQuery = {}
   })
 
-  it('空库：显示同步加载台（按需现算的引导，不是错误）', async () => {
-    getCommits.mockResolvedValue({ items: [], total: 0 })
+  it('正常加载：渲染提交列表', async () => {
+    getCommits.mockResolvedValue({
+      items: [
+        {
+          commit_hash: 'a'.repeat(40),
+          author_name: 'dev',
+          committed_at: '2026-08-01T00:00:00Z',
+          message: 'fix',
+          risk_score: 0.8,
+          model_name: 'lr_v1',
+          is_bug_inducing: 1
+        }
+      ],
+      total: 1
+    })
     const wrapper = mount(RiskList, { global: { stubs } })
     await flushPromises()
-    expect(wrapper.text()).toContain('还没有数据')
-    expect(wrapper.text()).toContain('开始同步')
+    expect(getCommits).toHaveBeenCalled()
+    expect(wrapper.vm.items).toHaveLength(1)
   })
 
   it('空数据（带筛选）：显示空态文案（不是错误）', async () => {
@@ -93,18 +93,6 @@ describe('RiskList 三态', () => {
     const wrapper = mount(RiskList, { global: { stubs } })
     await flushPromises()
     expect(wrapper.text()).toContain('当前筛选条件下没有提交')
-  })
-
-  it('所选模型从未预测过：区分「模型无数据」与「筛选没命中」，并给切回默认模型', async () => {
-    getCommits.mockResolvedValue({ items: [], total: 0 })
-    // 库里有 xgb_v1 的预测，但没有 lr_v1 的：切到 lr_v1 时空态必须换个说法
-    getCommitsCoverage.mockResolvedValue({ items: [{ model_name: 'xgb_v1', start: null, end: null }] })
-    routeQuery = { model_name: 'lr_v1' }
-    const wrapper = mount(RiskList, { global: { stubs } })
-    await flushPromises()
-    expect(wrapper.text()).toContain('模型 lr_v1 还没有任何预测数据')
-    expect(wrapper.text()).toContain('切回默认模型')
-    expect(wrapper.text()).not.toContain('当前筛选条件下没有提交')
   })
 
   it('50000 服务错误：显示「服务异常，请稍后重试」', async () => {
@@ -119,5 +107,22 @@ describe('RiskList 三态', () => {
     const wrapper = mount(RiskList, { global: { stubs } })
     await flushPromises()
     expect(wrapper.text()).toContain('登录已失效，请重新登录')
+  })
+
+  it('刷新：POST /api/sync 提交后立即返回，轮询 status 完成后重新查询', async () => {
+    getCommits.mockResolvedValue({ items: [], total: 0 })
+    postSync.mockResolvedValue({ accepted: true })
+    getSyncStatus.mockResolvedValue({ running: false, total: 0, done: 0 })
+    const wrapper = mount(RiskList, { global: { stubs } })
+    await flushPromises()
+
+    await wrapper.vm.refresh()
+    await flushPromises()
+
+    expect(postSync).toHaveBeenCalledTimes(1)
+    expect(getSyncStatus).toHaveBeenCalled()
+    // 刷新完成后按查询栏当前条件重查
+    const calls = getCommits.mock.calls.length
+    expect(calls).toBeGreaterThanOrEqual(2)
   })
 })

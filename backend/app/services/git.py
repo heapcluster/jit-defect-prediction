@@ -178,3 +178,18 @@ def list_all_hashes(repo: str, ref: str = "FETCH_HEAD") -> list[str]:
     """取 ref 历史全部哈希（时间倒序），用于 catchup 补齐 DB→HEAD 缺口。"""
     out = run_git(repo, "log", "--format=%H", ref)
     return [line.strip() for line in out.splitlines() if line.strip()]
+
+
+def list_hashes_in_range(repo: str, start, end, ref: str = "FETCH_HEAD") -> list[str]:
+    """取 ref 在 [start, end]（两端闭区间，commit date）内的哈希，时间倒序。
+
+    `start` / `end` 为 naive datetime（可能为 None，表示该侧不设界）。
+    """
+    args = ["log", "--format=%H"]
+    if start is not None:
+        args += [f"--since={start.strftime('%Y-%m-%d %H:%M:%S')}"]
+    if end is not None:
+        args += [f"--until={end.strftime('%Y-%m-%d %H:%M:%S')}"]
+    args.append(ref)
+    out = run_git(repo, *args)
+    return [line.strip() for line in out.splitlines() if line.strip()]

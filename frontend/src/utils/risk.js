@@ -1,7 +1,6 @@
-// 风险等级口径（docs/frontend/pages.md 第 5 节，只定义这一处；D-10 口径）
-// 阈值**从后端运行时配置读**（utils/thresholds.js → /api/config），前端不再硬编码：
-// 质量看板把 high 改成 0.4 后，这里的分级必须同步变化，否则同一分数在不同页面
-// 会呈现不同等级。默认参数只是首屏兜底值（与 backend/app/config.py 一致：0.5 / 0.2）。
+// 风险等级口径（docs 各页面「风险标签」；只定义这一处）。
+// 阈值**是常量**（utils/thresholds.js），与后端 .env 的 HIGH_RISK_THRESHOLD / MID_RISK_THRESHOLD
+// 同值；runtime_setting 与 /api/config 已下线，高/中/低由前端按 score 判定。
 
 import { thresholds } from './thresholds'
 

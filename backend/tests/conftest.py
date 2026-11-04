@@ -26,7 +26,7 @@ os.environ["MODEL_DIR"] = str(MODEL_DIR)
 from app import config, model_registry
 from app.db import Base, configure_engine
 from app.main import create_app
-from app.models import Commit, CommitFeature, CommitLabel, Prediction, RuntimeSetting
+from app.models import Commit, CommitFeature, Model, ModelFigure, Prediction
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 
@@ -85,14 +85,15 @@ def engine():
     if not url:
         pytest.fail(
             "未配置数据库连接：请在 backend/.env 填 DB_HOST / DB_USER / DB_PASSWORD"
-            "（或整段写 DATABASE_URL），再跑 infra/setup_mysql.py；"
-            "见 docs/backend/mysql-setup.md",
+            "（或整段写 DATABASE_URL），再跑 infra/setup_mysql.py",
             pytrace=False,
         )
     eng = create_engine(url, pool_pre_ping=True)
-    # 重建表以匹配当前 models.py（schema 随模型演进；jit_test 为专用测试库，可安全重建）
+    # 重建表以匹配当前 models.py（schema 随模型演进；jit_test 为专用测试库，可安全重建）。
+    # 先落旧版遗留表（commit_label / runtime_setting 已随口径下线），否则 drop_all 被其外键卡住。
     with eng.begin() as conn:
         conn.execute(text("SET FOREIGN_KEY_CHECKS=0"))
+        conn.execute(text("DROP TABLE IF EXISTS commit_label, runtime_setting"))
         Base.metadata.drop_all(eng)
         Base.metadata.create_all(eng)
         conn.execute(text("SET FOREIGN_KEY_CHECKS=1"))
@@ -103,13 +104,17 @@ def engine():
 @pytest.fixture()
 def client(engine):
     from app.db import SessionLocal
-    from app.services import settings as runtime_settings
 
     with SessionLocal() as session:
-        # BCNF 迁移后四表之间存在外键，需先删子表（prediction/feature/label）再删父表（commit）；
-        # runtime_setting 无外键，一并清空，避免上一条用例校准出的阈值串到下一条
-        for table in (Prediction, CommitFeature, CommitLabel, Commit, RuntimeSetting):
+        # 外键：先删子表（prediction / feature / model_figure）再删父表（commit / model）
+        for table in (Prediction, CommitFeature, ModelFigure, Commit, Model):
             session.query(table).delete()
+        session.add_all(
+            [
+                Model(model_name="fixture_v1", line="expert"),
+                Model(model_name="fixture_v2", line="expert"),
+            ]
+        )
         session.add_all(
             [
                 Commit(
@@ -142,8 +147,9 @@ def client(engine):
             session.add(
                 CommitFeature(
                     commit_hash=hash_,
-                    committed_at=datetime(2026, 8, 3, 9, 0, 0),
                     feature_version="v1",
+                    is_test=1,
+                    is_bug_inducing=1 if hash_ == C1 else 0,
                     **FEATURE_VALUES,
                 )
             )
@@ -153,7 +159,6 @@ def client(engine):
                 model_name="fixture_v2",
                 risk_score=0.87320,
                 predicted_at=datetime(2026, 9, 1, 8, 0, 0),
-                feature_version="v1",
             )
         )
         session.add(
@@ -162,11 +167,9 @@ def client(engine):
                 model_name="fixture_v2",
                 risk_score=0.21000,
                 predicted_at=datetime(2026, 9, 1, 8, 0, 0),
-                feature_version="v1",
             )
         )
         session.commit()
-    runtime_settings.reset_cache()
     model_registry.load_models()
     with TestClient(create_app()) as test_client:
         yield test_client

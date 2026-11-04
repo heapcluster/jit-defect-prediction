@@ -5,10 +5,11 @@
   1. 检测并（在需要时）尝试启动本机 MySQL 服务（Windows / Linux / macOS 各自一行命令）；
   2. 建两份库：jit_demo（联调 / 演示 / 验收共用）与 jit_test（pytest 用）；
   3. 确保应用用户 jit 存在并拥有两份库的权限；
-  4. 在两份库上执行 infra/schema.sql 建四张表。
+  4. 在两份库上执行 infra/schema.sql 建五张表。
 
-建表后库内为空是**预期状态**：数据只由后端实时同步端点写入（`POST /api/sync`
-拉最新 N 条、`POST /api/sync-prs` 拉 open PR），本脚本不提供任何种子/离线导入捷径。
+建表后库内为空是**预期状态**：测试集数据由模型线 `data_model/evaluation/out/data_init.sql`
+导入（见 docs/model_performance.md §数据准备）；其余增量由后端 `POST /api/sync` 异步补算，
+本脚本不提供任何种子/离线导入捷径。
 
 设计前提（与「全部按 MySQL」一致）：你已经在本机装好 MySQL，并在 backend/.env
 里按分字段填好连接（DB_HOST / DB_PORT / DB_USER / DB_PASSWORD / DB_NAME）。脚本按这份配置
@@ -227,7 +228,7 @@ def run_schema_on(conn: pymysql.Connection, database: str) -> None:
     with conn.cursor() as cur:
         for stmt in statements:
             cur.execute(stmt)
-    print(f"[setup] 已在 {database} 执行 schema.sql（四张表就绪）")
+    print(f"[setup] 已在 {database} 执行 schema.sql（五张表就绪）")
 
 
 def build_databases(creds: dict, test_db: str, root_password: str | None) -> None:
@@ -342,9 +343,9 @@ def main() -> None:
     build_databases(creds, test_db, args.root_password)
 
     print("[setup] 完成。下一步：")
-    print("        cd backend && uvicorn app.main:app --reload   # 起后端")
-    print("        curl -X POST 'http://127.0.0.1:8000/api/sync?limit=10' -H 'X-API-Key: <令牌>'")
-    print("        （拉最新 10 条提交并预测；库内不做任何历史回填）")
+    print("        （演示库导测试集数据）mysql jit_demo < data_model/evaluation/out/data_init.sql")
+    print("        cd backend && uvicorn app.main:app   # 起后端")
+    print("        （增量补算走 POST /api/sync，轮 GET /api/sync/status）")
     print(f"        （pytest 会自动连测试库 {test_db}，不需要改 .env）")
 
 

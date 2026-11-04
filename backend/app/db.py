@@ -1,17 +1,14 @@
-"""建库与连接：python -m app.db init 一条命令建好表（design D1），并应用最小 BCNF 迁移。
+"""建库与连接：python -m app.db init 一条命令建好表（design D1）。
 
-BCNF 迁移（change startup-baseline-sync，幂等、可重复执行）：
-1. 确保 `model` 表存在；
-2. 为四表补 `updated_at` 审计列（已存在则跳过）；
-3. 从 `prediction` 去重回填 `model` 表缺失的模型名；
-4. 为 `prediction.model_name` / 三表的 `commit_hash` 补外键（已存在则跳过）。
-全新库由 `create_all` 直接建成新形态，迁移步骤因「已存在」自动跳过。
+5 张表（docs/overview.md「数据库口径」）：`model` / `commit` / `commit_feature` /
+`prediction` / `model_figure`，直接 `create_all` 建成；历史库的 7 表 → 5 表迁移
+不由本模块承担（数据口径以 docs 为准，现库由模型线 `data_model/evaluation/out/`
+的 schema.sql + data_init.sql 重建）。
 """
 
 from __future__ import annotations
 
 import sys
-from datetime import UTC, datetime
 
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Engine
@@ -46,7 +43,6 @@ def configure_engine(engine: Engine) -> None:
 def init_db() -> None:
     engine = get_engine()
     Base.metadata.create_all(engine)
-    _apply_bcnf_migration(engine)
     _ensure_prediction_index(engine)
 
 
@@ -54,7 +50,7 @@ def _ensure_prediction_index(engine: Engine) -> None:
     """历史库补 `(model_name, risk_score)` 复合索引。
 
     `create_all` 只建表不 ALTER，已存在的库不会自动获得新索引；没有它时
-    列表/趋势的「某模型 + 风险排序」是全表扫 + filesort（838 万行量级明显）。
+    列表/趋势的「某模型 + 风险排序」是全表扫 + filesort。
     """
     inspector = inspect(engine)
     if "prediction" not in inspector.get_table_names():
@@ -69,106 +65,33 @@ def _ensure_prediction_index(engine: Engine) -> None:
         )
 
 
-def _apply_bcnf_migration(engine: Engine) -> None:
-    inspector = inspect(engine)
-    # 1. model 表（全新库 create_all 已建，这里兜底历史库）
-    if "model" not in inspector.get_table_names():
-        with engine.begin() as conn:
-            conn.execute(
-                text(
-                    """CREATE TABLE IF NOT EXISTS `model` (
-                        `model_name` VARCHAR(64) NOT NULL,
-                        `version_key` VARCHAR(64) NOT NULL DEFAULT '',
-                        `trained_at` DATETIME NULL,
-                        `algo` VARCHAR(64) NULL,
-                        `feature_version` VARCHAR(32) NULL,
-                        `updated_at` DATETIME NOT NULL,
-                        PRIMARY KEY (`model_name`)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"""
-                )
-            )
-
-    # 2. 四表补 updated_at（MySQL 用 CURRENT_TIMESTAMP 默认值，历史行自动填）
-    for table in ("commit", "commit_label", "commit_feature", "prediction"):
-        cols = {c["name"] for c in inspector.get_columns(table)}
-        if "updated_at" not in cols:
-            with engine.begin() as conn:
-                conn.execute(
-                    text(
-                        f"ALTER TABLE `{table}` ADD COLUMN `updated_at` "
-                        "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"
-                    )
-                )
-
-    # 3. 从 prediction 去重回填 model 表（仅补缺失的 model_name）
-    with engine.begin() as conn:
-        conn.execute(
-            text(
-                """INSERT INTO `model` (`model_name`, `version_key`, `trained_at`, `algo`, `feature_version`, `updated_at`)
-                   SELECT DISTINCT p.model_name, '', NULL, NULL, NULL, NOW()
-                   FROM prediction p LEFT JOIN `model` m ON m.model_name = p.model_name
-                   WHERE m.model_name IS NULL"""
-            )
-        )
-
-    # 4. 外键（referenced 列分别为 model PK / commit unique(commit_hash)）
-    _add_fk(engine, "prediction", "fk_prediction_model", "model_name", "model", "model_name")
-    _add_fk(engine, "prediction", "fk_prediction_commit", "commit_hash", "commit", "commit_hash")
-    _add_fk(
-        engine, "commit_feature", "fk_commit_feature_commit", "commit_hash", "commit", "commit_hash"
-    )
-    _add_fk(
-        engine, "commit_label", "fk_commit_label_commit", "commit_hash", "commit", "commit_hash"
-    )
-
-
-def _add_fk(
-    engine: Engine,
-    table: str,
-    fk_name: str,
-    col: str,
-    ref_table: str,
-    ref_col: str,
-) -> None:
-    exists = inspect(engine).get_foreign_keys(table)
-    if any(fk.get("name") == fk_name for fk in exists):
-        return
-    with engine.begin() as conn:
-        conn.execute(
-            text(
-                f"ALTER TABLE `{table}` ADD CONSTRAINT `{fk_name}` "
-                f"FOREIGN KEY (`{col}`) REFERENCES `{ref_table}` (`{ref_col}`)"
-            )
-        )
-
-
 def ensure_model_rows(entries: list[dict]) -> None:
     """load_models 后把当前已加载模型元数据 upsert 进 `model` 表（供 FK 与查询）。
 
-    `entries` 元素形如 {"model_name", "version_key", "algo", "feature_version", "trained_at"}。
-    空库首启时 prediction 为空、迁移无法回填，故由启动时显式补齐，保证 FK 不空。
+    `entries` 元素形如 {"model_name", "line", "version_key", "algo", "feature_version",
+    "trained_at"}。空库首启时 prediction 为空，故由启动时显式补齐，保证 FK 不空。
     """
     if not entries:
         return
     engine = get_engine()
-    now = datetime.now(UTC).replace(tzinfo=None)
     with engine.begin() as conn:
         for e in entries:
             conn.execute(
                 text(
-                    """INSERT INTO `model` (`model_name`, `version_key`, `algo`, `feature_version`, `trained_at`, `updated_at`)
-                       VALUES (:name, :vk, :algo, :fv, :trained, :now)
-                       ON DUPLICATE KEY UPDATE `version_key`=VALUES(`version_key`),
-                         `algo`=VALUES(`algo`), `feature_version`=VALUES(`feature_version`),
-                         `trained_at`=VALUES(`trained_at`), `updated_at`=VALUES(`updated_at`)"""
+                    """INSERT INTO `model` (`model_name`, `line`, `algo`, `version_key`, `feature_version`, `trained_at`)
+                       VALUES (:name, :line, :algo, :vk, :fv, :trained)
+                       ON DUPLICATE KEY UPDATE `line`=VALUES(`line`),
+                         `algo`=VALUES(`algo`), `version_key`=VALUES(`version_key`),
+                         `feature_version`=VALUES(`feature_version`),
+                         `trained_at`=VALUES(`trained_at`)"""
                 ),
                 {
                     "name": e["model_name"],
-                    "vk": e.get("version_key") or "",
+                    "line": e.get("line") or "expert",
                     "algo": e.get("algo"),
+                    "vk": e.get("version_key") or "",
                     "fv": e.get("feature_version"),
                     "trained": e.get("trained_at"),
-                    "now": now,
                 },
             )
 
@@ -183,6 +106,10 @@ def _assert_indexes(engine: Engine) -> None:
             entries.append((tuple(idx["column_names"]), bool(idx.get("unique"))))
         for uc in inspector.get_unique_constraints(table):
             entries.append((tuple(uc["column_names"]), True))
+        # 主键（单列或联合）由 get_pk_constraint 报告，get_indexes 不含它
+        pk = inspector.get_pk_constraint(table)
+        if pk and pk.get("constrained_columns"):
+            entries.append((tuple(pk["constrained_columns"]), True))
         if not any(cols == tuple(columns) and uniq is must_unique for cols, uniq in entries):
             raise RuntimeError(f"索引自检失败：{table} {list(columns)} unique={must_unique} 未满足")
 
@@ -210,7 +137,7 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
         return 1
-    print("表建表完成：commit / commit_label / commit_feature / prediction / model")
+    print("表建表完成：commit / commit_feature / prediction / model / model_figure")
     return 0
 
 

@@ -27,11 +27,34 @@ def test_size_at_limit(client):
     assert resp.status_code == 200
 
 
-def test_min_risk_filter_empty_is_not_error(client):
-    body = client.get("/api/commits", params={"min_risk": 0.99}, headers=HEADERS).json()
+def test_list_returns_is_bug_inducing_and_features_only_on_demand(client):
+    """默认不带 14 维数据（features 为 null）；with_features=1 才回填；is_bug_inducing 恒在（1/0/null）。"""
+    body = client.get("/api/commits", headers=HEADERS).json()
+    items = body["data"]["items"]
+    assert all(item.get("features") is None for item in items)
+    by_hash = {item["commit_hash"]: item for item in items}
+    assert by_hash[C1]["is_bug_inducing"] == 1
+    assert by_hash[C2]["is_bug_inducing"] == 0
+
+    with_features = client.get(
+        "/api/commits", params={"with_features": "1"}, headers=HEADERS
+    ).json()
+    assert set(with_features["data"]["items"][0]["features"]) == set(FEATURE_VALUES)
+
+
+def test_list_is_test_filter(client):
+    """is_test=1 只返回检验集提交（commit_feature.is_test=1）；is_test=0 不筛检验集。"""
+    body = client.get("/api/commits", params={"is_test": "1"}, headers=HEADERS).json()
     assert body["code"] == 0
-    assert body["data"]["items"] == []
-    assert body["data"]["total"] == 0
+    assert {item["commit_hash"] for item in body["data"]["items"]} == {C1, C2}
+    empty = client.get("/api/commits", params={"is_test": "0"}, headers=HEADERS).json()
+    assert empty["data"]["total"] == 2
+
+
+def test_invalid_with_features_rejected(client):
+    resp = client.get("/api/commits", params={"with_features": "2"}, headers=HEADERS)
+    assert resp.status_code == 400
+    assert resp.json()["code"] == 40001
 
 
 def test_detail_features_and_explanation(client):
@@ -70,18 +93,18 @@ def test_default_model_is_version_order_not_recency(client, monkeypatch):
 
     from app import model_registry
     from app.db import SessionLocal
-    from app.models import Prediction
+    from app.models import Model, Prediction
 
     entry = replace(model_registry.get_model("fixture_v2"), name="xgb_v9")
     monkeypatch.setitem(model_registry._REGISTRY, entry.name, entry)
     with SessionLocal() as session:
+        session.add(Model(model_name="xgb_v9", line="expert"))
         session.add(
             Prediction(
                 commit_hash=C1,
                 model_name="xgb_v9",
                 risk_score=0.55,
                 predicted_at=datetime(2020, 1, 1),
-                feature_version="v1",
             )
         )
         session.commit()
@@ -137,19 +160,6 @@ def test_compact_basic_format_rejected(client):
         body = resp.json()
         assert body["code"] == 40001
         assert param in body["message"]
-
-
-def test_commits_coverage_reports_time_ranges(client):
-    """GET /api/commits/coverage 返回各模型已预测的时间覆盖区间（start 含结束日全天口径）。"""
-    body = client.get("/api/commits/coverage", headers=HEADERS).json()
-    assert body["code"] == 0
-    items = body["data"]["items"]
-    # conftest 已为 C1(07-20)/C2(08-03) 以 fixture_v2 灌 prediction
-    by_model = {it["model_name"]: it for it in items}
-    assert "fixture_v2" in by_model
-    cov = by_model["fixture_v2"]
-    assert cov["start"] is not None and cov["end"] is not None
-    assert cov["start"] <= cov["end"]
 
 
 def test_commits_view_filter_does_not_trigger_prediction(client):

@@ -1,8 +1,6 @@
 <template>
   <div>
-    <PageHint text="按周/月看风险走势；点折线上的数据点，下钻到该时段的提交列表。" />
-
-    <!-- 筛选栏 -->
+    <!-- 筛选栏：粒度 / 架构 → 模型级联 / 时间范围 / 查询 -->
     <el-form
       :inline="true"
       class="filters"
@@ -20,21 +18,12 @@
           </el-radio-button>
         </el-radio-group>
       </el-form-item>
-      <el-form-item label="模型">
-        <el-select
-          v-model="filters.model_name"
-          clearable
-          placeholder="全部模型"
-          style="width: 150px"
-          @change="load"
-        >
-          <el-option
-            v-for="m in models"
-            :key="m"
-            :label="m"
-            :value="m"
-          />
-        </el-select>
+      <el-form-item label="架构 / 模型">
+        <LineModelCascade
+          v-model:line="filters.line"
+          v-model:model="filters.model_name"
+          :lines="lines"
+        />
       </el-form-item>
       <el-form-item label="时间范围">
         <el-date-picker
@@ -57,7 +46,6 @@
       </el-form-item>
     </el-form>
 
-    <!-- 请求失败 -->
     <el-alert
       v-if="error"
       :title="error"
@@ -76,7 +64,7 @@
       </el-button>
     </el-alert>
 
-    <!-- 汇总：三张卡，口径与序列同源，不重复表格里已有的逐期明细 -->
+    <!-- 汇总：三张卡，口径与序列同源 -->
     <div
       v-if="summary"
       class="stats"
@@ -89,33 +77,45 @@
       <StatCard
         label="高风险提交"
         :value="summary.high_risk_count"
-        hint="后端 high_risk_count 求和"
+        hint="risk_score ≥ 高阈值"
       />
       <StatCard
         label="加权平均风险"
         :value="summary.avg_risk"
-        hint="按提交数加权，非算术平均"
+        hint="按提交数加权"
       />
     </div>
 
-    <!-- 折线图：容器始终渲染保持高度稳定（pages.md §5） -->
+    <!-- 提交数 + 高风险数 合成一张图比对，可切换折线 / 柱状 / 面积 -->
     <div
       v-loading="loading"
       class="chart-box"
     >
+      <div class="chart-head">
+        <h3>提交与高风险趋势</h3>
+        <el-radio-group
+          v-model="chartType"
+          size="small"
+        >
+          <el-radio-button value="line">
+            折线
+          </el-radio-button>
+          <el-radio-button value="bar">
+            柱状
+          </el-radio-button>
+        </el-radio-group>
+      </div>
       <RiskTrendChart
         v-if="series.length >= 2"
         :series="series"
-        :high-threshold="thresholds.high"
+        :chart-type="chartType"
         @point-click="onPointClick"
       />
       <div
         v-else-if="!error"
         class="chart-placeholder"
       >
-        <p>
-          {{ series.length === 0 ? '所选时间范围内没有数据' : '数据点不足，无法绘制趋势' }}
-        </p>
+        <p>{{ series.length === 0 ? '所选时间范围内没有数据' : '数据点不足，无法绘制趋势' }}</p>
         <el-button
           v-if="series.length === 0"
           size="small"
@@ -126,7 +126,7 @@
       </div>
     </div>
 
-    <!-- 明细表只在画不出折线时兜底：数据点 ≥ 2 时折线已表达同样的四个字段 -->
+    <!-- 明细表只在画不出图时兜底：数据点 < 2 时退回明细 -->
     <el-table
       v-if="series.length === 1"
       :data="series"
@@ -165,20 +165,20 @@ import { useRouter } from 'vue-router'
 import { getTrends } from '../api'
 import RiskTrendChart from '../components/RiskTrendChart.vue'
 import StatCard from '../components/StatCard.vue'
-import PageHint from '../components/PageHint.vue'
-import { MODELS } from '../utils/models'
+import LineModelCascade from '../components/LineModelCascade.vue'
+import { loadModelLines } from '../utils/models'
 import { errText, isRetryable } from '../utils/errors'
-import { thresholds, loadThresholds } from '../utils/thresholds'
 
-// 模型清单与后端 feature_order.txt 的 [models] 段、utils/models.js 保持一致（8 种在线模型）
-const models = MODELS
+const lines = ref([])
 
 const filters = reactive({
   granularity: 'week',
+  line: '',
   model_name: ''
 })
 const timeRange = ref([])
 const series = ref([])
+const chartType = ref('line')
 const loading = ref(false)
 // 已加载数据的粒度（下钻跳转用它，不能用尚未查询的筛选器粒度）
 const loadedGranularity = ref('week')
@@ -190,10 +190,7 @@ const summary = computed(() => {
   if (!series.value.length) return null
   const commitCount = series.value.reduce((s, x) => s + x.commit_count, 0)
   const highRiskCount = series.value.reduce((s, x) => s + x.high_risk_count, 0)
-  const weighted = series.value.reduce(
-    (s, x) => s + x.avg_risk * x.commit_count,
-    0
-  )
+  const weighted = series.value.reduce((s, x) => s + x.avg_risk * x.commit_count, 0)
   const avgRisk = commitCount > 0 ? weighted / commitCount : 0
   return {
     commit_count: commitCount,
@@ -202,12 +199,11 @@ const summary = computed(() => {
   }
 })
 
-// 最新请求标识：并发时丢弃过期响应，避免旧响应覆盖新结果
+// 最新请求标识：并发时丢弃过期响应
 let requestId = 0
 
 async function load() {
   const id = ++requestId
-  // 快照本次请求参数：等待期间用户改筛选器（不重查）不影响本次提交的粒度
   const granularity = filters.granularity
   loading.value = true
   error.value = ''
@@ -221,7 +217,6 @@ async function load() {
     })
     if (id !== requestId) return
     series.value = data.series || []
-    // 粒度与 series 一起提交，用本次请求快照，保证两者对应
     loadedGranularity.value = granularity
   } catch (e) {
     if (id !== requestId) return
@@ -235,7 +230,7 @@ async function load() {
 
 const router = useRouter()
 
-// 点击数据点 → 跳风险列表，时间范围收窄到该周期（docs/pages.md §4）
+// 点击数据点 → 跳风险列表，时间范围收窄到该周期（docs/web_page/trend_board.md）
 function onPointClick(s) {
   const range = periodToRange(s.period, loadedGranularity.value)
   if (range.length) {
@@ -245,7 +240,6 @@ function onPointClick(s) {
 
 function periodToRange(period, granularity) {
   if (granularity === 'week') {
-    // "2026-W30" → 该 ISO 周的周一~周日（ISO 8601：含 1 月 4 日的那一周为 W01）
     const m = period.match(/^(\d{4})-W(\d{1,2})$/)
     if (!m) return []
     const year = Number(m[1])
@@ -255,7 +249,6 @@ function periodToRange(period, granularity) {
     const monday = new Date(Date.UTC(year, 0, 4 + (week - 1) * 7 - dow))
     return [toDateStr(monday), toDateStr(new Date(monday.getTime() + 6 * 86400000))]
   }
-  // "2026-08" → 该月 1 日~月末
   const m = period.match(/^(\d{4})-(\d{1,2})$/)
   if (!m) return []
   const year = Number(m[1])
@@ -276,8 +269,10 @@ function resetRange() {
 }
 
 onMounted(() => {
+  loadModelLines().then((l) => {
+    lines.value = l
+  })
   load()
-  loadThresholds()
 })
 </script>
 
@@ -299,8 +294,18 @@ onMounted(() => {
   padding: 12px;
   margin-bottom: 16px;
 }
+.chart-box h3 {
+  font-size: 14px;
+  margin: 0;
+}
+.chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
 .chart-placeholder {
-  height: 320px;
+  height: 260px;
   display: flex;
   flex-direction: column;
   align-items: center;

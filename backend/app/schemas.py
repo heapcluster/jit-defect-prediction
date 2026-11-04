@@ -1,8 +1,10 @@
-"""Pydantic 响应模型：让 OpenAPI/Swagger 携带响应字段，供镜像比对（tasks 5.1）。"""
+"""Pydantic 响应模型：让 OpenAPI/Swagger 携带响应字段，供镜像比对。
+
+口径对齐 docs/api/*（commits / models / predict / sync / trends / figures / health）；
+PR、质量、反馈、运行时配置等已下线模块的 schema 一并删除。
+"""
 
 from __future__ import annotations
-
-from typing import Literal
 
 from pydantic import BaseModel
 
@@ -15,15 +17,6 @@ class ExplanationItem(BaseModel):
     label: str = ""
 
 
-class LabelData(BaseModel):
-    """人工反馈标签（feedback capability）：`label_method="manual"` 的那一行。"""
-
-    commit_hash: str
-    # None = 该提交当前没有人工标签（撤销后）
-    is_defect: bool | None
-    labeled_at: str | None
-
-
 class CommitItem(BaseModel):
     commit_hash: str
     author_name: str
@@ -31,6 +24,10 @@ class CommitItem(BaseModel):
     message: str
     risk_score: float
     model_name: str
+    # 仅 with_features=1 时返回：Kamei 14 维 log 变换值（可负）
+    features: dict[str, float | int] | None = None
+    # SZZ 真标签：1 / 0 / null（未打标）
+    is_bug_inducing: int | None = None
 
 
 class CommitsData(BaseModel):
@@ -53,9 +50,10 @@ class DetailData(BaseModel):
     message: str
     risk_score: float | None
     model_name: str | None
+    predicted_at: str | None
     features: dict[str, float | int] | None
     explanation: list[ExplanationItem]
-    label: LabelData | None = None
+    is_bug_inducing: int | None = None
 
 
 class DetailResponse(BaseModel):
@@ -98,92 +96,50 @@ class PredictResponse(BaseModel):
     data: PredictData
 
 
-class SyncPrsSkippedItem(BaseModel):
-    """sync_prs 的跳过条目：fetch 失败与单提交预测失败两种形态，字段并集。"""
-
-    pr: int
-    reason: str | None = None
-    commit: str | None = None
-    code: int | None = None
-    message: str | None = None
+class ModelsLineData(BaseModel):
+    line: str
+    label: str
+    models: list[str]
 
 
-class SyncPrsPrItem(BaseModel):
-    pr: int
-    title: str
-    commits_predicted: int
+class ModelsData(BaseModel):
+    lines: list[ModelsLineData]
 
 
-class SyncPrsData(BaseModel):
-    prs_scanned: int
-    commits_predicted: int
-    prs: list[SyncPrsPrItem]
-    skipped: list[SyncPrsSkippedItem]
-
-
-class SyncPrsResponse(BaseModel):
+class ModelsResponse(BaseModel):
     code: int
     message: str
-    data: SyncPrsData
+    data: ModelsData
 
 
-class PrListItem(BaseModel):
-    number: int
+class FigureData(BaseModel):
+    figure_type: str
     title: str
-    author: str
-    state: str
-    html_url: str
-    updated_at: str
-    risk_score: float | None
-    risk_level: str | None = None
-    reason: str | None = None
-    commit_count: int
-    predicted_count: int
-    predicted_at: str | None
+    file_path: str
 
 
-class PrsData(BaseModel):
-    items: list[PrListItem]
+class MetricsData(BaseModel):
+    auc: float
+    ap: float
+    f1: float
+    precision: float
+    recall: float
+    accuracy: float
+    n: int
+    pos_rate: float
+
+
+class FiguresData(BaseModel):
     model_name: str
-    skipped: int
+    line: str
+    metrics: MetricsData | None = None
+    figures: list[FigureData]
 
 
-class PrsResponse(BaseModel):
+class FiguresResponse(BaseModel):
     code: int
     message: str
-    data: PrsData
-
-
-class PrCommitItem(BaseModel):
-    sha: str
-    message: str
-    author: str
-    risk_score: float | None
-    risk_level: str | None = None
-    predicted_at: str | None
-
-
-class PrDetailData(BaseModel):
-    number: int
-    title: str
-    author: str
-    state: str
-    html_url: str
-    updated_at: str
-    model_name: str
-    commits: list[PrCommitItem]
-
-
-class PrDetailResponse(BaseModel):
-    code: int
-    message: str
-    data: PrDetailData
-
-
-class LabelResponse(BaseModel):
-    code: int
-    message: str
-    data: LabelData
+    data: FiguresData
 
 
 class HealthData(BaseModel):
@@ -195,7 +151,6 @@ class HealthData(BaseModel):
     model_names: list[str]
     commit_count: int
     prediction_count: int
-    labeled_count: int
     last_sync_at: str | None
     server_time: str
 
@@ -204,103 +159,6 @@ class HealthResponse(BaseModel):
     code: int
     message: str
     data: HealthData
-
-
-class QualityData(BaseModel):
-    """人工标签 vs 预测的质量指标（change quality-loop）。分母为 0 时指标为 null。"""
-
-    model_name: str | None
-    threshold: float
-    label_source: Literal["manual", "szz"]
-    labeled_total: int
-    evaluated: int
-    tp: int
-    fp: int
-    tn: int
-    fn: int
-    precision: float | None
-    recall: float | None
-    f1: float | None
-    accuracy: float | None
-    # 误发现率 = fp/(tp+fp) = 1 - precision；不是 fp/(fp+tn) 的 FPR（见 services/quality.py）
-    false_discovery_rate: float | None
-    avg_risk_defect: float | None
-    avg_risk_clean: float | None
-    recommended_threshold: float | None
-    evaluated_at: str
-
-
-class QualityResponse(BaseModel):
-    code: int
-    message: str
-    data: QualityData
-
-
-class QualityDatasetItem(BaseModel):
-    commit_hash: str
-    is_defect: bool
-    labeled_at: str | None
-    committed_at: str | None
-    features: dict[str, float | int] | None
-
-
-class QualityDatasetData(BaseModel):
-    count: int
-    items: list[QualityDatasetItem]
-
-
-class QualityDatasetResponse(BaseModel):
-    code: int
-    message: str
-    data: QualityDatasetData
-
-
-class ThresholdStats(BaseModel):
-    threshold: float
-    precision: float | None
-    recall: float | None
-    f1: float | None
-
-
-class CalibrateData(BaseModel):
-    model_name: str | None
-    labeled_total: int
-    evaluated: int
-    applied: bool
-    reason: str | None
-    before: ThresholdStats
-    after: ThresholdStats
-
-
-class CalibrateResponse(BaseModel):
-    code: int
-    message: str
-    data: CalibrateData
-
-
-class ConfigData(BaseModel):
-    """运行时配置（change ops-hardening）：阈值热更新，改完立即生效。"""
-
-    high_risk_threshold: float
-    mid_risk_threshold: float
-    # 冠军模型：全站默认模型唯一定义点；None 表示未配置（回退 version_key 最大者）
-    champion_model: str | None = None
-    sync_initial_limit: int
-    sync_catchup_limit: int
-    updated_at: str | None
-
-
-class ConfigResponse(BaseModel):
-    code: int
-    message: str
-    data: ConfigData
-
-
-class ConfigUpdateRequest(BaseModel):
-    high_risk_threshold: float
-    mid_risk_threshold: float
-    # 只改冠军模型时可不传（传 None 表示「不改」；显式清空用空字符串）
-    champion_model: str | None = None
 
 
 class LiveData(BaseModel):
@@ -329,37 +187,3 @@ class ReadyResponse(BaseModel):
     code: int
     message: str
     data: ReadyData
-
-
-class GateData(BaseModel):
-    """CI 风险门禁结果：`blocked=true` 时 CI 应阻断合并。"""
-
-    number: int
-    model_name: str
-    risk_score: float | None
-    risk_level: str | None
-    threshold: float
-    blocked: bool
-    reason: str | None
-
-
-class GateResponse(BaseModel):
-    code: int
-    message: str
-    data: GateData
-
-
-class WebhookData(BaseModel):
-    """GitHub webhook 受理结果：`triggered` 表示是否真的派发了后台同步。"""
-
-    accepted: bool
-    duplicate: bool = False
-    event: str | None
-    action: str | None
-    triggered: bool
-
-
-class WebhookResponse(BaseModel):
-    code: int
-    message: str
-    data: WebhookData

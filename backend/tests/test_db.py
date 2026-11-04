@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from app import db
+from app import config, db
 from app.db import Base, _assert_indexes
 from app.errors import AppError
 from app.models import Prediction
@@ -28,29 +28,40 @@ from sqlalchemy import (
     String,
     Table,
     UniqueConstraint,
+    create_engine,
     inspect,
     text,
 )
 
 
 def _new_engine():
-    # 读 config.DATABASE_URL（指向本机 MySQL 测试库 jit_test）
-    eng = db.get_engine()
-    Base.metadata.drop_all(eng)  # 测试隔离：每个用例从干净表开始
-    Base.metadata.create_all(eng)
+    # 只连本机 MySQL 测试库 jit_test（MUST NOT 碰 jit_demo 演示库）
+    url = config.test_database_url()
+    if not url:
+        pytest.fail("未配置测试数据库连接（config.test_database_url 为空）", pytrace=False)
+    eng = create_engine(url, pool_pre_ping=True)
+    # 测试隔离：每个用例从干净表开始；先落旧版遗留表，避免 drop_all 被其外键卡住
+    with eng.begin() as conn:
+        conn.execute(text("SET FOREIGN_KEY_CHECKS=0"))
+        conn.execute(text("DROP TABLE IF EXISTS commit_label, runtime_setting"))
+        Base.metadata.drop_all(eng)
+        Base.metadata.create_all(eng)
+        conn.execute(text("SET FOREIGN_KEY_CHECKS=1"))
     return eng
 
 
 def test_index_assertions_pass_on_fresh_schema():
     eng = _new_engine()
-    _assert_indexes(eng)  # 不抛即通过：四条断言（含两条唯一性）全部满足
+    _assert_indexes(eng)  # 不抛即通过：七条断言（含三条唯一性）全部满足
     # 蒋励 #79 建议：正例也要有可读判据，不只靠「不抛」
     insp = inspect(eng)
-    # MySQL 方言：唯一约束经 get_unique_constraints 报告；普通索引经 get_indexes 报告
-    assert ("commit_hash", "model_name") in {
-        tuple(c["column_names"]) for c in insp.get_unique_constraints("prediction")
-    }
-    assert ("commit_hash",) in {tuple(i["column_names"]) for i in insp.get_indexes("prediction")}
+    # 联合主键 (commit_hash, model_name) 经 get_pk_constraint 报告；普通索引经 get_indexes 报告
+    assert tuple(insp.get_pk_constraint("prediction")["constrained_columns"]) == (
+        "commit_hash",
+        "model_name",
+    )
+    indexes = {tuple(i["column_names"]): bool(i.get("unique")) for i in insp.get_indexes("prediction")}
+    assert indexes[("model_name", "risk_score")] is False
 
 
 def test_index_assertions_raise_when_unique_pair_missing():
@@ -79,17 +90,21 @@ def test_index_assertions_raise_when_unique_pair_missing():
 
 
 def test_index_assertions_raise_when_non_unique_index_dropped():
-    """prediction(commit_hash) 的普通索引被drop → 第二条断言（must_unique=False）失守。"""
+    """commit(committed_at) 的普通索引被 drop → 断言（must_unique=False）失守。
+
+    不用 prediction 的 ix_prediction_model_risk 测：它同时是 model_name 外键的支撑索引，
+    MySQL 不许 drop（1553 needed in a foreign key constraint）。
+    """
     eng = _new_engine()
     Base.metadata.create_all(eng)
     with eng.begin() as conn:
-        conn.execute(text("DROP INDEX ix_prediction_commit_hash ON prediction"))
+        conn.execute(text("DROP INDEX ix_commit_committed_at ON commit"))
     with pytest.raises(RuntimeError) as exc:
         _assert_indexes(eng)
-    assert "prediction" in str(exc.value)
+    assert "commit" in str(exc.value)
     # 还原：补回索引并自证，别把缺索引的表留给后续用例
     with eng.begin() as conn:
-        conn.execute(text("CREATE INDEX ix_prediction_commit_hash ON prediction (commit_hash)"))
+        conn.execute(text("CREATE INDEX ix_commit_committed_at ON commit (committed_at)"))
     _assert_indexes(eng)
 
 
@@ -100,7 +115,7 @@ def test_get_engine_lazily_builds_from_database_url(tmp_path, monkeypatch, engin
     """未预配置时 `get_engine()` 按 `DATABASE_URL` 懒建、绑 `SessionLocal`，且只建一次。"""
     original = db._engine
     monkeypatch.setattr(db, "_engine", None)
-    monkeypatch.setattr(db.config, "DATABASE_URL", db.config.DATABASE_URL)
+    monkeypatch.setattr(db.config, "DATABASE_URL", config.test_database_url())
     built = None
     try:
         built = db.get_engine()
@@ -131,7 +146,7 @@ def test_get_engine_without_database_url_raises_50000(monkeypatch, engine):
 def test_db_cli_covers_usage_config_error_and_success(tmp_path, monkeypatch, engine, capsys):
     """`python -m app.db` 的三条出口：用法错 rc=2、配置错 rc=1、成功 rc=0。"""
     original = db._engine
-    original_url = db.config.DATABASE_URL  # 先存原值：下面两次 monkeypatch 会把它改成 ""
+    original_url = config.test_database_url()  # 先存原值：下面两次 monkeypatch 会把它改成 ""
     try:
         assert db.main(["app.db"]) == 2
         assert "用法：python -m app.db init" in capsys.readouterr().err
@@ -166,6 +181,7 @@ def test_module_guard_exits_with_usage(module):
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=180,
         check=False,
     )

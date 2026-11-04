@@ -13,7 +13,7 @@ from sqlalchemy import func, select, text
 
 from app import model_registry
 from app.db import SessionLocal
-from app.models import Commit, CommitLabel, Prediction
+from app.models import Commit, Prediction
 from app.timeutil import iso_z, now_naive_utc
 
 logger = logging.getLogger("backend.health")
@@ -44,13 +44,12 @@ def readiness() -> dict:
 
 def snapshot() -> dict:
     db_up = True
-    commit_count = prediction_count = labeled_count = 0
+    commit_count = prediction_count = 0
     try:
         with SessionLocal() as session:
             session.execute(text("SELECT 1"))
             commit_count = session.scalar(select(func.count()).select_from(Commit)) or 0
             prediction_count = session.scalar(select(func.count()).select_from(Prediction)) or 0
-            labeled_count = session.scalar(select(func.count()).select_from(CommitLabel)) or 0
     except Exception:
         logger.exception("health check: database unreachable")
         db_up = False
@@ -65,7 +64,6 @@ def snapshot() -> dict:
         "model_names": model_names,
         "commit_count": int(commit_count),
         "prediction_count": int(prediction_count),
-        "labeled_count": int(labeled_count),
         "last_sync_at": iso_z(get_sync_state().get("started_at")),
         "server_time": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
     }

@@ -5,12 +5,11 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import case, func, select
 
-from app import schemas
+from app import config, schemas
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import AppError, ok
 from app.models import Commit, Prediction
-from app.services import settings as runtime_settings
 from app.services.commits import default_model_in_table
 from app.timeutil import parse_time_param
 
@@ -59,8 +58,8 @@ def trends(
         raise AppError(40001, "参数非法：granularity 取值需为 week 或 month")
     start = parse_time_param(start_time, "start_time") if start_time else None
     end = parse_time_param(end_time, "end_time", "end") if end_time else None
-    # 阈值只读一次（此前在逐行循环里反复取）
-    high = runtime_settings.high_threshold()
+    # 阈值写死 .env（runtime_setting 已删除）
+    high = config.HIGH_RISK_THRESHOLD
 
     with SessionLocal() as session:
         model = model_name or default_model_in_table(session)
