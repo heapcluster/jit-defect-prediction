@@ -11,14 +11,11 @@
         <el-menu-item index="/">
           风险列表
         </el-menu-item>
-        <el-menu-item index="/prs">
-          PR 列表
-        </el-menu-item>
         <el-menu-item index="/trend">
           趋势看板
         </el-menu-item>
-        <el-menu-item index="/quality">
-          质量看板
+        <el-menu-item index="/model-performance">
+          模型性能
         </el-menu-item>
       </el-menu>
     </el-header>
@@ -35,36 +32,26 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { loadThresholds } from './utils/thresholds'
 
 const route = useRoute()
 
-// 首屏预热风险阈值：各页面的配色与等级都读这份配置，避免先用默认值渲染再跳变
-onMounted(() => {
-  loadThresholds()
-})
-
 // 菜单高亮：default-active 只在首次渲染生效，路由变化后要跟着更新；
-// 详情页（/commit/:hash、/prs/:number）归到它所属的列表项
+// 详情页（/commit/:hash）归到风险列表项
 const activeMenu = computed(() => {
   const path = route.path
-  if (path.startsWith('/prs')) return '/prs'
   if (path.startsWith('/trend')) return '/trend'
-  if (path.startsWith('/quality')) return '/quality'
+  if (path.startsWith('/model-performance')) return '/model-performance'
   return '/'
 })
 
-// 页头标题由布局统一提供，页面内不再重复写 h2；
-// 页面「这页干什么」的一句话说明由各页 PageHint 承担（只在那一处写，避免重复）。
+// 页头标题由布局统一提供，页面内不再重复写 h2
 const pageTitle = computed(() => {
   const path = route.path
-  if (path.startsWith('/prs/')) return 'PR 详情'
-  if (path.startsWith('/prs')) return 'PR 列表'
   if (path.startsWith('/commit/')) return '提交详情'
   if (path.startsWith('/trend')) return '缺陷引入趋势'
-  if (path.startsWith('/quality')) return '质量看板'
+  if (path.startsWith('/model-performance')) return '模型性能看板'
   if (path === '/') return '风险列表'
   // 未知路径交给 404 页自己说明，布局层不再冒出一个不相干的标题
   return ''

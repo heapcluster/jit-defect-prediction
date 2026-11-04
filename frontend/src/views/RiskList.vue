@@ -1,42 +1,43 @@
 <template>
   <div>
-    <PageHint text="按风险从高到低看提交：点一行看解释，确认后标记是否真的引入缺陷。">
-      <el-button
-        size="small"
-        :loading="catching"
-        @click="catchup"
-      >
-        补齐缺口
-      </el-button>
-      <el-button
-        size="small"
-        type="primary"
-        @click="load(1)"
-      >
-        刷新
-      </el-button>
-    </PageHint>
+    <!-- 同步范围行：只用于「刷新」，与下方查询栏互不影响 -->
+    <el-form
+      :inline="true"
+      class="filters sync-row"
+    >
+      <el-form-item label="同步范围">
+        <LineModelCascade
+          v-model:line="syncLine"
+          v-model:model="syncModel"
+          :lines="lines"
+          model-placeholder="全部在线模型"
+        />
+        <el-date-picker
+          v-model="syncTime"
+          type="daterange"
+          value-format="YYYY-MM-DD"
+          range-separator="至"
+          start-placeholder="开始"
+          end-placeholder="结束"
+          style="width: 240px; margin-left: 8px"
+        />
+      </el-form-item>
+      <el-form-item>
+        <el-button
+          type="primary"
+          :loading="syncing"
+          @click="refresh"
+        >
+          刷新
+        </el-button>
+        <span
+          v-if="syncMsg"
+          class="sync-msg"
+        >{{ syncMsg }}</span>
+      </el-form-item>
+    </el-form>
 
-    <!-- 概览：三张卡各说一件事，条数已在表格与分页器里，不再重复 -->
-    <div class="stats">
-      <StatCard
-        label="已人工确认"
-        :value="health ? health.labeled_count : '—'"
-        hint="可用于质量校准"
-      />
-      <StatCard
-        label="已预测覆盖"
-        :value="coverageLabel"
-        :hint="coverageHint"
-      />
-      <StatCard
-        label="服务状态"
-        :value="statusLabel"
-        :value-color="statusColor"
-        :hint="statusHint"
-      />
-    </div>
-
+    <!-- 查询栏：只查已入库数据，不触发计算 -->
     <el-form
       :inline="true"
       class="filters"
@@ -51,29 +52,11 @@
           @keyup.enter="load(1)"
         />
       </el-form-item>
-      <el-form-item label="模型">
-        <el-select
-          v-model="filters.model_name"
-          clearable
-          placeholder="默认模型"
-          style="width: 150px"
-        >
-          <el-option
-            v-for="m in models"
-            :key="m"
-            :label="m"
-            :value="m"
-          />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="最低风险">
-        <el-input-number
-          v-model="filters.min_risk"
-          :min="0"
-          :max="1"
-          :step="0.1"
-          :precision="1"
-          style="width: 120px"
+      <el-form-item label="架构 / 模型">
+        <LineModelCascade
+          v-model:line="filters.line"
+          v-model:model="filters.model_name"
+          :lines="lines"
         />
       </el-form-item>
       <el-form-item label="时间">
@@ -86,9 +69,6 @@
           end-placeholder="结束"
           style="width: 240px"
         />
-      </el-form-item>
-      <el-form-item label="仅看已确认">
-        <el-switch v-model="filters.has_label" />
       </el-form-item>
       <el-form-item>
         <el-button
@@ -135,7 +115,6 @@
         <template #default="{ row }">
           <div class="risk-cell">
             <RiskTag
-              :level="row.risk_level"
               :score="row.risk_score"
               effect="dark"
             />
@@ -187,64 +166,10 @@
       />
     </el-table>
 
-    <!-- 空库：给一条明确的「从哪开始」，而不是一堆说明 -->
-    <el-card
-      v-if="showBootstrap"
-      class="boot"
-      shadow="never"
-    >
-      <h3>还没有数据</h3>
-      <p class="boot-desc">
-        先同步最近若干条提交：逐条现算特征并预测落库，约 4 秒/条（单条 × 8 个模型）。
-      </p>
-      <div class="boot-row">
-        <el-select
-          v-model="syncCount"
-          style="width: 140px"
-          :disabled="syncing"
-        >
-          <el-option
-            v-for="n in [10, 30, 50]"
-            :key="n"
-            :label="`最近 ${n} 条`"
-            :value="n"
-          />
-        </el-select>
-        <el-button
-          type="primary"
-          :loading="syncing"
-          @click="runSync"
-        >
-          开始同步
-        </el-button>
-        <span class="boot-tip">前提：backend/.env 已配置 SOURCE_REPO</span>
-      </div>
-      <el-progress
-        v-if="syncing"
-        :percentage="syncPct"
-        class="boot-progress"
-      />
-      <p
-        v-if="syncMsg"
-        class="sync-msg"
-      >
-        {{ syncMsg }}
-      </p>
-    </el-card>
-
     <el-empty
-      v-else-if="!loading && !error && items.length === 0"
-      :description="emptyDescription"
+      v-if="!loading && !error && items.length === 0"
+      description="当前筛选条件下没有提交"
     >
-      <!-- 模型从未预测过 ≠ 筛选没命中：前者给「切回默认模型」，别让人以为没数据 -->
-      <el-button
-        v-if="modelHasNoData"
-        size="small"
-        type="primary"
-        @click="useDefaultModel"
-      >
-        切回默认模型
-      </el-button>
       <el-button
         size="small"
         @click="reset"
@@ -266,179 +191,50 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import {
-  getCommits,
-  postSync,
-  getCommitsCoverage,
-  postSyncCatchup,
-  subscribeSyncProgress,
-  getHealth
-} from '../api'
+import { getCommits, postSync, getSyncStatus } from '../api'
 import { ElMessage } from 'element-plus'
 import { riskColor } from '../utils/risk'
-import { loadThresholds } from '../utils/thresholds'
-import { MODELS } from '../utils/models'
+import { loadModelLines } from '../utils/models'
 import { errText, isRetryable } from '../utils/errors'
 import { formatTime } from '../utils/datetime'
-import StatCard from '../components/StatCard.vue'
-import PageHint from '../components/PageHint.vue'
+import LineModelCascade from '../components/LineModelCascade.vue'
 import RiskTag from '../components/RiskTag.vue'
 
 const router = useRouter()
 const route = useRoute()
 
-// 模型清单与后端 feature_order.txt 的 [models] 段、utils/models.js 保持一致
-const models = MODELS
+// 架构 → 模型层级（GET /api/models）
+const lines = ref([])
+function loadLines() {
+  loadModelLines().then((l) => {
+    lines.value = l
+  })
+}
 
+// 同步范围行（只给「刷新」）
+const syncLine = ref('')
+const syncModel = ref('')
+const syncTime = ref([])
+
+// 查询栏
 const filters = reactive({
   q: '',
+  line: '',
   model_name: '',
-  min_risk: null,
-  has_label: false,
   page: 1,
   size: 20
 })
 const timeRange = ref([])
+
 const items = ref([])
 const total = ref(0)
 const loading = ref(false)
 const error = ref('')
 const retryable = ref(false)
 
-// ── 运行状态（observability）──
-const health = ref(null)
-const healthError = ref(false)
-function loadHealth() {
-  getHealth()
-    .then((d) => {
-      health.value = d
-      healthError.value = false
-    })
-    // 失败要说出来：卡片显示「—」会被误读成「没有数据」
-    .catch(() => {
-      healthError.value = true
-    })
-}
-const statusLabel = computed(() => {
-  if (!health.value) return '—'
-  return health.value.status === 'ok' ? '正常' : '降级'
-})
-const statusColor = computed(() => (health.value?.status === 'ok' ? '#4e9b68' : '#d98a2b'))
-const statusHint = computed(() => {
-  if (healthError.value) return '状态获取失败，可刷新重试'
-  if (!health.value) return '状态未知'
-  return `模型 ${health.value.models_loaded} 个 · DB ${health.value.db === 'up' ? '正常' : '异常'}`
-})
-
-// ── 已预测覆盖 + 补齐到最新 ──
-const catching = ref(false)
-const coverage = ref([])
-const coverageLabel = computed(() => {
-  if (!coverage.value.length) return '—'
-  const picked =
-    coverage.value.find((c) => c.model_name === filters.model_name) || coverage.value[0]
-  const start = picked.start ? picked.start.slice(0, 10) : '—'
-  const end = picked.end ? picked.end.slice(0, 10) : '—'
-  return `${start} ~ ${end}`
-})
-const coverageError = ref(false)
-const coverageHint = computed(() => {
-  if (coverageError.value) return '覆盖信息获取失败'
-  return coverage.value.length ? `${coverage.value.length} 个模型` : '尚无预测'
-})
-
-// ── 空态三分支：无预测数据的模型 / 筛选没命中 / 库为空（后者由 boot 卡片接管）──
-const modelHasNoData = computed(() => {
-  const picked = filters.model_name
-  if (!picked) return false
-  if (!coverage.value.length) return false
-  return !coverage.value.some((c) => c.model_name === picked)
-})
-const emptyDescription = computed(() =>
-  modelHasNoData.value
-    ? `模型 ${filters.model_name} 还没有任何预测数据`
-    : '当前筛选条件下没有提交'
-)
-function useDefaultModel() {
-  filters.model_name = ''
-  filters.page = 1
-  load(1)
-  loadCoverage()
-}
-function loadCoverage() {
-  getCommitsCoverage()
-    .then((d) => {
-      coverage.value = d.items || []
-      coverageError.value = false
-    })
-    .catch(() => {
-      coverageError.value = true
-    })
-}
-function catchup() {
-  catching.value = true
-  const ctrl = subscribeSyncProgress((s) => {
-    if (s.total) syncPct.value = Math.round((s.done / s.total) * 100)
-    syncMsg.value = `补齐中 ${s.done}/${s.total}`
-  })
-  postSyncCatchup()
-    .then(() => {
-      ElMessage.success('已补齐到最新')
-      loadCoverage()
-      load(1)
-    })
-    .catch((e) => {
-      ElMessage.error(errText(e))
-    })
-    .finally(() => {
-      catching.value = false
-      ctrl.abort()
-    })
-}
-
-// ── 空库引导：分批同步，绝不提前灌库 ──
-const syncing = ref(false)
-const syncCount = ref(10)
-const syncPct = ref(0)
-const syncMsg = ref('')
-
-const hasFilter = computed(
-  () =>
-    !!(
-      filters.q.trim() ||
-      filters.model_name ||
-      filters.min_risk != null ||
-      filters.has_label ||
-      (timeRange.value && timeRange.value.length)
-    )
-)
-const showBootstrap = computed(
-  () => !loading.value && !error.value && !hasFilter.value && items.value.length === 0
-)
-
-async function runSync() {
-  syncing.value = true
-  syncPct.value = 0
-  try {
-    // /api/sync 只按 limit 取**最近** N 条、没有游标：循环多次拿到的是同一批
-    // （第二次起 new=0），所以一次请求给够数（后端上限 50），并按响应里的 new 如实回报。
-    const data = await postSync(Math.min(syncCount.value, 50))
-    const added = data?.new ?? 0
-    syncPct.value = 100
-    syncMsg.value = `本次入库 ${added} 条（扫描 ${data?.scanned ?? 0} 条）`
-    ElMessage.success(added ? `同步完成，新增 ${added} 条` : '没有新的提交需要预测')
-    await load(1)
-  } catch (e) {
-    ElMessage.error(errText(e))
-    syncMsg.value = '同步中断，可再次点击重试'
-  } finally {
-    syncing.value = false
-  }
-}
-
-// 最新请求标识：并发时丢弃过期响应，避免快速翻页时旧响应覆盖新结果
+// 最新请求标识：并发时丢弃过期响应
 let requestId = 0
 
 async function load(page = filters.page) {
@@ -453,10 +249,8 @@ async function load(page = filters.page) {
       size: filters.size,
       q: filters.q.trim() || undefined,
       model_name: filters.model_name || undefined,
-      min_risk: filters.min_risk ?? undefined,
       start_time: timeRange.value?.[0] || undefined,
-      end_time: timeRange.value?.[1] || undefined,
-      has_label: filters.has_label || undefined
+      end_time: timeRange.value?.[1] || undefined
     })
     if (id !== requestId) return
     items.value = data.items || []
@@ -474,14 +268,67 @@ async function load(page = filters.page) {
 
 function reset() {
   filters.q = ''
+  filters.line = ''
   filters.model_name = ''
-  filters.min_risk = null
-  filters.has_label = false
   timeRange.value = []
   load(1)
 }
 
-// 点击复制提交哈希（.stop 阻止冒泡，避免触发整行跳详情）
+// 查询栏切换模型立即重查（与模型性能看板一致）：否则选完模型还得再点一次「查询」
+watch(() => filters.model_name, () => load(1))
+
+// ── 刷新：按同步范围行调 /api/sync，异步轮 status，完成后按查询栏条件重查 ──
+const syncing = ref(false)
+const syncMsg = ref('')
+let pollTimer = null
+
+async function refresh() {
+  if (syncing.value) return
+  syncing.value = true
+  syncMsg.value = ''
+  try {
+    await postSync({
+      line: syncLine.value || undefined,
+      modelName: syncModel.value || undefined,
+      startTime: syncTime.value?.[0] || undefined,
+      endTime: syncTime.value?.[1] || undefined
+    })
+    await pollUntilIdle()
+    ElMessage.success('同步完成')
+  } catch (e) {
+    ElMessage.error(errText(e))
+  } finally {
+    syncing.value = false
+    stopPolling()
+    syncMsg.value = ''
+    load(1)
+  }
+}
+
+function pollUntilIdle() {
+  return new Promise((resolve, reject) => {
+    const tick = async () => {
+      try {
+        const s = await getSyncStatus()
+        syncMsg.value = s.total ? `同步中 ${s.done}/${s.total}` : '同步中…'
+        if (!s.running) return resolve()
+      } catch (e) {
+        return reject(e)
+      }
+      pollTimer = setTimeout(tick, 2000)
+    }
+    tick()
+  })
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearTimeout(pollTimer)
+    pollTimer = null
+  }
+}
+
+// 点击复制提交哈希（.stop 阻止冒泡）
 async function copyHash(hash) {
   try {
     await navigator.clipboard.writeText(hash)
@@ -495,7 +342,7 @@ function goDetail(row) {
   router.push(`/commit/${row.commit_hash}`)
 }
 
-// 从 route.query 同步筛选条件（趋势下钻带回 start_time/end_time，其它页面可带 model_name 深链）
+// 从 route.query 同步筛选条件（趋势下钻带回 start_time/end_time / model_name 深链）
 function applyQueryAndLoad() {
   const { start_time, end_time, model_name, q } = route.query
   timeRange.value = start_time && end_time ? [start_time, end_time] : []
@@ -506,24 +353,26 @@ function applyQueryAndLoad() {
 }
 
 onMounted(() => {
+  loadLines()
   applyQueryAndLoad()
-  loadCoverage()
-  loadHealth()
-  // 阈值来自后端运行时配置：先拉再渲染，避免用兜底 0.5/0.2 画一帧再跳变
-  loadThresholds()
 })
 
 watch(() => route.query, applyQueryAndLoad)
 </script>
 
 <style scoped>
-.stats {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
-}
 .filters {
   margin-bottom: 4px;
+}
+.sync-row {
+  background: #f7f8fa;
+  border-radius: 8px;
+  padding: 8px 12px 0;
+}
+.sync-msg {
+  margin-left: 10px;
+  color: #6b7280;
+  font-size: 13px;
 }
 .mb {
   margin-bottom: 12px;
@@ -544,35 +393,6 @@ watch(() => route.query, applyQueryAndLoad)
 }
 .mono {
   font-family: monospace;
-}
-.boot {
-  margin-bottom: 16px;
-}
-.boot h3 {
-  margin: 0 0 8px;
-  font-size: 15px;
-}
-.boot-desc {
-  margin: 0 0 12px;
-  color: #6b7280;
-  line-height: 1.6;
-}
-.boot-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.boot-tip {
-  color: #9aa1ab;
-  font-size: 12px;
-}
-.boot-progress {
-  margin-top: 10px;
-}
-.sync-msg {
-  margin: 6px 0 0;
-  color: #6b7280;
 }
 .pager {
   margin-top: 16px;

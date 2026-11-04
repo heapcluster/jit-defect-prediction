@@ -9,34 +9,6 @@
       </el-button>
     </div>
 
-    <PageHint text="这条提交是否真的引入缺陷？看风险与解释因子，确认后标记 —— 标记会用于质量校准。">
-      <!-- 三态必须分清：撤销（无标签）≠ 确认非缺陷（计入 tn/fp） -->
-      <el-button
-        v-if="label"
-        size="small"
-        :loading="labeling"
-        @click="mark(null)"
-      >
-        撤销标记
-      </el-button>
-      <el-button
-        size="small"
-        :loading="labeling"
-        @click="mark(false)"
-      >
-        确认非缺陷
-      </el-button>
-      <el-button
-        size="small"
-        type="danger"
-        plain
-        :loading="labeling"
-        @click="mark(true)"
-      >
-        标记为引入缺陷
-      </el-button>
-    </PageHint>
-
     <el-alert
       v-if="error"
       :title="error"
@@ -63,7 +35,6 @@
       </el-button>
     </el-alert>
 
-    <!-- 骨架屏用 el-skeleton：空 div + 转圈只是「一片空白」，看不出正在加载什么 -->
     <el-skeleton
       v-if="loading"
       :rows="6"
@@ -72,9 +43,8 @@
     />
 
     <template v-if="detail">
-      <!-- 风险与确认状态：一行给结论，避免同一信息重复两遍 -->
+      <!-- 风险结论行：风险分 + 等级 + 模型名，右侧为 SZZ 真标签 -->
       <div class="hero">
-        <!-- 未预测时只留 RiskTag 的「未预测」，不再同时显示一个大字号「—」 -->
         <span
           v-if="!isNotPredicted"
           class="big"
@@ -83,7 +53,6 @@
           {{ `${(detail.risk_score * 100).toFixed(1)}%` }}
         </span>
         <RiskTag
-          :level="detail.risk_level"
           :score="detail.risk_score"
           effect="dark"
         />
@@ -95,41 +64,38 @@
           {{ detail.model_name }}
         </el-tag>
         <span class="spacer" />
-        <template v-if="label">
-          <el-tag
-            :type="label.is_defect ? 'danger' : 'success'"
-            size="small"
-          >
-            {{ label.is_defect ? '已确认：引入缺陷' : '已确认：非缺陷' }}
-          </el-tag>
-          <span class="muted">标记于 {{ formatDateTime(label.labeled_at) }}</span>
-        </template>
+        <el-tag
+          v-if="detail.is_bug_inducing === 1"
+          type="danger"
+          size="small"
+        >
+          SZZ：引入缺陷
+        </el-tag>
+        <el-tag
+          v-else-if="detail.is_bug_inducing === 0"
+          type="success"
+          size="small"
+        >
+          SZZ：非缺陷
+        </el-tag>
         <el-tag
           v-else
           type="info"
           size="small"
         >
-          未确认
+          无 SZZ 标记
         </el-tag>
       </div>
 
-      <!-- 重新预测 -->
+      <!-- 重新预测：架构 → 模型级联 -->
       <div class="opbar">
         <span class="muted">重新预测：</span>
-        <el-select
-          v-model="predictModel"
-          placeholder="默认最新模型"
-          clearable
-          size="small"
-          style="width: 180px"
-        >
-          <el-option
-            v-for="m in models"
-            :key="m"
-            :label="m"
-            :value="m"
-          />
-        </el-select>
+        <LineModelCascade
+          v-model:line="predictLine"
+          v-model:model="predictModel"
+          :lines="lines"
+          model-placeholder="默认模型"
+        />
         <el-button
           size="small"
           type="primary"
@@ -153,6 +119,10 @@
         <div class="row">
           <span class="k">时间</span>
           <span class="v">{{ formatTime(detail.committed_at) }}</span>
+        </div>
+        <div class="row">
+          <span class="k">预测时间</span>
+          <span class="v">{{ formatTime(detail.predicted_at) }}</span>
         </div>
         <div class="row">
           <span class="k">信息</span>
@@ -221,15 +191,14 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { getCommitDetail, postPredict, putCommitLabel } from '../api'
+import { getCommitDetail, postPredict } from '../api'
 import { ElMessage } from 'element-plus'
 import { riskColor } from '../utils/risk'
-import { loadThresholds } from '../utils/thresholds'
-import { MODELS } from '../utils/models'
+import { loadModelLines } from '../utils/models'
 import { FEATURE_GROUPS, featureLabel } from '../utils/features'
 import { errText } from '../utils/errors'
-import { formatTime, formatDateTime } from '../utils/datetime'
-import PageHint from '../components/PageHint.vue'
+import { formatTime } from '../utils/datetime'
+import LineModelCascade from '../components/LineModelCascade.vue'
 import RiskTag from '../components/RiskTag.vue'
 
 const props = defineProps({
@@ -241,20 +210,17 @@ const loading = ref(false)
 const error = ref('')
 const errorCode = ref(0)
 
-// 重新预测
-const models = MODELS
+// 重新预测：架构 → 模型级联
+const lines = ref([])
+const predictLine = ref('')
 const predictModel = ref('')
 const predicting = ref(false)
 const forbidden = ref(false)
 
-// 人工反馈：把事后确认回流成标签
-const labeling = ref(false)
-const label = computed(() => detail.value?.label || null)
-
 const featureGroups = FEATURE_GROUPS
 
 const features = computed(() => detail.value?.features || {})
-// 契约三 §3：提交存在但无预测记录时 risk_score 为 null
+// 提交存在但无预测记录时 risk_score 为 null
 const isNotPredicted = computed(() => detail.value?.risk_score == null)
 const explanation = computed(() => {
   const list = detail.value?.explanation || []
@@ -264,7 +230,6 @@ const explanation = computed(() => {
     .slice(0, 8)
 })
 
-// 按本次展示项的最大 |contribution| 归一：固定刻度会让真实贡献值全部顶格，条长失去区分度
 const maxContribution = computed(() =>
   Math.max(...explanation.value.map((e) => Math.abs(e.contribution)), 0.000001)
 )
@@ -278,7 +243,7 @@ function signed(v) {
   return (v > 0 ? '+' : '') + v.toFixed(2)
 }
 
-// 特征值保留 4 位小数：原始值有 10 位以上，全量显示只会干扰阅读
+// 特征值保留 4 位小数（log 变换值可负）
 function featureValue(value) {
   if (value === null || value === undefined) return '—'
   const number = Number(value)
@@ -310,6 +275,7 @@ async function predict() {
       ...detail.value,
       risk_score: data.risk_score,
       model_name: data.model_name,
+      predicted_at: data.predicted_at,
       explanation: data.explanation || [],
       features: data.features || detail.value.features
     }
@@ -323,25 +289,11 @@ async function predict() {
   }
 }
 
-// mark(null) = 撤销（删除标签行）；mark(false) = 确认非缺陷（计入质量指标）
-async function mark(isDefect) {
-  if (!detail.value) return
-  labeling.value = true
-  try {
-    const data = await putCommitLabel(detail.value.commit_hash, isDefect)
-    detail.value = { ...detail.value, label: data.is_defect == null ? null : data }
-    if (isDefect === null) ElMessage.success('已撤销标记')
-    else ElMessage.success(isDefect ? '已标记为引入缺陷' : '已确认非缺陷')
-  } catch (e) {
-    ElMessage.error(errText(e))
-  } finally {
-    labeling.value = false
-  }
-}
-
 onMounted(() => {
   load()
-  loadThresholds()
+  loadModelLines().then((l) => {
+    lines.value = l
+  })
 })
 // 路由参数变化时重载：组件复用时不重载会显示上一条提交
 watch(
