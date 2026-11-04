@@ -76,8 +76,8 @@ def test_token_error_does_not_reveal_which_char_is_wrong(client):
         "size=0",
         "size=101",  # 超过上限 100
         "size=-5",
-        "min_risk=1.5",  # 超出 0.0~1.0
-        "min_risk=-0.1",
+        "with_features=2",  # 仅 0/1
+        "is_test=2",
         "start_time=not-a-time",
         "end_time=2026-13-45",  # 月/日越界
     ],
@@ -94,8 +94,8 @@ def test_commits_query_boundaries_return_40001(client, query):
     "query",
     [
         "page=1&size=100",  # 上限值本身合法
-        "min_risk=0.0",  # 下界值合法
-        "min_risk=1.0",  # 上界值合法
+        "with_features=1",  # 取值合法
+        "is_test=0",
         "start_time=2026-09-16T08:30:00Z",  # 合法 ISO 8601 带时区
     ],
 )

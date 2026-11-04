@@ -1,10 +1,7 @@
-"""Swagger 实现镜像（tasks 5.1）：openapi 路径与参数名逐字对齐契约三。
+"""Swagger 实现镜像：openapi 路径与参数名逐字对齐 docs/api/*。
 
-契约三原有五条路径；realtime-pr-prediction（PR 实时预测）又登记了三条：
-`POST /api/sync-prs`、`GET /api/prs`、`GET /api/prs/{number}`
-（api-spec.md §5 同步登记，版本见该文件头）。
-路径集仍是「一条不多一条不少」的精确断言 —— 新增端点必须同步改这里与契约，
-不允许静默多出路径。
+路径集是「一条不多一条不少」的精确断言 —— 新增端点必须同步改这里，
+不允许静默多出路径（PR / 质量 / 反馈 / webhook / 运行时配置已下线）。
 """
 
 from tests.conftest import HEADERS
@@ -12,24 +9,16 @@ from tests.conftest import HEADERS
 CONTRACT_PATHS = {
     "/api/commits",
     "/api/commits/{commit_hash}",
-    "/api/commits/coverage",
-    "/api/commits/{commit_hash}/label",
-    "/api/health",
-    "/api/health/live",
-    "/api/health/ready",
-    "/api/quality",
-    "/api/quality/dataset",
-    "/api/quality/calibrate",
-    "/api/config",
-    "/api/webhook/github",
+    "/api/models",
     "/api/trends",
     "/api/predict",
     "/api/sync",
-    "/api/sync/catchup",
     "/api/sync/status",
-    "/api/sync/stream",
+    "/api/figures",
+    "/api/health",
+    "/api/health/live",
+    "/api/health/ready",
 }
-PR_PATHS = {"/api/sync-prs", "/api/prs", "/api/prs/{number}", "/api/prs/{number}/gate"}
 
 
 def _schema(client):
@@ -38,24 +27,32 @@ def _schema(client):
 
 def test_paths_match_contract(client):
     paths = set(_schema(client)["paths"])
-    assert paths == CONTRACT_PATHS | PR_PATHS
+    assert paths == CONTRACT_PATHS
 
 
-def test_sync_is_post_with_limit(client):
+def test_sync_params_match_contract(client):
     doc = _schema(client)
     assert "post" in doc["paths"]["/api/sync"]
     params = {p["name"] for p in doc["paths"]["/api/sync"]["post"]["parameters"]}
-    assert "limit" in params
+    assert {"line", "model_name", "start_time", "end_time"} <= params
+    assert "limit" not in params
 
 
 def test_commits_params_match_contract(client):
     params = {p["name"] for p in _schema(client)["paths"]["/api/commits"]["get"]["parameters"]}
-    assert {"page", "size", "min_risk", "model_name", "start_time", "end_time", "q"} <= params
+    assert {"page", "size", "model_name", "start_time", "end_time", "q"} <= params
+    assert {"with_features", "is_test"} <= params
+    assert "min_risk" not in params and "has_label" not in params
 
 
-def test_quality_params_match_contract(client):
-    params = {p["name"] for p in _schema(client)["paths"]["/api/quality"]["get"]["parameters"]}
-    assert {"model_name", "threshold", "start_time", "end_time", "label_source"} <= params
+def test_models_params_match_contract(client):
+    params = {p["name"] for p in _schema(client)["paths"]["/api/models"]["get"]["parameters"]}
+    assert "line" in params
+
+
+def test_figures_params_match_contract(client):
+    params = {p["name"] for p in _schema(client)["paths"]["/api/figures"]["get"]["parameters"]}
+    assert "model_name" in params
 
 
 def test_trends_params_match_contract(client):
@@ -65,71 +62,6 @@ def test_trends_params_match_contract(client):
 
 def test_predict_is_post(client):
     assert "post" in _schema(client)["paths"]["/api/predict"]
-
-
-def test_pr_endpoints_methods_and_params_match_contract(client):
-    """PR 三条端点的方法与查询参数逐字对齐（api-spec §5）。
-
-    `x-api-key` 是鉴权头（契约三 §1），经 router 级 dependencies 声明进 OpenAPI，故在参数列表里。
-    """
-    doc = _schema(client)
-    assert set(doc["paths"]["/api/sync-prs"]) == {"post"}
-    assert {p["name"] for p in doc["paths"]["/api/sync-prs"]["post"]["parameters"]} == {
-        "limit",
-        "x-api-key",
-    }
-    for path in ("/api/prs", "/api/prs/{number}", "/api/prs/{number}/gate"):
-        assert set(doc["paths"][path]) == {"get"}, path
-        params = {p["name"] for p in doc["paths"][path]["get"]["parameters"]}
-        assert "model_name" in params and "x-api-key" in params, path
-        if path == "/api/prs":
-            assert "limit" in params, path
-
-
-def test_prs_response_fields_match_contract(client):
-    doc, data = _data_props(client, "/api/prs")
-    assert _keys(doc, data) == {"items", "model_name", "skipped"}
-    assert _keys(doc, data["properties"]["items"]["items"]) == {
-        "number",
-        "title",
-        "author",
-        "state",
-        "html_url",
-        "updated_at",
-        "risk_score",
-        "risk_level",
-        "reason",
-        "commit_count",
-        "predicted_count",
-        "predicted_at",
-    }
-
-
-def test_pr_detail_response_fields_match_contract(client):
-    doc, data = _data_props(client, "/api/prs/{number}")
-    assert _keys(doc, data) == {
-        "number",
-        "title",
-        "author",
-        "state",
-        "html_url",
-        "updated_at",
-        "model_name",
-        "commits",
-    }
-    assert _keys(doc, data["properties"]["commits"]["items"]) == {
-        "sha",
-        "message",
-        "author",
-        "risk_score",
-        "risk_level",
-        "predicted_at",
-    }
-
-
-def test_sync_prs_response_fields_match_contract(client):
-    doc, data = _data_props(client, "/api/sync-prs", "post")
-    assert _keys(doc, data) == {"prs_scanned", "commits_predicted", "prs", "skipped"}
 
 
 def _data_props(client, path, method="get"):
@@ -145,6 +77,11 @@ def _data_props(client, path, method="get"):
 def _keys(doc, node):
     if "$ref" in node:
         node = doc["components"]["schemas"][node["$ref"].split("/")[-1]]
+    elif "anyOf" in node:
+        # 可空字段（如 figures.metrics: MetricsData | None）以 anyOf[$ref, null] 表达
+        refs = [o for o in node["anyOf"] if "$ref" in o]
+        if refs:
+            node = doc["components"]["schemas"][refs[0]["$ref"].split("/")[-1]]
     return set(node["properties"])
 
 
@@ -158,6 +95,8 @@ def test_commits_response_fields_match_contract(client):
         "message",
         "risk_score",
         "model_name",
+        "features",
+        "is_bug_inducing",
     }
 
 
@@ -170,9 +109,10 @@ def test_detail_response_fields_match_contract(client):
         "message",
         "risk_score",
         "model_name",
+        "predicted_at",
         "features",
         "explanation",
-        "label",
+        "is_bug_inducing",
     }
 
 
@@ -199,71 +139,43 @@ def test_predict_response_fields_match_contract(client):
     }
 
 
-def test_quality_response_fields_match_contract(client):
-    doc, data = _data_props(client, "/api/quality")
-    assert _keys(doc, data) == {
-        "model_name",
-        "threshold",
-        "label_source",
-        "labeled_total",
-        "evaluated",
-        "tp",
-        "fp",
-        "tn",
-        "fn",
+def test_models_response_fields_match_contract(client):
+    doc, data = _data_props(client, "/api/models")
+    assert _keys(doc, data) == {"lines"}
+    assert _keys(doc, data["properties"]["lines"]["items"]) == {"line", "label", "models"}
+
+
+def test_figures_response_fields_match_contract(client):
+    doc, data = _data_props(client, "/api/figures")
+    assert _keys(doc, data) == {"model_name", "line", "metrics", "figures"}
+    assert _keys(doc, data["properties"]["figures"]["items"]) == {
+        "figure_type",
+        "title",
+        "file_path",
+    }
+    assert _keys(doc, data["properties"]["metrics"]) == {
+        "auc",
+        "ap",
+        "f1",
         "precision",
         "recall",
-        "f1",
         "accuracy",
-        "false_discovery_rate",
-        "avg_risk_defect",
-        "avg_risk_clean",
-        "recommended_threshold",
-        "evaluated_at",
+        "n",
+        "pos_rate",
     }
 
 
-def test_quality_dataset_fields_match_contract(client):
-    doc, data = _data_props(client, "/api/quality/dataset")
-    assert _keys(doc, data) == {"count", "items"}
-    assert _keys(doc, data["properties"]["items"]["items"]) == {
-        "commit_hash",
-        "is_defect",
-        "labeled_at",
-        "committed_at",
-        "features",
-    }
-
-
-def test_calibrate_fields_match_contract(client):
-    doc, data = _data_props(client, "/api/quality/calibrate", "post")
+def test_health_response_fields_match_contract(client):
+    doc, data = _data_props(client, "/api/health")
     assert _keys(doc, data) == {
-        "model_name",
-        "labeled_total",
-        "evaluated",
-        "applied",
-        "reason",
-        "before",
-        "after",
-    }
-    for key in ("before", "after"):
-        assert _keys(doc, data["properties"][key]) == {"threshold", "precision", "recall", "f1"}
-
-
-def test_config_supports_get_and_put(client):
-    """阈值既读也写：GET 查看、PUT 热更新（change ops-hardening）。"""
-    assert set(_schema(client)["paths"]["/api/config"]) == {"get", "put"}
-
-
-def test_config_response_fields_match_contract(client):
-    doc, data = _data_props(client, "/api/config")
-    assert _keys(doc, data) == {
-        "high_risk_threshold",
-        "mid_risk_threshold",
-        "champion_model",
-        "sync_initial_limit",
-        "sync_catchup_limit",
-        "updated_at",
+        "status",
+        "db",
+        "models_loaded",
+        "model_names",
+        "commit_count",
+        "prediction_count",
+        "last_sync_at",
+        "server_time",
     }
 
 
@@ -272,21 +184,3 @@ def test_live_and_ready_fields_match_contract(client):
     assert _keys(doc, live) == {"status", "server_time"}
     doc, ready = _data_props(client, "/api/health/ready")
     assert _keys(doc, ready) == {"status", "db", "models_loaded", "server_time"}
-
-
-def test_pr_gate_fields_match_contract(client):
-    doc, data = _data_props(client, "/api/prs/{number}/gate")
-    assert _keys(doc, data) == {
-        "number",
-        "model_name",
-        "risk_score",
-        "risk_level",
-        "threshold",
-        "blocked",
-        "reason",
-    }
-
-
-def test_webhook_fields_match_contract(client):
-    doc, data = _data_props(client, "/api/webhook/github", "post")
-    assert _keys(doc, data) == {"accepted", "duplicate", "event", "action", "triggered"}

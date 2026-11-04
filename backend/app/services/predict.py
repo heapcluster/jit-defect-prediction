@@ -18,7 +18,6 @@ from app.db import SessionLocal
 from app.errors import INTERNAL_ERROR_MESSAGE, AppError
 from app.explain import with_labels
 from app.models import Commit, CommitFeature, Prediction
-from app.services import champion
 from app.timeutil import iso_z
 from app.validate import normalize_commit_hash
 
@@ -26,23 +25,19 @@ logger = logging.getLogger("backend.predict.service")
 
 
 def resolve_model_name(model_name: str | None) -> str:
-    """确定本次打分使用的模型名：显式给定时校验存在，否则走全站唯一入口。
+    """确定本次打分使用的模型名：显式给定时校验存在，否则取默认模型。
 
-    未显式指定时**不再单独读 `model_registry.champion()`**，而是与列表 / 详情 / 趋势 /
-    PR 门禁共用 `services.champion.resolve()`（契约三 §17）：冠军在 `prediction` 表里
-    还没有行时，两边会各自降级到不同模型，同一提交就得到两份分、两个模型名。
-    共用之后，降级规则只有一处实现，响应里的 `model_name` 回显即真实所用模型。
+    默认模型 = 已加载模型中 `version_key` 最大者（docs/database/model.md，`runtime_setting`
+    与冠军模型热切换已下线），与列表 / 详情 / 趋势共用 `model_registry.default_model()`。
     """
     if model_name:
         if not model_registry.has(model_name):
-            # 契约三错误码表：枚举值不存在 → 40001；注册表整体为空才是 50000
             raise AppError(40001, "参数非法：model_name 不在已加载模型清单")
         return model_name
-    with SessionLocal() as session:
-        name = champion.resolve(session)
-    if name is None:
+    entry = model_registry.default_model()
+    if entry is None:
         raise AppError(50000, INTERNAL_ERROR_MESSAGE)
-    return name
+    return entry.name
 
 
 def _missing_message(commit: Commit | None) -> str:
@@ -95,7 +90,6 @@ def _upsert_commit_feature(
     if feature is None:
         feature = CommitFeature(
             commit_hash=commit_hash,
-            committed_at=committed_at,
             feature_version=extracted["feature_version"],
             **extracted["features"],
         )
@@ -137,20 +131,25 @@ def _write_predictions(
             session.add(row)
         row.risk_score = risk
         row.predicted_at = predicted_at
-        row.feature_version = feature.feature_version
 
 
-def _upsert_predictions(session, commit_hash: str, feature: CommitFeature) -> list[dict]:
-    """对全部已加载模型逐模型打分并幂等写入 prediction 表。
+def _upsert_predictions(
+    session, commit_hash: str, feature: CommitFeature, model_names: list[str] | None = None
+) -> list[dict]:
+    """对指定模型逐模型打分并幂等写入 prediction 表（默认全部已加载模型）。
 
-    返回 [{model_name, risk_score}]。并发双插被唯一索引挡住时回落为 update，
+    返回 [{model_name, risk_score}]。并发双插被联合主键挡住时回落为 update，
     保证幂等成功而非 500 —— 回落只重跑写入，不重复推理（分数已算好）。
     """
     vector = [float(getattr(feature, name)) for name in config.FEATURE_COLUMNS]
     predicted_at = datetime.now(UTC).replace(tzinfo=None)
+    entries = (
+        model_registry.all_models()
+        if model_names is None
+        else [model_registry.get_model(name) for name in model_names]
+    )
     scores = [
-        (entry.name, model_registry.predict_proba(entry.model, vector))
-        for entry in model_registry.all_models()
+        (entry.name, model_registry.predict_proba(entry.model, vector)) for entry in entries
     ]
 
     try:
@@ -164,8 +163,10 @@ def _upsert_predictions(session, commit_hash: str, feature: CommitFeature) -> li
     return [{"model_name": name, "risk_score": round(risk, 5)} for name, risk in scores]
 
 
-def predict_commit_all_models(commit_hash: str, repo=None) -> list[dict]:
-    """对单条提交现算特征并对全部已加载模型打分，结果写入库。
+def predict_commit_all_models(
+    commit_hash: str, repo=None, model_names: list[str] | None = None
+) -> list[dict]:
+    """对单条提交现算特征并对指定模型打分（默认全部已加载模型），结果写入库。
 
     `commit_hash` 允许大写，内部归一化为小写后查库。
     `repo` 为 None 时取 `config.SOURCE_REPO`；批量同步可传入临时 worktree 路径。
@@ -187,7 +188,7 @@ def predict_commit_all_models(commit_hash: str, repo=None) -> list[dict]:
             extracted = _extract_feature(commit_hash, repo=repo, missing_message=missing_message)
             commit, feature = _upsert_commit_feature(session, commit_hash, extracted)
 
-        return _upsert_predictions(session, commit_hash, feature)
+        return _upsert_predictions(session, commit_hash, feature, model_names)
 
 
 def predict_single(commit_hash: str, model_name: str, repo=None) -> dict:
@@ -232,7 +233,6 @@ def predict_single(commit_hash: str, model_name: str, repo=None) -> dict:
             session.add(row)
         row.risk_score = risk
         row.predicted_at = predicted_at
-        row.feature_version = feature.feature_version
         session.commit()
 
         # 读回落库值再进响应：MySQL DATETIME 是秒级精度，in-memory 里的微秒会被截断，

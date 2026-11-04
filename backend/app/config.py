@@ -81,11 +81,8 @@ SYNC_ON_STARTUP = os.getenv("SYNC_ON_STARTUP", "") == "1"
 # 启动同步分级：首启（空库）取最新 N 条建基线；日常增量追到 HEAD 的安全上限
 SYNC_INITIAL_LIMIT = int(os.getenv("SYNC_INITIAL_LIMIT", "10"))
 SYNC_CATCHUP_LIMIT = int(os.getenv("SYNC_CATCHUP_LIMIT", "500"))
-
-# 实时 PR 数据来源（GitHub REST API，只读）。公开仓库可不带 GITHUB_TOKEN（60 req/h 限流），
-# 带令牌升到 5000 req/h。拉取的是「apache/camel 当前 open 的 PR 及其提交」。
-GITHUB_REPO = os.getenv("GITHUB_REPO", "apache/camel")
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+# 手动「刷新」未给时间范围时的默认批次：取最新 N 条提交（docs/api/sync.md「内部默认批次」）
+SYNC_BATCH_LIMIT = int(os.getenv("SYNC_BATCH_LIMIT", "10"))
 
 # 契约二 §3 的 14 项特征列顺序：模型输入向量按此顺序组装，不按 dict 插入顺序猜
 FEATURE_COLUMNS = (
@@ -105,13 +102,14 @@ FEATURE_COLUMNS = (
     "sexp",
 )
 
-# GitHub webhook（change ops-hardening）：事件驱动触发增量同步 / PR 同步。
-# `WEBHOOK_SECRET` 为空时 webhook 端点一律拒绝（fail closed），避免误开无验签入口。
-WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
-WEBHOOK_SYNC_LIMIT = int(os.getenv("WEBHOOK_SYNC_LIMIT", "5"))
-# PR 事件触发的一次性 PR 同步条数（每 PR 需一次 commit 清单调用，默认只刷新最新 1 个）
-WEBHOOK_PR_LIMIT = int(os.getenv("WEBHOOK_PR_LIMIT", "1"))
-
+# GitHub webhook（change ops-hardening）：已随 PR 能力下线，删除（docs/overview.md）。
 HIGH_RISK_THRESHOLD = float(os.getenv("HIGH_RISK_THRESHOLD", "0.5"))
-# PR 风险等级阈值：>= HIGH 为高；介于 MID~HIGH 之间为中；否则低（可配）
+# 风险等级阈值：>= HIGH 为高；介于 MID~HIGH 之间为中；否则低（可配）
 MID_RISK_THRESHOLD = float(os.getenv("MID_RISK_THRESHOLD", "0.2"))
+
+# 模型性能图集：逐模型图集由模型线生成并拷贝到 backend/static/figures/；
+# 指标数值来自 data_model/evaluation/out/model_metrics.csv（后端只读，不跑脚本）。
+FIGURES_DIR = Path(__file__).resolve().parents[1] / "static" / "figures"
+MODEL_METRICS_CSV = (
+    REPO_ROOT / "data_model" / "evaluation" / "out" / "model_metrics.csv"
+)

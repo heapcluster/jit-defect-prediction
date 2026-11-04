@@ -23,9 +23,9 @@ class PredictRequest(BaseModel):
 
 @router.post("/api/predict", response_model=schemas.PredictResponse)
 def predict(body: PredictRequest) -> dict:
-    """对单条提交现算特征并预测（runbook §6 第 5 条）。
+    """对单条提交现算特征并预测（docs/api/predict.md）。
 
-    未指定 model_name 时取全站冠军模型（`champion_model`，未配置则 version_key 最大者）；
+    未指定 model_name 时取默认模型（已加载模型中 version_key 最大者）；
     指定时仅对该模型打分。默认模型解析统一在 `services.predict.resolve_model_name`。
     """
     return ok(predict_single(body.commit_hash, resolve_model_name(body.model_name)))

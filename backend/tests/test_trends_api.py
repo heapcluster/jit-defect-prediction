@@ -120,7 +120,6 @@ def test_week_drilldown_monday_to_sunday_keeps_sunday(client):
         session.add(
             CommitFeature(
                 commit_hash=sunday,
-                committed_at=datetime(2026, 8, 2, 9, 0, 0),
                 feature_version="v1",
                 **FEATURE_VALUES,
             )
@@ -131,7 +130,6 @@ def test_week_drilldown_monday_to_sunday_keeps_sunday(client):
                 model_name="fixture_v2",
                 risk_score=0.50000,
                 predicted_at=datetime(2026, 9, 1, 8, 0, 0),
-                feature_version="v1",
             )
         )
         session.commit()

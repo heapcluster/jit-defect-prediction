@@ -17,7 +17,6 @@ def test_health_ok_reports_counts_and_models(client):
     assert data["model_names"]
     assert data["commit_count"] >= 1
     assert data["prediction_count"] >= 1
-    assert data["labeled_count"] >= 0
     assert data["server_time"].endswith("Z")
     assert "last_sync_at" in data
 

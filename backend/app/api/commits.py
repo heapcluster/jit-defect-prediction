@@ -1,8 +1,7 @@
-"""查询接口 1–2：风险列表与提交详情（契约三 1.5 第 1、2 节）。
+"""查询接口 1–2：风险列表与提交详情（docs/api/commits.md）。
 
 本文件只做入参校验与响应编排；查询与字段组装收在 `app/services/commits.py`，
-时间格式收在 `app/timeutil.py`，哈希校验收在 `app/validate.py` —— 三者此前
-在各路由里各写一份，集中后同一口径只有一个定义点。
+时间格式收在 `app/timeutil.py`，哈希校验收在 `app/validate.py`。
 """
 
 from __future__ import annotations
@@ -36,43 +35,53 @@ def _like_term(raw: str) -> str:
     return f"{escaped}%"
 
 
+def _sizzle(value: int | None) -> int | None:
+    """SZZ 真标签：库内 1 / 0 / NULL 原样对外（NULL 不是 0）。"""
+    return int(value) if value is not None else None
+
+
 @router.get("/api/commits", response_model=schemas.CommitsResponse)
 def list_commits(
     page: int = Query(default=1),
     size: int = Query(default=20),
-    min_risk: float | None = Query(default=None),
     model_name: str | None = Query(default=None),
     start_time: str | None = Query(default=None),
     end_time: str | None = Query(default=None),
     since: str | None = Query(default=None),
     until: str | None = Query(default=None),
-    has_label: bool | None = Query(default=None),
     q: str | None = Query(default=None, max_length=64),
+    with_features: str | None = Query(default=None),
+    is_test: str | None = Query(default=None),
 ) -> dict:
     if page < 1:
         raise AppError(40001, "参数非法：page 需 >= 1")
     if size < 1 or size > 100:
         raise AppError(40001, "参数非法：size 超过上限 100")
-    if min_risk is not None and not 0.0 <= min_risk <= 1.0:
-        raise AppError(40001, "参数非法：min_risk 需在 0.0 ~ 1.0")
+    if with_features not in (None, "0", "1"):
+        raise AppError(40001, "参数非法：with_features 需为 0 或 1")
+    if is_test not in (None, "0", "1"):
+        raise AppError(40001, "参数非法：is_test 需为 0 或 1")
     # 查看过滤：since/until 与 start_time/end_time 同为按 committed_at 过滤的别名，均不触发预测
     start = parse_time_param((since or start_time), "start_time") if (since or start_time) else None
     end = parse_time_param((until or end_time), "end_time", "end") if (until or end_time) else None
+    want_features = with_features == "1"
+    want_test = is_test == "1"
 
     with SessionLocal() as session:
         model = model_name or commit_service.default_model_in_table(session)
-        stmt = select(Prediction, Commit).join(Commit, Commit.commit_hash == Prediction.commit_hash)
+        stmt = (
+            select(Prediction, Commit, CommitFeature)
+            .join(Commit, Commit.commit_hash == Prediction.commit_hash)
+            .outerjoin(CommitFeature, CommitFeature.commit_hash == Prediction.commit_hash)
+        )
         if model is not None:
             stmt = stmt.where(Prediction.model_name == model)
-        if min_risk is not None:
-            stmt = stmt.where(Prediction.risk_score >= min_risk)
+        if want_test:
+            stmt = stmt.where(CommitFeature.is_test == 1)
         if start is not None:
             stmt = stmt.where(Commit.committed_at >= start)
         if end is not None:
             stmt = stmt.where(Commit.committed_at <= end)
-        if has_label:
-            # 仅查看过滤：已人工确认（存在 manual 标签）的提交，MUST NOT 触发预测
-            stmt = stmt.where(Commit.commit_hash.in_(commit_service.labeled_hashes_stmt()))
         if q and q.strip():
             # 搜索：哈希前缀 / 作者 / 提交信息，三者取并集；纯查看过滤，不触发预测
             keyword = q.strip()
@@ -94,45 +103,21 @@ def list_commits(
             .offset((page - 1) * size)
             .limit(size)
         ).all()
-        items = [
-            {
+        items = []
+        for prediction, commit, feature in window:
+            item = {
                 "commit_hash": commit.commit_hash,
                 "author_name": commit.author_name,
                 "committed_at": iso_z(commit.committed_at),
                 "message": commit.message,
                 "risk_score": float(prediction.risk_score),
                 "model_name": prediction.model_name,
+                "is_bug_inducing": _sizzle(feature.is_bug_inducing) if feature is not None else None,
             }
-            for prediction, commit in window
-        ]
+            if want_features:
+                item["features"] = commit_service.feature_dict(feature)
+            items.append(item)
     return ok({"total": total, "page": page, "size": size, "items": items})
-
-
-@router.get("/api/commits/coverage")
-def commits_coverage() -> dict:
-    """已预测时间覆盖区间：每个 model_name 的 [min_committed_at, max_committed_at]。
-
-    纯只读、不触发预测；前端据此显示「已预测覆盖：起 ~ 止」并引导用户用「补齐到最新」补齐缺口。
-    """
-    with SessionLocal() as session:
-        rows = session.execute(
-            select(
-                Prediction.model_name,
-                func.min(Commit.committed_at),
-                func.max(Commit.committed_at),
-            )
-            .join(Commit, Commit.commit_hash == Prediction.commit_hash)
-            .group_by(Prediction.model_name)
-        ).all()
-        items = [
-            {
-                "model_name": m,
-                "start": iso_z(mn) if mn else None,
-                "end": iso_z(mx) if mx else None,
-            }
-            for m, mn, mx in rows
-        ]
-    return ok({"items": items})
 
 
 @router.get("/api/commits/{commit_hash}", response_model=schemas.DetailResponse)
@@ -148,8 +133,6 @@ def commit_detail(commit_hash: str) -> dict:
         feature = session.execute(
             select(CommitFeature).where(CommitFeature.commit_hash == commit_hash)
         ).scalar_one_or_none()
-        # 与列表共用同一个「默认模型」口径（冠军优先）。查不到就是未预测，
-        # MUST NOT 按该提交的可用行另取 version_key 最大者——那会让列表与详情给出不同的分。
         default_model = commit_service.default_model_in_table(session)
         prediction = (
             session.execute(
@@ -161,7 +144,7 @@ def commit_detail(commit_hash: str) -> dict:
             if default_model
             else None
         )
-        # design D3：提交存在但无预测记录 → code=0 + null 字段（契约三待补记口径）
+        # 提交存在但无预测记录 → code=0 + null 字段（risk_score / predicted_at）
         data = {
             "commit_hash": commit.commit_hash,
             "author_name": commit.author_name,
@@ -169,10 +152,11 @@ def commit_detail(commit_hash: str) -> dict:
             "message": commit.message,
             "risk_score": float(prediction.risk_score) if prediction else None,
             "model_name": prediction.model_name if prediction else None,
+            "predicted_at": iso_z(prediction.predicted_at) if prediction else None,
             "features": commit_service.feature_dict(feature),
             "explanation": commit_service.explanation_for(
                 prediction.model_name if prediction else None, feature
             ),
-            "label": commit_service.label_for(session, commit_hash),
+            "is_bug_inducing": _sizzle(feature.is_bug_inducing) if feature is not None else None,
         }
     return ok(data)

@@ -6,11 +6,12 @@ import joblib
 import numpy as np
 import pytest
 from app import config, db, model_registry
+from app.db import Base
 from app.main import create_app
-from app.models import Commit, CommitFeature, CommitLabel, Prediction
+from app.models import Commit, CommitFeature, Model, ModelFigure, Prediction
 from fastapi.testclient import TestClient
 from sklearn.tree import DecisionTreeClassifier
-from sqlalchemy import select
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import sessionmaker
 
 from tests.conftest import C1, C2, C3, FEATURE_VALUES, HEADERS
@@ -20,10 +21,13 @@ C4 = "e" * 40
 
 @pytest.fixture()
 def integration_db(tmp_path, monkeypatch):
-    # 读 config.DATABASE_URL（指向本机 MySQL 测试库 jit_test）
-    engine = db.get_engine()
+    # 只连本机 MySQL 测试库 jit_test（MUST NOT 碰 jit_demo 演示库）
+    url = config.test_database_url()
+    if not url:
+        pytest.fail("未配置测试数据库连接（config.test_database_url 为空）", pytrace=False)
+    engine = create_engine(url, pool_pre_ping=True)
+    previous_engine = db._engine
     previous_bind = db.SessionLocal.kw.get("bind")
-    monkeypatch.setattr(db, "_engine", engine)
     monkeypatch.setattr(model_registry, "_REGISTRY", {})
     weights = tmp_path / "weights"
     weights.mkdir()
@@ -40,17 +44,27 @@ def integration_db(tmp_path, monkeypatch):
         + "\n",
         encoding="utf-8",
     )
-    db.SessionLocal.configure(bind=engine)
+    db.configure_engine(engine)
     try:
+        # 先落旧版遗留表再重建，避免旧 schema 的 commit_label / runtime_setting 干扰
+        with engine.begin() as conn:
+            conn.execute(text("SET FOREIGN_KEY_CHECKS=0"))
+            conn.execute(text("DROP TABLE IF EXISTS commit_label, runtime_setting"))
+            Base.metadata.drop_all(engine)
+            conn.execute(text("SET FOREIGN_KEY_CHECKS=1"))
         db.init_db()
-        # MySQL 下库是持久的，测试前清掉四表，避免跨测试串扰
+        # MySQL 下库是持久的，测试前清掉五表，避免跨测试串扰
         with db.SessionLocal() as s:
-            for t in (Prediction, CommitFeature, CommitLabel, Commit):
+            for t in (Prediction, CommitFeature, ModelFigure, Commit, Model):
                 s.query(t).delete()
             s.commit()
         yield engine, tmp_path
     finally:
-        db.SessionLocal.configure(bind=previous_bind)
+        if previous_engine is not None:
+            db.configure_engine(previous_engine)
+        else:
+            db._engine = None
+            db.SessionLocal.configure(bind=previous_bind)
         engine.dispose()
 
 
@@ -63,8 +77,14 @@ SEED_TIMES = {
 
 
 def seed_db(engine) -> None:
-    """用 ORM 直接落四表种子数据（取代已删除的离线 ingest 路径）。"""
+    """用 ORM 直接落五表种子数据（SZZ 真标签并入 commit_feature.is_bug_inducing）。"""
     with sessionmaker(bind=engine)() as s:
+        s.add_all(
+            [
+                Model(model_name="integration_v1", line="expert"),
+                Model(model_name="integration_v2", line="expert"),
+            ]
+        )
         for h, t in SEED_TIMES.items():
             s.add(
                 Commit(
@@ -75,20 +95,10 @@ def seed_db(engine) -> None:
                     message="fixture commit",
                 )
             )
-        for i, h in enumerate(SEED_TIMES):
-            s.add(
-                CommitLabel(
-                    commit_hash=h,
-                    is_bug_inducing=i % 2,
-                    label_method="szz",
-                    labeled_at=datetime.fromisoformat("2026-09-01T00:00:00Z"),
-                )
-            )
         for h in (C1, C2, C4):
             s.add(
                 CommitFeature(
                     commit_hash=h,
-                    committed_at=datetime.fromisoformat(SEED_TIMES[h].replace("Z", "")),
                     feature_version="v1",
                     **FEATURE_VALUES,
                 )
@@ -100,7 +110,6 @@ def seed_db(engine) -> None:
                     model_name="integration_v2",
                     risk_score=score,
                     predicted_at=datetime.fromisoformat("2026-09-01T00:00:00Z"),
-                    feature_version="v1",
                 )
             )
         s.commit()
@@ -133,7 +142,6 @@ def test_predict_then_query_and_repeat_keeps_one_row(populated_api):
         ).all()
         assert len(saved) == 1
         assert float(saved[0].risk_score) == predicted["risk_score"]
-        assert saved[0].feature_version == "v1"
         assert saved[0].predicted_at == datetime.fromisoformat(
             predicted["predicted_at"].removesuffix("Z")
         )
