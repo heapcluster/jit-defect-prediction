@@ -1,14 +1,17 @@
 """导出两份 MySQL 8.0 SQL（建表与数据初始化分开，不混成一个长文件）：
 
-1. `schema.sql` —— 建表 DDL（7 张表）
+1. `schema.sql` —— 建表 DDL（5 张表）
 2. `data_init.sql` —— 测试集初始化数据 INSERT
 
-字段口径以 `docs/database/*.md` 为准。
+字段口径以 `docs/database/*.md` 为准：
+- `commit` / `prediction` / `model_figure` 用自然键做主键（不再造自增 id）；
+- `commit_label` 已下线，SZZ 真标签并入 `commit_feature.is_bug_inducing` / `labeled_at`；
+- `runtime_setting` 已下线（默认模型 = 已加载模型中 `version_key` 最大者）；
+- `commit_feature.committed_at`、`prediction.feature_version` 为冗余列，不再落库。
 """
 
 from __future__ import annotations
 
-import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -16,6 +19,82 @@ import numpy as np
 import pandas as pd
 
 from . import config
+
+# ── 建表 DDL ────────────────────────────────────────────────────────────────
+SCHEMA_DDL = """\
+-- JIT 缺陷预测 建表脚本（MySQL 8.0）
+-- 口径来源：docs/database/{commit,model,commit_feature,model_figure,prediction}.md
+-- 共 5 张表；SZZ 真标签直接落在 commit_feature.is_bug_inducing / labeled_at
+
+CREATE TABLE IF NOT EXISTS commit (
+\tcommit_hash CHAR(40) NOT NULL, 
+\trepo_name VARCHAR(64) NOT NULL, 
+\tauthor_name VARCHAR(128) NOT NULL, 
+\tauthor_email VARCHAR(128), 
+\tcommitted_at DATETIME NOT NULL, 
+\tmessage TEXT NOT NULL, 
+\tparent_hash CHAR(40), 
+\tPRIMARY KEY (commit_hash), 
+\tINDEX ix_commit_committed_at (committed_at)
+);
+
+CREATE TABLE IF NOT EXISTS model (
+\tmodel_name VARCHAR(64) NOT NULL, 
+\tline VARCHAR(16) NOT NULL DEFAULT 'expert', 
+\talgo VARCHAR(64), 
+\tversion_key VARCHAR(64) NOT NULL DEFAULT '', 
+\ttrained_at DATETIME, 
+\tfeature_version VARCHAR(32), 
+\tPRIMARY KEY (model_name), 
+\tINDEX ix_model_line (line)
+);
+
+CREATE TABLE IF NOT EXISTS commit_feature (
+\tcommit_hash CHAR(40) NOT NULL, 
+\tfeature_version VARCHAR(32) NOT NULL, 
+\tns DECIMAL(20, 10) NOT NULL, 
+\tnd DECIMAL(20, 10) NOT NULL, 
+\tnf DECIMAL(20, 10) NOT NULL, 
+\tentropy DECIMAL(20, 10) NOT NULL, 
+\tla DECIMAL(20, 10) NOT NULL, 
+\tld DECIMAL(20, 10) NOT NULL, 
+\tlt DECIMAL(20, 10) NOT NULL, 
+\tfix TINYINT(1) NOT NULL, 
+\tndev DECIMAL(20, 10) NOT NULL, 
+\tage DECIMAL(20, 10) NOT NULL, 
+\tnuc DECIMAL(20, 10) NOT NULL, 
+\texp DECIMAL(20, 10) NOT NULL, 
+\trexp DECIMAL(20, 10) NOT NULL, 
+\tsexp DECIMAL(20, 10) NOT NULL, 
+\tis_test TINYINT(1) NOT NULL DEFAULT 0, 
+\tis_bug_inducing TINYINT(1), 
+\tlabeled_at DATETIME, 
+\tPRIMARY KEY (commit_hash), 
+\tFOREIGN KEY(commit_hash) REFERENCES commit (commit_hash), 
+\tINDEX ix_commit_feature_is_test (is_test)
+);
+
+CREATE TABLE IF NOT EXISTS model_figure (
+\tmodel_name VARCHAR(64) NOT NULL, 
+\tfigure_type VARCHAR(32) NOT NULL, 
+\ttitle VARCHAR(128) NOT NULL, 
+\tfile_path VARCHAR(255) NOT NULL, 
+\tgenerated_at DATETIME NOT NULL, 
+\tPRIMARY KEY (model_name, figure_type), 
+\tFOREIGN KEY(model_name) REFERENCES model (model_name)
+);
+
+CREATE TABLE IF NOT EXISTS prediction (
+\tcommit_hash CHAR(40) NOT NULL, 
+\tmodel_name VARCHAR(64) NOT NULL, 
+\trisk_score DECIMAL(6, 5) NOT NULL, 
+\tpredicted_at DATETIME NOT NULL, 
+\tPRIMARY KEY (commit_hash, model_name), 
+\tFOREIGN KEY(commit_hash) REFERENCES commit (commit_hash), 
+\tFOREIGN KEY(model_name) REFERENCES model (model_name), 
+\tINDEX ix_prediction_model_risk (model_name, risk_score)
+);
+"""
 
 
 # ── 值转义 ──────────────────────────────────────────────────────────────────
@@ -67,12 +146,9 @@ def _write_inserts(
 
 # ── 导出 ────────────────────────────────────────────────────────────────────
 def write_schema(path: Path) -> Path:
-    """交付目录的 schema.sql 直接复制 canonical（infra/schema.sql，由 ORM 元数据生成）。"""
+    """写建表 DDL（口径与 docs/database/*.md 一致）。"""
     path.parent.mkdir(parents=True, exist_ok=True)
-    if path.resolve() == config.SCHEMA_SQL.resolve():
-        print(f"[eval] 建表脚本（canonical）：{path}")
-        return path
-    shutil.copy2(config.SCHEMA_SQL, path)
+    path.write_text(SCHEMA_DDL, encoding="utf-8", newline="\n")
     print(f"[eval] 建表脚本：{path}")
     return path
 
@@ -130,54 +206,42 @@ def write_data_init(path: Path, test: pd.DataFrame, preds: pd.DataFrame, figures
         _write_inserts(f, "model", ["model_name", "version_key", "trained_at",
                                     "algo", "feature_version", "line"], rows, ignore=True)
 
-        # 3) commit_feature（is_test=1）
+        # 3) commit_feature（is_test=1；14 维特征 + SZZ 真标签同表）
         rows = []
         for r in test.itertuples(index=False):
-            vals = [_q(r.commit_hash), _q(r.committed_at), _q(r.feature_version)]
+            lab = labels.loc[r.commit_hash]
+            vals = [_q(r.commit_hash), _q(r.feature_version)]
             for c in config.FEATURE_FIELDS:
                 v = getattr(r, c)
                 vals.append(str(int(round(float(v)))) if c == "fix" else _num(v))
             vals.append("1")
+            vals.append(str(int(lab["is_bug_inducing"])))
+            vals.append(_q(lab["labeled_at"]))
             rows.append(_row(vals))
-        f.write("-- 3) commit_feature（is_test=1）\n")
+        f.write("-- 3) commit_feature（is_test=1；14 维特征 + SZZ 真标签）\n")
         _write_inserts(f, "commit_feature",
-                       ["commit_hash", "committed_at", "feature_version",
-                        *config.FEATURE_FIELDS, "is_test"], rows)
+                       ["commit_hash", "feature_version",
+                        *config.FEATURE_FIELDS, "is_test", "is_bug_inducing", "labeled_at"], rows)
 
-        # 4) commit_label（szz）
-        rows = []
-        for h in test_hashes:
-            lab = labels.loc[h]
-            rows.append(_row([
-                _q(h),
-                str(int(lab["is_bug_inducing"])),
-                _q(lab["label_method"]),
-                _q_ns(lab["bug_fix_hash"]),
-                _q(lab["labeled_at"]),
-            ]))
-        f.write("-- 4) commit_label（szz）\n")
-        _write_inserts(f, "commit_label", ["commit_hash", "is_bug_inducing",
-                                           "label_method", "bug_fix_hash", "labeled_at"], rows)
-
-        # 5) prediction（25 模型 × 测试集）
+        # 4) prediction（25 模型 × 测试集；特征版本由 model.feature_version 决定，不落本表）
         rows = [
             _row([
                 _q(r.commit_hash), _q(r.model_name),
-                _num(r.risk_score, 5), _q(predicted_at), _q(r.feature_version),
+                _num(r.risk_score, 5), _q(predicted_at),
             ])
             for r in preds.itertuples(index=False)
         ]
-        f.write("-- 5) prediction（25 模型 × 测试集）\n")
+        f.write("-- 4) prediction（25 模型 × 测试集）\n")
         _write_inserts(f, "prediction", ["commit_hash", "model_name", "risk_score",
-                                         "predicted_at", "feature_version"], rows)
+                                         "predicted_at"], rows)
 
-        # 6) model_figure
+        # 5) model_figure
         rows = [
             _row([_q(g["model_name"]), _q(g["figure_type"]), _q(g["title"]),
                   _q(g["file_path"]), _q(g["generated_at"])])
             for g in figures
         ]
-        f.write("-- 6) model_figure\n")
+        f.write("-- 5) model_figure\n")
         _write_inserts(f, "model_figure", ["model_name", "figure_type", "title",
                                            "file_path", "generated_at"], rows)
 

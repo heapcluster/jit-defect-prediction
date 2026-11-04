@@ -33,7 +33,7 @@ def main() -> int:
     metrics.to_csv(config.OUT_DIR / "model_metrics.csv", index=False)
     print(f"[eval] 指标汇总：{config.OUT_DIR / 'model_metrics.csv'}")
 
-    export_sql.write_schema(config.SCHEMA_SQL)
+    # 建表 DDL 由模型线自产（口径 = docs/database/*.md），不再回写 infra/schema.sql
     export_sql.write_schema(config.OUT_DIR / "schema.sql")
     export_sql.write_data_init(config.DATA_INIT_SQL, test, preds, figs)
 
