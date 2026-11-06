@@ -1,21 +1,21 @@
 # model-delivery Specification
 
 ## Purpose
-把训练产物交付给后端线（A+C 方案）：A = `.pkl` 文件 + 特征顺序清单 + SHAP 依赖；C = 全量预测结果文件（由后端灌入 `prediction` 表）。数据线只产出文件，不碰数据库。
+把模型产物交付给后端：expert 在线权重与 14 维列序随包交付，四线评估图和测试集预测由 `data_model/evaluation/` 生成，数据库结构与当前 `docs/database/` 五表一致。运行时预测与离线测试集导入分开验收。
 
 ## Requirements
 
 ### Requirement: `.pkl` 导出的特征顺序 MUST 以契约二第三节为唯一权威
 
-模型 MUST 序列化为 `.pkl` 落 `data_model/models/`（已被 `.gitignore` 排除，不入库）。
+expert 在线模型 MUST 序列化为 `.pkl` 落 `data_model/pipelines/expert/models/`（权重被 `.gitignore` 排除，不入库）。
 
-**特征顺序的唯一权威是契约二第三节**（冻结版）—— **不另立一份权威清单**。允许随交付包附一份**「交付副本」**（让交付包自包含，便于后端离线安装），但该副本 MUST 满足三件事：
+**在线推理列序的权威是版本控制中的 `data_model/pipelines/expert/models/feature_order.txt`**；`docs/database/commit_feature.md` 描述落库字段，两者必须一致。交付包可以附清单副本，但副本 MUST 满足三件事：
 
-- 明确标注**它不是权威**，一致性以 `docs/model/feature-columns.md` 第三节为准
-- 契约二升版时副本 MUST 同步；**两者不一致时，以契约为准**
-- 副本不构成「第二个要维护的清单」—— 任何「要不要改副本」的判断都回到契约
+- 明确标注副本不是仓库权威，一致性以入库的 `feature_order.txt` 为准
+- 列序升版时副本 MUST 同步；不一致时停止加载或拒绝交付，不猜测顺序
+- 不把压缩包中的副本作为第二套独立维护清单
 
-> **为什么必须这样写**：`docs/sprint0-scope.md` 的 A 方案交付约定写的是「特征顺序以 `contracts/feature-columns.md` 为准，**不另发清单**（出两份早晚不一致）」。本条原先写「MUST 随包交付特征顺序清单」，会被读成清单与契约并列 —— 那就造出了第二个权威。**降级为副本后，交付包仍然自包含，但权威只有一个。**
+> 交付包为离线安装保留副本，核验时以仓库清单及其实际加载测试为准。
 
 #### Scenario: 后端按清单组装特征
 - **WHEN** 后端加载 `.pkl` 并按特征顺序清单构造输入向量推理
@@ -23,7 +23,7 @@
 
 #### Scenario: 模型文件不入库（边界场景）
 - **WHEN** 全量运行后执行 `git status --short`
-- **THEN** `data_model/models/` 下产物不出现（被忽略规则排除），不使用 `git add -f`
+- **THEN** `data_model/pipelines/expert/models/` 下权重不出现（被忽略规则排除），不使用 `git add -f`
 
 ### Requirement: model_name MUST 按 <算法>_v<序号> 命名
 
@@ -39,10 +39,10 @@
 
 ### Requirement: 全量预测结果文件 MUST 对应契约一表三字段
 
-C 方案交付物 `prediction_result.csv` MUST 且仅含契约一表三字段：`commit_hash` / `model_name` / `risk_score`（0.00000–1.00000）/ `predicted_at`（UTC）/ `feature_version`。**数据线 MUST NOT 直连数据库写 `prediction` 表**，灌库责任在后端线。
+离线测试集预测产物 MUST 能按 `docs/database/prediction.md` 的 `commit_hash`、`model_name`、`risk_score`、`predicted_at`、`feature_version` 字段导入；`risk_score` 在 `[0,1]`，时间使用 UTC。`data_model/evaluation/out/data_init.sql` 是测试/演示初始化数据，不能替代 `POST /api/sync` 的实时产出。
 
 #### Scenario: 字段逐项对齐
-- **WHEN** 后端线拿 `prediction_result.csv` 与契约一表三逐字段比对
+- **WHEN** 后端线拿离线测试集预测产物与 `docs/database/prediction.md` 逐字段比对
 - **THEN** 字段名、类型、取值范围全部一致，可直接灌库
 
 #### Scenario: 数据线不碰库（边界场景）
@@ -51,9 +51,9 @@ C 方案交付物 `prediction_result.csv` MUST 且仅含契约一表三字段：
 
 ### Requirement: SHAP 依赖 MUST 随交付清单钉版本
 
-A 方案交付 MUST 含 SHAP 依赖及其版本 pin（写入 `data_model/environment.yml`）。SHAP 实时计算 MUST 满足后端非功能要求（95% 请求 < 500ms），无法满足时 MUST 记录实测数据并提契约变更讨论。
+在线 expert 权重的解释依赖及其版本 SHALL 记录于 `data_model/environment.yml`。逐模型解释与预测性能应按当前验收阈值实测；不支持解释的模型返回明确的空归因，不得伪造贡献值。
 
-> 契约三「待确认」项（`explanation` 的具体算法）**已由 PR #6 结清为 SHAP**，故本 Requirement 不再含「SHAP 定稿后回填契约」这一动作 —— 那条回填已无对象。
+> 解释输出字段与空归因展示见 `docs/api/predict.md` 和 `docs/web_page/commit_detail.md`。
 
 #### Scenario: 交付清单完整
 - **WHEN** 后端线接收 A 方案交付

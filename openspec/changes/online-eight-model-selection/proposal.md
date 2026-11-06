@@ -11,7 +11,7 @@
 
 ## What Changes
 
-- 经评审后把交付清单固定为 `lr_v1`、`rf_v1`、`xgb_v1`、`lgbm_v1`、`et_v1`、`svm_v1`、`mlp_deep_v1`、`tabnet_v1`；同步契约三 `docs/backend/api-spec.md` §三.4、模型交付说明和前端清单。
+- 经评审后把交付清单固定为 `lr_v1`、`rf_v1`、`xgb_v1`、`lgbm_v1`、`et_v1`、`svm_v1`、`mlp_deep_v1`、`tabnet_v1`；同步契约三 `docs/api/README.md` §三.4、模型交付说明和前端清单。
 - 后端只加载清单内且列序正确的权重；启动日志与验收证据必须能证明 8/8 可加载。单个权重失败仍按既有契约允许服务启动，但**不能把部分加载写成 8 模型验收通过**。
 - 对 TreeExplainer / LinearExplainer 不适用的模型，提议沿用现有 `predict-api`“不支持的解释器”场景：正常返回风险与 `explanation=[]`，前端显示“该模型未提供特征解释”。此选择需模型、后端、前端负责人共签；不同意时先修订本提案，不先改实现。
 - 维持 `POST /api/predict` p95 < 500ms、每模型 n=100 的靶子；8 款分别压测。未达标的模型不得标为已验收，也不得通过口头解释降低靶子。
@@ -28,9 +28,9 @@
 
 ## Impact
 
-涉及 `docs/backend/api-spec.md`、`data_model/pipelines/expert/models/feature_order.txt`、后端依赖与模型注册表、`frontend/src/utils/models.js`、三线测试和性能证据。按 owner 分包分别实施；本提案 PR 只提交 OpenSpec，不提前修改线上契约、权重或实现。
+涉及 `docs/api/README.md`、`data_model/pipelines/expert/models/feature_order.txt`、后端依赖与模型注册表、`frontend/src/utils/models.js`、三线测试和性能证据。按 owner 分包分别实施；本提案 PR 只提交 OpenSpec，不提前修改线上契约、权重或实现。
 
-此变更扩展在线可选模型，但不增加接口、库表或特征列，不改变 `docs/design/sprint0-scope.md` 的建议性预警系统边界。MVP 三模型的现有联调可独立完成；8 模型切换只在跨线验收后宣布交付。
+此变更扩展在线可选模型，但不增加接口、库表或特征列，不改变 `docs/overview.md` 的建议性预警系统边界。MVP 三模型的现有联调可独立完成；8 模型切换只在跨线验收后宣布交付。
 
 ## 不做什么
 

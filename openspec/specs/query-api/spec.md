@@ -1,153 +1,103 @@
 # query-api Specification
 
 ## Purpose
-把契约三 1.5 的三个查询接口落地为 FastAPI 实现：统一包络、错误码、`X-API-Key` 鉴权与输入校验，并以自动生成的 OpenAPI/Swagger 作实现镜像，保证规格与代码一致。
+
+定义当前提交查询与趋势查询的只读行为。接口字段和筛选参数分别以 `docs/api/commits.md`、`docs/api/trends.md` 为准；模型级联清单见 `docs/api/models.md`。
 
 ## Requirements
 
 ### Requirement: 统一包络与错误码
 
-所有接口 SHALL 返回 `{ "code": 0, "message": "ok", "data": {...} }` 包络；错误码 SHALL 只取 `docs/backend/api-spec.md`（契约三 v1.5）的 0 / 40001 / 40100 / 40400 / 50000，MUST NOT 自造。
+`/api` 接口 SHALL 使用 `{ "code": 0, "message": "ok", "data": {...} }` 成功包络；错误业务码 SHALL 使用 40001、40100、40400、50000，并按 `docs/api/` 对应接口文件映射 HTTP 状态，MUST NOT 将内部异常细节回显。
 
 #### Scenario: 成功响应
+- **WHEN** 合法请求成功
+- **THEN** HTTP 成功且 `code=0`，业务载荷位于 `data`
 
-- **WHEN** 任一接口请求成功
-- **THEN** 响应体 `code` 为 0，业务载荷位于 `data`
-
-#### Scenario: 分页越界
-
+#### Scenario: 参数越界
 - **WHEN** 以 `size=101` 调用 `GET /api/commits`
-- **THEN** 返回 40001（HTTP 400），message 指出参数名 `size` 与上限 100
-
-#### Scenario: 上限边界值
-
-- **WHEN** 以 `size=100` 调用 `GET /api/commits`
-- **THEN** 正常返回至多 100 条，MUST NOT 判为非法
+- **THEN** HTTP 400、`code=40001`，MUST NOT 返回分页数据
 
 ### Requirement: 接口鉴权
 
-四个接口（含 `POST /api/predict`）SHALL 校验请求头 `X-API-Key`；缺失或不匹配 SHALL 返回 40100（HTTP 401），message 固定为 `missing or invalid token`。
+受保护的 `/api` 业务接口 SHALL 校验 `X-API-Key`，缺失或不匹配 SHALL 返回 HTTP 401、`code=40100`。公开健康探针是否要求鉴权以 `docs/api/health.md` 为准。
 
-#### Scenario: 缺失令牌
+#### Scenario: 正确令牌
+- **WHEN** 请求带正确 `X-API-Key`
+- **THEN** 继续业务处理
 
-- **WHEN** 不带 `X-API-Key` 头调用任一 `/api` 接口
-- **THEN** 返回 40100 且 HTTP 状态为 401，message 为 `missing or invalid token`
-
-#### Scenario: 非法令牌
-
-- **WHEN** 携带与 `.env` 配置不符的令牌调用
-- **THEN** 同样返回 40100，message MUST NOT 提示正确令牌的形式或长度
+#### Scenario: 错误令牌
+- **WHEN** 请求未带令牌或令牌不匹配
+- **THEN** 返回 40100，不泄露正确令牌
 
 ### Requirement: 风险列表查询
 
-`GET /api/commits` SHALL 按 `risk_score` 降序返回提交列表，支持 `page`/`size` 分页（默认 1/20）与 `min_risk`/`model_name`/`start_time`/`end_time` 筛选；`items` SHALL 只取单个 `model_name` 的预测行，`model_name` 缺省 SHALL 取 `prediction` 表内模型中**版本序**（`version_key`，design D6）最大者，MUST NOT 跨模型混排（否则同一提交会翻出多条重复项）。`start_time`/`end_time` SHALL 按**闭区间** `[start, end]` 以 `committed_at` 过滤（契约三 1.5 区间语义）：**纯日期串**（`YYYY-MM-DD`）start 解释为当天 `00:00:00.000000`、end 解释为当天 `23:59:59.999999`（结束日含全天）；带时间分量的串按原样解析；带时区的串先转 UTC；紧凑基本格式（如 `20260803`，含带 `Z`/偏移后缀变体）SHALL 被拒（40001），同一日期只允许一种写法。
+`GET /api/commits` SHALL 只读 `commit` 与选中模型的 `prediction`，支持 `page`、`size`、`model_name`、`start_time`、`end_time`、`q`，以及模型性能表所用 `with_features=1`、`is_test=1`；MUST NOT 接收已下线的 `min_risk`、`has_label` 或 `scope` 作为现行功能。缺省模型为已加载模型中 `version_key` 最大者。结果 SHALL 按 `risk_score DESC, commit_hash ASC` 排序，同一提交在同一模型下只出现一次。时间区间两端包含，纯日期结束值包含全天。
 
-#### Scenario: 默认排序与分页
+#### Scenario: 查询已预测提交
+- **WHEN** 使用有效筛选条件查询风险列表
+- **THEN** 返回命中且已预测的提交及准确的 `total`，分页排序稳定
 
-- **WHEN** 不带任何参数调用
-- **THEN** `items` 按 `risk_score` 降序、返回第 1 页 20 条，`total` 为筛选后总数
-
-#### Scenario: 筛选结果为空
-
-- **WHEN** 筛选条件下没有任何提交
-- **THEN** 返回 `code` 0、`items` 空数组、`total` 0 —— 空数据不是错误
-
-#### Scenario: 纯日期串 end 含结束日全天
-
-- **WHEN** 以 `start_time=2026-08-03&end_time=2026-08-03` 调用
-- **THEN** 返回 `committed_at` 落在 2026-08-03 全天（含 09:00 等非整点时刻）的提交，MUST NOT 只取当天 00:00 整点
-
-#### Scenario: 紧凑基本格式日期被拒
-
-- **WHEN** 以 `end_time=20260803` / `20260803T090000Z` / `20260803T090000+08:00`（或 start 同形）调用
-- **THEN** 返回 40001（HTTP 400），message 指出参数名与合法写法
-
-#### Scenario: 带时间分量的 end 按原样
-
-- **WHEN** 以 `end_time=2026-08-03T08:59:59` 调用
-- **THEN** 当天 09:00 的提交 MUST NOT 被包含（时间分量不被「收尾」规则改写）
+#### Scenario: 筛选无结果
+- **WHEN** 指定模型或时间范围没有预测行
+- **THEN** 返回 `code=0`、`items=[]`、`total=0`，MUST NOT 伪造风险 0 行
 
 ### Requirement: 提交详情查询
 
-`GET /api/commits/{commit_hash}` SHALL 返回提交元信息、14 项特征值与 `explanation`；`features` SHALL 读自 `commit_feature` 表，键名与 `docs/model/feature-columns.md` 逐字一致；本响应 MUST NOT 返回真实标签。
+`GET /api/commits/{commit_hash}` SHALL 返回提交元信息、所选模型预测时间与风险分、Kamei 14 维 log 特征、解释因子及 SZZ 真标签 `is_bug_inducing`；未打标为 `null`，MUST NOT 变成 0，也不返回已下线的人工 `label` 对象。
 
-#### Scenario: 哈希不存在
+#### Scenario: 已有提交详情
+- **WHEN** 查询存在且有预测行的提交
+- **THEN** 返回该提交与单个模型的风险分、特征、解释和真实标签
 
-- **WHEN** 以不在 `commit` 表中的 `commit_hash` 查询
-- **THEN** 返回 40400（HTTP 404），message 为 `commit not found`
-
-#### Scenario: 提交存在但尚无预测
-
-- **WHEN** 查询的提交在 `commit` 表存在但 `prediction` 表无对应行
-- **THEN** 返回 `code` 0，`risk_score` 与 `model_name` 为 null、`explanation` 为空数组（口径见 design D3）
+#### Scenario: 尚未预测
+- **WHEN** 提交存在但所选模型没有预测行
+- **THEN** `risk_score` 与 `predicted_at` 为 `null`，MUST NOT 显示成零风险
 
 ### Requirement: 趋势聚合查询
 
-`GET /api/trends` SHALL 按 `granularity`（枚举 `week` 默认 / `month`）聚合风险趋势；SHALL 支持可选参数 `start_time`/`end_time` 与 `model_name`（缺省取表内版本序最大模型）；时间过滤 SHALL 与风险列表同语义——**闭区间**、纯日期串 end 含结束日全天、紧凑基本格式拒收 40001（契约三 1.5）；`high_risk_count` SHALL 由后端按**固定常量阈值 `risk_score >= 0.5`** 计算（本 change 不开放为请求参数 —— 契约三 §3 请求参数表未列该参数，见 design D10），MUST NOT 交由前端重算；`series` SHALL 只返回单个 `model_name` 的一组数据。
+`GET /api/trends` SHALL 按 `week` 或 `month` 聚合所选模型的已预测提交，时间筛选与列表一致；`high_risk_count` 按服务配置 `HIGH_RISK_THRESHOLD` 计算。查询只读，不触发预测。
 
-#### Scenario: 周粒度聚合
+#### Scenario: 周粒度
+- **WHEN** 以默认参数查询
+- **THEN** `series` 按周升序，含 `period`、`commit_count`、`avg_risk`、`high_risk_count`
 
-- **WHEN** 以默认参数调用
-- **THEN** `series` 按周升序，每项含 `period`/`commit_count`/`avg_risk`/`high_risk_count`，`period` 格式形如 `2026-W30`
-
-#### Scenario: 粒度取值非法
-
-- **WHEN** 以 `granularity=day` 调用
-- **THEN** 返回 40001（HTTP 400），message 指出参数名与合法枚举
-
-#### Scenario: 时间范围内无数据
-
-- **WHEN** 所选时间范围内没有任何提交
-- **THEN** 返回 `code` 0、`series` 空数组 —— 空数据不是错误
-
-#### Scenario: 周下钻纯日期串不丢结束日
-
-- **WHEN** 以某 ISO 周的周一与周日纯日期串作为 `start_time`/`end_time` 调用
-- **THEN** 该周七天的提交全部计入（`commit_count` 与看板同周期口径一致），MUST NOT 丢周日当天
+#### Scenario: 无效粒度
+- **WHEN** 以 `granularity=day` 查询
+- **THEN** 返回 40001，MUST NOT 静默改成周粒度
 
 ### Requirement: 内部信息不回显
 
-`50000` 的 message SHALL 为固定文案，MUST NOT 包含异常堆栈、SQL 语句、文件路径（含模型文件路径）；内部细节 SHALL 只写服务端日志。
+50000 的 `message` SHALL 使用固定文案；堆栈、SQL、路径与令牌仅能进入受控服务日志。
 
-#### Scenario: 内部错误掩盖
+#### Scenario: 数据库故障
+- **WHEN** 数据库连接失败
+- **THEN** 响应不含连接串、SQL 和文件路径
 
-- **WHEN** 数据库连接中断等内部异常被触发
-- **THEN** 响应为 50000（HTTP 500）且 message 为固定文案，服务端日志中保留完整异常
+#### Scenario: 模型文件损坏
+- **WHEN** 查询触发相关内部异常
+- **THEN** 响应不含模型文件路径，服务端保留诊断日志
 
 ### Requirement: Swagger 实现镜像
 
-系统 SHALL 暴露 FastAPI 自动生成的 OpenAPI/Swagger；生成 schema 中的路径、字段名与类型 SHALL 与 `docs/backend/api-spec.md`（契约三 v1.5）逐字一致，偏离 SHALL 修改代码消除，MUST NOT 反向修改契约。
+系统 SHALL 暴露 FastAPI OpenAPI schema；当前路径、参数和响应字段 SHALL 与 `docs/api/` 中的对应文件一致。
 
-#### Scenario: 镜像比对零偏离
+#### Scenario: 对照现行接口
+- **WHEN** 导出 `/openapi.json` 并核对现行文档
+- **THEN** 路径、字段、类型与枚举无偏离
 
-- **WHEN** 导出 `openapi.json` 与契约三四个接口逐字段比对
-- **THEN** 路径、字段名、类型与枚举无偏离
-
-#### Scenario: 发现偏离
-
-- **WHEN** 比对发现实现与契约不一致
-- **THEN** 修改代码对齐契约并重新比对，MUST NOT 以「改契约迁就代码」结案
+#### Scenario: 文档仍指向旧路径
+- **WHEN** 发现对已下线端点或已删除的旧版契约的引用
+- **THEN** 在同一 PR 修正文档与规格，MUST NOT 将历史路径当作当前接口
 
 ### Requirement: 提交哈希大小写归一化
 
-后端 SHALL 把请求中的 `commit_hash` 当作大小写不敏感的 40 位十六进制串处理：先校验（不合法 SHALL 返回 `40001`），校验通过后 SHALL 归一化为小写，再用于查库、写库与响应回显；MUST NOT 用请求原文的大小写形式匹配 `commit` / `commit_feature` / `prediction`。归一化 MUST NOT 放宽长度或字符集校验。`GET /api/commits/{commit_hash}` 与 `POST /api/predict` SHALL 对同一哈希的任意大小写形式给出一致结论，响应中的 `commit_hash` SHALL 为库内小写值。
+请求中的 `commit_hash` SHALL 先校验为 40 位十六进制串，再归一化为小写用于查库与响应；MUST NOT 放宽长度或字符集校验。
 
-#### Scenario: 大写或混合大小写哈希命中同一提交
+#### Scenario: 大写哈希命中
+- **WHEN** 以同一已存在哈希的全大写形式请求详情
+- **THEN** 与小写请求命中同一提交，回显小写哈希
 
-- **WHEN** 以库内某提交哈希的全大写或混合大小写形式请求 `GET /api/commits/{commit_hash}`
-- **THEN** 返回 `code` 0 与和小写请求逐字段相同的数据，`data.commit_hash` 为库内小写值，MUST NOT 返回 40400
-
-#### Scenario: 归一化后仍不存在
-
-- **WHEN** 以 40 位合法十六进制、但归一化为小写后库内无对应提交的哈希请求详情
-- **THEN** 返回 40400（HTTP 404），message 为 `commit not found`，MUST NOT 因大小写归一化而改判为 `40001`
-
-#### Scenario: 非法字符仍按参数错误拒收
-
-- **WHEN** 以 40 位但含非十六进制字符（任意大小写形式，如 `g` × 40 或 `G` × 40）的路径参数请求详情
-- **THEN** 返回 40001（HTTP 400），MUST NOT 进入查库分支，MUST NOT 因归一化而放宽字符集校验
-
-#### Scenario: 预测接口的大小写幂等
-
-- **WHEN** 以同一提交的大写形式与小写形式各调用一次 `POST /api/predict`
-- **THEN** 两次都返回 `code` 0、`data.commit_hash` 均为库内小写值，且 `prediction` 表中该 `(commit_hash, model_name)` 只有一行（复合键按归一化值计算）
+#### Scenario: 非法哈希
+- **WHEN** 哈希含非十六进制字符或长度错误
+- **THEN** 返回 40001，MUST NOT 进入数据库查询

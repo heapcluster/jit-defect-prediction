@@ -7,7 +7,7 @@
 
 ### Requirement: 仓库版本固定
 
-系统 MUST 把仓库副本固定在登记在册的 tag 或 commit 上，MUST NOT 以浮动的分支引用作为数据基准。固定的完整 commit 哈希、固定日期与固定方式 MUST 写入 `docs/model/data-pipeline.md` 第 2 节的登记表。
+离线训练样本采集 MUST 把仓库副本固定在 `docs/common/data-pipeline.md` 第 1 节登记的 tag 和 commit 上，MUST NOT 以浮动分支作为训练数据基准；在线实时同步由 `SOURCE_REPO` 单独配置，不属于固定训练样本。
 
 #### Scenario: 首次固定版本
 
@@ -21,11 +21,11 @@
 
 ### Requirement: 提交清单字段与契约一致
 
-抽取出的提交清单 MUST 满足 `docs/design/data-fields.md` 表一 `commit` 的字段定义：列名逐字一致、一律 `snake_case`、时间字段统一 UTC 且以 `_at` 结尾；`commit_hash` 为唯一键，`committed_at` 建普通索引。
+抽取出的提交清单 MUST 满足 `docs/database/commit.md` 的字段定义：列名逐字一致、一律 `snake_case`、时间字段统一 UTC 且以 `_at` 结尾；`commit_hash` 为唯一键，`committed_at` 建索引。
 
 #### Scenario: 列名逐字对齐
 
-- **WHEN** 比对采集产物列名与契约表一
+- **WHEN** 比对采集产物列名与 `docs/database/commit.md`
 - **THEN** 列名集合与契约完全一致，无缺列、无自造列、无改名
 
 #### Scenario: 提交时间带非 UTC 偏移
@@ -77,7 +77,7 @@
 
 ### Requirement: Camel 固定数据源
 
-采集 MUST 使用 Apache Camel 仓库 `https://github.com/apache/camel.git`，默认目录为 `data_model/data/camel/`，固定 tag 为 `camel-4.23.0`，完整提交为 `b2329103df8f5d1edfca2ad262be09e3be95ee68`；产出 `repo_name` MUST 为 `camel`。登记位置 MUST 为 `docs/model/data-pipeline.md`，不得继续使用旧 ActiveMQ 版本作为当前数据源。
+离线采集 MUST 使用 Apache Camel 仓库 `https://github.com/apache/camel.git`，默认目录为 `data_model/data/camel/`，固定 tag 为 `camel-4.23.0`，完整提交为 `b2329103df8f5d1edfca2ad262be09e3be95ee68`；产出 `repo_name` MUST 为 `camel`。登记位置为 `docs/common/data-pipeline.md`，不得继续使用旧 ActiveMQ 版本作为当前训练数据源。
 
 #### Scenario: 干净环境复现
 - **WHEN** 按当前数据链路文档克隆并采集

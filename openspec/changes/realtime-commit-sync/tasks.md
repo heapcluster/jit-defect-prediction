@@ -1,9 +1,9 @@
 # realtime-commit-sync — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：无独立 design.md ｜ 规格：`specs/predict-api/spec.md`
-> 负责人：backend 吕建江 ｜ 创建：2026-10-25 ｜ 状态：进行中（以任务勾选和证据为准）
-> 用户故事：无（同步能力）
-> 统一格式见 `docs/common/openspec-task-template.md`；末尾「测试与验证」为强制板块。
+> 负责人：backend 吕建江 ｜ 创建：2026-10-25
+> 关联需求：无（同步能力）
+> 状态：进行中（以任务勾选和证据为准）
 
 ## 1. 后端同步能力
 
@@ -14,7 +14,7 @@
 
 ## 2. 契约与文档
 
-- [ ] 2.1 `docs/backend/api-spec.md` 补 `/api/sync` 一节（请求/响应/错误码/上限）——归后端线吕建江
+- [ ] 2.1 `docs/api/README.md` 补 `/api/sync` 一节（请求/响应/错误码/上限）——归后端线吕建江
 - [ ] 2.2 `docs/common/local-runbook.md` §4 补 `SYNC_ON_STARTUP` 与同步用法
 - [ ] 2.3 `backend/.env.example` 补 `SYNC_ON_STARTUP=` 注释行
 

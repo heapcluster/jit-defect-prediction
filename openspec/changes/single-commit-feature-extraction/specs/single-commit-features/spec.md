@@ -2,7 +2,7 @@
 
 ### Requirement: 单条提交复用 v1 特征口径
 
-模型线 MUST 为本地 Git 仓库 HEAD 可达的非合并提交提供按 `docs/model/feature-columns.md` 计算 14 项 v1 特征的可调用入口。输出 MUST 含有序特征向量，且与批量抽取同一提交的值逐项一致。
+模型线 MUST 为本地 Git 仓库 HEAD 可达的非合并提交提供按 `docs/database/commit_feature.md` 计算 14 项 v1 特征的可调用入口。输出 MUST 含有序特征向量，且与批量抽取同一提交的值逐项一致。
 
 #### Scenario: 新提交未出现在批量 CSV
 

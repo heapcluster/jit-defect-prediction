@@ -1,9 +1,9 @@
 # public-dataset-quality — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/public-dataset/spec.md`
-> 负责人：model 蒋励 ｜ 创建：2026-10-13 ｜ 状态：进行中（Sprint 2 启动）
-> 用户故事：C1-2（数据集加载）/ C1-3（数据质量治理）—— 回应课程附加功能 (3) 三条问题
-> 统一格式见 `docs/common/openspec-task-template.md`；**本文件末的「测试与验证」为强制板块，缺失视为提案不完整。**
+> 负责人：model 蒋励 ｜ 创建：2026-10-13
+> 关联需求：C1-2（数据集加载）/ C1-3（数据质量治理）—— 回应课程附加功能 (3) 三条问题
+> 状态：进行中（Sprint 2 启动）
 
 ## 1. 阻塞前置：可下载性验证（第 1 号任务，不过则整体降级）
 - [x] 1.1 逐个验证候选公开 JIT 数据集的可下载性（网络、链接、体积、许可证），输出 `data_model/preparation/reports/public_dataset_probe.md`：候选清单 / 可达性 / 体积 / 许可证 / 字段完备性
@@ -40,14 +40,14 @@
 - [ ] 7.3 未获取到标准 benchmark 时，报告中写明「未获取标准 benchmark，故不与文献数字对照」及原因，**不为凑对照而选用非标准数据集**
 
 ## 8. 范围与文档同步（蒋励统稿）
-- [ ] 8.1 `docs/design/sprint0-scope.md` 边界表述改写：「公开数据集（可选）」→「已提升为承诺范围（Sprint 2）」
+- [ ] 8.1 `docs/overview.md` 边界表述改写：「公开数据集（可选）」→「已提升为承诺范围（Sprint 2）」
 - [ ] 8.2 `feature-addons-sprint3` 的 G1-3 条目移出，proposal/tasks/design 同步注明「已由 `public-dataset-quality` 顶替」，不留双入口
-- [ ] 8.3 `docs/design/addons.md` §3 G1-3 定位改写；`docs/model/data-pipeline.md` 增补公开数据集加载步骤
-- [ ] 8.4 `docs/model/README.md` §9 补「公开数据集与质量评价」文献依据行
+- [ ] 8.3 `docs/common/project-requirements.md` §3 G1-3 定位改写；`docs/common/data-pipeline.md` 增补公开数据集加载步骤
+- [ ] 8.4 `docs/common/research-notes.md` §9 补「公开数据集与质量评价」文献依据行
 
 ## 测试与验证（强制板块）
 
-> 分层口径见 `docs/common/test-strategy.md`；模板见 `docs/common/openspec-task-template.md`。
+> 分层口径见 `docs/common/test-assessment-guide.md`；模板见 `openspec/TASKS_TEMPLATE.md`。
 > 铁律：勾了 tasks ≠ 功能合格，必须有可复现命令与证据路径。
 
 ### 1. 单元测试

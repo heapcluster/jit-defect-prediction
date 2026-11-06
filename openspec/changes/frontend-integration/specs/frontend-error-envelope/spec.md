@@ -6,7 +6,7 @@
 
 ### Requirement: 非 2xx 错误包络归一
 
-前端请求层 MUST 同时处理成功 HTTP 响应中的非零 `code` 和非 2xx HTTP 响应体中的 `{code,message,data}`。已知业务码 MUST 传递给页面，展示文案 MUST 按 `docs/frontend/pages.md` 第 5 节处理；50000 MUST NOT 将服务端原文直接展示。无业务包络的网络错误 MUST 保留为网络错误，不得伪造业务码。
+前端请求层 MUST 同时处理成功 HTTP 响应中的非零 `code` 和非 2xx HTTP 响应体中的 `{code,message,data}`。已知业务码 MUST 传递给页面，展示文案 MUST 按 `docs/web_page/README.md` 第 5 节处理；50000 MUST NOT 将服务端原文直接展示。无业务包络的网络错误 MUST 保留为网络错误，不得伪造业务码。
 
 #### Scenario: 后端返回 40400
 

@@ -14,7 +14,7 @@
 - D2：在一次加载内维护失败名称列表，清单声明却缺失的权重、反序列化失败与宽度不符均追加文件主干；循环结束仅当列表非空时 `logger.error`。清单缺失或列序漂移走 #96 的整目录早退，此时不输出失败名单（没有可信的声明集合，编造名单等于伪造证据）。保留现有逐文件异常、宽度自检和成功日志，不新增 API 字段或改变错误码。
 - D3：不注册 `__main__` 别名。独立进程仅加搜索路径后，当前 TabNet 权重仍抛 `AttributeError`；在 `python -c` 顶层先 `from pipelines.expert.model import TabNetWithEarlyStop` 会把类绑定进 `__main__`，这种验证不能证明单纯路径修复有效。正例测试须先在生产者子进程按规范模块路径保存，再在独立消费者中加载。
 - D4：扩充 `test_model_registry.py` 验证导入、重复调用、损坏文件、宽度拒收与日志；`test_integration_api.py` 使用独立 SQLite engine 和临时四类 CSV，真实调用 ingest 与 TestClient 四接口。夹具负责恢复全局 engine/registry，禁止依赖外部 .env、MySQL 或真实权重。
-- D5：D-09 已在 `docs/repo/defect-records.md:25` 登记处理方式，按用户最新要求后续单独开 change，而非仅以登记结案。当前SQLite集成测试不改变大写哈希行为；GET/POST归一化及MySQL对照不混入模型导入PR。
+- D5：D-09 已在 `docs/common/defect-records.md:25` 登记处理方式，按用户最新要求后续单独开 change，而非仅以登记结案。当前SQLite集成测试不改变大写哈希行为；GET/POST归一化及MySQL对照不混入模型导入PR。
 - D6（rebase 到 `f5ca61d` 后补记）：#96 已把在线模型收敛为清单声明的三个（`lr_v1`/`rf_v1`/`xgb_v1`）。2026-10-24 只读实测：cwd=`backend`，`MODEL_DIR` 指向本机含 8 个权重的 `data_model/pipelines/expert/models`（其中 `feature_order.txt` 与仓库同源、只声明 3 个），`load_models()` 输出 `loaded models: ['lr_v1', 'rf_v1', 'xgb_v1']`；其余 5 个权重根本不进入反序列化，`tabnet_v1` 的 `__main__` 导出缺陷因此被掩盖而非修复。T9 的「8 个模型全部加载、逐个 POST 返回非空解释」与已合并的清单语义直接冲突，属裁定项：或由模型线扩清单并重新导出 TabNet，或把 T9 收敛到清单内三模型。本 change 不自行改清单范围，也不以 3/8 冒充 8/8。
 
 ## Risks / Trade-offs

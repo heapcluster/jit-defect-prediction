@@ -1,9 +1,9 @@
 # feature-addons-sprint3 — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/defect-visualization/spec.md`、`specs/fix-suggestion/spec.md`
-> 负责人：跨线（蒋励统稿） ｜ 创建：2026-10-11 ｜ 状态：进行中（以任务勾选和证据为准）
-> 用户故事：G1-1 / G1-2（G1-3 / G1-4 已移出）
-> 统一格式见 `docs/common/openspec-task-template.md`；末尾「测试与验证」为强制板块。
+> 负责人：跨线（蒋励统稿） ｜ 创建：2026-10-11
+> 关联需求：G1-1 / G1-2（G1-3 / G1-4 已移出）
+> 状态：进行中（以任务勾选和证据为准）
 
 ## 1. 立项与看板
 - [x] 1.1 看板新增 Sprint 3 两行（缺陷可视化定位 `reczz28LeOxoj2h2` / 高质量修复建议 `reczz28LeOxolfuA`），「规格变更或任务」列填 `feature-addons-sprint3`，可点开；迭代=Sprint 3、状态=未开始、优先级=中
@@ -19,56 +19,56 @@
 - [ ] 3.2 高风险提交 Top-K 建议输出与联调
 
 ## 4. 公开数据集加载与质量治理（G1-3）—— 已于 2026-10-13 移出本 change
-- [ ] 4.0 **本条已移出**，去向 change `public-dataset-quality`（Sprint 2 启动）。移出理由：课程附加功能 (3) 指出现有 JIT 数据集三大缺陷（标签粒度过粗 / 主要针对 Java / 数据质量），而本组「单仓库 + SZZ 代理打标」恰好完整复刻这三条，属范围承诺而非可选增强。原 4.1–4.3 三项任务由该 change 的 tasks §0–§5 承接（内容更完整：增加「可下载性验证」阻塞前置、抽样纪律、与 Apache Camel 并列而非替换的硬约束）。本节保留仅为留痕，**不再维护**。
+> **已移出**：G1-3 由 `public-dataset-quality` 承接。本节仅保留迁移记录，不属于本 change 的待办或验收范围。
 
 ## 5. 预训练语义特征建模（G1-4）—— 已于 2026-10-13 移出本 change
-- [ ] 5.0 **本条已移出**，去向 change `semantic-feature-mainline`（Sprint 2 启动，Kamei 14 降为基线对照组）。移出理由：课程附加功能 (4) 指语义特征为「现在主流方法」，不应作为可选附加；任课教师 2026-10-13 指导模型线路不能采用老旧方案。原 5.1–5.4 四项任务由该 change 的 tasks §4–§8 承接（内容更完整：双路线、变更文本构造、融合样本、三类对比、消融分析）。本节保留仅为留痕，**不再维护**。
+> **已移出**：G1-4 由 `semantic-feature-mainline` 承接。本节仅保留迁移记录，不属于本 change 的待办或验收范围。
 
 ## 6. 立项文档（2026-10-13）
 - [x] 6.1 设计文档 5.3.3 / 5.3.4 展开 G1-3 / G1-4 详设（飞书设计文档 v0.9）
-- [x] 6.2 本 change 新增 `specs/public-dataset`、`specs/semantic-feature`
+- [x] 6.2 G1-3/G1-4 后续分别转入 `public-dataset-quality`、`semantic-feature-mainline`；本 change 的 `specs/` 仅保留 G1-1/G1-2
 ---
 
 ## 测试与验证（强制板块）
 
-> 分层口径见 `docs/common/test-strategy.md`；模板见 `docs/common/openspec-task-template.md`。
-> 本 change 截至 2026-10-13 **仅完成立项（§6），功能任务全部未开始**，故本节先立**验收标准与测试计划**，实现时逐条落证据。
+> 分层口径见 `docs/common/test-assessment-guide.md`；模板见 `openspec/TASKS_TEMPLATE.md`。
+> 本 change 的待实施功能仅为 G1-1/G1-2；G1-3/G1-4 的测试与验收分别见 `public-dataset-quality`、`semantic-feature-mainline`。下列结果以当前 change 为范围，未执行项如实保留。
 
 ### 1. 单元测试
 | 项 | 内容 |
 |---|---|
-| 覆盖对象 | G1-1 行级定位降级逻辑；G1-2 修复建议检索与空态；G1-3 数据集加载器 + 三类质量治理；G1-4 语义特征提取与融合 |
-| 测试文件 | G1-1/G1-2 → `frontend/src/__tests__/`；G1-3/G1-4 → `data_model/tests/` |
+| 覆盖对象 | G1-1 行级定位降级逻辑；G1-2 修复建议检索与空态 |
+| 测试文件 | G1-1/G1-2 → `frontend/tests/`（拟新增；当前未执行） |
 | 用例数与结果 | 0 条（未开始） |
 | 复现命令 | `cd data_model && python -m pytest -q`；`cd frontend && npm run test:unit` |
-| 异常 / 边界用例（最低要求） | G1-1 行级数据缺失 → 降级到提交级并提示，**不报错**；G1-2 无依据 → 返回空态，**不编造建议**；G1-3 无缺陷类型的样本 → 标注「无缺陷类型」而**不伪造标签**；G1-4 语义模型不可用 → 回落到专家特征，**不阻断预测** |
+| 异常 / 边界用例（最低要求） | G1-1 行级数据缺失 → 降级到提交级并提示，**不报错**；G1-2 无依据 → 返回空态，**不编造建议** |
 
 ### 2. 集成测试
 | 项 | 内容 |
 |---|---|
-| 集成范围 | G1-3 加载的公开数据集 ↔ 既有 `commit` / `commit_label` / `commit_feature` 口径；G1-4 新特征 ↔ 训练/切分/评估链路；G1-1/G1-2 ↔ 详情页 |
-| 测试文件 | G1-3/G1-4 → `data_model/tests/`；G1-1/G1-2 → `frontend/src/__tests__/` |
+| 集成范围 | G1-1/G1-2 的返回数据 ↔ 提交详情页；缺少后端数据时显示明确空态 |
+| 测试文件 | `frontend/tests/`（待新增），真实后端联调记录见 `docs/common/integration-log.md` |
 | 用例数与结果 | 0 条（未开始） |
-| 关键断言 | **不新增字段名、不改契约二 14 项列名与顺序**（新特征另起 `feature_version` v2）；**不静默切换交付模型**（spec `semantic-feature` R2 / `model-coverage` R6） |
+| 关键断言 | 不伪造行级证据或修复建议；现行接口未提供对应字段时明确记为未实现，不改现行 `docs/api/` 契约 |
 
 ### 3. 验收测试
 | 项 | 内容 |
 |---|---|
-| 验收依据 | `specs/defect-visualization/spec.md`、`specs/fix-suggestion/spec.md`、`specs/public-dataset/spec.md`、`specs/semantic-feature/spec.md` |
+| 验收依据 | `specs/defect-visualization/spec.md`、`specs/fix-suggestion/spec.md` |
 | 用例数与结果 | 0 条（未开始） |
-| 证据归档 | G1-3 → `data_model/preparation/reports/`（数据质量报告）；G1-4 → `data_model/pipelines/semantic/reports/`（三类设置对比结论，含设备/样本量标注） |
+| 证据归档 | 实测页面与接口证据待记录在 `docs/common/integration-log.md` 或对应 PR；目前未提供 |
 
 ### 4. 非功能验证
 | 维度 | 是否触及 | 证据 |
 |---|---|---|
 | 性能 | 否 | 附加功能不进入交付链路（MVP 契约不变） |
-| 安全 | 是 | 公开数据集下载与落盘的来源登记；不含密钥 |
-| 可靠 | 是 | G1-1 降级路径、G1-4 特征缺失回落 |
+| 安全 | 否 | 本 change 不再负责公开数据集下载；若新增对外输入另评估 |
+| 可靠 | 是 | G1-1 行级证据缺失时降级到提交级 |
 | 易用 | 是 | 降级提示与空态文案 |
 
 ### 5. 已知缺口与后续计划
 | 缺口 | 原因 | 归属 | 计划时间 |
 |---|---|---|---|
-| 全部功能任务未开始（2.1–5.4） | Sprint 3 窗口（11/13–12/18），当前处于 Sprint 1 | 蒋励 / 刘帅华 | Sprint 3 |
-| 测试计划已立但无任何证据 | 同上 | 同上 | Sprint 3 |
-| 课程 10/12 才新增 G1-3/G1-4，需先补文献与方案论证 | 见 `docs/model/README.md` §9 | 蒋励 | Sprint 2 |
+| G1-1/G1-2 功能任务 2.1–3.2 未完成 | 当前接口与页面没有可验收的行级证据和修复建议 | 蒋励 / 刘帅华 | 由飞书看板确定 |
+| 测试计划已立但无实测证据 | 功能尚未交付 | 同上 | 对应功能 PR 中补 |
+| G1-3/G1-4 的文献与实验缺口 | 已移交独立 change，本 change 不验收 | 蒋励 | 见 `docs/common/research-notes.md`，由对应 change 追踪 |

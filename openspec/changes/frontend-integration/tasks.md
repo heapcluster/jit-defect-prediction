@@ -1,9 +1,9 @@
 # frontend-integration — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/risk-list/spec.md`、`specs/commit-detail/spec.md`、`specs/trend-board/spec.md`、`specs/frontend-error-envelope/spec.md`
-> 负责人：frontend 刘帅华 ｜ 创建：2026-10-09 ｜ 状态：进行中（4.3/4.4 尚未勾选）
-> 用户故事：F2 / F3 / F4
-> 统一格式见 `docs/common/openspec-task-template.md`；末尾「测试与验证」为强制板块。
+> 负责人：frontend 刘帅华 ｜ 创建：2026-10-09
+> 关联需求：F2 / F3 / F4
+> 状态：进行中（4.3/4.4 尚未勾选）
 
 ## 1. 页面实现
 
@@ -15,20 +15,20 @@
 ## 2. 三态与错误码
 
 - [x] 2.1 三态齐全：加载中 / 空数据 / 请求失败（空数据不是错误）
-- [x] 2.2 错误码按 `docs/frontend/pages.md` 第 5 节区分处理（40001 / 40100 / 40400 / 50000）
+- [x] 2.2 错误码按 `docs/web_page/README.md` 第 5 节区分处理（40001 / 40100 / 40400 / 50000）
 
 ## 3. 字段核对
 
-- [x] 3.1 每页字段名与 `docs/frontend/pages.md` 映射表逐字一致，不改名、不驼峰
+- [x] 3.1 每页字段名与 `docs/web_page/README.md` 映射表逐字一致，不改名、不驼峰
 - [x] 3.2 风险值由前端 ×100 转百分比；概率字段取 0~1 小数不转字符串
 
 ## 4. 联调与交付
 
-- [x] 4.1 三页面对接 API-01/02/03（curl 层联调已通），留联调记录；已采集 9 张场景截图见 PR #117（`docs/frontend/screenshots/`）
-- [ ] 4.1b 浏览器人工冒烟补齐剩余取证：见 `docs/frontend/evidence/tf-fe-01-screenshots.md`「未取证项」——提交详情页加载中、趋势看板加载中/空数据、契约错误码（40001/40100/50000）的前端分发证据；已完成的 9 张截图只覆盖风险列表 4 / 提交详情 3 / 趋势看板 2
+- [x] 4.1 历史三页面对接 API-01/02/03（curl 层联调）；当时的 9 张场景截图见 [PR #117](https://github.com/heapcluster/jit-defect-prediction/pull/117)，原仓库截图目录已删除，不代表现行四页验收通过
 - [ ] 4.2 API-04 独立联调：`POST /api/predict` 用真实 40 位 commit_hash（阻塞于真实 commit 灌库；seed 占位 `000...001` 仅证明接口通，不作为通过证据）
 - [ ] 4.3 提交 PR 并写明关联 change id `frontend-integration`，由非作者审阅合入
 - [ ] 4.4 回飞书看板更新任务状态
+- [ ] 4.5 浏览器人工冒烟补齐现行四页取证：在 `docs/common/integration-log.md` 登记提交号、结果及截图链接，覆盖加载中、空数据和契约错误码（40001/40100/50000）；历史 9 张截图只覆盖旧三页的部分场景
 
 ## 测试与验证（强制板块）
 
@@ -36,22 +36,22 @@
 
 - 覆盖对象：三页面的加载、空数据、错误码分发和日期筛选；测试文件位于 `frontend/tests/`。
 - 复现命令：在 `frontend/` 运行 `npm run test:unit`。本节是测试入口，不把历史构建成功写成当前提交的单测通过；当前结果以 CI 为准。
-- 正向与边界：列表数据展示、缺失结果与非法参数提示均需有具体断言。浏览器取证缺口见下文及 `docs/frontend/evidence/tf-fe-01-screenshots.md`。
+- 正向与边界：列表数据展示、缺失结果与非法参数提示均需有具体断言。当前浏览器取证缺口登记在 `docs/common/integration-log.md`。
 
 ### 2. 集成测试
 
 - 范围：前端请求封装与 `GET /api/commits`、`GET /api/commits/{hash}`、`GET /api/trends`、`POST /api/predict` 的响应契约。
-- 复现步骤：按 `docs/frontend/integration-log.md` §0 起前后端服务，逐一核对正常响应、缺少 `X-API-Key` 的 40100、详情不存在的 40400 和服务错误的 50000。
-- 历史联调结果见 `docs/frontend/integration-log.md`；本次格式整理未重新执行联调。
+- 复现步骤：按 `docs/common/local-runbook.md` 起前后端服务，逐一核对正常响应、缺少 `X-API-Key` 的 40100、详情不存在的 40400 和服务错误的 50000。
+- 历史联调记录已随旧文档重组移出；当前记录见 `docs/common/integration-log.md`，本次文档整理未重新执行联调。
 
 ### 3. 验收测试
 
 - 验收依据：`specs/risk-list/spec.md`、`specs/commit-detail/spec.md`、`specs/trend-board/spec.md`、`specs/frontend-error-envelope/spec.md` 的 Scenario。
-- 提案结构复现命令：`openspec validate frontend-integration --strict --no-interactive`；页面现场走查按 `docs/frontend/evidence/tf-fe-01-screenshots.md` 执行。
+- 提案结构复现命令：`openspec validate frontend-integration --strict --no-interactive`；页面现场走查按 `docs/web_page/README.md` 的四页清单执行，证据登记到 `docs/common/integration-log.md`。
 
 #### 场景覆盖矩阵（实现范围，非现场通过率）
 
-> 下表是**实现覆盖**（代码里有没有做）。**浏览器取证覆盖**是另一张表，见 `docs/frontend/evidence/tf-fe-01-screenshots.md`「覆盖范围」——两表不要混用，截图只证明了其中部分格子。
+> 下表只记录当时三页的**实现覆盖**，不是现行四页现场通过率。当前浏览器取证见 `docs/common/integration-log.md`；历史截图须从 [PR #117](https://github.com/heapcluster/jit-defect-prediction/pull/117) 追溯。
 
 | 场景 | 风险列表 | 提交详情 | 趋势看板 |
 |---|---|---|---|
@@ -90,7 +90,7 @@
 | 命令 | `npm run build` / `npm run lint` / `openspec validate --changes frontend-integration` |
 | 结果 | build ✓（<1s）；lint 0 error 0 warning；openspec validate 通过 |
 | 联调证据 | `GET /api/commits?page=1&size=3`（`X-API-Key: dev-token-*`）→ `{"code":0,...,"items":[...3 条]}`；无 key → HTTP 401；详情 `GET /api/commits/{hash}`、趋势 `GET /api/trends` 同链路可达 |
-| 完整联调记录 | `docs/frontend/integration-log.md`（含请求、脱敏响应、预期/实际结果、启动命令） |
+| 当前联调记录 | `docs/common/integration-log.md`（现为待填索引；历史请求与脱敏响应须从 PR 记录追溯） |
 
 ### 4. 非功能验证
 
@@ -106,4 +106,4 @@
 
 #### 落地结论与缺口
 
-F2/F3 已落地（三页面 + 提案 + 规格）；F4 后端联调已打通（API-01~04 + 鉴权均验证，含 predict 真模型推理）；浏览器人工冒烟**已部分完成**——9 张场景截图见 `docs/frontend/evidence/tf-fe-01-screenshots.md` 与 PR #117，覆盖风险列表 4 / 提交详情 3 / 趋势看板 2，**未取证项**见该文件同名章节（详情页加载中、趋势看板加载中与空数据、契约错误码 40001/40100/50000 的前端分发）。联调记录见 `docs/frontend/integration-log.md`。
+F2/F3 历史三页面实现与 F4 当时的 API 联调记录可从 [PR #117](https://github.com/heapcluster/jit-defect-prediction/pull/117) 追溯；当前产品为四页。现行四页浏览器验收尚未由本 change 重新取证，待补场景和证据登记到 `docs/common/integration-log.md`，不得把旧 9 张截图计作现行验收通过。

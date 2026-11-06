@@ -1,9 +1,9 @@
 # delivery-model-allowlist — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/predict-api/spec.md`
-> 负责人：backend 吕建江（PO 苏哲勋把关）｜ 创建：2026-10-23 ｜ 状态：进行中（实现与本地回归，待真实权重验收）
-> 用户故事：在线预测演示三模型交付；8 模型训练结果保留为离线扩展
-> 统一格式见 `docs/common/openspec-task-template.md`；本文件末的「测试与验证」为强制板块。
+> 负责人：backend 吕建江（PO 苏哲勋把关）｜ 创建：2026-10-23
+> 关联需求：在线预测演示三模型交付；8 模型训练结果保留为离线扩展
+> 状态：进行中（实现与本地回归，待真实权重验收）
 
 ## 1. 后端加载门禁
 
@@ -12,7 +12,7 @@
 
 ## 2. 跨线交付
 
-- [ ] 2.1 模型线蒋励交付 `data_model/pipelines/expert/models/feature_order.txt` 与三款同名权重给 backend 吕建江 — 后端对照 `docs/backend/api-spec.md` 做真实加载与预测截图，未交付前不勾选。
+- [ ] 2.1 模型线蒋励交付 `data_model/pipelines/expert/models/feature_order.txt` 与三款同名权重给 backend 吕建江 — 后端对照 `docs/api/README.md` 做真实加载与预测截图，未交付前不勾选。
 
 ## 测试与验证（强制板块）
 

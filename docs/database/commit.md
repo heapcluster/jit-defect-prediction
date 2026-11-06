@@ -17,7 +17,7 @@
 ## 主键为什么直接用 `commit_hash`（不用代理 id）
 - `commit_hash` 是 40 位 SHA-1：**内容寻址、全局唯一、不可变**，本身就是完美的自然主键；加自增 `id` 只会多一个没人引用的死键（子表外键都指 `commit_hash`）。
 - 与 `model` 表同口径：`model_name` 同样是交付契约锁定的自然主键，两表都不造自增 id。
-- 当前代码仍残留 `Commit.id`，迁移时删除；文档口径以本表为准。
+- 当前 `backend/app/models.py` 已以 `commit_hash` 为主键；本机旧库若仍有代理 `id`，需在隔离库迁移或重建后核对，不能用 `create_all` 代替迁移。
 
 ## 约束与索引
 - `commit_hash` 主键唯一。

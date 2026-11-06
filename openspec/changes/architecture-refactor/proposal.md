@@ -37,7 +37,7 @@
 - 后端：新增 `app/timeutil.py`、`app/validate.py`、`app/services/{__init__,commits,feedback,health}.py`；`app/api/{commits,feedback,health,predict,prs,trends}.py` 改为调用共享模块。
 - 测试：`test_health_api.py` 的 monkeypatch 目标从 `app.api.health.SessionLocal` 改为 `app.services.health.SessionLocal`；`test_commits_api.py` 的「查看过滤不触发预测」改为断言 `prediction` 行数不变（原用例 patch 了 `app.api.commits.config`，重构后该模块不再导入 config）。
 - 数据库：无迁移、无结构变化。
-- 契约：`docs/backend/api-spec.md` **无需改动**（对外行为完全一致）。
+- 契约：`docs/api/README.md` **无需改动**（对外行为完全一致）。
 
 ## 不做什么
 

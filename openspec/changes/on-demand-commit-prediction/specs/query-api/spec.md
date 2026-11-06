@@ -2,7 +2,7 @@
 
 ### Requirement: 提交详情查询
 
-`GET /api/commits/{commit_hash}` SHALL 返回提交元信息、14 项特征值与 `explanation`；`features` SHALL 读自 `commit_feature` 表，键名与 `docs/model/feature-columns.md` 逐字一致；本响应 MUST NOT 返回真实标签。优先显示表内全局默认模型的预测；若该提交没有默认模型预测但有其他模型预测，SHALL 回退到该提交已有模型中版本序最新的一条，不得误报尚未预测。
+`GET /api/commits/{commit_hash}` SHALL 返回提交元信息、14 项特征值与 `explanation`；`features` SHALL 读自 `commit_feature` 表，键名与 `docs/database/commit_feature.md` 逐字一致；本响应 MUST NOT 返回真实标签。优先显示表内全局默认模型的预测；若该提交没有默认模型预测但有其他模型预测，SHALL 回退到该提交已有模型中版本序最新的一条，不得误报尚未预测。
 
 #### Scenario: 哈希不存在
 
