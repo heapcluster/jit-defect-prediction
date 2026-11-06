@@ -102,3 +102,10 @@ tools/
 
 # ===== conda 建环境时的临时 pip 清单（conda 自动生成，勿入库）=====
 data_model/condaenv.*.requirements.txt
+
+# ===== 本地 agent / IDE 配置（保留在本地，不纳入版本控制）=====
+# 这些文件供各 AI 编码工具在本地使用，但不进仓库：
+.claude/
+.qoder/
+AGENTS.md
+CLAUDE.md
