@@ -19,7 +19,7 @@
 - 输出"已修复/仍缺"清单。
 
 **不做：**
-- 不写 `test-plan.md`、`acceptance-overview.md`（内容归 neon，S-6 整理）。
+- 不写 `test-plan.md`、`acceptance-overview.md`（内容归 neon，S-5 整理）。
 - 不为补齐而编造项目结论。
 
 ## 当前未完成
