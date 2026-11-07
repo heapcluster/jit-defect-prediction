@@ -18,7 +18,7 @@ Effort-aware 定义（复算说明，四条线一致）：
     Lo, *Revisiting supervised and unsupervised models for effort-aware JIT defect
     prediction*, EMSE 24(5), 2019）。本模块 `recall@20` 即该口径，`ce20` 为其别名。
   · **ALPA**：多轮检索未获可核验的原始定义出处，**本模块不实现**（不编造指标），
-    登记为待补 —— 见 `docs/model/model-line-plan.md` §4.2 的口径对照表。
+    该性能口径尚待模型负责人补充权威说明；缺口列于 `docs/common/reference-audit.md`。
 """
 
 from __future__ import annotations

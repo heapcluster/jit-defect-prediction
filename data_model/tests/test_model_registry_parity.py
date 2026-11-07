@@ -4,7 +4,7 @@ The three lines exist so that the only variable is the input feature space
 (14-dim Kamei / 768-dim CodeBERT / 782-dim concatenation). If one line loses
 or renames a classifier, the cross-line comparison silently stops being about
 the feature modality. During the four-package split, expert kept the legacy
-8-model list while docs/model/model-line-plan.md declared lgbm/et/svm/tabnet
+8-model list while docs/overview.md declared lgbm/et/svm/tabnet
 shipped -- and build_model raised "未知模型" for all four.
 """
 

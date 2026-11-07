@@ -9,7 +9,7 @@
 
 ## 依据（docs/common 原文）
 
-> 逐条核对 OpenSpec Scenario 与用户可见功能；……由负责人组织真实演示并记录通过、失败、未执行，缺口进 `docs/repo/defect-records.md`。——《docs/common/test-assessment-guide.md》
+> 逐条核对 OpenSpec Scenario 与用户可见功能；……由负责人组织真实演示并记录通过、失败、未执行，缺口进 `docs/common/defect-records.md`。——《docs/common/test-assessment-guide.md》
 >
 > 系统测试计划/总结、验收方案/报告必须由人编写，不可让 AI 直接代交；负责人须做场景判断、实测和签字。——《AI-R5》
 

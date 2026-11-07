@@ -1,7 +1,7 @@
 """`infra/setup_mysql.py` 的连接配置解析：分字段 / 整段 DSN / 优先级 / .env 读取。
 
 只测纯函数（不连库），因此可以在没有 MySQL 的机器上跑；真建库的路径由
-`docs/backend/mysql-setup.md` 的手工步骤与 CI 的「准备测试库」步骤覆盖。
+`docs/common/local-runbook.md` 的手工步骤与 CI 的「准备测试库」步骤覆盖。
 """
 
 from __future__ import annotations

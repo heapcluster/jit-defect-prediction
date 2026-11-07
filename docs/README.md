@@ -13,6 +13,7 @@
 | 固定数据源、SZZ 自检和特征链路 | [`common/data-pipeline.md`](common/data-pipeline.md) |
 | 本机运行、联调证据、缺陷记录入口 | [`common/local-runbook.md`](common/local-runbook.md)、[`common/integration-log.md`](common/integration-log.md)、[`common/defect-records.md`](common/defect-records.md) |
 | 可选模型扩展的研究依据状态 | [`common/research-notes.md`](common/research-notes.md) |
+| 文档引用修复与尚待补充的内容 | [`common/reference-audit.md`](common/reference-audit.md) |
 | 模型交付的 14 维列序 | `data_model/pipelines/expert/models/feature_order.txt`；库内字段见 `database/commit_feature.md` |
 
 `docs/backend/`、`docs/model/`、`docs/design/`、`docs/frontend/`、`docs/repo/` 是 2026-11 文档重组前的历史路径，不再作为当前引用目标。引用具体字段时直达 `api/` 或 `database/` 的对应文件，不用旧契约版本号代替现行定义。OpenSpec 的变更提案在归档前只是增量，不覆盖本目录的现行设计；迁移状态见 [`../openspec/README.md`](../openspec/README.md)。

@@ -1,8 +1,8 @@
 """03 抽取 Kamei 14 项特征。
 
 对应 OpenSpec change: data-collection-and-szz-labeling（第 4 组任务的第 ④ 步）
-字段与取值口径: docs/model/feature-columns.md（已冻结，feature_version = v1）
-                docs/design/data-fields.md 表四 `commit_feature`
+字段与取值口径: docs/database/commit_feature.md（已冻结，feature_version = v1）
+                docs/database/commit_feature.md 的在线落库字段
 
 ── 纪律 ───────────────────────────────────────────────────────────────────
 列名逐字取自契约第三节，**不在此处发明列名**。归一化与对数变换逐条取自契约第四节：
@@ -74,10 +74,10 @@ REPORTS_DIR = BASE / "reports"
 
 SZZ_SCRIPT = BASE / "02_szz_labeling.py"
 
-# docs/model/feature-columns.md 第二节：标识列
+# 离线特征 CSV 的标识列；在线落库字段见 docs/database/commit_feature.md
 ID_FIELDS = ["commit_hash", "committed_at", "feature_version"]
 
-# docs/model/feature-columns.md 第三节：14 项特征列，顺序即契约中的出现顺序
+# docs/database/commit_feature.md「字段」：14 项特征列，按该页出现顺序
 FEATURE_FIELDS = [
     "ns",
     "nd",
@@ -105,7 +105,7 @@ DAYS_PER_YEAR = 365.25
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="按 docs/model/feature-columns.md 抽取 Kamei 14 项特征",
+        description="按 docs/database/commit_feature.md 抽取 Kamei 14 项特征",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument(
@@ -604,11 +604,11 @@ def write_report(
     L: list[str] = []
     L.append("# 特征抽取统计（03_extract_features.py 产出）\n")
     L.append(
-        "> 本文件可入库，是特征口径落地的证据（见 `docs/model/data-pipeline.md` 第 4 节第 ④ 步）\n"
+        "> 本文件可入库，是特征口径落地的证据（见 `docs/common/data-pipeline.md` 第 4 节第 ④ 步）\n"
     )
     L.append("## 输入\n")
     L.append("| 项 | 值 |\n|---|---|")
-    L.append(f"| 特征表口径版本 | `{FEATURE_VERSION}`（`docs/model/feature-columns.md` 已冻结） |")
+    L.append(f"| 特征表口径版本 | `{FEATURE_VERSION}`（`docs/database/commit_feature.md` 已冻结） |")
     L.append(f"| 提交清单 | `{len(targets)}` 条 |")
     L.append(f"| 时间窗口 | `{since or '(全量)'}` |")
     if limit:
@@ -667,7 +667,7 @@ def main() -> int:
 
     if not (args.repo / ".git").exists():
         print(
-            f"[失败] 找不到仓库：{args.repo}（先按 docs/model/data-pipeline.md 第 2 节克隆并固定版本）",
+            f"[失败] 找不到仓库：{args.repo}（先按 docs/common/data-pipeline.md 第 1 节克隆并固定版本）",
             file=sys.stderr,
         )
         return 2

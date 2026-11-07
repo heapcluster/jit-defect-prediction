@@ -1,7 +1,7 @@
 # 模型交付清单（A 方案：后端加载 .pkl）
 # 生成：data_model/pipelines/expert/train.py（--delivery-models）
 #
-# 说明：本清单是 `docs/model/feature-columns.md` 第三节的**副本**，
+# 说明：本清单列序与 `docs/database/commit_feature.md` 的 14 项字段一致，
 #       不是独立来源。两者不一致时**以契约为准**；契约二升版时本文件须同步。
 
 [models]
@@ -35,7 +35,7 @@ tabnet_v1.pkl	TabNet（深度表格）
 14. sexp
 
 [contract]
-docs/model/feature-columns.md 第三节（**契约二 v1.2**；14 项特征列，顺序即上表顺序）
+docs/database/commit_feature.md「字段」（**契约二 v1.2**；14 项特征列，顺序即上表顺序）
 
 [how_to_load]
 统一用 joblib.load("<模型>.pkl") 读取；所需依赖见上面 [dependencies] 段。
@@ -61,4 +61,4 @@ numpy==2.5.3
 joblib==1.6.0
 
 [decision]
-风险阈值 0.50（服务端常量，见 docs/backend/api-spec.md 第三节）
+风险阈值 0.50（服务端常量，见 docs/api/README.md）

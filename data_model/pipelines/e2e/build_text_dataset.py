@@ -117,7 +117,7 @@ def main() -> int:
     repo_path = detect_repo(BASE.parent.parent, args.repo)
     if repo_path is None:
         print(
-            "[build_text] 找不到克隆仓库：请先按 docs/model/data-pipeline.md 克隆并固定版本，"
+            "[build_text] 找不到克隆仓库：请先按 docs/common/data-pipeline.md 克隆并固定版本，"
             "或传 --repo",
             file=sys.stderr,
         )

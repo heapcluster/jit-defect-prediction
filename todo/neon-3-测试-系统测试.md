@@ -11,7 +11,7 @@
 
 > 从同步真实提交或 PR、生成特征、选择已交付模型预测，到风险列表/详情/趋势/质量页面展示；再测空库、无效令牌、非法参数、缺失权重和失败恢复。——《docs/common/test-assessment-guide.md》
 >
-> 性能、安全、可靠性与易用性按契约及 `docs/design/non-functional.md` 实测。——同上
+> 性能、安全、可靠性与易用性按契约及 `docs/common/test-assessment-guide.md` 实测。——同上
 
 ## 范围
 
