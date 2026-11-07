@@ -22,6 +22,13 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./tests/setup.js'],
-    globals: true
+    globals: true,
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{js,vue}'],
+      exclude: ['src/main.js'],
+      reporter: ['text', 'html', 'lcov'],
+      reportsDirectory: './coverage'
+    }
   }
 })

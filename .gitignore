@@ -53,6 +53,7 @@ pip-wheel-metadata/
 node_modules/
 dist/
 .vite/
+frontend/coverage/
 .next/
 out/
 
