@@ -22,7 +22,7 @@
 ## Impact
 
 - 代码：`backend/app/github.py`（新增，纯标准库 urllib 只读客户端）、`backend/app/api/prs.py`（新增）、`backend/app/main.py`（注册路由）、`backend/app/config.py`（`GITHUB_REPO`）、`backend/app/schemas.py`（三个响应模型）、`backend/tests/test_prs_api.py`（新增 8 条）。
-- 文档：`docs/backend/api-spec.md` §6~§8（v1.7 已登记）；`backend/.env.example` 补 `GITHUB_REPO=`/`GITHUB_TOKEN=` 注释行。
+- 文档：`docs/api/README.md` §6~§8（v1.7 已登记）；`backend/.env.example` 补 `GITHUB_REPO=`/`GITHUB_TOKEN=` 注释行。
 - 依赖：无新第三方依赖（GitHub API 经标准库 urllib）。
 
 ## 不做什么

@@ -69,14 +69,14 @@
 
 ### Requirement: 交付模型 MUST 保持不变
 
-本 change MUST NOT 改动后端加载路径：`data_model/pipelines/expert/models/feature_order.txt` 的 `[models]` 段 MUST 保持既有交付模型不变，`python -m pipelines.expert.predict` 的产物 `prediction_result.csv` 口径不变，新增模型 MUST NOT 进入后端加载清单。
+在线 expert 交付清单 `data_model/pipelines/expert/models/feature_order.txt` 的 `[models]` 段 SHALL 固定为 `lr_v1`、`rf_v1`、`xgb_v1`、`lgbm_v1`、`et_v1`、`svm_v1`、`mlp_deep_v1`、`tabnet_v1` 八项；清单外模型只作离线评估，不自动进入后端加载清单。四条模型线的训练/评估总数见 `docs/overview.md`，不能把 25 个已训练模型都宣称为在线可用。
 
 #### Scenario: 交付清单不变
 
 - **WHEN** 本 change 合入
-- **THEN** `[models]` 段仍为既有交付模型，报告中新增模型标注为「评估用，不参与交付」
+- **THEN** `[models]` 段恰有上述八项；实际加载成功数和逐模型预测由运行证据核验，报告将其他模型标注为「离线评估」
 
 #### Scenario: 评估出更优模型（边界场景）
 
 - **WHEN** 矩阵显示某新增模型在两类指标上均显著优于交付模型
-- **THEN** 登记为「模型切换」提案（另开 change，含后端加载与契约影响评估），MUST NOT 在本 change 静默切换交付模型
+- **THEN** 登记为「模型切换」提案（另开 change，含后端加载与契约影响评估），MUST NOT 静默切换在线交付模型

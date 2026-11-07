@@ -1,9 +1,9 @@
 # on-demand-commit-prediction — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/predict-api/spec.md`、`specs/query-api/spec.md`
-> 负责人：backend 吕建江（PO 苏哲勋联调把关）｜ 创建：2026-10-23 ｜ 状态：进行中（合成联调通过，真实环境待验收）
-> 用户故事：新提交现算 14 维特征并通过三模型在线预测
-> 统一格式见 `docs/common/openspec-task-template.md`；本文件末的「测试与验证」为强制板块。
+> 负责人：backend 吕建江（PO 苏哲勋联调把关）｜ 创建：2026-10-23
+> 关联需求：新提交现算 14 维特征并通过三模型在线预测
+> 状态：进行中（合成联调通过，真实环境待验收）
 
 ## 1. 接口接入
 
@@ -13,7 +13,7 @@
 
 ## 2. 跨线真实交付
 
-- [ ] 2.1 模型线蒋励将 Camel Git 副本、三模型权重与入库 CSV 交付 backend 吕建江 — `data_model/data/camel/`、`data_model/pipelines/expert/models/{lr,rf,xgb}_v1.pkl` 及清单、`data_model/data/{commits,commit_features}.csv`；后端按 `docs/backend/api-spec.md` 对新 hash 完成真实 HTTP 演示并存证。
+- [ ] 2.1 模型线蒋励将 Camel Git 副本、三模型权重与入库 CSV 交付 backend 吕建江 — `data_model/data/camel/`、`data_model/pipelines/expert/models/{lr,rf,xgb}_v1.pkl` 及清单、`data_model/data/{commits,commit_features}.csv`；后端按 `docs/api/README.md` 对新 hash 完成真实 HTTP 演示并存证。
 - [ ] 2.2 以真实 Camel 新提交和三模型做 100 次 p95、启动/首次请求耗时验证 — 结果归档 `backend/scripts/evidence/`；未达 500ms 时按提案记录与调整，不静默降级。
 
 ## 测试与验证（强制板块）

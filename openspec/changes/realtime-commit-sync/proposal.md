@@ -20,7 +20,7 @@
 ## Impact
 
 - 代码：`backend/app/api/sync.py`（新增）、`backend/app/main.py`（注册路由 + 可选启动同步）、`backend/tests/test_sync_api.py`（新增 7 条）。
-- 文档：`docs/backend/api-spec.md` 需补 `/api/sync` 一节（归后端线吕建江，本 change 合入后落实）；`docs/common/local-runbook.md` §4 补「SYNC_ON_STARTUP」与同步用法一行。
+- 文档：`docs/api/README.md` 需补 `/api/sync` 一节（归后端线吕建江，本 change 合入后落实）；`docs/common/local-runbook.md` §4 补「SYNC_ON_STARTUP」与同步用法一行。
 - 依赖：无新第三方依赖（git 经 subprocess 调用）。
 
 ## 不做什么

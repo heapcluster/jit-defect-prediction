@@ -1,9 +1,9 @@
 # backend-mysql-schema-sql — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/db-schema/spec.md`
-> 负责人：backend 吕建江 ｜ 创建：2026-10-23 ｜ 状态：进行中（5/8；SQL与静态验证完成，PR #100已创建，MySQL未执行）
-> 用户故事：无（工程化）；SQL客户端四表初始化交付，infra/schema.sql由用户明确交给后端
-> 统一格式见 `docs/common/openspec-task-template.md`；本文件末的「测试与验证」为强制板块。
+> 负责人：backend 吕建江 ｜ 创建：2026-10-23
+> 关联需求：无（工程化）；SQL客户端四表初始化交付，infra/schema.sql由用户明确交给后端
+> 状态：进行中（5/8；SQL与静态验证完成，PR #100已创建，MySQL未执行）
 
 ## 1. SQL 与使用入口
 
@@ -78,7 +78,7 @@
 
 #### 2026-10-23 本轮离线执行证据
 
-- 执行时段：2026-10-23 23:20–23:23（+08:00）。工作目录：本机 `chore/backend/mysql-schema-sql` 分支的独立工作树；测试cwd为其`backend`子目录。（工作树与解释器的个人绝对路径按 `docs/repo/collaboration.md` §0 第 3 条不复述，下同。）
+- 执行时段：2026-10-23 23:20–23:23（+08:00）。工作目录：本机 `chore/backend/mysql-schema-sql` 分支的独立工作树；测试cwd为其`backend`子目录。（工作树与解释器的个人绝对路径按 `AGENTS.md` §0 第 3 条不复述，下同。）
 - 分支：`chore/backend/mysql-schema-sql`；基线/HEAD：`eea910eba80e74608c2da34e88c390879c4e0b14`，未创建提交、push或PR。
 - 所有Python命令使用 conda 环境 `jit-defect-prediction` 的解释器（`conda activate jit-defect-prediction` 后的 `python`）；实测版本Python 3.12.15、SQLAlchemy 2.0.54、pytest 9.1.1。
 - SQL生成：cwd=backend，使用同一解释器通过runpy加载测试纯函数`_mysql_statements(Base.metadata)`，逐表调用MySQL dialect的`CreateTable(if_not_exists=True)`与`CreateIndex`编译，移除独立索引外壳后内联；输出存为`infra/schema.sql`，仅调整排版。无运行时导出模块、无新增依赖。

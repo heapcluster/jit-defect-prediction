@@ -19,7 +19,7 @@
 
 ## Impact
 
-基于 `single-commit-feature-extraction` 模型线 PR，修改后端配置、预测与详情接口、测试及 `docs/backend/api-spec.md`。数据库结构、请求体字段、14 项数值口径不变；本地仓库路径只能在服务端设置。
+基于 `single-commit-feature-extraction` 模型线 PR，修改后端配置、预测与详情接口、测试及 `docs/api/README.md`。数据库结构、请求体字段、14 项数值口径不变；本地仓库路径只能在服务端设置。
 
 ## 不做什么
 

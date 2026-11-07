@@ -8,8 +8,7 @@
 依赖版本以 data_model/environment.yml 为准；换 sklearn 大版本可能改变结果，不要静默升级。
 
 性能优先选型（2026-10-14）：lgbm / et / svm / tabnet 四种在
-docs/model/model-line-plan.md §2.3 登记。此前四线分包迁移时这一节被
-遗漏，本文件仅保留旧 8 模型 —— 现已完整迁回，见下方 build_model。
+当前交付范围见 docs/overview.md；具体性能选型由本文件 build_model 实现。
 """
 
 from __future__ import annotations
@@ -79,7 +78,7 @@ class TabNetWithEarlyStop(BaseEstimator, ClassifierMixin):
     内部切分带随机性（种子固定），且 torch 多线程的浮点求和顺序不保证一致 ——
     故本模型**不属于「同一命令连跑两次逐字节一致」那一类**，与 ``mlp_deep``
     同口径；复现核对比对以固定迭代的模型（lr / rf / xgb / lgbm / et / svm）为准。
-    登记见 docs/model/model-line-plan.md §2.3。
+    训练与在线交付范围见 docs/overview.md。
     """
 
     def __init__(
@@ -140,7 +139,7 @@ def build_model(name: str, seed: int):
     if name == "rf":
         # D-14：原 min_samples_leaf=2、不限深度，长成 300 棵 / 366 万节点 / 279MB，
         # SHAP 单次 782ms 把 p95 顶到 713.8ms。收敛到叶数上限后节点数降一个量级，
-        # 换取 SHAP 可算（验收：p95<500ms 且 AUC 降 ≤0.01，见 docs/repo/defect-records.md D-14）。
+        # 换取 SHAP 可算（验收：p95<500ms 且 AUC 降 ≤0.01，见 docs/common/defect-records.md D-14）。
         return RandomForestClassifier(
             n_estimators=300, min_samples_leaf=100, max_depth=15, random_state=seed, n_jobs=-1
         )
@@ -184,7 +183,7 @@ def build_model(name: str, seed: int):
         # `probability=True` 会触发 libsvm **内部 5 折 Platt 校准** —— 输出的概率是
         # **校准后的概率**、并非 SVC 原生输出（原生是 `decision_function`）。保留它是为了
         # 与其余模型共用同一套 `predict_proba` 口径；单独改用它模型间就不可比了。
-        # 该口径已登记于 docs/model/model-line-plan.md §2.3。
+        # 该概率口径由本实现与回归测试约束。
         return Pipeline(
             [
                 ("scaler", StandardScaler()),

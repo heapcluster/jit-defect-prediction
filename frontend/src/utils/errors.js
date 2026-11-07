@@ -1,4 +1,4 @@
-// 统一错误文案：**只定义一处**（docs/frontend/pages.md 第 5 节三态口径）。
+// 统一错误文案：**只定义一处**（页面三态入口见 docs/web_page/README.md）。
 //
 // 2026-10-25 修复要点：
 // - 此前 RiskList / TrendBoard / CommitDetail 各写一份 errText（措辞还不一致），

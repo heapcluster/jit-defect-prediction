@@ -8,7 +8,7 @@
   4. 在两份库上执行 infra/schema.sql 建五张表。
 
 建表后库内为空是**预期状态**：测试集数据由模型线 `data_model/evaluation/out/data_init.sql`
-导入（见 docs/model_performance.md §数据准备）；其余增量由后端 `POST /api/sync` 异步补算，
+导入（见 docs/function_point/model_performance.md §数据准备）；其余增量由后端 `POST /api/sync` 异步补算，
 本脚本不提供任何种子/离线导入捷径。
 
 设计前提（与「全部按 MySQL」一致）：你已经在本机装好 MySQL，并在 backend/.env
@@ -132,7 +132,7 @@ def resolve_credentials(args: argparse.Namespace, env: dict[str, str] | None = N
         "        DB_USER=jit\n"
         "        DB_PASSWORD=<你的口令>\n"
         "        DB_NAME=jit_demo\n"
-        "        模板见 backend/.env.example，引导见 docs/backend/mysql-setup.md。"
+        "        模板见 backend/.env.example，引导见 docs/common/local-runbook.md。"
     )
 
 

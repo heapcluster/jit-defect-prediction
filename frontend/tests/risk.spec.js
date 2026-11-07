@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { riskColor, riskTag, riskLabel } from '../src/utils/risk'
 
 // 闭环 D-10：高风险阈值固定 0.5、中等 0.2（与后端 config 的 HIGH/MID_RISK_THRESHOLD 默认值一致）
-describe('风险阈值（D-10 口径，docs/frontend/pages.md 第 5 节）', () => {
+describe('风险阈值（D-10 口径，docs/web_page/README.md）', () => {
   it('risk_score >= 0.5 → 高风险（红 / danger）', () => {
     expect(riskLabel(0.5)).toBe('高风险')
     expect(riskColor(0.5)).toBe('#d9484a')

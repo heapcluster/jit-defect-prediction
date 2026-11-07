@@ -40,7 +40,7 @@ change `on-demand-commit-prediction`（进行中，2 项未勾，负责人同为
 
 ### D6 活规格不由本 PR 直接改
 
-首版曾直接编辑 `openspec/specs/query-api/spec.md`，属绕过 change 流程；已回退到 main 版本，改动全部由本 change 的 delta 承载，归档时再落活规格。契约三 `docs/backend/api-spec.md` 属“现行契约文档”而非 openspec 活规格，按 #179 的先例在本 PR 内同步。
+首版曾直接编辑 `openspec/specs/query-api/spec.md`，属绕过 change 流程；已回退到 main 版本，改动全部由本 change 的 delta 承载，归档时再落活规格。契约三 `docs/api/README.md` 属“现行契约文档”而非 openspec 活规格，按 #179 的先例在本 PR 内同步。
 
 ## Risks / Trade-offs
 

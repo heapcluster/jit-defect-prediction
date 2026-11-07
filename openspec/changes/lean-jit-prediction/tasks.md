@@ -1,9 +1,9 @@
 # lean-jit-prediction — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：无独立 design.md ｜ 规格：`specs/predict-api/spec.md`
-> 负责人：跨线（吕建江、刘帅华） ｜ 创建：2026-10-27 ｜ 状态：进行中（以任务勾选和证据为准）
-> 用户故事：未登记编号（见 proposal.md，待负责人补关联）
-> 统一格式见 `docs/common/openspec-task-template.md`；末尾「测试与验证」为强制板块。
+> 负责人：跨线（吕建江、刘帅华） ｜ 创建：2026-10-27
+> 关联需求：未登记编号（见 proposal.md，待负责人补关联）
+> 状态：进行中（以任务勾选和证据为准）
 
 > 原则：**库内数据只由实时同步决定；不做种子、不做离线导入、不做历史回填。**
 
@@ -24,7 +24,7 @@
 ## 3. 「只保留最新」的边界
 
 - [x] 3.1 **删除种子链路**（2026-10-27 已执行）：`backend/scripts/seed_dev_data.py` 删除；`infra/setup_mysql.py` 去掉 `--seed` 参数与 `run_seed()`，完成提示改为「起服务后 `POST /api/sync?limit=10`」 — 证据：`ruff check infra` 通过、`setup_mysql.py` 语法校验通过
-- [x] 3.2 文档同步去种子：`docs/backend/acceptance.md` §2、`docs/frontend/integration-log.md` §0（建库/数据来源/启动三行）、`docs/owners/s1mple-less.md`（负责范围与联调库）、`data_model/pipelines/expert/README.md` §4 — 证据：全仓 `grep seed_dev_data` 仅剩 `backend/scripts/evidence/**` 与 `openspec/changes/archive/**` 等历史归档
+- [x] 3.2 文档同步去种子：`docs/common/test-assessment-guide.md` §2、`docs/common/integration-log.md` §0（建库/数据来源/启动三行）、`AGENTS.md`（负责范围与联调库）、`data_model/pipelines/expert/README.md` §4 — 证据：全仓 `grep seed_dev_data` 仅剩 `backend/scripts/evidence/**` 与 `openspec/changes/archive/**` 等历史归档
 - [ ] 3.3 `limit` 越界（> 50）返回 40001，不静默截断；`sync/catchup` 与 `sync` 的 `limit` 语义统一为「最新 N 条」 — `backend/app/api/sync.py`
 - [ ] 3.4 空库首启引导：前端空态只说「拉取最新 N 条」（含 `limit` 说明与预计耗时），`MUST NOT` 出现「导入/初始化/回填/种子」字样 — `frontend/src/views/RiskList.vue`
 - [ ] 3.5 数据稀疏的空态：趋势页数据点 < 2、质量看板 0 样本时的文案复核，避免被误读成「功能坏了」 — `frontend/src/views/{TrendBoard,QualityBoard}.vue`

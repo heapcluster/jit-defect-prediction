@@ -23,7 +23,7 @@
   - 实时（webhook / PR 事件）→ 只处理最新 `WEBHOOK_SYNC_LIMIT` 条与该 PR 内提交；
   - 显式拉取（`POST /api/sync?limit=N`）→ 只处理最新 N 条，N ≤ 50；
   - 启动（`SYNC_ON_STARTUP=1`）→ 只补 `SYNC_INITIAL_LIMIT` 条（默认 10），`MUST NOT` 追平历史。
-- **删除现存种子链路**（已随本 change 执行）：删除 `backend/scripts/seed_dev_data.py`，`infra/setup_mysql.py` 移除 `--seed` 与 `run_seed()`，同步更新 `docs/backend/acceptance.md`、`docs/frontend/integration-log.md` §0、`docs/owners/s1mple-less.md`、`data_model/pipelines/expert/README.md` 里「造 3 行种子」的说法。
+- **删除现存种子链路**（已随本 change 执行）：删除 `backend/scripts/seed_dev_data.py`，`infra/setup_mysql.py` 移除 `--seed` 与 `run_seed()`，同步更新 `docs/common/test-assessment-guide.md`、`docs/common/integration-log.md` §0、`AGENTS.md`、`data_model/pipelines/expert/README.md` 里「造 3 行种子」的说法。
 - **阈值按预算（phase 2）**：质量看板增加「按评审预算」视图（Recall@20% / @50% 随阈值变化）。
 
 ## Capabilities

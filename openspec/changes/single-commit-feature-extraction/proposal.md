@@ -18,7 +18,7 @@
 
 ## Impact
 
-仅改模型线抽取入口和测试，不修改冻结的 `docs/model/feature-columns.md` 数值口径、14 项顺序、数据库结构或现有批量输出。后端接入应作为下一独立 change，按 `docs/backend/api-spec.md` 更新缺特征行时的行为并做性能测试。
+仅改模型线抽取入口和测试，不修改冻结的 `docs/database/commit_feature.md` 数值口径、14 项顺序、数据库结构或现有批量输出。后端接入应作为下一独立 change，按 `docs/api/README.md` 更新缺特征行时的行为并做性能测试。
 
 ## 不做什么
 

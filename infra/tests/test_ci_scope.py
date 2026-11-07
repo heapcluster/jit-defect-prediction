@@ -13,13 +13,13 @@ from ci_scope import select_checks  # noqa: E402
 
 class CIScopeTests(unittest.TestCase):
     def test_docs_are_lightweight(self):
-        for paths in (["docs/api/commits.md"], ["docs/web_page/eval.md"]):
+        for paths in (["docs/api/commits.md"], ["docs/web_page/model_performance.md"]):
             with self.subTest(paths=paths):
                 self.assertFalse(any(select_checks(paths).values()))
 
     def test_ignore_rule_change_checks_infra(self):
         self.assertEqual(
-            select_checks(["docs/web_page/eval.md", ".gitignore"]),
+            select_checks(["docs/web_page/model_performance.md", ".gitignore"]),
             {"backend": False, "frontend": False, "model": False, "infra": True},
         )
 

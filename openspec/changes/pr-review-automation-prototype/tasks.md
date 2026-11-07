@@ -1,9 +1,11 @@
 # pr-review-automation-prototype — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/pr-review-automation/spec.md`
-> 负责人：repo 苏哲勋｜ 创建：2026-10-23 ｜ 状态：进行中
-> 用户故事：无（工程化）
-> 统一格式见 `docs/common/openspec-task-template.md`；本文件末的「测试与验证」为强制板块，缺失视为提案不完整。
+> 负责人：repo 苏哲勋｜ 创建：2026-10-23
+> 关联需求：无（工程化）
+> 状态：历史原型（工作流、脚本和测试均已从当前仓库删除；不可按已勾项认定当前具备自动审阅能力）
+
+> 文件核对：下文涉及 `.github/workflows/pr-auto-review-prototype.yml`、`infra/pr_auto_review.py`、`infra/pr_review_config.json` 及对应测试的路径均是历史交付物，不是现行可执行命令或可点击的仓库证据；如恢复该能力，须另开 change 并重新实施和验证。
 
 ## 1. 原型实现（工程化）
 

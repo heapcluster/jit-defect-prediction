@@ -23,6 +23,6 @@
 ## Impact
 
 - 文件：`infra/schema.sql`、`backend/README.md`、`backend/tests/test_schema_sql.py`；`infra/schema.sql` 已获用户本次明确跨目录授权。
-- 规格：`openspec/changes/backend-mysql-schema-sql/specs/db-schema/spec.md`，归档后并入现行 `db-schema`；不改冻结契约或 `docs/design/sprint0-scope.md` 的功能范围。
+- 规格：`openspec/changes/backend-mysql-schema-sql/specs/db-schema/spec.md`，归档后并入现行 `db-schema`；不改冻结契约或 `docs/overview.md` 的功能范围。
 - 不新增依赖。SQL 文件与生成验证均使用现有 SQLAlchemy MySQL dialect，不把 MySQL DDL 交给 SQLite 假验收。
 - 部署：仅在预先创建的目标数据库中创建缺失表；`IF NOT EXISTS` 不会修正已有错误表结构，该情况仍由 `app.db._assert_indexes` 报错并要求正式迁移。

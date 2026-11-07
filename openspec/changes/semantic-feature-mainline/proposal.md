@@ -1,7 +1,7 @@
 # 语义特征提升为模型线主线（Kamei 14 降为基线对照）
 
 > Sprint 2 启动 ｜ 起草 2026-10-13 ｜ 起草人 蒋励（模型线负责人）
-> 关联契约：`docs/model/feature-columns.md`（契约二）、`docs/backend/api-spec.md`（契约三）、`docs/design/data-fields.md`（契约一）
+> 关联契约：`docs/database/commit_feature.md`（契约二）、`docs/api/README.md`（契约三）、`docs/database/README.md`（契约一）
 > 关联变更：本 change **顶替** `feature-addons-sprint3` 中的 G1-4（预训练语义特征建模），该条从「可选附加 · Sprint 3 · 立项不实现」移出。
 
 ## Why
@@ -47,8 +47,8 @@
 
 | 项 | 内容 |
 |---|---|
-| 影响目录 | `data_model/`（新增 10 语义文本构造、11/12 语义特征提取、13 融合样本、14 三类对比、15 消融、16 显著性脚本）、`docs/model/`（口径与报告）、`docs/design/addons.md`（G1-4 定位改写） |
-| 触及 `docs/design/sprint0-scope.md` 边界？ | **是**。原文把「代码语义特征」列为可选；本 change 将其**提升为主线**，属范围变更，须同步改该文件的边界表述 |
+| 影响目录 | `data_model/`（语义文本、特征、融合样本、对比/消融/显著性脚本）、`docs/common/` 与 `docs/database/`（口径与报告入口）、`docs/common/project-requirements.md`（G1-4 定位改写）；原 `docs/model/` 已删除 |
+| 触及 `docs/overview.md` 边界？ | **是**。原文把「代码语义特征」列为可选；本 change 将其**提升为主线**，属范围变更，须同步改该文件的边界表述 |
 | **不做什么** | ① **不推翻 Kamei 14** —— 保留为基线对照组，契约二 14 项列名与顺序不动；② **不动** 8 模型训练框架、时间序切分规则；③ **不静默切换交付模型** —— 切换须另开「模型切换」提案（spec `model-coverage` R6）；④ **不新增接口、不改库表**；⑤ 公开数据集（G1-3）不在本 change 范围，归 `public-dataset-quality`；⑥ **不做端到端深度模型**（DeepJIT/CC2Vec 式）—— 本 change 是「预训练提特征 → 经典分类器」混合形态，Sprint 3 有余量才补形态对照 |
 | 数据边界 | 语义向量落盘为独立文件（`.csv`），以新 `feature_version` v2 标识；**不入库**、不进交付链 |
 | 新增依赖 | `torch` + `transformers`（CodeBERT/GraphCodeBERT），环境 `jit-defect-prediction`；不影响 `jit-defect` |

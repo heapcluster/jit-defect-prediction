@@ -7,7 +7,7 @@
 
 ### Requirement: 识别修缺陷提交
 
-系统 MUST 按可复核的判据识别修缺陷提交，且判据 MUST 作为文字写进 `docs/model/data-pipeline.md`，MUST NOT 只存在于实现代码里。
+系统 MUST 按可复核的判据识别修缺陷提交，且判据 MUST 记录在 `docs/common/data-pipeline.md`，MUST NOT 只存在于实现代码里。
 
 #### Scenario: 修复提交被识别
 
@@ -17,12 +17,12 @@
 #### Scenario: 修复语义的匹配口径
 
 - **WHEN** 判定一条提交的 message 是否含修复语义
-- **THEN** 用**词首边界**匹配（`\b(fix|bug|patch)`，大小写不敏感）；**不用**无边界子串匹配 —— 后者会把 `dispatch`（内含 `patch`）、`debug`（内含 `bug`）、`prefix`（内含 `fix`）这类功能词误判为修复语义；也**不收窄成严格词表** —— 会漏掉 `fixe` / `fixinng` / `patchh` 这类拼写错误的真修复（假阳性条数须在 Apache Camel 完整固定版本上重测后回填，登记于 `docs/model/data-pipeline.md` 第 7 节）
+- **THEN** 用**词首边界**匹配（`\b(fix|bug|patch)`，大小写不敏感）；不使用无边界子串匹配。假阳性数量须在固定 Camel 版本上实测后记录，不引用已删除的旧报告。
 
 #### Scenario: 判据可复算
 
-- **WHEN** 他人拿到同一固定版本、照 `docs/model/data-pipeline.md` 第 7 节登记的判据文字复算
-- **THEN** 三个命中外沿与登记值逐项一致（Camel 编号 38,716 ／ 编号且修复语义 7,787 ／ 编号且 `fix` 词形 6,631），且实现自带的自检与登记值比对，不相等即报错 —— 判据文字与实现必须同源
+- **WHEN** 他人按 `docs/common/data-pipeline.md` 固定的版本与当前脚本判据复算
+- **THEN** 命中统计与本次生成的报告逐项一致；报告缺失时如实记为未验证，MUST NOT 借用历史数字
 
 #### Scenario: 判据全部落空
 
@@ -31,12 +31,12 @@
 
 ### Requirement: 回溯引入缺陷的提交
 
-系统 MUST 把修缺陷提交回溯到引入缺陷的那次提交，并在标签中记录该次修复提交的哈希。
+系统 MUST 把修缺陷提交回溯到引入缺陷的那次提交；离线中间结果可保留修复提交哈希以便审计，现行数据库只将 SZZ 真标签写入 `commit_feature.is_bug_inducing`。
 
 #### Scenario: 回溯命中
 
 - **WHEN** 被修复的代码行可定位到一次引入它的提交
-- **THEN** 标签记在该引入提交上，`is_bug_inducing = 1`，`bug_fix_hash` 为该修复提交的哈希
+- **THEN** 引入提交标为 `is_bug_inducing = 1`；修复哈希只在离线审计产物中保留，不写入现行五表
 
 #### Scenario: 回溯无法命中（边界）
 
@@ -45,7 +45,7 @@
 
 ### Requirement: 标签字段与方法标记
 
-标签 MUST 满足 `docs/design/data-fields.md` 表二 `commit_label` 的字段定义；MUST 记录 `label_method`，取值只在契约定义的方法集合内。
+离线打标产物 SHALL 标明 `szz` / `szz_lite` 方法以便对照；进入现行数据库的主标签 MUST 取 `szz` 并写入 `docs/database/commit_feature.md` 定义的 `is_bug_inducing`，未打标保持 `NULL`。数据库已无 `commit_label` 表、`label_method` 和 `bug_fix_hash` 列。
 
 #### Scenario: 两套方法并存
 
@@ -59,7 +59,7 @@
 
 ### Requirement: 正样本比例异常时先自查
 
-打标结果 MUST 报出正样本比例。**判据 MUST 与实现同源** —— 唯一来源是 `02_szz_labeling.py` 的 `ABNORMAL_LOW` / `ABNORMAL_HIGH`（当前为 0.40 / 0.60），`docs/model/data-pipeline.md` 第 6 节 MUST 引用同一组数值。
+打标结果 MUST 报出正样本比例。**判据 MUST 与实现同源** —— 当前 `02_szz_labeling.py` 的 `ABNORMAL_LOW` / `ABNORMAL_HIGH` 为 0.40 / 0.60，说明见 `docs/common/data-pipeline.md` 第 3 节。
 
 #### Scenario: 比例落在异常区间
 
@@ -74,7 +74,7 @@
 #### Scenario: 用经验描述充当判据
 
 - **WHEN** 有人以「JIT 数据集的正样本比例是个位数到十几百分点」这类**经验描述**作为判据
-- **THEN** 该说法 MUST NOT 被采纳 —— 旧 ActiveMQ 实验 `szz` 38.98%、`szz_lite` 27.74%，既不在「个位数到十几」之内、也够不上「接近 50%」，两套话术都判不了它。经验描述无法复算，判据只能是**在固定版本上实测并登记的一对比例**（登记处：`data_model/preparation/reports/szz_labeling_stats.md` 与 `docs/model/data-pipeline.md` §6），既不由「个位数到十几」的经验区间判定、也不由「接近 50%」的经验话术判定。**主对象 Apache Camel 实测：`szz` 22.23% / `szz_lite` 14.38%**（来源上游提交 `866b7dc` 的全量报告，非本机重跑）
+- **THEN** 该说法 MUST NOT 被采纳；判据使用当前脚本中的数值，实际比例使用固定版本本次生成的报告，未重跑时不得引用旧 ActiveMQ 或旧 Camel 报告作为当前验收证据
 
 ### Requirement: 打标结果可复现
 
