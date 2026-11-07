@@ -10,6 +10,7 @@
 | 四项业务功能的流程与跨层职责 | [`function_point/`](function_point/) |
 | 页面交互与展示 | [`web_page/`](web_page/) |
 | 测试考核要求及证据规则 | [`common/test-assessment-guide.md`](common/test-assessment-guide.md) |
+| 四类测试交付责任与记录格式 | [`common/test-delivery-records.md`](common/test-delivery-records.md) |
 | 固定数据源、SZZ 自检和特征链路 | [`common/data-pipeline.md`](common/data-pipeline.md) |
 | 本机运行、联调证据、缺陷记录入口 | [`common/local-runbook.md`](common/local-runbook.md)、[`common/integration-log.md`](common/integration-log.md)、[`common/defect-records.md`](common/defect-records.md) |
 | 可选模型扩展的研究依据状态 | [`common/research-notes.md`](common/research-notes.md) |
