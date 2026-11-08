@@ -210,7 +210,7 @@ def write_feature_order(model_dir: Path, wanted: list[str]) -> Path:
         return MODEL_NAMES.get(base, base)
 
     text = (
-        "# 模型交付清单（expert 线包内副本；唯一权威是 docs/model/feature-columns.md）\n\n"
+        "# 模型交付清单（expert 线包内副本；唯一权威是 docs/database/commit_feature.md）\n\n"
         "[models]\n" + "".join(f"{m}_v1.pkl\t{MODEL_NAMES.get(m, m)}\n" for m in wanted)
     )
     if evaluated:

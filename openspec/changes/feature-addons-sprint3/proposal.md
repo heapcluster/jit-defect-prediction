@@ -1,8 +1,6 @@
-# 附加功能立项（缺陷可视化定位 + 高质量修复建议 + 公开数据集）
+# 附加功能立项（缺陷可视化定位 + 高质量修复建议）
 
-> Sprint 3 候选 ｜ 起草 2026-10-09 ｜ 起草人 蒋励 ｜ 关联契约：docs/{backend/api-spec.md, design/data-fields.md, model/feature-columns.md}（契约三，冻结日期见各文件头）
->
-> ⚠️ 契约基线判定沿用首 change：以各契约文件头的「版本 + 冻结日期」为准，不引用 PR 编号或合并时机。
+> 起草 2026-10-09 ｜ 起草人 蒋励 ｜ 当前技术入口：`docs/README.md`。G1-3/G1-4 已交由独立 change；旧契约三及冻结日期只属历史记录。
 
 ## Why
 课程《项目要求》鼓励在 MVP 之外做附加功能。0925 周报已写「排 Sprint 3」，但看板与 openspec
@@ -17,19 +15,17 @@
 1. 新增看板 Sprint 3 行（或本 change 的 tasks 即对应条目），使 J7 验收「列点得开」。
 2. 缺陷可视化定位：前端详情页接入文件级 SHAP / 行级高亮。
 3. 高质量修复建议：检索历史修复提交，输出 Top-K 参考。
-4. 公开数据集：加载器对齐现有 schema + 质量问题治理与质量报告。
-5. ~~语义特征：预训练模型提取语义特征 + 专家 / 语义 / 融合三类对比实验。~~ **已移出**，见 change `semantic-feature-mainline`。
+4. 公开数据集与语义特征已移出，分别由 `public-dataset-quality`、`semantic-feature-mainline` 独立提出、测试及归档；本 change 不重复规定。
 
 ## Capabilities
 - `defect-visualization`：提交详情页的文件 / 行级缺陷定位可视化。
 - `fix-suggestion`：基于历史修复的高风险提交修复建议。
-- `public-dataset`：公开 JIT 数据集加载、质量治理与基线对照。
-- ~~`semantic-feature`~~：**已移出**至 change `semantic-feature-mainline`（capability 改名 `semantic-features`，规格更完整）。
+> `public-dataset` 与 `semantic-features` 不由本 change 修改，见各自独立 change。
 
 ## Impact（影响与边界）
 | 项 | 内容 |
 |---|---|
-| 影响目录 | frontend/（详情页）、data_model/（可选检索脚本、数据集加载器、语义特征提取） |
-| 不做什么 | 不改交付模型与契约字段名 / 列名 / 接口路径；公开数据集与语义特征均为**并列增强**，不替换 Kamei 14 基线与交付模型；Sprint 3 才实做，本期只立项 |
+| 影响目录 | `frontend/`（详情页）、`data_model/`（可选修复检索脚本）；公开数据集和语义特征由独立 change 负责 |
+| 不做什么 | 不改交付模型与 `docs/api/` 的接口路径及字段；不在本 change 实施 G1-3/G1-4 |
 | 数据边界 | 检索中间产物不入库；只入库必要的小体积说明 |
-| 新增依赖 | 预训练代码模型（CodeBERT / GraphCodeBERT 等）与公开 JIT 数据集，均不进入 MVP 交付链 |
+| 新增依赖 | 本 change 尚未确定；如引入外部模型或数据，须在实现 PR 单独说明并验收 |

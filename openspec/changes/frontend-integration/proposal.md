@@ -1,7 +1,7 @@
 # 前端三页面实现与联调
 
 > Sprint 1 ｜ 对应飞书《工作周报》任务 F2/F3/F4（建 change 提案 + 三页面实现 + 前后端联调）
-> 起稿 2026-10-09 ｜ 起稿人 刘帅华 ｜ 关联契约：`docs/frontend/pages.md`、`docs/backend/api-spec.md`
+> 起稿 2026-10-09 ｜ 起稿人 刘帅华 ｜ 关联契约：`docs/web_page/README.md`、`docs/api/README.md`
 
 ## Why
 
@@ -12,7 +12,7 @@
 - **风险列表页**：按 `risk_score` 降序、筛选（`model_name` / `min_risk` / 时间范围）、分页、点击行跳详情
 - **提交详情页**：风险值 + 风险等级标签 + 14 项特征（五维分组）+ `explanation` 解释条
 - **趋势看板页**：粒度切换、折线图（ECharts）、汇总卡片、明细表
-- **三态处理**：加载中 / 空数据 / 请求失败，按 `docs/frontend/pages.md` 第 5 节错误码区分
+- **三态处理**：加载中 / 空数据 / 请求失败，按 `docs/web_page/README.md` 第 5 节错误码区分
 - **接口对接**：API-01 `GET /api/commits`、API-02 `GET /api/commits/{hash}`、API-03 `GET /api/trends`
 
 **不做什么（显式列出）**
@@ -20,7 +20,7 @@
 - **不做** 第四个页面（模型管理、用户设置等）——课程未要求
 - **不直连数据库、不自己算指标**——风险概率与聚合结果一律来自接口
 - **不改** 契约字段名——字段不够用先提契约变更
-- **不另立** 风险阈值——`risk_score ≥ 0.5` 只按 `docs/frontend/pages.md` 第 5 节一处定义
+- **不另立** 风险阈值——`risk_score ≥ 0.5` 只按 `docs/web_page/README.md` 第 5 节一处定义
 
 ## Capabilities
 
@@ -39,6 +39,6 @@
 | 项 | 内容 |
 |---|---|
 | 影响目录 | `frontend/src/`（views / api / components / router） |
-| 消费契约 | `docs/frontend/pages.md`（字段映射）、`docs/backend/api-spec.md`（接口格式）——只读不改 |
+| 消费契约 | `docs/web_page/README.md`（字段映射）、`docs/api/README.md`（接口格式）——只读不改 |
 | 新增依赖 | `globals`（devDependency，eslint 浏览器环境用）；运行时无新增 |
 | 下游依赖 | 后端 #52（API-01/02/03 落地，已合）；#62（时间范围闭区间语义，前端送纯日期依赖其先合入） |

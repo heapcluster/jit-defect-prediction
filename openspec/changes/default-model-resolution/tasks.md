@@ -1,9 +1,11 @@
 # default-model-resolution — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/predict-api/spec.md`、`specs/query-api/spec.md`
-> 负责人：backend 吕建江｜ 创建：2026-10-28 ｜ 状态：进行中（本地全量回归通过，CI 与评审待完成）
-> 用户故事：无（工程化：默认模型口径收口 + 同步判据修正）
-> 统一格式见 `docs/common/openspec-task-template.md`；**本文件末的「测试与验证」为强制板块，缺失视为提案不完整。**
+> 负责人：backend 吕建江｜ 创建：2026-10-28
+> 关联需求：无（工程化：默认模型口径收口 + 同步判据修正）
+> 状态：待重写/撤销（现行五表已删除 `runtime_setting`；以下勾选仅表示当时分支完成，不代表可按现行规格归档）
+
+> 历史证据提示：`infra/check_spec_references.py` 已删除；2.5 的通过结果仅属于当时提交。当前须重新执行 `openspec validate default-model-resolution --strict`、`openspec validate --specs --strict`，并人工核对与 `on-demand-commit-prediction` 的语义冲突。
 
 ## 1. 后端实现（backend）
 
@@ -17,7 +19,7 @@
 - [x] 2.1 `specs/predict-api/spec.md`：ADDED「有效默认模型解析」「同步候选按有效默认模型判断缺行」 — 不用 MODIFIED「在线预测入口」，原因见 design D5（与进行中的 `on-demand-commit-prediction` 撞同名 Requirement 会被 `deltas` 门禁判红）
 - [x] 2.2 `specs/query-api/spec.md`：MODIFIED「风险列表查询」「趋势聚合查询」，文本由 `main` 活规格整块复制后定点替换（脚本生成，避免手抄丢字）；顺带订正趋势阈值句（活规格仍写“固定常量 0.5”，实现自 #172 起读运行时配置）
 - [x] 2.3 回退首版对活规格 `openspec/specs/query-api/spec.md` 的直接编辑 — 交付物：`git diff main -- openspec/specs/query-api/spec.md` 为空（见 design D6）
-- [x] 2.4 契约三 `docs/backend/api-spec.md`：§5 行为句改为「有效默认模型尚无 `prediction` 行」；§17 补降级规则（候选限已加载、空库读写一致、注册表空 → 50000）；变更日志记 2.3；头部版本号补到 v2.3
+- [x] 2.4 契约三 `docs/api/README.md`：§5 行为句改为「有效默认模型尚无 `prediction` 行」；§17 补降级规则（候选限已加载、空库读写一致、注册表空 → 50000）；变更日志记 2.3；头部版本号补到 v2.3
 - [x] 2.5 门禁自检：`infra/check_spec_references.py deltas` 与 `links` 均 passed；`openspec validate default-model-resolution --strict` valid；`openspec validate --specs --strict` 12 passed
 
 ## 3. 测试（backend）
@@ -34,7 +36,7 @@
 
 ## 测试与验证（强制板块）
 
-> 分层口径见 `docs/common/test-strategy.md`：**单元测试**由写代码的人自己做、
+> 分层口径见 `docs/common/test-assessment-guide.md`：**单元测试**由写代码的人自己做、
 > **集成测试**在大版本合并后做、**验收测试**在交付时做，非功能验证并行。
 > 铁律：**勾了 tasks ≠ 功能合格，必须有可复现的运行证据。**
 

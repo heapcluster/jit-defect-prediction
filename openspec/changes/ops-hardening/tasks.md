@@ -1,10 +1,9 @@
 # ops-hardening — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：无独立 design.md ｜ 规格：`specs/ops/spec.md`
-> 负责人：backend 吕建江 ｜ 创建：2026-10-27 ｜ 状态：进行中（以任务勾选和证据为准）
-> 用户故事：无（工程化）
-> 统一格式见 `docs/common/openspec-task-template.md`；末尾「测试与验证」为强制板块。
-
+> 负责人：backend 吕建江 ｜ 创建：2026-10-27
+> 关联需求：无（工程化）
+> 状态：进行中（以任务勾选和证据为准）
 
 ## 1. 运行时配置
 
@@ -32,7 +31,7 @@
 - [x] 5.2 `test_mirror.py` 路径集与字段集同步（5 条新路径）— `backend/tests/test_mirror.py`
 - [x] 5.3 新增 `tests/test_ops_api.py`（配置热更新 / 探针 / 门禁 / 鉴权）— `backend/tests/test_ops_api.py`
 - [x] 5.4 新增 `tests/test_webhook_api.py`（未配置 / 错签 / 缺签 / ping / push / PR / 无关动作）— `backend/tests/test_webhook_api.py`
-- [x] 5.5 `docs/backend/api-spec.md` 登记 §17~§20 与 §四安全行 — `docs/backend/api-spec.md`
+- [x] 5.5 `docs/api/README.md` 登记 §17~§20 与 §四安全行 — `docs/api/README.md`
 
 ## 测试与验证（强制板块）
 

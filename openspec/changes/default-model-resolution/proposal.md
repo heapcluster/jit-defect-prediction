@@ -9,7 +9,7 @@ PR #186 把查询侧的历史模型降级规则接入预测侧后，CI 暴露 40
 - 注册表为空时缺省预测返回 50000 与固定文案；显式传入未加载模型仍为 40001。显式查询历史模型的已有分数不受本提案限制。
 - 同步候选按**当前已加载模型集合**判断覆盖缺口：缺任一在线模型的行即算待预测（不能因为默认模型或任意模型已有行就跳过）；注册表为空时退回有效默认模型单模型判据。
 - 不修改数据库结构、前端、模型权重、特征算法、阈值校准和人工标签；不宣称已经补齐全部八模型历史缺口。PR 可达性与 SQLite 迁移仍分别由 #185/#184 承载。
-- 不扩大 `docs/design/sprint0-scope.md` 的产品范围，保持建议性风险预警定位。
+- 不扩大 `docs/overview.md` 的产品范围，保持建议性风险预警定位。
 
 ## Capabilities
 
@@ -25,6 +25,6 @@ PR #186 把查询侧的历史模型降级规则接入预测侧后，CI 暴露 40
 ## Impact
 
 - 后端：`backend/app/services/champion.py`、`services/commits.py`、`services/predict.py`、`api/sync.py`。
-- 契约与测试：`docs/backend/api-spec.md`、上述 capability 的 delta，以及默认模型、同步、查询、质量与 PR API 相关测试。
+- 契约与测试：`docs/api/README.md`、上述 capability 的 delta，以及默认模型、同步、查询、质量与 PR API 相关测试。
 - 测试数据需要以实际注册的 fixture 模型作为正常默认样本；已卸载历史模型另设回归场景，不删除边界断言来迁就实现。
 - `on-demand-commit-prediction` 也声明了 `predict-api` 的“在线预测入口”，该重叠必须在应用/合入前对齐，不能绕过 MODIFIED 冲突门禁。

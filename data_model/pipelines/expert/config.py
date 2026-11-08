@@ -1,7 +1,7 @@
 """expert 线配置：路径、特征列、模型清单、超参数集中管理。
 
 改任何口径（特征列序 / 种子 / 阈值）只改这里；train.py 不写死数字。
-特征列序与取值口径以 `docs/model/feature-columns.md`（契约二 v1.2）为唯一权威，
+特征列序与取值口径以 `docs/database/commit_feature.md`（契约二 v1.2）为唯一权威，
 本文件只是其副本 —— 不一致时以契约为准。
 """
 

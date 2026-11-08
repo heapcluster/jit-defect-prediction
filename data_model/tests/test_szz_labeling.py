@@ -2,7 +2,7 @@
 
 对应 OpenSpec change: data-collection-and-szz-labeling（tasks.md「测试与验证」§1）
 口径来源：data_model/02_szz_labeling.py 模块 docstring 的「判据（D4）」「两套方法（D3）」，
-以及 docs/model/data-pipeline.md 第 7 节登记的外沿数字。
+以及 docs/common/data-pipeline.md 第 3 节登记的外沿数字。
 
 只测**纯函数**：不碰 git、不读仓库、不跑全链路。
 跑法：cd data_model && python -m pytest -q

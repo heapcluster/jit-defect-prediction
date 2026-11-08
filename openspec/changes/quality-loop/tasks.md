@@ -1,10 +1,9 @@
 # quality-loop — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：无独立 design.md ｜ 规格：`specs/quality/spec.md`
-> 负责人：backend 吕建江 ｜ 创建：2026-10-27 ｜ 状态：进行中（以任务勾选和证据为准）
-> 用户故事：未登记编号（见 proposal.md，待负责人补关联）
-> 统一格式见 `docs/common/openspec-task-template.md`；末尾「测试与验证」为强制板块。
-
+> 负责人：backend 吕建江 ｜ 创建：2026-10-27
+> 关联需求：未登记编号（见 proposal.md，待负责人补关联）
+> 状态：进行中（以任务勾选和证据为准）
 
 ## 1. 运行时配置底座
 
@@ -25,7 +24,7 @@
 - [x] 3.1 `infra/schema.sql` 重新生成（5 → 6 表）— `infra/schema.sql`
 - [x] 3.2 `test_schema_sql.py` 表集合断言加入 `runtime_setting` — `backend/tests/test_schema_sql.py`
 - [x] 3.3 `test_mirror.py` 路径集加入三条新端点，字段集逐字断言 — `backend/tests/test_mirror.py`
-- [x] 3.4 `docs/backend/api-spec.md` 登记三条新端点与阈值来源变更 — `docs/backend/api-spec.md`
+- [x] 3.4 `docs/api/README.md` 登记三条新端点与阈值来源变更 — `docs/api/README.md`
 
 ## 4. 测试
 

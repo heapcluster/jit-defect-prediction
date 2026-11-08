@@ -2,7 +2,7 @@
 
 对应 OpenSpec change: model-training-and-delivery（tasks.md「测试与验证」§1）
 口径来源：data_model/05_split_dataset.py 模块 docstring「一条断言」，
-以及 docs/model/data-pipeline.md 的「前 70% 训练、后 30% 检验，禁止随机切分」。
+以及 docs/common/data-pipeline.md 的「前 70% 训练、后 30% 检验，禁止随机切分」。
 
 为什么必须测：`exp` / `nuc` / `rexp` / `sexp` 这些历史类特征与时间相关，
 随机切分会把「未来」提交放进训练集，指标好看但没有意义。

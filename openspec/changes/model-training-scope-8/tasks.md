@@ -1,9 +1,9 @@
 # model-training-scope-8 — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：无独立 `design.md`（口径收敛与取舍已在 `proposal.md` §Why / §不在本次范围 写明） ｜ 规格：`specs/model-training-scope/spec.md`
-> 负责人：model 蒋励 ｜ 创建：2026-10-23 ｜ 状态：进行中
-> 用户故事：C1-1（特征工程）/ C2-1（模型训练）/ A2-3（两类评估指标）—— 训练口径收敛与 effort 预算感知对照
-> 统一格式见 `docs/common/openspec-task-template.md`；**本文件末的「测试与验证」为强制板块，缺失视为提案不完整。**
+> 负责人：model 蒋励 ｜ 创建：2026-10-23
+> 关联需求：C1-1（特征工程）/ C2-1（模型训练）/ A2-3（两类评估指标）—— 训练口径收敛与 effort 预算感知对照
+> 状态：进行中
 
 ## 1. 训练口径收敛
 
@@ -58,7 +58,7 @@
 
 ## 测试与验证（强制板块）
 
-> 分层口径见 `docs/common/test-strategy.md`：**单元测试**由写代码的人自己做、
+> 分层口径见 `docs/common/test-assessment-guide.md`：**单元测试**由写代码的人自己做、
 > **集成测试**在大版本合并后做、**验收测试**在交付时做，非功能验证并行。
 > 铁律：**勾了 tasks ≠ 功能合格，必须有可复现的运行证据。**
 

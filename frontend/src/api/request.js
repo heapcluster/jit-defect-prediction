@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-// 错误码 → 用户友好提示（docs/pages.md 第 5 节三态口径，只定义一处）
+// 错误码 → 用户友好提示（页面三态入口见 docs/web_page/README.md）
 const ERROR_MESSAGES = {
   40001: '请求参数有误',
   40100: '登录已失效，请重新登录',

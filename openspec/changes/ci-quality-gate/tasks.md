@@ -1,21 +1,23 @@
 # ci-quality-gate — 任务清单
 
 > 提案：[proposal.md](proposal.md) ｜ 设计决策：[design.md](design.md) ｜ 规格：[ci-quality-gate](specs/ci-quality-gate/spec.md)
-> 负责人：repo 苏哲勋 ｜ 创建：2026-10-16 ｜ 状态：进行中
-> 用户故事：无（工程化）
-> 统一格式见 `docs/common/openspec-task-template.md`（团队已定规范，随 #67 合入）；本文件末的「测试与验证」为强制板块。
+> 负责人：repo 苏哲勋 ｜ 创建：2026-10-16
+> 关联需求：无（工程化）
+> 状态：进行中
+
+> 历史核对：本清单记录 2026-10 的 #72/#92 实施过程；`infra/ci-validation.md` 与 `infra/ci.md` 已删除，当前流程以 [ci.yml](../../../.github/workflows/ci.yml) 和 [CI 范围选择器](../../../infra/ci_scope.py) 为准。原运行结果可从 [#92 Actions 记录](https://github.com/heapcluster/jit-defect-prediction/actions/runs/39958442585) 追溯，不能视为当前提交的 CI 结果。现行工作流已按目录选择测试，纯文档改动走轻量检查；旧“所有阶段每次必跑”的描述仅是历史。
 
 ## 1. 流水线与交付
 
-- [x] 1.1 顺序质量检查 — 交付 [ci.yml](../../../.github/workflows/ci.yml)，顺序配置 lint/test/build；首轮 lint 失败即 CI failure，后续跳过，证据见 [验证记录](../../../infra/ci-validation.md)。
-- [x] 1.2 防回退验证 — 交付 [静态约束测试](../../../infra/tests/test_ci_contract.py)，8 条 unittest 通过，actionlint 无错误；结果见 [验证记录](../../../infra/ci-validation.md)。
-- [x] 1.3 跨线交付 — 向 backend/frontend/model 三线交付 PR #72 的 `CI` 日志和 [复现说明](../../../infra/ci.md)，失败定位到阶段；记录在 [验证记录](../../../infra/ci-validation.md)，不代修业务代码。
+- [x] 1.1 顺序质量检查 — 交付 [ci.yml](../../../.github/workflows/ci.yml)，顺序配置 lint/test/build；首轮 lint 失败即 CI failure，后续跳过，历史运行见 [#92 Actions 记录](https://github.com/heapcluster/jit-defect-prediction/actions/runs/39958442585)。
+- [x] 1.2 防回退验证 — 交付 [静态约束测试](../../../infra/tests/test_ci_contract.py)，当时 8 条 unittest 通过，actionlint 无错误；当前结论需重跑。
+- [x] 1.3 跨线交付 — 向 backend/frontend/model 三线交付 PR #72 的 `CI` 日志，失败定位到阶段；历史运行见 [#92 Actions 记录](https://github.com/heapcluster/jit-defect-prediction/actions/runs/39958442585)，不代修业务代码。
 - [x] 1.4 模型线 lint 清理 — 对 `data_model/` 存量规则逐项修复，不新增忽略项；本地 `ruff check backend data_model infra` 为 0，`python -m pytest data_model/tests infra/tests -q` 全绿（1 条既有 skip）；[#92 run 39958442585](https://github.com/heapcluster/jit-defect-prediction/actions/runs/39958442585) 完整 CI success。
 
 ## 2. GitHub 门禁
 
-- [x] 2.1 创建独立 PR 并观察首次运行 — PR #72、首轮 run 和失败原因已归档到 [验证记录](../../../infra/ci-validation.md)，未称全绿。
-- [ ] 2.2 正式启用 main 必需检查 — #72 工作流已在 main，但依赖安装失配；须本次修复 PR 及后续 CI 全绿、非作者审阅合入 main、活动 PR 同步后，再增加 Actions `CI` 并 GET 回读，原保护不变；见 [验证记录](../../../infra/ci-validation.md)。
+- [x] 2.1 创建独立 PR 并观察首次运行 — PR #72 与失败原因见 [PR 记录](https://github.com/heapcluster/jit-defect-prediction/pull/72)，未称首跑全绿。
+- [ ] 2.2 复核 main 当前必需检查配置 — 此项原计划已过时；须读取当前 ruleset 与最新 main CI 运行记录，再记录证据并决定是否勾选。
 
 ## 测试与验证（强制板块）
 
@@ -27,7 +29,7 @@
 | 测试文件 | [infra/tests/test_ci_contract.py](../../../infra/tests/test_ci_contract.py) |
 | 命令 | 仓库根执行 `python -m unittest discover -s infra/tests -p 'test_*.py' -v` |
 | 正向 / 边界 | 单 job + lint→test→build；禁止 continue-on-error/忽略失败，后端套件无条件执行 |
-| 用例数与结果 | 8/8 passed；actionlint exit 0；见 [验证记录](../../../infra/ci-validation.md) |
+| 用例数与结果 | 当时 8/8 passed；actionlint exit 0；当前结果未重跑 |
 
 ### 2. 集成测试
 
@@ -37,7 +39,7 @@
 | 命令 | `gh pr checks <本 PR 编号> --repo heapcluster/jit-defect-prediction`；`gh run view <run-id> --log-failed` |
 | 关键断言 | spec「正常运行」「任一步失败」「已有套件」；失败阶段非零、后续阶段不执行 |
 | 用例数与结果 | 首次 PR run failure，lint 失败传播成立；最新 #92 run 39958442585 的 lint/test/build 全部 success，见验证记录 |
-| 证据 | [验证记录](../../../infra/ci-validation.md) |
+| 证据 | [#92 Actions 历史记录](https://github.com/heapcluster/jit-defect-prediction/actions/runs/39958442585)；当前 CI 待补 |
 
 ### 3. 验收测试
 
@@ -46,16 +48,16 @@
 | 依据 | [spec.md](specs/ci-quality-gate/spec.md) 全部 Scenario |
 | 命令 / 步骤 | `gh api repos/heapcluster/jit-defect-prediction/rulesets/23522853`；核 `required_status_checks` 为 `CI`，其余保护不变；核 PR 检查和合并状态 |
 | 用例数与结果 | 提前配置的 CI 必需项已暂撤，原三条保护回读不变；正式启用和成功放行待 #72 全绿合入/活动 PR 同步后验证，不造故障提交、不自审合并 |
-| 证据 | [验证记录](../../../infra/ci-validation.md) |
+| 证据 | 当前 ruleset 回读与 main CI 运行链接待补 |
 
 ### 4. 非功能验证
 
 | 维度 | 是否触及 | 命令 / 证据 |
 |---|---|---|
 | 性能 | 是 | 前端 npm 缓存、完整 conda 环境与 60 分钟超时；实际耗时待新 run 验证，不伪造提速数据 |
-| 安全 | 是 | 上述 unittest 检查只读权限、无业务 secrets、禁持久凭据与 action SHA；见验证记录 |
+| 安全 | 是 | 上述 unittest 曾检查只读权限、无业务 secrets、禁持久凭据与 action SHA；现行需重跑 |
 | 可靠 | 是 | unittest + 首轮真实失败传播；中止/未上报应由必需检查阻断 |
-| 易用 | 是 | `gh pr checks <PR>` 可定位阶段；复现步骤见 [infra/ci.md](../../../infra/ci.md) |
+| 易用 | 是 | `gh pr checks <PR>` 可定位阶段；当前检查范围见 [CI 范围选择器](../../../infra/ci_scope.py) |
 
 ### 5. 已知缺口与后续计划
 

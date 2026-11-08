@@ -39,7 +39,7 @@
 - 后端：新增 `app/api/feedback.py`（label 端点）与 `app/api/health.py`（健康端点）；新增 `app/explain.py` 集中 14 项特征中文名，供 `predict.py` / `commits.py` / `prs.py` 共用（消除 `prs.py` 内重复字典）；`schemas.py` 增加 `LabelData` / `HealthData`，`ExplanationItem` 增加 `label`；`commits.py` 列表加 `has_label` 过滤、详情附带 `label`；`main.py` 注册两个新路由。
 - 前端：`api/index.js` 新增 `putCommitLabel` / `getHealth`；`CommitDetail.vue` 标记操作 + SHAP 条形图；`RiskList.vue` 健康状态条 + 「仅看已确认」筛选。
 - 数据库：复用既有 `commit_label` 表（`label_method="manual"`，与 SZZ 标签靠唯一约束 `(commit_hash, label_method)` 隔离），**无需迁移、不改表结构**。
-- 契约：`docs/backend/api-spec.md` 需登记 `PUT /api/commits/{commit_hash}/label` 与 `GET /api/health`（本 change 内同步）。
+- 契约：`docs/api/README.md` 需登记 `PUT /api/commits/{commit_hash}/label` 与 `GET /api/health`（本 change 内同步）。
 - 测试：`tests/test_mirror.py` 的路径集与详情字段集需同步（新增两条路径、详情加 `label`）；新增 `test_feedback_api.py` / `test_health_api.py`。
 
 ## 不做什么

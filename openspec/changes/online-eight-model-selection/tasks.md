@@ -2,19 +2,18 @@
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/model-coverage/spec.md`、`specs/predict-api/spec.md`
 > 负责人：repo 苏哲勋（跨线契约协调）｜ 创建：2026-10-24
-> **状态：已裁定执行（蒋励 2026-10-25，Issue #139）；实现中，未勾选项不得当作已完成**
-> 用户故事：owner 要求——八个已训练模型均可在线切换（已由组长裁定落地）
-> 统一格式见 `docs/common/openspec-task-template.md`；本文件末的「测试与验证」为强制板块。
+> 关联需求：owner 要求——八个已训练模型均可在线切换（已由组长裁定落地）
+> 状态：已裁定执行（蒋励 2026-10-25，Issue #139）；实现中，未勾选项不得当作已完成
 
 ## 1. 冻结口径变更（契约评审）
 
 - [x] 1.1 非作者评审与共签 —— **由组长裁定代替三线共签**（蒋励 2026-10-25：「空归因降级」方案批准，R6 冻结解除）；`openspec validate` 归档输出待苏哲勋补跑。
-- [x] 1.2 契约三同步八项枚举、40001/50000 规则与空归因边界 —— 文案已按 **v1.7** 写好（§三.4 枚举 3→8 + 归因口径 + 变更日志行）；因 `docs/backend/api-spec.md` 与 `docs/common/local-runbook.md` 正被未合入的 PR #149 修改，**这两份文件的落地改在本 PR 合入、#149 先合后的跟进 PR**（同文件不双开，防互相冲掉）；`docs/frontend/pages.md` 的模型清单描述随前端线核对（4.1 同批）。
+- [x] 1.2 契约三同步八项枚举、40001/50000 规则与空归因边界 —— 文案已按 **v1.7** 写好（§三.4 枚举 3→8 + 归因口径 + 变更日志行）；因 `docs/api/README.md` 与 `docs/common/local-runbook.md` 正被未合入的 PR #149 修改，**这两份文件的落地改在本 PR 合入、#149 先合后的跟进 PR**（同文件不双开，防互相冲掉）；`docs/web_page/README.md` 的模型清单描述随前端线核对（4.1 同批）。
 
 ## 2. 模型线交付（蒋励）
 
 - [x] 2.1 五个新增权重从 `[evaluated]` 移至 `[models]`，保留原三项、14 项列序与依赖说明 —— `data_model/pipelines/expert/models/feature_order.txt`（`[dependencies]` 补 lightgbm/torch/pytorch_tabnet，`[how_to_load]` 补 Pipeline 加载注意）；`data_model/tests/test_feature_contract.py` 的交付边界断言同步改 8 项并通过。权重本体不入库（走包分发）。
-- [x] 2.2 模型线权威说明标明八项在线 —— `docs/model/model-line-plan.md` §6/§7；证据：`backend/scripts/evidence/online-eight-model-selection-2026-10-25.md`（8/8 加载 9.8s、逐模型延迟与归因）。
+- [x] 2.2 模型线权威说明标明八项在线 —— `docs/overview.md` §6/§7；证据：`backend/scripts/evidence/online-eight-model-selection-2026-10-25.md`（8/8 加载 9.8s、逐模型延迟与归因）。
 
 ## 3. 后端八模型加载与预测（吕建江）
 
@@ -25,11 +24,11 @@
 
 - [x] 4.1 前端下拉改八项且与 `[models]` 同步 —— `frontend/src/utils/models.js`（8 项 + 空归因注释）；`frontend/tests/models.spec.js` 动态比对通过（19/19）；空解释时显示既有「无归因」文案（页面既有降级路径，未新增文案）。**待刘帅华复核。**
 - [ ] 4.2 每模型隔离 `MODEL_DIR` 各跑 n=100 压测并归档 —— 单次延迟已实测（8 模型全部 <130ms，见证据文件）；n=100 正式压测与八份 perf 证据归吕建江，未达标不得勾选。
-- [ ] 4.3 苏哲勋核对契约三/模型清单/前端清单/性能证据，组织非作者验收并归档 change —— 待 4.2 完成后执行；归档前跑 `openspec validate --specs --strict` 与 `python infra/check_spec_references.py deltas`。
+- [ ] 4.3 苏哲勋核对现行 `docs/api/models.md`、模型清单、前端清单及性能证据，组织非作者验收并归档 change —— 待 4.2 完成后执行；归档前跑 `openspec validate --specs --strict`、`openspec validate online-eight-model-selection --strict`，人工核对所有 MODIFIED 标题与活规格一致（旧 `infra/check_spec_references.py` 已删除）。
 
 ## 测试与验证（强制板块）
 
-> 分层口径见 `docs/common/test-strategy.md`。本 change 已过 propose 阶段进入实现；下列为**已执行**项的证据，未执行项如实标注。
+> 分层口径见 `docs/common/test-assessment-guide.md`。本 change 已过 propose 阶段进入实现；下列为**已执行**项的证据，未执行项如实标注。
 
 ### 1. 单元测试
 
@@ -56,7 +55,7 @@
 | 项 | 内容 |
 |---|---|
 | 验收依据 | `specs/model-coverage/spec.md` 与 `specs/predict-api/spec.md` 各 Scenario；契约三 §三.4、§四 |
-| 用例数与结果 | 已执行：8/8 加载 + 逐模型预测/归因实测（证据文件）；T-ST-04 判据已按 8 模型改写（`docs/common/test-plan.md`） |
+| 用例数与结果 | 已执行：8/8 加载 + 逐模型预测/归因实测（证据文件）；T-ST-04 判据已按 8 模型改写（`docs/common/test-assessment-guide.md`） |
 | 复现命令 / 步骤 | 证据文件 §1/§2 的命令；`POST /api/predict` 逐模型请求核对模型名、分数和解释边界 |
 | 证据归档 | `backend/scripts/evidence/online-eight-model-selection-2026-10-25.md`（已产出）；perf 八份待 4.2 |
 

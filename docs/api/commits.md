@@ -25,8 +25,8 @@
 | `model_name` | 否 | 选中模型；省略时取默认模型 = 已加载模型中 `version_key` 最大者 |
 | `start_time` / `end_time` | 否 | commit 时间区间，**两端闭区间**（含首末两天）；`since` / `until` 是同义别名 |
 | `q` | 否 | 关键字，最长 64 字符（匹配 hash / 作者 / message） |
-| `with_features` | 否 | **待实现**：`1` = 返回 `items[].features`；默认 `0`，避免风险列表背 14 列 |
-| `is_test` | 否 | **待实现**：`0` / `1`；`1` = 只返回检验集（`commit_feature.is_test = 1`）。模型性能看板固定传 `1`，风险列表不传 |
+| `with_features` | 否 | `1` = 返回 `items[].features`；默认 `0`，避免风险列表背 14 列 |
+| `is_test` | 否 | `0` / `1`；`1` = 只返回检验集（`commit_feature.is_test = 1`）。模型性能看板固定传 `1`，风险列表不传 |
 
 **已移除**：`min_risk`（页面不再提供最低风险筛选）、`has_label`（原按人工标签过滤，人工标注下线后无意义）、`scope`（测试集筛选改由 `is_test=1` + `with_features=1` 承接）。
 

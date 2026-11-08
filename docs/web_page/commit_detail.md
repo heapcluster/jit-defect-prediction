@@ -99,7 +99,7 @@
 - `pr_submitted_at`：**本期不做**。没有 commit→PR 持久数据源（PR 能力已在 #195 下线），且一个 PR 可含多个 commit，该时间不是提交自身属性。
 
 ## 说明
-- 真标签（SZZ）展示依赖后端返回 `is_bug_inducing`（库内 `commit_feature.is_bug_inducing`）；未实现前详情没有该字段。
+- 真标签（SZZ）由后端详情接口返回 `is_bug_inducing`（库内 `commit_feature.is_bug_inducing`），前端已按 `1`、`0`、`null` 三态显示；若本地旧库未迁移，应先核对数据库列与数据。
 - 「预测时间」当前接口不返回，需后端补充；`pr_submitted_at` 本期不做（无 commit→PR 数据源）。
 - 级联数据源与风险列表页共用同一个 `GET /api/models`。
 - 风险等级标签由 `risk_score` 前端判定（阈值与后端 `.env` 同值）；SZZ 状态来自 `is_bug_inducing`，二者不是同一个接口字段。

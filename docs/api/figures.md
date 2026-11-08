@@ -8,8 +8,8 @@
 | 前端「模型性能看板」页「查看」抽屉 | 选定模型后渲染该模型的性能评估图集；指标数值可一并展示 |
 
 ## 处理功能
-- **方式一（索引）**：`GET /api/figures?model_name=`，返回该模型的**指标数值 + 逐模型图清单**（**待实现**）
-- **方式二（静态）**：逐模型图集：`StaticFiles` 挂 `backend/static/figures/{line}/{model}/{figure_type}.png`（**已实现**，266 张图已入仓）
+- **方式一（索引）**：`GET /api/figures?model_name=`，返回该模型的**指标数值 + 逐模型图清单**（后端路由已实现；指标 CSV 缺失时 `metrics=null`）
+- **方式二（静态）**：逐模型图集：`StaticFiles` 挂 `backend/static/figures/{line}/{model}/{figure_type}.png`（**已实现**；当前仓库按文件清单计 133 张 PNG，变更后须重新核对）
 - **权限**：沿用后端统一鉴权
 - **关联数据**：`model_figure`（图元数据）、`model.line`（路径分组）、`data_model/evaluation/out/model_metrics.csv`（指标数值，由 `cd data_model && python -m evaluation.run_all` 生成；后端只读，不跑脚本）
 
@@ -23,7 +23,7 @@
 |---|---|
 | `model_name` | 模型名 |
 | `line` | 模型所属线 |
-| `metrics` | **指标数值**（见下，**待实现**；来自 `model_metrics.csv`），无指标行时 `null` |
+| `metrics` | **指标数值**（见下；来自 `model_metrics.csv`），无指标行时 `null` |
 | `figures[]` | 图数组 |
 | `figures[].figure_type` | `roc` / `pr` / `confusion` / `calibration` / `effort` / `feat_importance` |
 | `figures[].title` | 图标题 |

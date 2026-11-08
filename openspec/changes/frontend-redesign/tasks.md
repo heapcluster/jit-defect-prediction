@@ -1,10 +1,9 @@
 # frontend-redesign — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：无独立 design.md ｜ 规格：`specs/ui/spec.md`
-> 负责人：frontend 刘帅华 ｜ 创建：2026-10-27 ｜ 状态：进行中（以任务勾选和证据为准）
-> 用户故事：无（界面优化）
-> 统一格式见 `docs/common/openspec-task-template.md`；末尾「测试与验证」为强制板块。
-
+> 负责人：frontend 刘帅华 ｜ 创建：2026-10-27
+> 关联需求：无（界面优化）
+> 状态：进行中（以任务勾选和证据为准）
 
 ## 1. 共享组件
 

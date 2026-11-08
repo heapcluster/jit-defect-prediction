@@ -1,9 +1,9 @@
 # backend-model-load-paths — 任务清单
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/predict-api/spec.md`
-> 负责人：backend 吕建江 ｜ 创建：2026-10-23 ｜ 更新：2026-10-24 ｜ 状态：进行中（8/11；已 rebase 到 main `f5ca61d` 并叠加在 #96 清单加载之上，SQLite 验证完成，PR #99 head `d806e73` 待复审，真实环境验收与清单范围裁定待收口）
-> 用户故事：无（工程化）；支撑契约三 POST /api/predict 与四接口 SQLite 联调
-> 统一格式见 `docs/common/openspec-task-template.md`；本文件末的「测试与验证」为强制板块。
+> 负责人：backend 吕建江 ｜ 创建：2026-10-23 ｜ 更新：2026-10-24
+> 关联需求：无（工程化）；支撑契约三 POST /api/predict 与四接口 SQLite 联调
+> 状态：进行中（8/11；已 rebase 到 main `f5ca61d` 并叠加在 #96 清单加载之上，SQLite 验证完成，PR #99 head `d806e73` 待复审，真实环境验收与清单范围裁定待收口）
 
 ## 1. 模型加载与配置说明
 
@@ -87,7 +87,7 @@
 
 #### 2026-10-24 rebase 到 `f5ca61d` 后的执行证据（当前有效）
 
-- 工作树：本机 `fix/backend/model-load-paths` 分支的独立工作树（个人绝对路径按 `docs/repo/collaboration.md` §0 第 3 条不复述，下同），rebase 基线 main `f5ca61d`；实现提交 `15164a0`。两处冲突（`backend/app/model_registry.py`、`backend/tests/test_model_registry.py`）按「清单加载之上叠加」解决：保留 `_delivery_models()` 与 #96 新增的 2 条清单测试，导入路径与失败汇总只加在其后。
+- 工作树：本机 `fix/backend/model-load-paths` 分支的独立工作树（个人绝对路径按 `AGENTS.md` §0 第 3 条不复述，下同），rebase 基线 main `f5ca61d`；实现提交 `15164a0`。两处冲突（`backend/app/model_registry.py`、`backend/tests/test_model_registry.py`）按「清单加载之上叠加」解决：保留 `_delivery_models()` 与 #96 新增的 2 条清单测试，导入路径与失败汇总只加在其后。
 - Python：conda 环境 `jit-defect-prediction` 的解释器，3.12.15；pytest 9.1.1、SQLAlchemy 2.0.54、FastAPI 0.141.1、joblib 1.6.0、ruff 0.16.8。
 - 计数取自 `--junitxml` 的 testsuite 属性，不凭终端回显：本机 CLI 会吞掉 pytest 末行汇总（`-q` 输出只剩进度点），因此以 XML 为准。
 - cwd=backend：`python -m pytest tests/test_model_registry.py tests/test_integration_api.py -q --junitxml=...` → exit 0，`tests=20 failures=0 errors=0 skipped=0 time=3.812`；`python -m pytest tests/ -q --junitxml=...` → exit 0，`tests=143 failures=0 errors=0 skipped=0 time=7.420`。

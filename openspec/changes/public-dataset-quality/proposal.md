@@ -1,7 +1,7 @@
 # 公开缺陷数据集加载与质量治理（回应课程附加功能 (3)）
 
 > Sprint 2 启动 ｜ 起草 2026-10-13 ｜ 起草人 蒋励（模型线负责人）
-> 关联契约：`docs/design/data-fields.md`（契约一）、`docs/model/feature-columns.md`（契约二）
+> 关联契约：`docs/database/README.md`（契约一）、`docs/database/commit_feature.md`（契约二）
 > 关联变更：本 change **顶替** `feature-addons-sprint3` 中的 G1-3。
 
 ## Why
@@ -49,8 +49,8 @@
 
 | 项 | 内容 |
 |---|---|
-| 影响目录 | `data_model/`（新增 20 数据集加载器、21 质量报告脚本）、`docs/model/`（口径与报告）、`data_model/preparation/reports/`（质量报告） |
-| 触及 `docs/design/sprint0-scope.md` 边界？ | **是**。原文把「公开数据集」列为可选；本 change 将其**提升为承诺范围**，须同步改该文件 |
+| 影响目录 | `data_model/`（拟新增公开数据集加载器、质量报告脚本）、`docs/common/` 与 `docs/database/`（口径与报告入口）、`data_model/preparation/reports/`（质量报告）；原 `docs/model/` 已删除 |
+| 触及 `docs/overview.md` 边界？ | **是**。原文把「公开数据集」列为可选；本 change 将其**提升为承诺范围**，须同步改该文件 |
 | **不做什么** | ① **不替换** Apache Camel 基线与现有管线；② **不伪造**缺陷类型标签；③ **不进入交付链**（不入库、不改交付模型、不改接口）；④ 不在本 change 内做跨语言模型训练（那是 `semantic-feature-mainline` 的事）；⑤ **不修改**契约二既有 14 项列名与顺序；⑥ **不为凑文献对照而选用非标准 benchmark** |
 | 数据边界 | 公开数据集落盘为独立文件（`data_model/data/public/<name>/`），带来源与许可证元数据；**不入库** |
 | 新增依赖 | 公开数据集本身（体积可能较大，须先评估）；无新增 Python 包 |
