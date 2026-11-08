@@ -54,7 +54,7 @@ Prompt 记录：<使用 AI 时填写仓库内相对路径>
 
 **交付物。** 测试代码、覆盖率 HTML 报告与 PDF 截图、单元测试说明 Markdown、AI 提示词归档（使用 AI 时）。本仓库现有 `backend/tests/`、`data_model/tests/`、`frontend/tests/`；覆盖率报告、提示词归档和所有核心函数“三例”覆盖需按当前提交重新核对，不能直接沿用历史百分比。
 
-**复现入口。** 在对应目录运行 `python -m pytest -q`（后端/模型）或 `npm run test:unit`（前端）。后端测试需隔离 MySQL 测试库；CI 的真实前置见 `.github/workflows/ci.yml`。需要覆盖率时，在有 `pytest-cov` 的环境于 `backend/` 运行 `python -m pytest --cov=app --cov-branch --cov-report=html --cov-report=term-missing`，保存当前提交的输出。前端覆盖率能力以 `frontend/package.json` 的实际脚本为准，不能仅凭历史报告宣称已交付。
+**复现入口。** 在对应目录运行 `python -m pytest -q`（后端/模型）或 `npm run test:unit`（前端）。后端测试需隔离 MySQL 测试库；CI 的真实前置见 `.github/workflows/ci.yml`。需要覆盖率时，在有 `pytest-cov` 的环境于 `backend/` 运行 `python -m pytest -q --cov=app --cov-branch --cov-report=html --cov-report=term-missing`。前端须在覆盖率插件随 CI 变更合入后运行 `npm run test:unit -- --coverage`，并以对应提交的 CI 产物为准；未生成报告前不得宣称覆盖率达标。
 
 ## 4. 集成测试（25 分）
 
@@ -94,3 +94,5 @@ Prompt 记录：<使用 AI 时填写仓库内相对路径>
 | AI 来源及 Prompt | 存量用例未统一标注，不能猜测来源 | 作者逐条核实并人工审签 |
 | 系统/验收官方评分子项 | 所给截图没有展示细则 | 补课程原文件后再更新本节，不自行编造分数 |
 | 实机证据 | 模型权重不入库，浏览器和真实 MySQL 场景不能由 CI 代测 | 按 `docs/overview.md` 的端到端链路留运行日志、截图和人工结论 |
+
+四类测试的交付责任与记录字段见 [`test-delivery-records.md`](test-delivery-records.md)。系统测试计划/总结与验收方案/报告仍须测试负责人根据实测人工撰写并签字。
