@@ -7,11 +7,17 @@ from functools import lru_cache
 from pathlib import Path
 
 from app import config
+from app.services.git import is_ancestor
 
 
 @lru_cache(maxsize=1)
 def _extractor():
-    script = config.REPO_ROOT / "data_model" / "preparation" / "03_extract_features.py"
+    # 插件化：FEATURE_EXTRACTOR_SCRIPT 覆盖默认抽取器（外部注册特征实现，零核心改动）
+    script = (
+        Path(config.FEATURE_EXTRACTOR_SCRIPT)
+        if config.FEATURE_EXTRACTOR_SCRIPT
+        else config.REPO_ROOT / "data_model" / "preparation" / "03_extract_features.py"
+    )
     spec = importlib.util.spec_from_file_location("jit_extract_features", script)
     if spec is None or spec.loader is None:
         raise RuntimeError("feature extractor unavailable")
@@ -30,4 +36,8 @@ def extract(commit_hash: str, repo: Path | str | None = None) -> dict:
     source: Path | None = Path(repo) if repo is not None else config.SOURCE_REPO
     if source is None or not (source / ".git").exists():
         raise RuntimeError("source repository unavailable")
+    # 快查可达性：不可达提交直接拒，避免 extract_single_commit 先扫全量历史
+    # （8 万+ 提交的 git log --numstat）再判「目标不是当前 HEAD 可达的非合并提交」。
+    if not is_ancestor(str(source), commit_hash):
+        raise ValueError("目标不是当前 HEAD 可达的非合并提交")
     return _extractor()(source, commit_hash)

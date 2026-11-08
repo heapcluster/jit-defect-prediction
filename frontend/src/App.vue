@@ -77,10 +77,9 @@ const pageTitle = computed(() => {
   border-bottom: none;
 }
 .main {
-  max-width: 1280px;
-  margin: 0 auto;
   width: 100%;
-  padding-top: 18px;
+  padding: 18px 24px 24px;
+  box-sizing: border-box;
 }
 .page-title {
   font-size: 18px;

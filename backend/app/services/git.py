@@ -104,6 +104,11 @@ def build_fetch_args() -> list[str]:
     return ["fetch", "origin", "HEAD"]
 
 
+def show_unified_diff(repo: str, commit_hash: str) -> str:
+    """取单条提交的 -U0 统一 diff（只含新增/删除行，无上下文），供行级定位。"""
+    return run_git(repo, "show", commit_hash, "--format=", "--unified=0", "--no-renames")
+
+
 def fetch_latest_tip(repo: str, retries: int = 3) -> str:
     """fetch 远端并返回最新 tip 哈希（FETCH_HEAD 首个条目）；仅网络类失败重试。"""
     last: Exception | None = None

@@ -210,11 +210,11 @@
       @current-change="load"
     />
 
-    <!-- 查看抽屉：性能图集 + 指标 -->
+    <!-- 查看抽屉：性能图集 + 指标（全屏） -->
     <el-drawer
       v-model="drawerVisible"
       :title="drawerTitle"
-      size="720px"
+      size="100%"
     >
       <div
         v-loading="drawerLoading"
@@ -466,11 +466,16 @@ onMounted(() => {
   font-size: 14px;
 }
 .figure img {
+  display: block;
+  max-width: 880px;
   width: 100%;
+  margin: 0 auto;
   border: 1px solid #e2e5ea;
   border-radius: 8px;
 }
 .drawer-body {
   min-height: 200px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 </style>

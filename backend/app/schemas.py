@@ -17,6 +17,54 @@ class ExplanationItem(BaseModel):
     label: str = ""
 
 
+class LocalizationHighlight(BaseModel):
+    """缺陷定位的高亮项：按 |SHAP contribution| 降序的可疑特征。"""
+
+    feature: str
+    label: str
+    contribution: float
+    direction: str
+
+
+class LocalizationLine(BaseModel):
+    """新增代码行（可疑行）：行号 + 内容。"""
+
+    number: int
+    content: str
+
+
+class LocalizationFile(BaseModel):
+    path: str
+    added_lines: list[LocalizationLine]
+
+
+class Localization(BaseModel):
+    """缺陷可视化定位（G1-1）。
+
+    有历史仓库可解析 diff 时 level="line"（按提交级缺陷概率着色新增行）；
+    否则 level="commit"（SHAP 特征归因）。MUST NOT 编造行级概率。
+    """
+
+    level: str
+    notice: str
+    highlights: list[LocalizationHighlight]
+    files: list[LocalizationFile] = []
+    truncated: bool = False
+
+
+class FixReferenceItem(BaseModel):
+    commit_hash: str
+    message: str
+    committed_at: str
+
+
+class FixReferences(BaseModel):
+    """高质量修复参考（G1-2）：同仓库历史修复提交；无依据时 items 为空。"""
+
+    basis: str
+    items: list[FixReferenceItem]
+
+
 class CommitItem(BaseModel):
     commit_hash: str
     author_name: str
@@ -54,6 +102,8 @@ class DetailData(BaseModel):
     features: dict[str, float | int] | None
     explanation: list[ExplanationItem]
     is_bug_inducing: int | None = None
+    localization: Localization | None = None
+    fix_references: FixReferences | None = None
 
 
 class DetailResponse(BaseModel):

@@ -65,6 +65,120 @@ def test_detail_features_and_explanation(client):
     assert isinstance(data["explanation"], list)
 
 
+def test_detail_localization_degrades_to_commit_level(client):
+    """G1-1：无文件/行级数据 → localization 降级到提交级特征归因，高亮按 |归因| 降序。"""
+    body = client.get(f"/api/commits/{C1}", headers=HEADERS).json()
+    loc = body["data"]["localization"]
+    assert loc["level"] == "commit"
+    assert "降级到提交级" in loc["notice"]
+    assert loc["highlights"], "决策树模型应有非空 SHAP 归因"
+    contribs = [abs(h["contribution"]) for h in loc["highlights"]]
+    assert contribs == sorted(contribs, reverse=True)
+
+
+def test_detail_line_level_localization_when_diff_available(client, tmp_path, monkeypatch):
+    """G1-1：历史仓库可解析 diff → localization.level="line" + 新增行高亮数据。"""
+    import os
+    import subprocess
+    from datetime import datetime
+
+    from app import config
+    from app.models import Commit, CommitFeature
+
+    repo = tmp_path / "camel"
+    repo.mkdir()
+    subprocess.run(["git", "-C", str(repo), "init"], check=True, capture_output=True)
+    source = repo / "src" / "A.java"
+    source.parent.mkdir()
+    source.write_text("class A {}\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "."], check=True, capture_output=True)
+    env = os.environ.copy()
+    env.update(
+        GIT_AUTHOR_DATE="2026-01-01T12:00:00+0000", GIT_COMMITTER_DATE="2026-01-01T12:00:00+0000"
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "user.name=E",
+            "-c",
+            "user.email=e@x.org",
+            "commit",
+            "-m",
+            "CAMEL-1 fix",
+        ],
+        check=True,
+        capture_output=True,
+        env=env,
+    )
+    hash_ = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"], check=True, capture_output=True, text=True
+    ).stdout.strip()
+    monkeypatch.setattr(config, "SOURCE_REPO", repo)
+
+    with SessionLocal() as session:
+        session.add(
+            Commit(
+                commit_hash=hash_,
+                repo_name="camel",
+                author_name="e",
+                committed_at=datetime(2026, 1, 1),
+                message="CAMEL-1 fix",
+            )
+        )
+        session.add(CommitFeature(commit_hash=hash_, feature_version="v1", **FEATURE_VALUES))
+        session.add(
+            Prediction(
+                commit_hash=hash_,
+                model_name="fixture_v2",
+                risk_score=0.7,
+                predicted_at=datetime(2026, 1, 2),
+            )
+        )
+        session.commit()
+
+    body = client.get(f"/api/commits/{hash_}", headers=HEADERS).json()
+    loc = body["data"]["localization"]
+    assert loc["level"] == "line"
+    assert loc["files"], "应有文件级新增行数据"
+    assert loc["files"][0]["path"] == "src/A.java"
+    assert loc["files"][0]["added_lines"][0]["content"] == "class A {}"
+
+
+def test_detail_fix_references_excludes_self_and_uses_fix_flag(client):
+    """G1-2：同仓库 fix=1 的历史修复提交作参考；排除自身；无依据时空态。"""
+    body = client.get(f"/api/commits/{C1}", headers=HEADERS).json()
+    refs = body["data"]["fix_references"]
+    assert refs["basis"]
+    hashes = [item["commit_hash"] for item in refs["items"]]
+    assert C1 not in hashes, "修复参考不得包含自身"
+    assert C2 in hashes, "同仓库的 fix=1 提交 C2 应作为参考"
+
+    # 无 fix 提交的仓库 → 空态（不编造建议）
+    from datetime import datetime
+
+    from app.models import Commit
+
+    empty_hash = "f" * 40
+    with SessionLocal() as session:
+        session.add(
+            Commit(
+                commit_hash=empty_hash,
+                repo_name="empty-repo",
+                author_name="jdoe",
+                committed_at=datetime(2026, 1, 1),
+                message="no fix here",
+            )
+        )
+        session.commit()
+    empty = client.get(f"/api/commits/{empty_hash}", headers=HEADERS).json()
+    assert empty["code"] == 0
+    assert empty["data"]["fix_references"]["items"] == []
+    assert empty["data"]["localization"]["highlights"] == []
+
+
 def test_detail_without_prediction_returns_nulls(client):
     body = client.get(f"/api/commits/{C3}", headers=HEADERS).json()
     data = body["data"]

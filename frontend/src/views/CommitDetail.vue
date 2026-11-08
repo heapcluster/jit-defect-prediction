@@ -163,6 +163,78 @@
         />
       </template>
 
+      <!-- 缺陷定位（G1-1）：无文件/行级数据，降级到提交级特征归因 -->
+      <template v-if="localization">
+        <h3>缺陷定位</h3>
+        <el-alert
+          :title="localization.notice"
+          type="info"
+          :closable="false"
+          show-icon
+          class="loc-notice"
+        />
+        <!-- 行级定位：新增代码行按提交级缺陷概率分档着色 -->
+        <div
+          v-if="localization.level === 'line' && localization.files.length"
+          class="lines"
+        >
+          <div
+            v-for="f in localization.files"
+            :key="f.path"
+            class="file"
+          >
+            <div class="file-path mono">
+              {{ f.path }}
+            </div>
+            <div
+              v-for="l in f.added_lines"
+              :key="`${f.path}:${l.number}`"
+              class="line"
+              :style="{ borderLeftColor: riskColor(detail.risk_score), background: riskTint(detail.risk_score) }"
+            >
+              <span class="line-no mono">{{ l.number }}</span>
+              <span class="line-content">{{ l.content }}</span>
+            </div>
+          </div>
+          <div
+            v-if="localization.truncated"
+            class="muted"
+          >
+            仅展示改动最多的前若干文件/行，已截断
+          </div>
+        </div>
+        <!-- 提交级特征归因（始终保留） -->
+        <div
+          v-if="localization.highlights.length"
+          class="loc"
+        >
+          <div
+            v-for="(h, i) in localization.highlights"
+            :key="h.feature"
+            class="e"
+          >
+            <span class="rank">{{ i + 1 }}</span>
+            <el-tooltip
+              :content="h.feature"
+              placement="top"
+            >
+              <span class="f">{{ h.label || featureLabel(h.feature) }}</span>
+            </el-tooltip>
+            <div class="track">
+              <i
+                :class="h.direction"
+                :style="{ width: locBarWidth(h.contribution) }"
+              />
+            </div>
+            <span class="val">{{ signed(h.contribution) }}</span>
+          </div>
+        </div>
+        <el-empty
+          v-else
+          description="该模型未提供特征归因"
+        />
+      </template>
+
       <!-- 14 项特征：中文名为主，悬停看原始字段名 -->
       <h3>14 项特征</h3>
       <div
@@ -185,6 +257,29 @@
           </el-tooltip>
         </div>
       </div>
+
+      <!-- 修复参考（G1-2）：同仓库历史修复提交；无依据时明确空态 -->
+      <template v-if="fixReferences">
+        <h3>修复参考</h3>
+        <div
+          v-if="fixReferences.items.length"
+          class="refs"
+        >
+          <div
+            v-for="r in fixReferences.items"
+            :key="r.commit_hash"
+            class="ref"
+          >
+            <span class="mono ref-hash">{{ r.commit_hash.slice(0, 8) }}</span>
+            <span class="ref-msg">{{ r.message }}</span>
+            <span class="ref-time">{{ formatTime(r.committed_at) }}</span>
+          </div>
+        </div>
+        <el-empty
+          v-else
+          description="暂无历史修复参考"
+        />
+      </template>
     </template>
   </div>
 </template>
@@ -237,6 +332,26 @@ const maxContribution = computed(() =>
 function barWidth(contribution) {
   const pct = (Math.abs(contribution) / maxContribution.value) * 100
   return `${pct.toFixed(0)}%`
+}
+
+// 缺陷定位（G1-1）与修复参考（G1-2）：后端新增字段，缺省时隐藏对应区块
+const localization = computed(() => detail.value?.localization || null)
+const fixReferences = computed(() => detail.value?.fix_references || null)
+const locMax = computed(() =>
+  Math.max(
+    ...(localization.value?.highlights || []).map((h) => Math.abs(h.contribution)),
+    0.000001
+  )
+)
+
+function locBarWidth(contribution) {
+  const pct = (Math.abs(contribution) / locMax.value) * 100
+  return `${pct.toFixed(0)}%`
+}
+
+// 新增行按提交级风险分着色：8 位 hex（6 位色值 + '1a' ≈ 10% 透明度背景）
+function riskTint(score) {
+  return riskColor(score) + '1a'
 }
 
 function signed(v) {
@@ -382,6 +497,80 @@ watch(
   white-space: nowrap;
   font-family: monospace;
   color: #6b7280;
+}
+.loc-notice {
+  margin: 0 0 10px;
+}
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0 16px;
+}
+.file-path {
+  font-size: 12px;
+  color: #7c838c;
+  margin-bottom: 4px;
+  word-break: break-all;
+}
+.line {
+  display: flex;
+  gap: 10px;
+  padding: 2px 8px;
+  border-left: 3px solid transparent;
+  font-family: monospace;
+  font-size: 12px;
+}
+.line-no {
+  min-width: 36px;
+  text-align: right;
+  color: #9aa1ab;
+  user-select: none;
+}
+.line-content {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.loc {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 16px;
+}
+.loc .rank {
+  width: 18px;
+  font-size: 12px;
+  color: #9aa1ab;
+  text-align: center;
+}
+.refs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 16px;
+}
+.ref {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  border: 1px solid #e2e5ea;
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: #fff;
+}
+.ref-hash {
+  color: #7c838c;
+  font-size: 12px;
+}
+.ref-msg {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+.ref-time {
+  color: #9aa1ab;
+  font-size: 12px;
+  white-space: nowrap;
 }
 .meta {
   border: 1px solid #e2e5ea;

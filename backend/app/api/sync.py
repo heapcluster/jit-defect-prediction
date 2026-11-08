@@ -250,13 +250,14 @@ def run_startup_sync() -> dict:
 
 
 def _spawn_sync_worker(fn: Callable[[], dict]) -> None:
-    """后台线程跑同步任务；失败只记日志，不把异常带回请求线程。"""
+    """后台线程跑同步任务；失败只记日志，并确保状态不卡在 running=True。"""
 
     def _run() -> None:
         try:
             fn()
-        except Exception:
+        except Exception as exc:
             logger.exception("sync worker failed")
+            sync_state.set_state(running=False, last_error=str(exc)[:200])
 
     threading.Thread(target=_run, daemon=True, name="sync-worker").start()
 
@@ -279,8 +280,24 @@ def sync_endpoint(
         raise AppError(40001, "参数非法：model_name 不在已加载模型清单")
     start = parse_time_param(start_time, "start_time") if start_time else None
     end = parse_time_param(end_time, "end_time", "end") if end_time else None
-    if sync_state.get_sync_state()["running"]:
-        raise AppError(50000, INTERNAL_ERROR_MESSAGE)
+    # 「检查 running + 置 running=True」必须在锁内原子完成：否则两个并发请求都能通过
+    # 检查、各 spawn 一个 worker，败者 worker 的异常处理会把 running=False 写回，
+    # 覆盖胜者正在跑的状态。
+    with _sync_lock:
+        if sync_state.get_sync_state()["running"]:
+            raise AppError(50000, INTERNAL_ERROR_MESSAGE)
+        # 在请求内先置 running=True：否则前端提交后立即轮询时，worker 可能还没启动，
+        # 会读到上一次任务的 running=false 而误判「已完成」。
+        sync_state.set_state(
+            running=True,
+            mode="manual",
+            scope="latest",
+            total=0,
+            done=0,
+            current_hash=None,
+            started_at=datetime.now(UTC).replace(tzinfo=None),
+            last_error=None,
+        )
     _spawn_sync_worker(lambda: sync_manual(line=line, model_name=model_name, start=start, end=end))
     return ok({"accepted": True})
 

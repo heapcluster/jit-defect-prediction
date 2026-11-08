@@ -113,6 +113,8 @@ def test_detail_response_fields_match_contract(client):
         "features",
         "explanation",
         "is_bug_inducing",
+        "localization",
+        "fix_references",
     }
 
 
