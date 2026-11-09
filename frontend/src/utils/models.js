@@ -1,4 +1,4 @@
-import { getModels } from '../api'
+import { getModels, getHealth } from '../api'
 
 // 架构中文显示名：后端 /api/models 返回 label；本地兜底与后端常量映射同值（docs/api/models.md）
 export const LINE_LABELS = {
@@ -28,4 +28,29 @@ export function loadModelLines(force = false) {
       })
   }
   return inflight
+}
+
+// 已加载（在线有权重）的模型名集合：来源 /api/health.model_names。
+// 级联下拉据此把 semantic/fused/e2e 等仅离线评估的模型标注「（离线）」。
+let onlineCache = null
+let onlineInflight = null
+
+export function loadOnlineModels(force = false) {
+  if (onlineCache && !force) return Promise.resolve(onlineCache)
+  if (!onlineInflight) {
+    onlineInflight = getHealth()
+      .then((data) => {
+        onlineCache = new Set((data && data.model_names) || [])
+        return onlineCache
+      })
+      .catch(() => {
+        // 未知态（null）：加载失败时不得把在线模型误标成「（离线）」
+        onlineCache = null
+        return onlineCache
+      })
+      .finally(() => {
+        onlineInflight = null
+      })
+  }
+  return onlineInflight
 }

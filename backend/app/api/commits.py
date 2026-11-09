@@ -11,7 +11,7 @@ import re
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, or_, select
 
-from app import schemas
+from app import config, schemas
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import AppError, ok
@@ -145,6 +145,18 @@ def commit_detail(commit_hash: str) -> dict:
             else None
         )
         # 提交存在但无预测记录 → code=0 + null 字段（risk_score / predicted_at）
+        explanation = commit_service.explanation_for(
+            prediction.model_name if prediction else None, feature
+        )
+        localization = commit_service.localization_for(explanation)
+        diff_loc = commit_service.diff_localization_for(config.SOURCE_REPO, commit_hash)
+        if diff_loc is not None:
+            localization["level"] = "line"
+            localization["files"] = diff_loc["files"]
+            localization["truncated"] = diff_loc["truncated"]
+            localization["notice"] = (
+                "按提交级缺陷概率对新增代码行着色（无 per-line 模型，新增行即可疑行）"
+            )
         data = {
             "commit_hash": commit.commit_hash,
             "author_name": commit.author_name,
@@ -154,9 +166,11 @@ def commit_detail(commit_hash: str) -> dict:
             "model_name": prediction.model_name if prediction else None,
             "predicted_at": iso_z(prediction.predicted_at) if prediction else None,
             "features": commit_service.feature_dict(feature),
-            "explanation": commit_service.explanation_for(
-                prediction.model_name if prediction else None, feature
-            ),
+            "explanation": explanation,
             "is_bug_inducing": _sizzle(feature.is_bug_inducing) if feature is not None else None,
+            "localization": localization,
+            "fix_references": commit_service.fix_references_for(
+                session, commit.repo_name, commit_hash
+            ),
         }
     return ok(data)

@@ -3,7 +3,7 @@ import subprocess
 
 from app import config, model_registry
 from app.db import SessionLocal
-from app.models import Commit, CommitFeature, Prediction
+from app.models import Commit, CommitFeature, Model, Prediction
 from sqlalchemy import func, select
 
 from tests.conftest import C1, C3, FEATURE_VALUES, HEADERS, UNKNOWN
@@ -65,11 +65,27 @@ def test_predict_second_model_new_row(client):
 
 
 def test_predict_unknown_model_name_is_40001(client):
+    """完全不在交付清单的模型 → 「model_name 不存在」。"""
     resp = client.post(
         "/api/predict", json={"commit_hash": C1, "model_name": "nope"}, headers=HEADERS
     )
     assert resp.status_code == 400
     assert resp.json()["code"] == 40001
+    assert resp.json()["message"] == "参数非法：model_name 不存在"
+
+
+def test_predict_delivered_but_offline_model_is_40001(client):
+    """已在交付清单（model 表）但无在线权重 → 「仅离线评估」，不误报「不存在」。"""
+    with SessionLocal() as session:
+        session.add(Model(model_name="offline_v1", line="semantic"))
+        session.commit()
+    resp = client.post(
+        "/api/predict", json={"commit_hash": C1, "model_name": "offline_v1"}, headers=HEADERS
+    )
+    assert resp.status_code == 400
+    body = resp.json()
+    assert body["code"] == 40001
+    assert body["message"] == "参数非法：该模型暂无在线权重，仅离线评估，无法在线预测"
 
 
 def test_predict_without_models_is_50000_without_path(client, monkeypatch):

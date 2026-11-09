@@ -17,7 +17,7 @@ from app import config, feature_source, model_registry
 from app.db import SessionLocal
 from app.errors import INTERNAL_ERROR_MESSAGE, AppError
 from app.explain import with_labels
-from app.models import Commit, CommitFeature, Prediction
+from app.models import Commit, CommitFeature, Model, Prediction
 from app.timeutil import iso_z
 from app.validate import normalize_commit_hash
 
@@ -29,11 +29,20 @@ def resolve_model_name(model_name: str | None) -> str:
 
     默认模型 = 已加载模型中 `version_key` 最大者（docs/database/model.md，`runtime_setting`
     与冠军模型热切换已下线），与列表 / 详情 / 趋势共用 `model_registry.default_model()`。
+
+    显式指定的模型区分两档错误（docs/todo「在线能力对齐」）：已在交付清单（`model` 表）
+    但无在线权重 → 明确提示「仅离线评估」；完全不存在 → 「model_name 不存在」。
     """
     if model_name:
-        if not model_registry.has(model_name):
-            raise AppError(40001, "参数非法：model_name 不在已加载模型清单")
-        return model_name
+        if model_registry.has(model_name):
+            return model_name
+        with SessionLocal() as session:
+            delivered = session.execute(
+                select(Model.model_name).where(Model.model_name == model_name)
+            ).scalar_one_or_none()
+        if delivered is not None:
+            raise AppError(40001, "参数非法：该模型暂无在线权重，仅离线评估，无法在线预测")
+        raise AppError(40001, "参数非法：model_name 不存在")
     entry = model_registry.default_model()
     if entry is None:
         raise AppError(50000, INTERNAL_ERROR_MESSAGE)

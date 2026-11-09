@@ -48,9 +48,7 @@ defineProps({
   font-family: monospace;
   line-height: 1.25;
   margin-top: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .h {
   font-size: 12px;

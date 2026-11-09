@@ -293,8 +293,14 @@ async function refresh() {
       startTime: syncTime.value?.[0] || undefined,
       endTime: syncTime.value?.[1] || undefined
     })
-    await pollUntilIdle()
-    ElMessage.success('同步完成')
+    const final = await pollUntilIdle()
+    if (final?.last_error) {
+      ElMessage.error(`同步失败：${final.last_error}`)
+    } else if (final && final.total > 0) {
+      ElMessage.success(`同步完成，共 ${final.done ?? final.total} 条`)
+    } else {
+      ElMessage.info('该范围内没有新的提交需要预测')
+    }
   } catch (e) {
     ElMessage.error(errText(e))
   } finally {
@@ -310,12 +316,16 @@ function pollUntilIdle() {
     const tick = async () => {
       try {
         const s = await getSyncStatus()
-        syncMsg.value = s.total ? `同步中 ${s.done}/${s.total}` : '同步中…'
-        if (!s.running) return resolve()
+        syncMsg.value = s.running
+          ? s.total
+            ? `同步中 ${s.done}/${s.total}`
+            : '同步中…'
+          : ''
+        if (!s.running) return resolve(s)
       } catch (e) {
         return reject(e)
       }
-      pollTimer = setTimeout(tick, 2000)
+      pollTimer = setTimeout(tick, 1500)
     }
     tick()
   })

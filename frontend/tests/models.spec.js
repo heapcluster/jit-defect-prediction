@@ -1,9 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
-import { LINE_LABELS, LINE_ORDER, loadModelLines } from '../src/utils/models'
-import { getModels } from '../src/api'
+import { LINE_LABELS, LINE_ORDER, loadModelLines, loadOnlineModels } from '../src/utils/models'
+import { getModels, getHealth } from '../src/api'
 
 vi.mock('../src/api', () => ({
-  getModels: vi.fn()
+  getModels: vi.fn(),
+  getHealth: vi.fn()
 }))
 
 // 模型层级（架构 → 模型）唯一数据源是 GET /api/models，前端不写死清单
@@ -26,5 +27,20 @@ describe('模型层级（架构 → 模型）', () => {
 
     await loadModelLines() // 命中缓存，不再发请求
     expect(getModels).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('在线模型清单（/api/health.model_names）', () => {
+  it('loadOnlineModels 成功返回在线模型名集合', async () => {
+    getHealth.mockResolvedValue({ model_names: ['lr_v1', 'rf_v1'] })
+    const set = await loadOnlineModels(true)
+    expect(set).toBeInstanceOf(Set)
+    expect(set.has('lr_v1')).toBe(true)
+    expect(set.has('semantic_v1')).toBe(false)
+  })
+
+  it('loadOnlineModels 失败返回 null（未知态，不误标离线）', async () => {
+    getHealth.mockRejectedValue(new Error('health down'))
+    expect(await loadOnlineModels(true)).toBeNull()
   })
 })

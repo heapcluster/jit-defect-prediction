@@ -52,6 +52,11 @@ export function getSyncStatus() {
   return request.get('/sync/status')
 }
 
+// 健康检查与运行状态：GET /api/health（model_names = 已加载在线模型清单，供级联标注离线模型）
+export function getHealth() {
+  return request.get('/health')
+}
+
 // 带鉴权头取图（<img> 带不了 X-API-Key）：fetch 二进制转 ObjectURL（docs/api/figures.md）
 export async function fetchFigureBlob(filePath) {
   const token = import.meta.env.VITE_API_KEY

@@ -26,7 +26,7 @@
       <el-option
         v-for="m in currentModels"
         :key="m"
-        :label="m"
+        :label="optionLabel(m)"
         :value="m"
       />
     </el-select>
@@ -34,7 +34,8 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { loadOnlineModels } from '../utils/models'
 
 const props = defineProps({
   lines: { type: Array, default: () => [] },
@@ -50,6 +51,20 @@ const currentModels = computed(() => {
   const picked = props.lines.find((l) => l.line === props.line)
   return picked ? picked.models : []
 })
+
+// 在线有权重的模型集合（/api/health.model_names）：无权重模型标注「（离线）」，如实体现。
+// null = 未知（加载中 / health 请求失败），此时不标注，避免把在线模型误标成「（离线）」。
+const onlineModels = ref(null)
+onMounted(() => {
+  loadOnlineModels().then((s) => {
+    onlineModels.value = s
+  })
+})
+
+function optionLabel(name) {
+  if (onlineModels.value == null) return name
+  return onlineModels.value.has(name) ? name : `${name}（离线）`
+}
 
 function onLineChange(value) {
   emit('update:line', value || '')

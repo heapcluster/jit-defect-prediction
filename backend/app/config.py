@@ -75,6 +75,10 @@ MODEL_DIR = Path(
 # `git cat-file` 计算 14 维特征。它**不是开发库、不进工作流、不持有预测状态**，
 # 纯粹是「只读历史索引」。实时 PR 清单与提交来自 GitHub REST API（见 app/github.py）。
 SOURCE_REPO = Path(os.environ["SOURCE_REPO"]) if os.getenv("SOURCE_REPO") else None
+# 特征抽取器脚本路径（插件化）：默认走模型线 data_model/preparation/03_extract_features.py。
+# 外部提供自定义抽取器时用本变量覆盖，MUST 实现 extract_single_commit(repo_dir, commit_hash)
+# 并返回 {commit_hash, committed_at, feature_version, features{14 项}, vector}。
+FEATURE_EXTRACTOR_SCRIPT = os.getenv("FEATURE_EXTRACTOR_SCRIPT", "").strip()
 # change realtime-commit-sync：启动时后台预同步一次最新提交（默认关）。
 # 开启后启动会 fetch SOURCE_REPO 并可能建临时 worktree；失败只记日志，不阻塞启动。
 SYNC_ON_STARTUP = os.getenv("SYNC_ON_STARTUP", "") == "1"
@@ -110,6 +114,4 @@ MID_RISK_THRESHOLD = float(os.getenv("MID_RISK_THRESHOLD", "0.2"))
 # 模型性能图集：逐模型图集由模型线生成并拷贝到 backend/static/figures/；
 # 指标数值来自 data_model/evaluation/out/model_metrics.csv（后端只读，不跑脚本）。
 FIGURES_DIR = Path(__file__).resolve().parents[1] / "static" / "figures"
-MODEL_METRICS_CSV = (
-    REPO_ROOT / "data_model" / "evaluation" / "out" / "model_metrics.csv"
-)
+MODEL_METRICS_CSV = REPO_ROOT / "data_model" / "evaluation" / "out" / "model_metrics.csv"

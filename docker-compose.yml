@@ -1,0 +1,60 @@
+# 一键启动全栈：docker compose up --build
+# 前端 http://localhost:8080 ｜ 后端 http://localhost:8000/api/health
+# 模型权重与历史仓库不随镜像分发，通过 volume 从本机挂载（见 deploy/README.md）。
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: jit_demo
+      MYSQL_USER: jit
+      MYSQL_PASSWORD: jit
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # 首次启动建 5 表（DDL 只含结构，不含数据集）
+      - ./infra/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_USER: jit
+      DB_PASSWORD: jit
+      DB_NAME: jit_demo
+      API_TOKEN: ${API_TOKEN:-dev-token}
+      MODEL_DIR: /models
+      # 在线预测新提交需要历史 git 仓库；把本机 camel 克隆挂到 /repo 再取消注释
+      # SOURCE_REPO: /repo
+    volumes:
+      # 在线模型目录（feature_order.txt + 8 个 .pkl），由本机挂载
+      - ./data_model/pipelines/expert/models:/models:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        # 鉴权令牌构建期注入前端包；须与 backend 的 API_TOKEN 一致
+        VITE_API_KEY: ${API_TOKEN:-dev-token}
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  mysql-data:

@@ -26,7 +26,7 @@ const stubs = {
   'el-select': true,
   'el-option': true,
   'el-tag': { template: '<span><slot/></span>' },
-  'el-tooltip': true,
+  'el-tooltip': { template: '<span><slot/></span>' },
   'el-empty': true,
   'el-alert': true,
   'el-skeleton': true,
@@ -136,5 +136,115 @@ describe('CommitDetail 重新预测与 SZZ 三态', () => {
     wrapper.vm.detail.is_bug_inducing = null
     await wrapper.vm.$nextTick()
     expect(wrapper.text()).toContain('无 SZZ 标记')
+  })
+})
+
+describe('CommitDetail 缺陷定位与修复参考（G1-1/G1-2）', () => {
+  beforeEach(() => {
+    getCommitDetail.mockReset()
+    postPredict.mockReset()
+    getModels.mockReset()
+    getModels.mockResolvedValue({ lines: [] })
+  })
+
+  const baseDetail = () => ({
+    commit_hash: HASH,
+    author_name: 'dev',
+    committed_at: '2026-08-01T00:00:00Z',
+    message: 'CAMEL-1 fix',
+    risk_score: 0.9,
+    model_name: 'xgb_v1',
+    predicted_at: '2026-08-02T00:00:00Z',
+    features: {},
+    explanation: [],
+    is_bug_inducing: 1
+  })
+
+  it('G1-1：有归因时渲染「缺陷定位」区块，按 |归因| 降序高亮', async () => {
+    getCommitDetail.mockResolvedValue({
+      ...baseDetail(),
+      localization: {
+        level: 'commit',
+        notice: '未采集文件/行级差异数据，已降级到提交级特征定位',
+        highlights: [
+          { feature: 'la', label: '代码改动量大', contribution: 0.6, direction: 'increase' },
+          { feature: 'lt', label: '测试改动少', contribution: -0.4, direction: 'decrease' }
+        ]
+      }
+    })
+    const wrapper = mountDetail()
+    await flushPromises()
+    expect(wrapper.vm.localization.level).toBe('commit')
+    expect(wrapper.text()).toContain('缺陷定位')
+    expect(wrapper.find('.loc').exists()).toBe(true)
+    expect(wrapper.findAll('.loc .rank').map((n) => n.text())).toEqual(['1', '2'])
+    expect(wrapper.findAll('.loc .f').map((n) => n.text())).toEqual(['代码改动量大', '测试改动少'])
+  })
+
+  it('G1-1：归因为空时不渲染高亮条（降级到空态，不编造）', async () => {
+    getCommitDetail.mockResolvedValue({
+      ...baseDetail(),
+      localization: { level: 'commit', notice: '该模型未提供特征归因，暂无定位信息', highlights: [] }
+    })
+    const wrapper = mountDetail()
+    await flushPromises()
+    expect(wrapper.text()).toContain('缺陷定位')
+    expect(wrapper.find('.loc').exists()).toBe(false)
+  })
+
+  it('G1-2：有历史修复提交时渲染「修复参考」列表', async () => {
+    getCommitDetail.mockResolvedValue({
+      ...baseDetail(),
+      fix_references: {
+        basis: '同仓库历史修复提交',
+        items: [
+          { commit_hash: 'b'.repeat(40), message: 'CAMEL-2 fix', committed_at: '2026-07-01T00:00:00Z' }
+        ]
+      }
+    })
+    const wrapper = mountDetail()
+    await flushPromises()
+    expect(wrapper.text()).toContain('修复参考')
+    expect(wrapper.find('.refs').exists()).toBe(true)
+    expect(wrapper.find('.ref-hash').text()).toBe('b'.repeat(8))
+    expect(wrapper.find('.ref-msg').text()).toContain('CAMEL-2 fix')
+  })
+
+  it('G1-2：无依据时渲染空态（不编造建议）', async () => {
+    getCommitDetail.mockResolvedValue({
+      ...baseDetail(),
+      fix_references: { basis: '同仓库历史修复提交', items: [] }
+    })
+    const wrapper = mountDetail()
+    await flushPromises()
+    expect(wrapper.text()).toContain('修复参考')
+    expect(wrapper.find('.refs').exists()).toBe(false)
+  })
+
+  it('旧接口无新字段时两区块均隐藏（向后兼容）', async () => {
+    getCommitDetail.mockResolvedValue(baseDetail())
+    const wrapper = mountDetail()
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('缺陷定位')
+    expect(wrapper.text()).not.toContain('修复参考')
+  })
+
+  it('G1-1：level="line" 时渲染新增代码行高亮', async () => {
+    getCommitDetail.mockResolvedValue({
+      ...baseDetail(),
+      localization: {
+        level: 'line',
+        notice: '按提交级缺陷概率对新增代码行着色',
+        highlights: [],
+        truncated: false,
+        files: [{ path: 'src/A.java', added_lines: [{ number: 1, content: 'class A {}' }] }]
+      }
+    })
+    const wrapper = mountDetail()
+    await flushPromises()
+    expect(wrapper.find('.lines').exists()).toBe(true)
+    expect(wrapper.find('.file-path').text()).toBe('src/A.java')
+    expect(wrapper.find('.line-no').text()).toBe('1')
+    expect(wrapper.find('.line-content').text()).toBe('class A {}')
   })
 })

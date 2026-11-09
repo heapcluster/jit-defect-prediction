@@ -51,6 +51,8 @@
 | `features{ns..sexp}` | Kamei 14 维（log 变换值，见 `database/commit_feature.md`） |
 | `explanation[]` | 解释因子：`feature` + `contribution` + `direction` + `label`（中文名；与已下线的人工标签 `label` 对象无关） |
 | `is_bug_inducing` | SZZ 真标签：`1` / `0` / `null`（未打标） |
+| `localization` | 缺陷可视化定位（G1-1）：`level`（`"line"`/`"commit"`）+ `notice` + `highlights[]` + `files[]`（`path`+`added_lines[]{number,content}`）+ `truncated`。有历史仓库可解析 diff 时为 `"line"`（新增行按提交级缺陷概率着色），否则降级 `"commit"` 特征归因，不编造行级概率 |
+| `fix_references` | 高质量修复参考（G1-2）：`basis` + `items[]`（`commit_hash`/`message`/`committed_at`）。同仓库 `fix=1` 历史修复提交，按时间倒序；无依据时 `items` 为空 |
 
 **详情不返回 `label` 对象**（人工标签已下线），**也不返回 `pr_submitted_at`**（无 commit→PR 持久数据源，见口径）。
 
@@ -74,3 +76,5 @@
 - **模型性能看板固定 `is_test=1`**：表格只取测试集，与性能图 / 指标同一口径，不混入训练集；风险列表不传该参数。`total` 即测试集内已预测且命中筛选的行数。
 - 列表是 `prediction` 与 `commit` 的内连接，**只有已预测的提交会出现**；「尚未预测」表现为少一行，而不是 `risk_score = null`。详情里 `risk_score` / `predicted_at` 可为 `null`（该提交没有选中模型的预测行）。
 - 详情不返回「各模型分数列表」：换模型 = 换列表 / 趋势的 `model_name` 参数，或在详情页重新预测；横向比对多模型走模型性能看板。
+- **`localization.level` 两级降级**：`SOURCE_REPO` 可解析出该提交 diff 时为 `"line"`（`files[]` = 改动最多的前 5 个文件、每文件前 30 条新增行，`truncated` 标记截断），新增行按提交级缺陷概率分档着色；否则降级 `"commit"`（`highlights[]` 按 `|contribution|` 降序前 5）。无 per-line 模型，行级概率即提交级概率，MUST NOT 编造。
+- **`fix_references` 只回真实历史修复提交**：数据源 = `commit_feature.fix=1`（同仓库，排除自身），按 `committed_at` 倒序取前 5；无依据返回 `items=[]`，MUST NOT 编造修复建议。
