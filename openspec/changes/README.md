@@ -17,5 +17,6 @@
 | `frontend-integration` | 记录旧三页的历史联调；当前为四页 | 在 `docs/common/integration-log.md` 补现行四页截图与异常场景 |
 | `pr-review-automation-prototype` | 旧工作流已删除 | 标为历史原型；不要把它算作当前自动审阅能力 |
 | `model-training-scope-8`、`online-eight-model-selection`、`test-set-eval-figures` | 八分类器、expert 在线八模型、五表图集与当前设计方向一致 | 补未勾选任务、真实权重/数据库/页面证据后再归档 |
+| `neon-test-baseline` | 只新增测试取证清单与执行边界记录，不改契约、不动代码；与当前五表十一端点一致 | 取得运行时 `/openapi.json` 与真实环境后回填实测，再按 `tasks.md` 逐项勾选 |
 
 其他 change 也必须逐条核对 Requirement 标题、实际代码与证据路径。未复核不能直接勾选或归档。历史归档目录保留当时的路径和结论，不回写历史。
