@@ -1,3 +1,4 @@
+# [AI生成] 本文件用例由 AI 编写，核心断言经人工复核。
 """commit_hash 归一化的三例单元测试（app/validate.py）。
 
 此前该函数只在 API 层被间接覆盖（test_security_boundaries.py），缺函数级

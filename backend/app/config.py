@@ -70,6 +70,14 @@ API_TOKEN = os.getenv("API_TOKEN", "")
 MODEL_DIR = Path(
     os.getenv("MODEL_DIR", "") or (REPO_ROOT / "data_model" / "pipelines" / "expert" / "models")
 )
+# 四线模型目录根（expert/semantic/fused/e2e）；在线接入按线加载权重与特征
+PIPELINES_DIR = REPO_ROOT / "data_model" / "pipelines"
+# 语义特征来源：模型线预计算的 CodeBERT mean-pool embedding（commit_hash → 768 维）。
+# semantic / fused 在线预测直接查这张表，无需 transformers（e2e 仍需 CodeBERT 前向）。
+SEMANTIC_EMBEDDINGS = Path(
+    os.getenv("SEMANTIC_EMBEDDINGS", "")
+    or (PIPELINES_DIR / "semantic" / "data" / "semantic_embeddings.npz")
+)
 # 历史索引仓库：apache/camel 的 **blobless 克隆**（`git clone --filter=blob:none`，
 # 只取提交+树、不含 blob，几十 MB），仅供 feature_source 跑 `git log --numstat` /
 # `git cat-file` 计算 14 维特征。它**不是开发库、不进工作流、不持有预测状态**，

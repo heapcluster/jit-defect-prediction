@@ -5,9 +5,11 @@ export function getCommits(params) {
   return request.get('/commits', { params })
 }
 
-// 提交详情：GET /api/commits/{commit_hash}
-export function getCommitDetail(hash) {
-  return request.get(`/commits/${hash}`)
+// 提交详情：GET /api/commits/{commit_hash}（model_name 可选：与列表所选模型对齐）
+export function getCommitDetail(hash, modelName) {
+  return request.get(`/commits/${hash}`, {
+    params: modelName ? { model_name: modelName } : undefined
+  })
 }
 
 // 缺陷引入趋势：GET /api/trends

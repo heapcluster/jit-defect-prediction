@@ -286,6 +286,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { getCommitDetail, postPredict } from '../api'
 import { ElMessage } from 'element-plus'
 import { riskColor } from '../utils/risk'
@@ -299,6 +300,8 @@ import RiskTag from '../components/RiskTag.vue'
 const props = defineProps({
   hash: { type: String, required: true }
 })
+
+const route = useRoute()
 
 const detail = ref(null)
 const loading = ref(false)
@@ -371,7 +374,8 @@ async function load() {
   error.value = ''
   errorCode.value = 0
   try {
-    detail.value = await getCommitDetail(props.hash)
+    const model = typeof route.query.model_name === 'string' ? route.query.model_name : undefined
+    detail.value = await getCommitDetail(props.hash, model)
   } catch (e) {
     detail.value = null
     errorCode.value = e?.code || 0

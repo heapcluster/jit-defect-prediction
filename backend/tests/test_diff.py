@@ -1,3 +1,4 @@
+# [AI生成] 本文件用例由 AI 编写，核心断言经人工复核。
 """app/diff.py 统一 diff 解析的三例单元测试（行级缺陷定位的解析底座）。"""
 
 from __future__ import annotations

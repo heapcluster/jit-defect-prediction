@@ -1,3 +1,4 @@
+# [AI生成] 本文件用例由 AI 编写，核心断言经人工复核。
 """提交组装纯函数的三例单元测试（app/services/commits.py）。
 
 `feature_dict` / `explanation_for` 是详情接口的字段组装入口，此前只在 API 层

@@ -1,3 +1,4 @@
+// [AI生成-人工修改] 在原有测试基础上由 AI 补充/修改部分用例，核心断言经人工复核。
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
@@ -16,7 +17,7 @@ vi.mock('../src/api', () => ({
 }))
 
 vi.mock('element-plus', () => ({
-  ElMessage: { success: vi.fn(), error: vi.fn() }
+  ElMessage: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }
 }))
 
 // routeQuery 供各用例注入路由参数（useRoute 的 mock 读取它）

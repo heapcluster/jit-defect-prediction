@@ -1,3 +1,4 @@
+# [AI生成] 本文件用例由 AI 编写，核心断言经人工复核。
 """解释因子标签的三例单元测试（app/explain.py）。
 
 `explain_label` / `with_labels` 是详情 / 预测 / PR 理由共用的中文名映射入口，

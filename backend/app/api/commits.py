@@ -121,7 +121,10 @@ def list_commits(
 
 
 @router.get("/api/commits/{commit_hash}", response_model=schemas.DetailResponse)
-def commit_detail(commit_hash: str) -> dict:
+def commit_detail(
+    commit_hash: str,
+    model_name: str | None = Query(default=None),
+) -> dict:
     # 库内哈希是小写：校验放行大写形式，查询就必须用归一化值，否则误报 commit not found（D-09）
     commit_hash = normalize_commit_hash(commit_hash)
     with SessionLocal() as session:
@@ -133,15 +136,17 @@ def commit_detail(commit_hash: str) -> dict:
         feature = session.execute(
             select(CommitFeature).where(CommitFeature.commit_hash == commit_hash)
         ).scalar_one_or_none()
-        default_model = commit_service.default_model_in_table(session)
+        # 与列表口径一致：显式指定 model_name 时查该模型，否则查默认模型。
+        # 修复「列表选了非默认模型、进详情却显示未预测」。
+        model = model_name or commit_service.default_model_in_table(session)
         prediction = (
             session.execute(
                 select(Prediction).where(
                     Prediction.commit_hash == commit_hash,
-                    Prediction.model_name == default_model,
+                    Prediction.model_name == model,
                 )
             ).scalar_one_or_none()
-            if default_model
+            if model
             else None
         )
         # 提交存在但无预测记录 → code=0 + null 字段（risk_score / predicted_at）

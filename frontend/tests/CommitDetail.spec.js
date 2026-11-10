@@ -1,3 +1,4 @@
+// [AI生成-人工修改] 在原有测试基础上由 AI 补充/修改部分用例，核心断言经人工复核。
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
@@ -16,6 +17,11 @@ vi.mock('../src/api', () => ({
 
 vi.mock('element-plus', () => ({
   ElMessage: { success: vi.fn(), error: vi.fn() }
+}))
+
+// useRoute：详情按路由 query.model_name 查对应模型的概率（未注入 router 时应返回空 query）
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ query: {} })
 }))
 
 const HASH = 'a'.repeat(40)

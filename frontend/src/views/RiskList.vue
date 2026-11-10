@@ -191,14 +191,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { getCommits, postSync, getSyncStatus } from '../api'
+import { getCommits } from '../api'
 import { ElMessage } from 'element-plus'
 import { riskColor } from '../utils/risk'
 import { loadModelLines } from '../utils/models'
 import { errText, isRetryable } from '../utils/errors'
 import { formatTime } from '../utils/datetime'
+import { syncProgress, startSync, resumeIfRunning } from '../utils/syncProgress'
 import LineModelCascade from '../components/LineModelCascade.vue'
 import RiskTag from '../components/RiskTag.vue'
 
@@ -277,64 +278,31 @@ function reset() {
 // 查询栏切换模型立即重查（与模型性能看板一致）：否则选完模型还得再点一次「查询」
 watch(() => filters.model_name, () => load(1))
 
-// ── 刷新：按同步范围行调 /api/sync，异步轮 status，完成后按查询栏条件重查 ──
-const syncing = ref(false)
-const syncMsg = ref('')
-let pollTimer = null
+// ── 刷新：进度状态收在全局 store（切路由不丢），本组件只负责发起、结束提示与重查 ──
+const syncing = computed(() => syncProgress.running)
+const syncMsg = computed(() => syncProgress.msg)
 
 async function refresh() {
-  if (syncing.value) return
-  syncing.value = true
-  syncMsg.value = ''
+  if (syncProgress.running) return
   try {
-    await postSync({
+    const final = await startSync({
       line: syncLine.value || undefined,
       modelName: syncModel.value || undefined,
       startTime: syncTime.value?.[0] || undefined,
       endTime: syncTime.value?.[1] || undefined
     })
-    const final = await pollUntilIdle()
-    if (final?.last_error) {
-      ElMessage.error(`同步失败：${final.last_error}`)
-    } else if (final && final.total > 0) {
-      ElMessage.success(`同步完成，共 ${final.done ?? final.total} 条`)
+    if (!final) return
+    if (final.lastError) {
+      ElMessage.error(`同步失败：${final.lastError}`)
+    } else if (final.total > 0) {
+      ElMessage.success(`同步完成，共 ${final.done || final.total} 条`)
     } else {
       ElMessage.info('该范围内没有新的提交需要预测')
     }
   } catch (e) {
     ElMessage.error(errText(e))
   } finally {
-    syncing.value = false
-    stopPolling()
-    syncMsg.value = ''
     load(1)
-  }
-}
-
-function pollUntilIdle() {
-  return new Promise((resolve, reject) => {
-    const tick = async () => {
-      try {
-        const s = await getSyncStatus()
-        syncMsg.value = s.running
-          ? s.total
-            ? `同步中 ${s.done}/${s.total}`
-            : '同步中…'
-          : ''
-        if (!s.running) return resolve(s)
-      } catch (e) {
-        return reject(e)
-      }
-      pollTimer = setTimeout(tick, 1500)
-    }
-    tick()
-  })
-}
-
-function stopPolling() {
-  if (pollTimer) {
-    clearTimeout(pollTimer)
-    pollTimer = null
   }
 }
 
@@ -349,7 +317,11 @@ async function copyHash(hash) {
 }
 
 function goDetail(row) {
-  router.push(`/commit/${row.commit_hash}`)
+  // 带上列表所选模型，详情才显示同一模型的概率（修「列表有分、详情未预测」）
+  router.push({
+    path: `/commit/${row.commit_hash}`,
+    query: filters.model_name ? { model_name: filters.model_name } : undefined
+  })
 }
 
 // 从 route.query 同步筛选条件（趋势下钻带回 start_time/end_time / model_name 深链）
@@ -365,6 +337,7 @@ function applyQueryAndLoad() {
 onMounted(() => {
   loadLines()
   applyQueryAndLoad()
+  resumeIfRunning()
 })
 
 watch(() => route.query, applyQueryAndLoad)
