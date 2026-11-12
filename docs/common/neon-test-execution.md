@@ -33,6 +33,8 @@
 | E-06 | PR #216 审阅与合入 | GitHub API：`POST /pulls/216/reviews`（APPROVE）、`PUT /pulls/216/merge`（squash） | 审阅通过并合入，合并提交 `afdee84`；审阅意见含 3 项跟进缺陷 | PR [#216](https://github.com/heapcluster/jit-defect-prediction/pull/216) 审阅记录；留痕见 [`pr-review-log.md`](pr-review-log.md) |
 | E-07 | 缺陷登记 | GitHub Issues API | 登记 4 条：[#217](https://github.com/heapcluster/jit-defect-prediction/issues/217)（语义表路径）、[#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)（e2e 文本表）、[#219](https://github.com/heapcluster/jit-defect-prediction/issues/219)（契约/部署）、[#220](https://github.com/heapcluster/jit-defect-prediction/issues/220)（D-01~D-06） | [`defect-records.md`](defect-records.md) |
 | E-08 | 合并后分支同步 | `git rebase main`（main=`afdee84`） | 本分支 rebase 成功，清单已按 25 模型与 `model_name` 参数更新 | 本文件与 `endpoint-inventory.md` §2.1/§3 |
+| E-09 | 项目看板映射（neon-5） | `lark-cli base +record-batch-create`（Bitable `SilBbJZFPaDct1slrIVcN2Nonsc` / `tblLQAW6z5LB59nI`） | 11 项任务逐条入板（Sprint 2/3、负责人、状态、OpenSpec change、关联链接），rev 51→52 | [项目看板](https://gcnlk66qul6p.feishu.cn/base/SilBbJZFPaDct1slrIVcN2Nonsc) |
+| E-10 | 本周周报（neon-5） | `lark-cli docs +create` | 新建《工作周报-20261113》，含本周计划/本周总结/下周计划；他人负责部分标「待填写」，不代填 | [工作周报-20261113](https://gcnlk66qul6p.feishu.cn/docx/QTKgdRDNFoiN3uxc6OecURV2nZa) |
 
 E-02 附注：输出含 5 条 `[Vue warn]: Failed to resolve directive: loading`（`RiskList.spec.js`，Element Plus 指令未注册），属测试环境告警，不影响 59 条用例结果；不把告警算作通过证据之外的额外交付。
 

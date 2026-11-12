@@ -33,7 +33,7 @@
 - [x] 4.2 联调证据索引口径说明 — 交付：`docs/common/integration-log.md` 追加说明段；验收：不出现「通过」字样，未执行原因可追溯；负责人：neon。
 - [x] 4.3 缺陷登记到 GitHub Issue — 交付：[#217](https://github.com/heapcluster/jit-defect-prediction/issues/217)（语义表默认路径）、[#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)（e2e 文本表）、[#219](https://github.com/heapcluster/jit-defect-prediction/issues/219)（契约/部署）、[#220](https://github.com/heapcluster/jit-defect-prediction/issues/220)（D-01~D-06）；验收：`docs/common/defect-records.md` 有链接与关联提交；负责人：neon。
 - [x] 4.4 PR 审阅留痕 — 交付：`docs/common/pr-review-log.md`；验收：PR #216 的审阅结论、跟进缺陷与合并提交号可反查；负责人：neon。
-- [ ] 4.5 回飞书看板更新 N-2 / N-3 / N-4 状态 — **未执行：状态以负责人在看板的更新为准，仓库侧不代填**。
+- [x] 4.5 回飞书看板映射 11 项任务并写本周周报 — 交付：[看板](https://gcnlk66qul6p.feishu.cn/base/SilBbJZFPaDct1slrIVcN2Nonsc) 11 条新记录（Sprint 2/3 + 负责人 + 状态 + change）、[工作周报-20261113](https://gcnlk66qul6p.feishu.cn/docx/QTKgdRDNFoiN3uxc6OecURV2nZa)；验收：任务可对应负责人与状态，周报含三要素；负责人：neon。
 
 ## 测试与验证
 

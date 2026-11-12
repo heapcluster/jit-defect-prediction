@@ -24,7 +24,7 @@
 | neon-2 | neon | 系统测试 | P0 | 未执行（环境阻断，见 `docs/common/neon-test-execution.md`） |
 | neon-3 | neon | 验收测试 | P0 | 未执行（需真实环境演示 + 本人签字文档） |
 | neon-4 | neon | 缺陷与 PR 管理 | P1 | 进行中：PR #216 已审阅合入并留痕，缺陷 #217~#220 已登记；飞书缺陷看板未建 |
-| neon-5 | neon | 项目看板与周报 | P1 | 进行中：看板 / 周报在飞书维护，仓库侧只留索引 |
+| neon-5 | neon | 项目看板与周报 | P1 | 进行中：11 项任务已映射到[看板](https://gcnlk66qul6p.feishu.cn/base/SilBbJZFPaDct1slrIVcN2Nonsc)（Sprint 2/3），[工作周报-20261113](https://gcnlk66qul6p.feishu.cn/docx/QTKgdRDNFoiN3uxc6OecURV2nZa) 已建；后续按周更新 |
 | sober-1 | sober | 测试文档（含 OpenSpec 规范化） | P0 | 未开始（依赖 neon-1/2/3 结果） |
 | lsh-1 | lsh | 飞书《产品需求文档》维护与同步 | P1 | 未开始 |
 | lsh-2 | lsh | 飞书《产品设计文档》维护与同步 | P1 | 未开始 |
