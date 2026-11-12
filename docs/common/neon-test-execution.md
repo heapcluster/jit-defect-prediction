@@ -49,7 +49,7 @@
 |---|---|---|---|---|
 | N-01 | 「缺权重」异常 | 未执行 | 需移走 expert `.pkl`，会破坏当次环境并影响其他用例 | 单独测试窗口，执行人 neon |
 | N-02 | 「失败恢复」（同步中断 / 服务强杀后恢复） | 未执行 | 未构造断网/强杀场景 | 系统测试补充 |
-| N-03 | e2e 在线预测 | 未验证 | `commit_text.csv` 缺失（[#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)），当前恒 40001 | 产物补齐后重跑 T-IN-16 扩展用例 |
+| N-03 | e2e 在线预测 | 未验证 | `pipelines/e2e/data/commit_text.csv` 未生成（生成脚本 `build_text_dataset.py` 存在，[#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)），当前恒 40001 | 生成产物后重跑 T-IN-16 扩展用例 |
 | N-04 | 验收逐 Scenario（124 条） | 未执行 | 需按 `openspec/specs/` 逐条现场点验；本轮只覆盖四页面主干与异常态 | 组织验收演示，执行人 neon |
 | N-05 | 系统测试计划/总结、验收方案/报告 | 未产出 | AI-R5：须 neon 本人撰写并签字 | neon 依据 `evidence/2026-11-12/` 产出 |
 | N-06 | 前端逐接口联调截图 | 部分 | 只留四页面 + 两种异常态截图，未逐接口截图 | 验收阶段补齐 |

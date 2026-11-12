@@ -71,7 +71,7 @@
 | 缺口 | 影响 | 责任人 | 完成条件 |
 |---|---|---|---|
 | 「缺权重」「失败恢复」两类异常未执行 | 异常覆盖不完整 | neon | 单独测试窗口执行，记录写入 `system-test-run.md` |
-| e2e 在线路径不可用（`commit_text.csv` 缺失） | 25 模型口径无法完全验证 | 蛋神的蛋（[#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)） | 补产物与生成脚本后重跑 |
+| e2e 在线路径不可用（`pipelines/e2e/data/commit_text.csv` 未生成，脚本已有） | 25 模型口径无法完全验证 | 蛋神的蛋（[#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)） | 生成产物后重跑 |
 | 逐 124 条 Scenario 未对照 | 验收测试未完成 | neon | 组织演示并逐条记录 |
 | `openspec/specs/` 五个空能力目录 | 部分能力无规格可对照 | sober | 补 `spec.md` 或删除并说明 |
 | 系统测试计划/总结、验收方案/报告未产出 | 无签字版交付物 | neon（本人撰写） | 依据 `evidence/2026-11-12/` 撰写并签字 |

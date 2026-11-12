@@ -91,13 +91,13 @@ python scripts/perf_loop.py                                             # p95=48
 
 - **D-03 未复现为缺陷**：`POST /api/predict` 传多余字段仍 200（Pydantic 忽略），与 `docs/api/predict.md`「非法请求体 40001」不符——用例已改写为「类型错误触发 40001」，偏差登记在 [#220](https://github.com/heapcluster/jit-defect-prediction/issues/220)。
 - **D-06 实测确认**：`sync/status.started_at` 输出 `2026-11-12T09:04:02.303942`（无 `Z`），其余接口均带 `Z`。
-- **#217 实测确认**：semantic 预测返回「该提交暂无预计算语义向量」；把 `SEMANTIC_EMBEDDINGS` 指向 `data_model/data/semantic_embeddings.npz` 后同一提交 `hit=True`。
+- **#217 实测确认（复核定性与最初表述不同）**：semantic 预测返回「该提交暂无预计算语义向量」；把 `SEMANTIC_EMBEDDINGS` 指向 `data_model/data/semantic_embeddings.npz` 后同一提交 `hit=True`。代码默认路径与 `pipelines/semantic/config.py` 一致，**属产物未生成而非路径写错**。
 
 ## 7 · 已知限制（未覆盖）
 
 | 项 | 原因 | 后续 |
 |---|---|---|
 | 「缺权重」异常场景 | 需临时移走 expert `.pkl`，会破坏当次环境且影响其他用例 | 在系统测试窗口单独执行，owner：neon |
-| e2e 在线预测 | 缺 `commit_text.csv`（[#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)），当前必然 40001 | 待产物补齐后重跑 |
+| e2e 在线预测 | `pipelines/e2e/data/commit_text.csv` 未生成（生成脚本存在，见 [#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)），当前必然 40001 | 生成产物后重跑 |
 | 失败恢复（同步中断/服务重启） | 未构造断网或强杀场景 | 系统测试补充 |
 | 前端联调截图 | 本轮只做浏览器页面级取证（见 `docs/common/evidence/2026-11-12/`），未逐接口截图 | 验收阶段补齐 |

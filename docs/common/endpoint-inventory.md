@@ -39,27 +39,31 @@
 | 线 | 在线可用条件 | 干净检出下的实际状态 | 2026-11-12 实测 |
 |---|---|---|---|
 | expert（8） | `data_model/pipelines/expert/models/*.pkl` | 可用 | ✅ 预测成功（`et_v1` 0.97637、`xgb_v1` 0.9993） |
-| semantic（8）/ fused（8） | `config.SEMANTIC_EMBEDDINGS` 指向的 768 维预计算表 | **默认路径不存在**（见 D-08），未设环境变量时全部 40001 | ❌ 实测 400/40001「该提交暂无预计算语义向量」；把变量指向 `data_model/data/semantic_embeddings.npz` 后 `hit=True`（根因坐实） |
-| e2e（1） | `e2e/data/commit_text.csv` + `transformers` + `codebert_e2e_v1` 权重 | **文本表缺失且无生成脚本**（见 D-09）；容器内还缺 `transformers`（见 D-10） | ❌ 未执行（产物缺失，必然 40001） |
+| semantic（8）/ fused（8） | `pipelines/semantic/data/semantic_embeddings.npz`（后端默认路径与 `pipelines/semantic/config.py` 一致） | **该产物未生成**；仓库里只有旧 evaluation 布局的 `data_model/data/semantic_embeddings.npz`。**不是路径写错** | ❌ 实测 400/40001「该提交暂无预计算语义向量」；指向旧布局副本后 `hit=True`（数据在、布局未生成）；见 [#217](https://github.com/heapcluster/jit-defect-prediction/issues/217) |
+| e2e（1） | `pipelines/e2e/data/commit_text.csv` + `transformers` + `codebert_e2e_v1` 权重 | **文本表未生成**（生成脚本 `build_text_dataset.py` 存在）；容器内还缺 `transformers` | ❌ 未执行（产物缺失 → 必然 40001）；见 [#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)、[#219](https://github.com/heapcluster/jit-defect-prediction/issues/219) |
 
 `/api/models` 的 25 条记录不能当作 25 个可用模型；集成用例对「模型不可用」按「非 500 + 明确文案」断言（`T-IN-16`、安全用例 12 项）。
 
-## 3 · 文档与代码不一致（10 处，已登记 Issue）
+## 3 · 文档与实现偏差（复核后 6 条，已登记 Issue）
 
-| # | 位置 | 文档口径 | 代码实际 | 对用例的影响 |
-|---|---|---|---|---|
-| D-01 | `docs/api/commits.md` | `features` 仅 `with_features=1` 时返回 | 未开启时键仍存在，值为 `null` | 断言「键不存在」会误判失败，应按「值为 null」写 |
-| D-02 | `docs/api/commits.md` | 40400 = 提交**或特征**不存在 | 详情路由只在 commit 行缺失时 40400；缺特征走 `code=0` + null | 「缺特征」场景的预期码必须改 |
-| D-03 | `docs/api/predict.md` | 多余字段 / 非法请求体返回 40001 | `PredictRequest` 未设 `extra="forbid"`，多余字段被静默忽略并 200 | 「非法请求体」用例需改用类型错误触发，不能靠多余字段 |
-| D-04 | `docs/api/figures.md` | 40400 含「图文件不存在」 | 只查 DB，不校验 PNG 是否在盘；丢文件时本接口仍 200，坏在 `/static/**` | 不能把「丢图」写成 `/api/figures` 的 40400 |
-| D-05 | `docs/api/sync.md` | 50000 = 同步中 / git 源不可达 / 内部错误 | git 不可达在后台线程抛 40400，只落 `last_error`，HTTP 拿不到 | 断言「HTTP 50000」会失败，应按 `sync/status.last_error` 断言 |
-| D-06 | `docs/api/sync.md` | 未规定 `started_at` 序列化格式 | naive datetime 输出无 `Z`，与其余接口 `iso_z` 口径不一致 | 时间格式断言需按实际值放宽，或先修代码 |
-| D-07 | `docs/api/commits.md` / `docs/web_page/` | 详情只有路径参数 `commit_hash` | PR #216 新增可选 query `model_name`，前端详情页从 `route.query.model_name` 透传 | 契约与页面文档需同步，否则用例无从断言该参数；见 [#219](https://github.com/heapcluster/jit-defect-prediction/issues/219) |
-| D-08 | `backend/app/config.py` | ——（代码内默认值） | `SEMANTIC_EMBEDDINGS` 默认指向 `data_model/pipelines/semantic/data/*.npz`，实际产物在 `data_model/data/semantic_embeddings.npz` | semantic/fused 的 16 个模型默认不可预测；见 [#217](https://github.com/heapcluster/jit-defect-prediction/issues/217) |
-| D-09 | `data_model/pipelines/e2e/data/` | PR #216 称 e2e 在线与 DB 一致 | 缺 `commit_text.csv`，且仓库无生成脚本 | e2e 在线恒 40001，PR 结论他人不可复跑；见 [#218](https://github.com/heapcluster/jit-defect-prediction/issues/218) |
-| D-10 | `backend/Dockerfile` | 部署镜像应支撑在线推理 | 未安装 `transformers`（`environment.yml` 声明 4.46.1） | 容器内 e2e 必然降级；见 [#219](https://github.com/heapcluster/jit-defect-prediction/issues/219) |
+> 2026-11-12 按 `afdee84` 代码逐条复核：**D-01 不成立已剔除**；原 D-07（详情参数）并入下表；D-08/D-09 重新定性为「产物未按布局生成」而非「路径写错」；D-10 单独成 Issue（部署）。
 
-D-01~D-06 统一登记在 [#220](https://github.com/heapcluster/jit-defect-prediction/issues/220)（待逐条裁定改文档还是改代码）。
+| # | 位置 | 文档口径 / 期望 | 实际 | 对用例的影响 | 归属 |
+|---|---|---|---|---|---|
+| D-02 | `docs/api/commits.md` | 40400 = 提交**或特征**不存在 | 只在 commit 行缺失时 40400；缺特征/缺预测返回 `code=0` + `risk_score=null` | 「缺特征」场景的预期码必须改 | [#220](https://github.com/heapcluster/jit-defect-prediction/issues/220) |
+| D-03 | `docs/api/predict.md` | 多余字段 / 非法请求体 → 40001 | `PredictRequest` 未设 `extra="forbid"`，多余字段被忽略并 200 | 非法请求体用例只能用类型错误触发 | #220（建议改代码） |
+| D-04 | `docs/api/figures.md` | 40400 含「图文件不存在」 | 只查 DB，不校验 PNG 是否在盘；丢文件时接口 200，坏在 `/static/**` | 不能把「丢图」写成 `/api/figures` 的 40400 | #220 |
+| D-05 | `docs/api/sync.md` | 50000 = 同步中 / git 源不可达 / 内部错误 | git 不可达在后台 worker 抛 40400，只落 `last_error`；HTTP 仅「已在同步中」返回 50000 | 断言 HTTP 50000 会失败，应按 `sync/status.last_error` 断言 | #220 |
+| D-06 | `docs/api/sync.md` + `openspec/config.yaml` | 时间字段统一 UTC + `Z` | `sync/status.started_at` 实测 `2026-11-12T09:04:02.303942`，**无 `Z`** | 时间格式断言需放宽，或先修代码 | #220（建议改代码） |
+| D-07 | `docs/api/commits.md` | 参数小节标题为「参数（列表）」 | 详情新增 query `model_name` 无对应参数条目（列表参数里早有 `model_name`） | 文档读者会以为详情不接受该参数 | #220 |
+
+## 3.1 · 交付/部署缺口（非代码路径错误）
+
+| 项 | 事实 | Issue |
+|---|---|---|
+| semantic/fused 产物 | `pipelines/semantic/config.py:21` 与后端默认值一致（`pipelines/semantic/data/*.npz`），但该 npz 未生成；仓库只有 `data_model/data/` 旧副本 | [#217](https://github.com/heapcluster/jit-defect-prediction/issues/217) |
+| e2e 文本表 | `build_text_dataset.py` 存在（`OUT_CSV=pipelines/e2e/data/commit_text.csv`），但产物未生成；仓库只有 `data_model/data/commit_text.csv` 旧副本 | [#218](https://github.com/heapcluster/jit-defect-prediction/issues/218) |
+| 容器依赖 | `docker-compose` 用 `backend/Dockerfile` 构建，该文件未装 `transformers`（`environment.yml` 声明 4.46.1） | [#219](https://github.com/heapcluster/jit-defect-prediction/issues/219) |
 
 补充（规格层，未计入上表）：`openspec/specs/nfr-evidence/spec.md` 要求提供 `backend/scripts/perf_loop.py` 与 `backend/scripts/security_cases.py`，但仓库**没有 `backend/scripts/` 目录**，`openspec/specs/` 下 `feedback`、`observability`、`ops`、`quality`、`ui` 五个能力目录为空目录（无 `spec.md`）。这两点会影响「非功能实测」与「验收逐 Scenario 对照」的取证路径。
 

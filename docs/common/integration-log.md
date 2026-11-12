@@ -16,4 +16,4 @@
 
 - 本机已具备 conda `jit-defect-prediction`（Python 3.12.14：fastapi / sqlalchemy / pymysql / sklearn / xgboost / lightgbm / shap / transformers / pytest-cov 齐备）与 MySQL80，后端 `uvicorn`、前端 `vite` 均实跑，上表结果来自当次真实请求与浏览器截图。
 - 逐条用例（35 条）结果、并发与跨模块链路见 [`integration-report.md`](integration-report.md)；非功能两项见 `backend/scripts/evidence/2026-11-12-{perf,security}.md`。
-- 「缺权重」与 e2e 在线路径仍未取证：前者会破坏当次环境，后者缺 `commit_text.csv`（[#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)）。
+- 「缺权重」与 e2e 在线路径仍未取证：前者会破坏当次环境，后者 `pipelines/e2e/data/commit_text.csv` 未生成（生成脚本存在，[#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)）。
