@@ -21,6 +21,7 @@
 - [x] 2.3 异常 5 类 — 交付：空库 ✅ / 无效令牌 ✅ / 非法参数 ✅ / 详情不存在与未知路由 ✅；**缺权重、失败恢复未执行**；验收：同文件 §2；负责人：neon。
 - [x] 2.4 非功能 ≥2 项实测 — 交付：新增 `backend/scripts/perf_loop.py`、`security_cases.py` 与两份 evidence；性能 p95=48.1ms 达标、安全 12/12；验收：`backend/scripts/evidence/2026-11-12-*.md`；负责人：neon。
 - [ ] 2.5 系统测试计划 / 总结（人工撰写 + 签字） — **未产出：AI-R5 要求 neon 本人依据 `evidence/2026-11-12/` 撰写，本 change 不代写**。
+- [x] 2.6 25 模型在线矩阵 — 交付：`backend/scripts/evidence/2026-11-12-online-25.md`；验收：补齐两张输入表后逐个 `POST /api/predict`，**23/25 通过**，2 个 tabnet 挂 [#222](https://github.com/heapcluster/jit-defect-prediction/issues/222)；负责人：neon。
 
 ## 3 · 验收测试
 
@@ -71,6 +72,7 @@
 | 缺口 | 影响 | 责任人 | 完成条件 |
 |---|---|---|---|
 | 「缺权重」「失败恢复」两类异常未执行 | 异常覆盖不完整 | neon | 单独测试窗口执行，记录写入 `system-test-run.md` |
+| 2 个 tabnet 模型 CPU 加载失败 | 25 模型在线少 2 个 | 蛋神的蛋（[#222](https://github.com/heapcluster/jit-defect-prediction/issues/222)） | 重新导出 CPU 权重或加载侧 `map_location="cpu"`，复测后回填 25/25 |
 | e2e 在线路径不可用（`pipelines/e2e/data/commit_text.csv` 未生成，脚本已有） | 25 模型口径无法完全验证 | 蛋神的蛋（[#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)） | 生成产物后重跑 |
 | 逐 124 条 Scenario 未对照 | 验收测试未完成 | neon | 组织演示并逐条记录 |
 | `openspec/specs/` 五个空能力目录 | 部分能力无规格可对照 | sober | 补 `spec.md` 或删除并说明 |

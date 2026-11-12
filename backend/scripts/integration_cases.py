@@ -1,4 +1,4 @@
-"""集成测试用例：对**运行中的服务**执行 11 个端点的四类场景，输出逐条结果。
+﻿"""集成测试用例：对**运行中的服务**执行 11 个端点的四类场景，输出逐条结果。
 
 用法（在 backend/ 目录，先起服务）：
 
@@ -44,7 +44,7 @@ AUTH = {"X-API-Key": API_TOKEN}
 FEATURE_ORDER = list(app_config.FEATURE_COLUMNS)
 SYNC_TIMEOUT = int(os.getenv("SYNC_TIMEOUT", "900"))
 
-client = httpx.Client(base_url=BASE_URL, timeout=120.0)
+client = httpx.Client(trust_env=False, base_url=BASE_URL, timeout=120.0)
 
 
 @dataclass
@@ -356,6 +356,7 @@ def sync_concurrent() -> str:
         try:
             r = httpx.post(
                 f"{BASE_URL}/api/sync",
+                trust_env=False,
                 params={"line": "expert"},
                 headers=AUTH,
                 timeout=30.0,

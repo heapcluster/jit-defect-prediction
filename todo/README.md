@@ -18,7 +18,7 @@
 
 | 编号 | 负责人 | 任务 | 优先级 | 状态（2026-11-12） |
 |---|---|---|---|---|
-| 蛋神的蛋-1 | 蛋神的蛋 | 在线预测能力对齐（25 模型全部接入 + 详情/进度 bug） | P1 | 代码已合入（PR #216 / `afdee84`），**产物侧未闭环**：#217 #218 未修复前 semantic/fused/e2e 无法在干净检出下预测 |
+| 蛋神的蛋-1 | 蛋神的蛋 | 在线预测能力对齐（25 模型全部接入 + 详情/进度 bug） | P1 | 代码已合入（PR #216 / `afdee84`）；补齐两张输入表后实测 **23/25 可预测**，剩 `tabnet_semantic_v1`/`tabnet_fused_v1` 因 CUDA 权重失败（[#222](https://github.com/heapcluster/jit-defect-prediction/issues/222)），交付布局见 [#217](https://github.com/heapcluster/jit-defect-prediction/issues/217) |
 | 蛋神的蛋-2 | 蛋神的蛋 | 单元测试（三例 + 覆盖率，自测通过即可） | P0 | 测试代码已补（PR #215/#216），覆盖率以 CI 报告为准（归档见 PR #212），待 sober 核对归档 |
 | neon-1 | neon | 集成测试 | P0 | **已完成主体**：11 端点四类场景，35/35 通过，接口覆盖 11/11（`integration-report.md`）；新增 `backend/scripts/integration_cases.py` |
 | neon-2 | neon | 系统测试 | P0 | **部分完成**：四页面主线 + 空库/无效令牌/非法参数已实测；性能 p95 48.1ms、安全 12/12；缺权重与失败恢复未执行；计划/总结待本人签字 |

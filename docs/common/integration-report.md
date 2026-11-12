@@ -98,6 +98,16 @@ python scripts/perf_loop.py                                             # p95=48
 | 项 | 原因 | 后续 |
 |---|---|---|
 | 「缺权重」异常场景 | 需临时移走 expert `.pkl`，会破坏当次环境且影响其他用例 | 在系统测试窗口单独执行，owner：neon |
-| e2e 在线预测 | `pipelines/e2e/data/commit_text.csv` 未生成（生成脚本存在，见 [#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)），当前必然 40001 | 生成产物后重跑 |
+| e2e 在线预测 | 已补测：把文本表放到 `pipelines/e2e/data/` 后返回 `0.44606`（与 PR #216 一致） | 待交付流程固化（[#217](https://github.com/heapcluster/jit-defect-prediction/issues/217)） |
+| 两个 tabnet 模型 | `tabnet_semantic_v1` / `tabnet_fused_v1` 因 CUDA 权重无法在 CPU 加载而 40001 | 待修复（[#222](https://github.com/heapcluster/jit-defect-prediction/issues/222)） |
 | 失败恢复（同步中断/服务重启） | 未构造断网或强杀场景 | 系统测试补充 |
 | 前端联调截图 | 本轮只做浏览器页面级取证（见 `docs/common/evidence/2026-11-12/`），未逐接口截图 | 验收阶段补齐 |
+
+## 8 · 25 模型在线矩阵（2026-11-12 补测）
+
+按「25 模型在线是交付承诺」补测：先把两张输入表放到在线代码读取的路径（硬链接，未改代码），再逐个 `POST /api/predict`。
+
+- 结果：**23 通过 / 2 失败**；失败为 `tabnet_semantic_v1`、`tabnet_fused_v1`，根因是权重绑定 CUDA（[#222](https://github.com/heapcluster/jit-defect-prediction/issues/222)），与路径无关。
+- 与 PR #216 三个数字对齐：`xgb_semantic_v1` 0.55491、`xgb_fused_v1` 0.99433、`codebert_e2e_v1` 0.44606。
+- 逐条矩阵与耗时：`backend/scripts/evidence/2026-11-12-online-25.md`。
+- 输入表覆盖：语义表与 e2e 文本表各 83,943 条，数据库最新 100 条提交均在覆盖范围内。

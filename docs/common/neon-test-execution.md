@@ -42,6 +42,7 @@
 | E-15 | 性能压测 | `python scripts/perf_loop.py` | p50 28.3ms / **p95 48.1ms** / p99 48.9ms / max 56.0ms，达标（<500ms） | `backend/scripts/evidence/2026-11-12-perf.md` |
 | E-16 | 系统测试主线（浏览器） | Playwright 打开四页面 | 四页均渲染真实数据；截图 6 张入库 | `docs/common/evidence/2026-11-12/` |
 | E-17 | 异常场景 | API + 第二实例 + 浏览器 | 空库 ✅、无效令牌 ✅、非法参数 ✅、详情不存在 ✅、未知路由 ✅；**缺权重 / 失败恢复未执行** | `system-test-run.md` §2 |
+| E-18 | 25 模型在线矩阵 | 逐个 `POST /api/predict` | 补齐两张输入表后 **23/25 通过**；2 个 tabnet 因 CUDA 权重失败（[#222](https://github.com/heapcluster/jit-defect-prediction/issues/222)）；三个关键数字与 PR #216 一致 | `backend/scripts/evidence/2026-11-12-online-25.md` |
 
 ## 3 · 仍未执行 / 未产出
 

@@ -38,9 +38,11 @@
 
 | 线 | 在线可用条件 | 干净检出下的实际状态 | 2026-11-12 实测 |
 |---|---|---|---|
-| expert（8） | `data_model/pipelines/expert/models/*.pkl` | 可用 | ✅ 预测成功（`et_v1` 0.97637、`xgb_v1` 0.9993） |
-| semantic（8）/ fused（8） | `pipelines/semantic/data/semantic_embeddings.npz`（后端默认路径与 `pipelines/semantic/config.py` 一致） | **该产物未生成**；仓库里只有旧 evaluation 布局的 `data_model/data/semantic_embeddings.npz`。**不是路径写错** | ❌ 实测 400/40001「该提交暂无预计算语义向量」；指向旧布局副本后 `hit=True`（数据在、布局未生成）；见 [#217](https://github.com/heapcluster/jit-defect-prediction/issues/217) |
-| e2e（1） | `pipelines/e2e/data/commit_text.csv` + `transformers` + `codebert_e2e_v1` 权重 | **文本表未生成**（生成脚本 `build_text_dataset.py` 存在）；容器内还缺 `transformers` | ❌ 未执行（产物缺失 → 必然 40001）；见 [#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)、[#219](https://github.com/heapcluster/jit-defect-prediction/issues/219) |
+| expert（8） | `data_model/pipelines/expert/models/*.pkl` | 可用 | ✅ 8/8 通过（`et_v1` 0.97637、`xgb_v1` 0.9993） |
+| semantic（8）/ fused（8） | `pipelines/semantic/data/semantic_embeddings.npz`（后端默认路径与模型线 config 一致） | 产物原本未生成（仓库只有 `data_model/data/` 旧副本）；**补到约定路径后** 7/8 + 7/8 通过 | ✅ `xgb_semantic_v1` 0.55491、`xgb_fused_v1` 0.99433；❌ 两个 tabnet 因 CUDA 权重无法加载（[#222](https://github.com/heapcluster/jit-defect-prediction/issues/222)） |
+| e2e（1） | `pipelines/e2e/data/commit_text.csv` + `transformers` + `codebert_e2e_v1` 权重 | 权重齐全（475MB），文本表原本未生成（脚本 `build_text_dataset.py` 存在）；补到约定路径后可用 | ✅ `0.44606`（与 PR #216 一致，首载 33.6s、复跑 0.3s）；容器内仍缺 `transformers`（[#219](https://github.com/heapcluster/jit-defect-prediction/issues/219)） |
+
+**25 模型逐条矩阵**见 `backend/scripts/evidence/2026-11-12-online-25.md`：23 通过 / 2 失败。
 
 `/api/models` 的 25 条记录不能当作 25 个可用模型；集成用例对「模型不可用」按「非 500 + 明确文案」断言（`T-IN-16`、安全用例 12 项）。
 
@@ -61,11 +63,12 @@
 
 | 项 | 事实 | Issue |
 |---|---|---|
-| semantic/fused 产物 | `pipelines/semantic/config.py:21` 与后端默认值一致（`pipelines/semantic/data/*.npz`），但该 npz 未生成；仓库只有 `data_model/data/` 旧副本 | [#217](https://github.com/heapcluster/jit-defect-prediction/issues/217) |
-| e2e 文本表 | `build_text_dataset.py` 存在（`OUT_CSV=pipelines/e2e/data/commit_text.csv`），但产物未生成；仓库只有 `data_model/data/commit_text.csv` 旧副本 | [#218](https://github.com/heapcluster/jit-defect-prediction/issues/218) |
+| semantic/fused 产物 | `pipelines/semantic/config.py:21` 与后端默认值一致（`pipelines/semantic/data/*.npz`），但该 npz 未生成；仓库只有 `data_model/data/` 旧副本。**补到约定路径后 7+7 个模型通过** | [#217](https://github.com/heapcluster/jit-defect-prediction/issues/217) |
+| e2e 文本表 | `build_text_dataset.py` 存在（`OUT_CSV=pipelines/e2e/data/commit_text.csv`），产物未生成；补齐后 e2e 实测 `0.44606` 通过 | #217（原 #218 已合并关闭） |
+| tabnet 权重 | `tabnet_semantic_v1` / `tabnet_fused_v1` 保存于 CUDA，CPU 加载抛 `Attempting to deserialize object on a CUDA device`；**这是真缺陷** | [#222](https://github.com/heapcluster/jit-defect-prediction/issues/222) |
 | 容器依赖 | `docker-compose` 用 `backend/Dockerfile` 构建，该文件未装 `transformers`（`environment.yml` 声明 4.46.1） | [#219](https://github.com/heapcluster/jit-defect-prediction/issues/219) |
 
-补充（规格层，未计入上表）：`openspec/specs/nfr-evidence/spec.md` 要求提供 `backend/scripts/perf_loop.py` 与 `backend/scripts/security_cases.py`，但仓库**没有 `backend/scripts/` 目录**，`openspec/specs/` 下 `feedback`、`observability`、`ops`、`quality`、`ui` 五个能力目录为空目录（无 `spec.md`）。这两点会影响「非功能实测」与「验收逐 Scenario 对照」的取证路径。
+补充（规格层，未计入上表）：`openspec/specs/` 下 `feedback`、`observability`、`ops`、`quality`、`ui` 五个能力目录为空目录（无 `spec.md`），会影响「验收逐 Scenario 对照」的取证路径；`nfr-evidence` 要求的两个脚本本轮已补（`backend/scripts/perf_loop.py`、`security_cases.py`）。
 
 ## 4 · 四类场景用例（已执行，35/35 通过）
 

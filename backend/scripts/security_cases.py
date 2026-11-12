@@ -1,4 +1,4 @@
-"""安全用例：鉴权、畸形参数与不可用模型的错误面收敛。
+﻿"""安全用例：鉴权、畸形参数与不可用模型的错误面收敛。
 
 对应 `openspec/specs/nfr-evidence/spec.md` 的「安全用例脚本」：
 
@@ -47,7 +47,7 @@ def no_leak(text: str) -> bool:
 
 
 def main() -> None:
-    client = httpx.Client(base_url=BASE_URL, timeout=60.0)
+    client = httpx.Client(trust_env=False, base_url=BASE_URL, timeout=60.0)
     try:
         client.get("/api/health")
     except Exception as exc:  # noqa: BLE001
