@@ -2,7 +2,7 @@
 
 > 状态：**这是清单与用例设计，不是测试通过报告。** 本清单由 `docs/api/*.md` 与 `backend/app/api/*.py` 静态对照得出；本轮**未取得运行时 `/openapi.json`**（本机无可用 Python 后端环境，原因见 [`neon-test-execution.md`](neon-test-execution.md)）。任何一行的 HTTP 实际结果仍为「未执行」。
 >
-> 采集：2026-11-10，分支 `test/neon-test-baseline`。接口覆盖率的分母以本文 11 个路由为准（与 `docs/api/README.md` 的「七份正文，共十一个路由」及 `backend/tests/test_mirror.py` 路径集一致）。
+> 采集：2026-11-10 初版；**2026-11-12 按合入的 PR #216（`afdee84`）更新**（详情新增 `model_name`、四线 25 模型登记在线、按线取特征与降级语义）。分支 `test/neon-test-baseline`。接口覆盖率的分母以本文 11 个路由为准（与 `docs/api/README.md` 的「七份正文，共十一个路由」及 `backend/tests/test_mirror.py` 路径集一致）。
 
 ## 1 · 公共契约（全部端点共用）
 
@@ -21,9 +21,9 @@
 | # | 端点 | 鉴权 | 关键参数（必填 / 边界） | 成功 `data` 要点 | 可返回业务码 |
 |---|---|---|---|---|---|
 | 1 | `GET /api/commits` | `X-API-Key` | `page≥1`（默认 1）、`size` 1–100（默认 20）、`model_name?`、`start_time?`/`end_time?`（别名 `since`/`until`）、`q?` ≤64、`with_features?` ∈ {0,1}、`is_test?` ∈ {0,1} | `total`/`page`/`size`/`items[]`；`items[]` 含 `commit_hash`、`risk_score`、`model_name`、`features`（可为 null）、`is_bug_inducing`（null=未打标）；排序 `risk_score DESC, commit_hash ASC` | 40001、40100 |
-| 2 | `GET /api/commits/{commit_hash}` | 同上 | 路径 `commit_hash` 必须 40 位十六进制（大写放行、内部转小写） | 单条默认模型结论 + `explanation[]` + `localization` + `fix_references`；缺特征/缺预测时 `risk_score`、`predicted_at` 为 null 而非报错 | 40001、40100、40400（仅 commit 行缺失） |
+| 2 | `GET /api/commits/{commit_hash}` | 同上 | 路径 `commit_hash` 必须 40 位十六进制（大写放行、内部转小写）；`model_name?`（PR #216 新增：指定则查该模型 prediction，缺省查默认模型） | 单条结论 + `explanation[]` + `localization` + `fix_references`；缺特征/缺预测时 `risk_score`、`predicted_at` 为 null 而非报错 | 40001、40100、40400（仅 commit 行缺失） |
 | 3 | `GET /api/models` | 同上 | `line?` ∈ {expert, semantic, fused, e2e}（空串同样 40001） | `lines[]{line,label,models[]}`，固定顺序 expert→semantic→fused→e2e；空线返回 `models=[]` 不报错 | 40001、40100 |
-| 4 | `POST /api/predict` | 同上 | body `commit_hash`（必填，40 位十六进制）、`model_name?`（必须已加载） | `risk_score ∈ [0,1]`（5 位小数）、14 维 `features`、`explanation[]`、`predicted_at` | 40001、40100、40400（`SOURCE_REPO` 未配置 / 抽特征失败）、50000（模型注册表为空等） |
+| 4 | `POST /api/predict` | 同上 | body `commit_hash`（必填，40 位十六进制）、`model_name?`（须在四线清单内且产物可用）；semantic/fused 需语义表、e2e 需文本表 + 编码器，缺任一 → 40001 明确文案（不 500） | `risk_score ∈ [0,1]`（5 位小数）、`features`（expert 14 维；semantic 768 / fused 782 展示口径见 `docs/overview.md`）、`explanation[]`（仅 expert 线有值，其余为空数组）、`predicted_at` | 40001（含 `ModelUnavailable` 与 e2e 不可用）、40100、40400（`SOURCE_REPO` 未配置 / 抽特征失败）、50000（模型注册表为空等） |
 | 5 | `POST /api/sync` | 同上 | **query** 参数：`line?` ∈ 4 值、`model_name?`、`start_time?`/`end_time?`；不传时间则取最新一批（`SYNC_BATCH_LIMIT`） | `{"accepted": true}`，异步执行，进度走 `/api/sync/status` | 40001、40100、50000（已在同步中） |
 | 6 | `GET /api/sync/status` | 同上 | 无 | `running`、`mode`、`scope`、`total`、`done`、`current_hash`、`started_at`、`last_error`；内存态，重启清零 | 40100 |
 | 7 | `GET /api/trends` | 同上 | `granularity` ∈ {week, month}（默认 week）、`start_time?`/`end_time?`、`model_name?`（不校验是否已加载） | `series[]{period, commit_count, avg_risk, high_risk_count}`；周口径 `2024-W31`、月口径 `2024-07` | 40001、40100 |
@@ -32,7 +32,19 @@
 | 10 | `GET /api/health/live` | 同上 | 无 | `status` 恒 `ok`（不碰 DB）、`server_time` | 40100 |
 | 11 | `GET /api/health/ready` | 同上 | 无 | `status`、`db`、`models_loaded`、`server_time`；DB 不通或模型为 0 → `degraded`，HTTP 仍 200 | 40100 |
 
-## 3 · 文档与代码不一致（6 处，均未提交 Issue，属待登记候选）
+### 2.1 模型覆盖口径（2026-11-12 更新，来自 PR #216 `afdee84`）
+
+`GET /api/models` 现在列出四线 25 个模型（expert 8 / semantic 8 / fused 8 / e2e 1），`model_registry` 只登记目录元数据、权重懒加载。但「列出」不等于「可预测」：
+
+| 线 | 在线可用条件 | 干净检出下的实际状态 |
+|---|---|---|
+| expert（8） | `data_model/pipelines/expert/models/*.pkl` | 可用 |
+| semantic（8）/ fused（8） | `config.SEMANTIC_EMBEDDINGS` 指向的 768 维预计算表 | **默认路径不存在**（见 D-08），未设环境变量时全部 40001 |
+| e2e（1） | `e2e/data/commit_text.csv` + `transformers` + `codebert_e2e_v1` 权重 | **文本表缺失且无生成脚本**（见 D-09）；容器内还缺 `transformers`（见 D-10） |
+
+因此本文件 §5 的实测覆盖率仍按 0/11 计；`/api/models` 的 25 条记录不能当作 25 个可用模型。
+
+## 3 · 文档与代码不一致（10 处，已登记 Issue）
 
 | # | 位置 | 文档口径 | 代码实际 | 对用例的影响 |
 |---|---|---|---|---|
@@ -42,6 +54,12 @@
 | D-04 | `docs/api/figures.md` | 40400 含「图文件不存在」 | 只查 DB，不校验 PNG 是否在盘；丢文件时本接口仍 200，坏在 `/static/**` | 不能把「丢图」写成 `/api/figures` 的 40400 |
 | D-05 | `docs/api/sync.md` | 50000 = 同步中 / git 源不可达 / 内部错误 | git 不可达在后台线程抛 40400，只落 `last_error`，HTTP 拿不到 | 断言「HTTP 50000」会失败，应按 `sync/status.last_error` 断言 |
 | D-06 | `docs/api/sync.md` | 未规定 `started_at` 序列化格式 | naive datetime 输出无 `Z`，与其余接口 `iso_z` 口径不一致 | 时间格式断言需按实际值放宽，或先修代码 |
+| D-07 | `docs/api/commits.md` / `docs/web_page/` | 详情只有路径参数 `commit_hash` | PR #216 新增可选 query `model_name`，前端详情页从 `route.query.model_name` 透传 | 契约与页面文档需同步，否则用例无从断言该参数；见 [#219](https://github.com/heapcluster/jit-defect-prediction/issues/219) |
+| D-08 | `backend/app/config.py` | ——（代码内默认值） | `SEMANTIC_EMBEDDINGS` 默认指向 `data_model/pipelines/semantic/data/*.npz`，实际产物在 `data_model/data/semantic_embeddings.npz` | semantic/fused 的 16 个模型默认不可预测；见 [#217](https://github.com/heapcluster/jit-defect-prediction/issues/217) |
+| D-09 | `data_model/pipelines/e2e/data/` | PR #216 称 e2e 在线与 DB 一致 | 缺 `commit_text.csv`，且仓库无生成脚本 | e2e 在线恒 40001，PR 结论他人不可复跑；见 [#218](https://github.com/heapcluster/jit-defect-prediction/issues/218) |
+| D-10 | `backend/Dockerfile` | 部署镜像应支撑在线推理 | 未安装 `transformers`（`environment.yml` 声明 4.46.1） | 容器内 e2e 必然降级；见 [#219](https://github.com/heapcluster/jit-defect-prediction/issues/219) |
+
+D-01~D-06 统一登记在 [#220](https://github.com/heapcluster/jit-defect-prediction/issues/220)（待逐条裁定改文档还是改代码）。
 
 补充（规格层，未计入上表）：`openspec/specs/nfr-evidence/spec.md` 要求提供 `backend/scripts/perf_loop.py` 与 `backend/scripts/security_cases.py`，但仓库**没有 `backend/scripts/` 目录**，`openspec/specs/` 下 `feedback`、`observability`、`ops`、`quality`、`ui` 五个能力目录为空目录（无 `spec.md`）。这两点会影响「非功能实测」与「验收逐 Scenario 对照」的取证路径。
 
@@ -54,9 +72,9 @@
 | # | 端点 | 正常 | 缺参 / 缺鉴权 | 非法参数 | 边界值 | 状态 |
 |---|---|---|---|---|---|---|
 | 1 | `GET /api/commits` | 带正确 key 请求默认分页，断言 `code=0`、`items[].risk_score ∈ [0,1]`、按风险降序 | 不带 `X-API-Key` → 401/40100 | `size=abc`、`with_features=2`、`q` 65 字、`start_time=2024-13-99` → 40001 | `size=1` 与 `size=100` 通过；`size=101` → 40001；`page=0` → 40001；`page` 超末页 → `items=[]` 且 `total` 不变 | 未执行 |
-| 2 | `GET /api/commits/{hash}` | 取列表首条 hash 查详情，断言与列表同 `risk_score`、`explanation` 非空或为空数组 | 非法 key → 401/40100 | 39 位 / 41 位 / 含 `g` 的 hash → 40001 | 全大写 hash 与全小写返回同一条；不存在的 40 位 hash → 40400 | 未执行 |
+| 2 | `GET /api/commits/{hash}` | 取列表首条 hash 查详情，断言与列表同 `risk_score`、`explanation` 非空或为空数组；带 `model_name=<列表所选模型>` 时断言 `risk_score` 与该模型列表行一致（PR #216 修复点） | 非法 key → 401/40100 | 39 位 / 41 位 / 含 `g` 的 hash → 40001 | 全大写 hash 与全小写返回同一条；不存在的 40 位 hash → 40400；`model_name` 传不存在的模型 → 按代码应 200 + null（待实测确认，不要预设 40001/40400） | 未执行 |
 | 3 | `GET /api/models` | 不带 `line`，断言 4 条 `lines`、顺序固定、`models[]` 非空（expert） | 非法 key → 401/40100 | `line=Expert`（大小写）、`line=""` → 40001 | `line=e2e` 时 `models=[]` 不报错 | 未执行 |
-| 4 | `POST /api/predict` | 用已预测过的 hash + 已加载 `model_name`，断言 `0 ≤ risk_score ≤ 1`、`features` 14 项且列序与 `feature_order.txt` 一致 | 空 body / 缺 `commit_hash` → 40001 | `commit_hash` 非 40 位 → 40001；`model_name` 为未加载线（如 semantic）→ 40001 | 同 hash + 同模型重复预测 → 按 `prediction` 联合主键 `(commit_hash, model_name)` 幂等，仅一行且 `predicted_at` 刷新 | 未执行 |
+| 4 | `POST /api/predict` | 用已预测过的 hash + expert 线 `model_name`，断言 `0 ≤ risk_score ≤ 1`、`features` 14 项且列序与 `feature_order.txt` 一致、`explanation` 非空 | 空 body / 缺 `commit_hash` → 40001 | `commit_hash` 非 40 位 → 40001；`model_name` 不在清单 → 40001；semantic/fused 在缺语义表时 → 40001 明确文案（非 500，见 D-08） | 同 hash + 同模型重复预测 → 按 `prediction` 联合主键 `(commit_hash, model_name)` 幂等，仅一行且 `predicted_at` 刷新；e2e 在缺文本表时 → 40001（见 D-09） | 未执行 |
 | 5 | `POST /api/sync` | 不带时间触发最新一批，断言 `accepted=true`，随后 `sync/status.running` 可观测 | 非法 key → 401/40100 | `line=hierarchical`、`start_time=abc` → 40001 | 同步进行中再次触发 → 50000 且 message 为固定文案 | 未执行 |
 | 6 | `GET /api/sync/status` | 触发同步后立即轮询，断言 `total ≥ done`、`mode` 合法 | 非法 key → 401/40100 | 无参数可传（多余 query 应被忽略，不报错） | 空闲时 `running=false`、`last_error=null`；重启后 `started_at=null` | 未执行 |
 | 7 | `GET /api/trends` | `granularity=week`，断言 `series[].period` 匹配 `YYYY-Www`、`high_risk_count ≤ commit_count` | 非法 key → 401/40100 | `granularity=day`、`end_time=abc` → 40001 | 时间窗内无数据 → `series=[]` 且 `code=0`；`model_name` 传不存在模型 → 空 series（**不报 40400**） | 未执行 |

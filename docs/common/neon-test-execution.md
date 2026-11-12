@@ -30,8 +30,13 @@
 | E-03 | 口径冲突盘点（文档 / 规格 vs 代码） | 静态检索 | 6 处接口文档偏差 + 2 处规格缺口（`backend/scripts/` 不存在、5 个空能力目录） | [`endpoint-inventory.md`](endpoint-inventory.md) §3 |
 | E-04 | 用例设计（11 端点 × 四类场景 = 44 条） | AI 生成 + 人工待复核 | 44 条全部「未执行」 | [`endpoint-inventory.md`](endpoint-inventory.md) §4 |
 | E-05 | OpenSpec 规范校验 | `openspec validate neon-test-baseline --strict`、`openspec validate --specs --strict` | 本次 change `is valid`；活规格 `12 passed, 0 failed` | 本次终端输出 |
+| E-06 | PR #216 审阅与合入 | GitHub API：`POST /pulls/216/reviews`（APPROVE）、`PUT /pulls/216/merge`（squash） | 审阅通过并合入，合并提交 `afdee84`；审阅意见含 3 项跟进缺陷 | PR [#216](https://github.com/heapcluster/jit-defect-prediction/pull/216) 审阅记录；留痕见 [`pr-review-log.md`](pr-review-log.md) |
+| E-07 | 缺陷登记 | GitHub Issues API | 登记 4 条：[#217](https://github.com/heapcluster/jit-defect-prediction/issues/217)（语义表路径）、[#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)（e2e 文本表）、[#219](https://github.com/heapcluster/jit-defect-prediction/issues/219)（契约/部署）、[#220](https://github.com/heapcluster/jit-defect-prediction/issues/220)（D-01~D-06） | [`defect-records.md`](defect-records.md) |
+| E-08 | 合并后分支同步 | `git rebase main`（main=`afdee84`） | 本分支 rebase 成功，清单已按 25 模型与 `model_name` 参数更新 | 本文件与 `endpoint-inventory.md` §2.1/§3 |
 
 E-02 附注：输出含 5 条 `[Vue warn]: Failed to resolve directive: loading`（`RiskList.spec.js`，Element Plus 指令未注册），属测试环境告警，不影响 59 条用例结果；不把告警算作通过证据之外的额外交付。
+
+E-06 附注：PR 描述的 `backend 249 passed / frontend 59 passed / data_model 162 passed` **本轮无法复跑**（本机无后端运行时）；合入依据是静态审阅 + 既有 CI 口径，不代表这些数字已被本次验证。
 
 ## 3 · 未执行项与阻断原因（逐项，不得后续补写成通过）
 
@@ -47,7 +52,7 @@ E-02 附注：输出含 5 条 `[Vue warn]: Failed to resolve directive: loading`
 | N-08 | 非功能 ≥2 项实测（性能分位数 / 安全用例） | 未执行 | 无后端；且 `backend/scripts/perf_loop.py`、`security_cases.py` 在仓库中不存在 | 先补脚本 + 起服务 |
 | N-09 | 验收测试逐 Scenario 对照 | 未执行 | 需浏览器演示；活规格 12 份 / 124 条 Scenario，其中 5 个能力目录为空 | 真实环境 + 人工组织演示 |
 | N-10 | 系统测试计划 / 总结、验收方案 / 报告的正式撰写与签字 | 未产出 | 依 AI-R5 由 neon 本人撰写并签字，AI 不代写 | neon 在实跑后完成 |
-| N-11 | 缺陷登记到 GitHub Issue / 飞书缺陷看板 | 未执行 | 需外部平台写权限与外发确认；本轮只在仓库内登记候选 | 授权后逐条建 Issue 并回填链接 |
+| N-11 | 缺陷登记到 GitHub Issue / 飞书缺陷看板 | 已执行（GitHub 侧） | 4 条 Issue 已建（#217~#220）；飞书缺陷看板未建 | 待团队确认是否另建飞书缺陷表 |
 
 ## 4 · 本轮不做什么
 

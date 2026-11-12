@@ -31,8 +31,9 @@
 
 - [x] 4.1 执行边界与未执行清单归档 — 交付：`docs/common/neon-test-execution.md`；验收：环境核查逐项有命令与结果，未执行项有阻断原因与解除条件；负责人：neon。
 - [x] 4.2 联调证据索引口径说明 — 交付：`docs/common/integration-log.md` 追加说明段；验收：不出现「通过」字样，未执行原因可追溯；负责人：neon。
-- [ ] 4.3 D-01~D-06 逐条登记 GitHub Issue / 飞书缺陷看板并回填链接 — **未执行：需外部平台写权限与外发确认，本轮仅登记候选**。
-- [ ] 4.4 回飞书看板更新 N-2 / N-3 / N-4 状态 — **未执行：状态以负责人在看板的更新为准，仓库侧不代填**。
+- [x] 4.3 缺陷登记到 GitHub Issue — 交付：[#217](https://github.com/heapcluster/jit-defect-prediction/issues/217)（语义表默认路径）、[#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)（e2e 文本表）、[#219](https://github.com/heapcluster/jit-defect-prediction/issues/219)（契约/部署）、[#220](https://github.com/heapcluster/jit-defect-prediction/issues/220)（D-01~D-06）；验收：`docs/common/defect-records.md` 有链接与关联提交；负责人：neon。
+- [x] 4.4 PR 审阅留痕 — 交付：`docs/common/pr-review-log.md`；验收：PR #216 的审阅结论、跟进缺陷与合并提交号可反查；负责人：neon。
+- [ ] 4.5 回飞书看板更新 N-2 / N-3 / N-4 状态 — **未执行：状态以负责人在看板的更新为准，仓库侧不代填**。
 
 ## 测试与验证
 
@@ -72,5 +73,5 @@
 | `/openapi.json` 未取得 | 清单为静态来源，可能与运行时漂移 | neon | 环境就绪后第一步导出并回填 |
 | `backend/scripts/` 缺失（`perf_loop.py`、`security_cases.py`） | 非功能两项无执行入口 | neon → 需另提 change | 补齐脚本并能对运行中服务复跑 |
 | `openspec/specs/` 五个空能力目录 | 验收无对应 Scenario 可对照 | sober（规格规范性） | 补 `spec.md` 或删除空目录并说明 |
-| D-01~D-06 未登记 Issue | 缺陷无对外可追踪链接 | neon | 授权后逐条建 Issue 并回填 |
+| PR #216 声称的 25 模型全接通在干净检出下不成立 | 集成测试的「模型选择」场景无法按说明覆盖 | 蛋神的蛋 → 已在 #217/#218 跟进 | 修复产物路径与 e2e 文本表，或由 `/api/models` 明示在线可用性 |
 | 系统测试计划/总结、验收方案/报告未产出 | 系统 / 验收测试无正式交付物 | neon（本人撰写） | 实跑后人工撰写并签字 |
