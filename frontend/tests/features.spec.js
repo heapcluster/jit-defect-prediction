@@ -1,3 +1,4 @@
+// [AI生成-人工修改] 在原有测试基础上由 AI 补充/修改部分用例，核心断言经人工复核。
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'

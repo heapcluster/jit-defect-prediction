@@ -1,3 +1,4 @@
+# [AI生成-人工修改] 在原有测试基础上由 AI 补充/修改部分用例，核心断言经人工复核。
 from app.db import SessionLocal
 from app.models import Prediction
 
@@ -145,6 +146,34 @@ def test_detail_line_level_localization_when_diff_available(client, tmp_path, mo
     assert loc["files"], "应有文件级新增行数据"
     assert loc["files"][0]["path"] == "src/A.java"
     assert loc["files"][0]["added_lines"][0]["content"] == "class A {}"
+
+
+def test_detail_model_name_matches_list_selection(client):
+    """修「列表选了非默认模型、详情显示未预测」：detail 按 model_name 查同一模型。"""
+    from datetime import datetime
+
+    from app.models import Prediction
+
+    with SessionLocal() as session:
+        session.add(
+            Prediction(
+                commit_hash=C1,
+                model_name="fixture_v1",
+                risk_score=0.33,
+                predicted_at=datetime(2026, 9, 1),
+            )
+        )
+        session.commit()
+    # 指定 fixture_v1 → 返回 fixture_v1 的分（不是默认 fixture_v2 的 0.8732）
+    body = client.get(
+        f"/api/commits/{C1}", params={"model_name": "fixture_v1"}, headers=HEADERS
+    ).json()
+    assert body["data"]["model_name"] == "fixture_v1"
+    assert body["data"]["risk_score"] == 0.33
+    # 不指定 → 默认模型 fixture_v2
+    default = client.get(f"/api/commits/{C1}", headers=HEADERS).json()
+    assert default["data"]["model_name"] == "fixture_v2"
+    assert default["data"]["risk_score"] == 0.8732
 
 
 def test_detail_fix_references_excludes_self_and_uses_fix_flag(client):

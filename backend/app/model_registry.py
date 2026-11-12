@@ -33,9 +33,18 @@ class ModelEntry:
     mtime: float
     model: Any = field(repr=False)
     explainer: Any = field(default=None, repr=False)
+    line: str = "expert"
+
+
+class ModelUnavailable(RuntimeError):
+    """该模型当前无法在线预测（缺编码器/权重宽度不符等）；调用方映射为明确提示，不 500。"""
 
 
 _REGISTRY: dict[str, ModelEntry] = {}
+# 四线全部模型的元数据（name → 目录/线），权重懒加载；不含 model 对象
+_CATALOG: dict[str, ModelEntry] = {}
+_LINE_OF: dict[str, str] = {}
+_LINE_WIDTH = {"expert": 14, "semantic": 768, "fused": 782}
 
 
 def _delivery_models(model_dir: Path) -> list[str] | None:
@@ -75,11 +84,54 @@ def _delivery_models(model_dir: Path) -> list[str] | None:
     return names
 
 
+def _scan_manifest(models_dir: Path, manifest_name: str, line: str) -> None:
+    """把一条线清单里的模型登记进 _CATALOG（只记路径，不加载权重）。"""
+    manifest = models_dir / manifest_name
+    try:
+        lines = manifest.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        logger.warning("%s line manifest unavailable: %s", line, manifest)
+        return
+    section = ""
+    for raw in lines:
+        text = raw.strip()
+        if not text or text.startswith("#"):
+            continue
+        if text.startswith("[") and text.endswith("]"):
+            section = text[1:-1]
+            continue
+        if section != "models":
+            continue
+        name = text.split()[0]
+        if re.fullmatch(r"[A-Za-z0-9_]+\.pkl", name) is None or name in _CATALOG:
+            continue
+        path = models_dir / name
+        if not path.is_file():
+            logger.warning("%s line model missing: %s", line, name)
+            continue
+        _CATALOG[path.stem] = ModelEntry(path.stem, path, path.stat().st_mtime, None, line=line)
+        _LINE_OF[path.stem] = line
+
+
+def _scan_other_lines() -> None:
+    """登记 semantic/fused/e2e 三线模型（懒加载，启动不读大权重）。"""
+    pipelines = config.PIPELINES_DIR
+    _scan_manifest(pipelines / "semantic" / "models", "load_manifest.txt", "semantic")
+    _scan_manifest(pipelines / "fused" / "models", "load_manifest.txt", "fused")
+    e2e_dir = pipelines / "e2e" / "models" / "codebert_e2e_v1"
+    if e2e_dir.is_dir():
+        _CATALOG["codebert_e2e_v1"] = ModelEntry("codebert_e2e_v1", e2e_dir, 0.0, None, line="e2e")
+        _LINE_OF["codebert_e2e_v1"] = "e2e"
+
+
 def load_models() -> None:
     model_code_dir = str((config.REPO_ROOT / "data_model").resolve())
     if model_code_dir not in sys.path:
         sys.path.insert(0, model_code_dir)
     _REGISTRY.clear()
+    _CATALOG.clear()
+    _LINE_OF.clear()
+    _scan_other_lines()
     model_dir = config.MODEL_DIR
     if not model_dir.is_dir():
         logger.warning("model dir not found, predict will return 50000 until models are delivered")
@@ -129,11 +181,38 @@ def _feature_count(model: Any) -> int | None:
 
 
 def get_model(name: str) -> ModelEntry:
-    return _REGISTRY[name]
+    entry = _REGISTRY.get(name)
+    if entry is not None:
+        return entry
+    meta = _CATALOG.get(name)
+    if meta is None:
+        raise KeyError(name)
+    if meta.line == "e2e":
+        raise ModelUnavailable("e2e 模型需 CodeBERT 前向，当前后端未启用在线编码")
+    try:
+        model = joblib.load(meta.path)
+    except Exception as exc:
+        logger.exception("lazy model load failed: %s", name)
+        raise ModelUnavailable(f"{meta.line} 模型权重无法加载") from exc
+    expected = _LINE_WIDTH.get(meta.line)
+    n = _feature_count(model)
+    if expected is not None and n is not None and n != expected:
+        raise ModelUnavailable(f"{meta.line} 模型特征宽度 {n} 与契约 {expected} 不符")
+    loaded = ModelEntry(name, meta.path, meta.mtime, model, line=meta.line)
+    _REGISTRY[name] = loaded
+    return loaded
 
 
 def has(name: str) -> bool:
-    return name in _REGISTRY
+    return name in _REGISTRY or name in _CATALOG
+
+
+def line_of(name: str) -> str:
+    return _LINE_OF.get(name, "expert")
+
+
+def expected_width(line: str) -> int | None:
+    return _LINE_WIDTH.get(line)
 
 
 def all_models() -> list[ModelEntry]:
@@ -142,9 +221,11 @@ def all_models() -> list[ModelEntry]:
 
 
 def default_model() -> ModelEntry | None:
-    if not _REGISTRY:
+    # 默认模型恒取 expert 线（列表/详情/趋势的基准；semantic/fused 懒加载后不篡位）
+    experts = [entry for entry in _REGISTRY.values() if entry.line == "expert"]
+    if not experts:
         return None
-    return max(_REGISTRY.values(), key=lambda entry: version_key(entry.name))
+    return max(experts, key=lambda entry: version_key(entry.name))
 
 
 def predict_proba(model: Any, vector: list[float]) -> float:

@@ -1,3 +1,4 @@
+# [AI生成] 本文件用例由 AI 编写，核心断言经人工复核。
 """03_extract_features.py 纯函数的三例单元测试。
 
 `log_v1` / `subsystem_of` / `directory_of` / `to_epoch` / `entropy_series` 均可

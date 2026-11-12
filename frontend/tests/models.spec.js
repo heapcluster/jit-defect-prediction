@@ -1,3 +1,4 @@
+// [AI生成-人工修改] 在原有测试基础上由 AI 补充/修改部分用例，核心断言经人工复核。
 import { describe, it, expect, vi } from 'vitest'
 import { LINE_LABELS, LINE_ORDER, loadModelLines, loadOnlineModels } from '../src/utils/models'
 import { getModels, getHealth } from '../src/api'

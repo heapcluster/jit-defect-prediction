@@ -1,3 +1,4 @@
+// [AI生成] 本文件用例由 AI 编写，核心断言经人工复核。
 import { describe, it, expect } from 'vitest'
 import { formatTime, formatDateTime } from '../src/utils/datetime'
 

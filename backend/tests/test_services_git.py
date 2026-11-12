@@ -1,3 +1,4 @@
+# [AI生成] 本文件用例由 AI 编写，核心断言经人工复核。
 """git 服务纯函数的三例单元测试（app/services/git.py）。
 
 `_redact` / `_looks_like_network` / `build_fetch_args` / `pick_hashes_to_predict`

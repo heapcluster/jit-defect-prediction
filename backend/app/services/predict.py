@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from app import config, feature_source, model_registry
+from app import config, e2e_source, feature_source, model_registry, semantic_source
 from app.db import SessionLocal
 from app.errors import INTERNAL_ERROR_MESSAGE, AppError
 from app.explain import with_labels
@@ -153,13 +153,12 @@ def _upsert_predictions(
     vector = [float(getattr(feature, name)) for name in config.FEATURE_COLUMNS]
     predicted_at = datetime.now(UTC).replace(tzinfo=None)
     entries = (
-        model_registry.all_models()
+        # 批量（sync）只对 expert 线打分：其它线的输入维度不同，需按线单独现算特征
+        [entry for entry in model_registry.all_models() if entry.line == "expert"]
         if model_names is None
         else [model_registry.get_model(name) for name in model_names]
     )
-    scores = [
-        (entry.name, model_registry.predict_proba(entry.model, vector)) for entry in entries
-    ]
+    scores = [(entry.name, model_registry.predict_proba(entry.model, vector)) for entry in entries]
 
     try:
         _write_predictions(session, commit_hash, feature, scores, predicted_at)
@@ -200,6 +199,24 @@ def predict_commit_all_models(
         return _upsert_predictions(session, commit_hash, feature, model_names)
 
 
+def _vector_for_line(line: str, commit_hash: str, feature) -> list[float]:
+    """按模型线的输入口径组装特征向量：expert 14 / semantic 768 / fused 782。
+
+    semantic/fused 用模型线预计算的语义 embedding（commit 不在表内 → 明确 40001，不编造）。
+    """
+    expert = [float(getattr(feature, name)) for name in config.FEATURE_COLUMNS]
+    if line == "expert":
+        return expert
+    embedding = semantic_source.embedding_for(commit_hash)
+    if embedding is None:
+        raise AppError(40001, f"参数非法：该提交暂无预计算语义向量，{line} 模型无法在线预测")
+    if line == "semantic":
+        return embedding.tolist()
+    if line == "fused":
+        return expert + embedding.tolist()
+    raise AppError(40001, f"参数非法：{line} 模型暂不支持在线预测")
+
+
 def predict_single(commit_hash: str, model_name: str, repo=None) -> dict:
     """对单条提交用指定模型打分，返回契约三 1.5 第 4 节的完整响应体。
 
@@ -224,11 +241,26 @@ def predict_single(commit_hash: str, model_name: str, repo=None) -> dict:
             commit, feature = _upsert_commit_feature(session, commit_hash, extracted)
 
         model_name = resolve_model_name(model_name)
-        entry = model_registry.get_model(model_name)
-
-        vector = [float(getattr(feature, name)) for name in config.FEATURE_COLUMNS]
-        risk = model_registry.predict_proba(entry.model, vector)
-        explanation = with_labels(model_registry.explain(entry, vector))
+        line = model_registry.line_of(model_name)
+        if line == "e2e":
+            # e2e 是完整 CodeBERT 分类头：读提交文本经模型前向，无 pkl/向量组装
+            risk = e2e_source.predict_proba(commit_hash)
+            if risk is None:
+                raise AppError(40001, "参数非法：e2e 模型所需文本或编码器不可用，无法在线预测")
+            explanation: list[dict] = []
+            entry_name = model_name
+        else:
+            try:
+                entry = model_registry.get_model(model_name)
+            except model_registry.ModelUnavailable as exc:
+                raise AppError(40001, f"参数非法：{exc}") from exc
+            vector = _vector_for_line(line, commit_hash, feature)
+            risk = model_registry.predict_proba(entry.model, vector)
+            # SHAP 只对 expert 线算（768/782 维重模型归因慢且无必要）；其余返回空解释
+            explanation = (
+                with_labels(model_registry.explain(entry, vector)) if line == "expert" else []
+            )
+            entry_name = entry.name
         predicted_at = datetime.now(UTC).replace(tzinfo=None)
 
         row = session.execute(
@@ -255,7 +287,7 @@ def predict_single(commit_hash: str, model_name: str, repo=None) -> dict:
 
     return {
         "commit_hash": commit_hash,
-        "model_name": entry.name,
+        "model_name": entry_name,
         "risk_score": round(risk, 5),
         "predicted_at": iso_z(stored_predicted_at),
         "features": features,
