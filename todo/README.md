@@ -20,12 +20,12 @@
 |---|---|---|---|---|
 | 蛋神的蛋-1 | 蛋神的蛋 | 在线预测能力对齐（25 模型全部接入 + 详情/进度 bug） | P1 | 代码已合入（PR #216 / `afdee84`）；补齐两张输入表后实测 **23/25 可预测**，剩 `tabnet_semantic_v1`/`tabnet_fused_v1` 因 CUDA 权重失败（[#222](https://github.com/heapcluster/jit-defect-prediction/issues/222)），交付布局见 [#217](https://github.com/heapcluster/jit-defect-prediction/issues/217) |
 | 蛋神的蛋-2 | 蛋神的蛋 | 单元测试（三例 + 覆盖率，自测通过即可） | P0 | 测试代码已补（PR #215/#216），覆盖率以 CI 报告为准（归档见 PR #212），待 sober 核对归档 |
-| neon-1 | neon | 集成测试 | P0 | **已完成主体**：11 端点四类场景，35/35 通过，接口覆盖 11/11（`integration-report.md`）；新增 `backend/scripts/integration_cases.py` |
-| neon-2 | neon | 系统测试 | P0 | **部分完成**：四页面主线 + 空库/无效令牌/非法参数已实测；性能 p95 48.1ms、安全 12/12；缺权重与失败恢复未执行；计划/总结待本人签字 |
-| neon-3 | neon | 验收测试 | P0 | 部分：四页面与两种异常态已取证；124 条 Scenario 未逐条对照，方案/报告待本人签字 |
-| neon-4 | neon | 缺陷与 PR 管理 | P1 | 进行中：PR #216 已审阅合入并留痕，缺陷 #217~#220 已登记；飞书缺陷看板未建 |
+| neon-1 | neon | 集成测试 | P0 | **测试代码已完成**：35/35、接口覆盖 11/11、25 模型门禁 23/25（#222 待修）、逐端点联调留痕；`backend/scripts/` 6 个脚本均可复跑 |
+| neon-2 | neon | 系统测试 | P0 | **测试代码已完成**：四页主线、异常 5 类（`system_exceptions.py` 13/13）、性能 p95 48.1ms、安全 12/12、截图 6 张；正式计划/总结由 sober 成文、neon 签字 |
+| neon-3 | neon | 验收测试 | P0 | **用例设计已完成**：124 条 Scenario 对照清单 + 自动子集 10/10；逐条现场判定与签字待 neon，文档由 sober 整理 |
+| neon-4 | neon | 缺陷与 PR 管理 | P1 | 进行中：PR #216 已审阅合入并留痕，缺陷 #217/#219/#220/#222 已登记（#218 合并关闭）；PR #221 待非作者审阅，飞书缺陷看板未建 |
 | neon-5 | neon | 项目看板与周报 | P1 | 进行中：11 项任务已映射到[看板](https://gcnlk66qul6p.feishu.cn/base/SilBbJZFPaDct1slrIVcN2Nonsc)（Sprint 2/3），[工作周报-20261113](https://gcnlk66qul6p.feishu.cn/docx/QTKgdRDNFoiN3uxc6OecURV2nZa) 已建；后续按周更新 |
-| sober-1 | sober | 测试文档（含 OpenSpec 规范化） | P0 | 未开始（依赖 neon-1/2/3 结果） |
+| sober-1 | sober | 测试文档（含 OpenSpec 规范化） | P0 | **可开始**：neon 的测试代码/证据/124 条对照清单已齐；待 sober 整理四类文档与 OpenSpec 勾选，结论与签字仍归 neon |
 | lsh-1 | lsh | 飞书《产品需求文档》维护与同步 | P1 | 未开始 |
 | lsh-2 | lsh | 飞书《产品设计文档》维护与同步 | P1 | 未开始 |
 | lsh-3 | lsh | 答辩 PPT 初稿（骨架 + 图 + 文字） | P1 | 未开始 |

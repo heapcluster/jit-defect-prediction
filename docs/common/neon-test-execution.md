@@ -43,24 +43,28 @@
 | E-16 | 系统测试主线（浏览器） | Playwright 打开四页面 | 四页均渲染真实数据；截图 6 张入库 | `docs/common/evidence/2026-11-12/` |
 | E-17 | 异常场景 | API + 第二实例 + 浏览器 | 空库 ✅、无效令牌 ✅、非法参数 ✅、详情不存在 ✅、未知路由 ✅；**缺权重 / 失败恢复未执行** | `system-test-run.md` §2 |
 | E-18 | 25 模型在线矩阵 | 逐个 `POST /api/predict` | 补齐两张输入表后 **23/25 通过**；2 个 tabnet 因 CUDA 权重失败（[#222](https://github.com/heapcluster/jit-defect-prediction/issues/222)）；三个关键数字与 PR #216 一致 | `backend/scripts/evidence/2026-11-12-online-25.md` |
+| E-19 | 系统异常场景自动化 | `python scripts/system_exceptions.py --scenario all` | **13/13 通过**：缺权重、空库、失败恢复（自起/自停独立子进程，不移动权重、不影响 8000） | `backend/scripts/evidence/2026-11-12-system-exceptions.md` |
+| E-20 | 验收用例生成 | `python scripts/acceptance_scenarios.py` | 抽取活规格 **124 条 Scenario** 生成现场对照清单；自动可判定子集 **10/10 通过** | `backend/scripts/evidence/2026-11-12-acceptance-checklist.md` |
+| E-21 | 逐端点联调留痕 | `python scripts/linkage_capture.py` | 12 次真实请求（含 2 个异常）记录包络、字段形状与响应摘要；浏览器截图另见 `evidence/2026-11-12/` | `backend/scripts/evidence/2026-11-12-linkage.md` / `.json` |
+| E-22 | 25 模型矩阵固化为门禁 | `python scripts/online_models_matrix.py` | 实跑 23/25 → 退出码 1（正确报警）；#222 修完目标 25/25 → 0 | `backend/scripts/online_models_matrix.py` |
 
 ## 3 · 仍未执行 / 未产出
 
 | # | 项 | 状态 | 原因 | 解除条件 |
 |---|---|---|---|---|
-| N-01 | 「缺权重」异常 | 未执行 | 需移走 expert `.pkl`，会破坏当次环境并影响其他用例 | 单独测试窗口，执行人 neon |
-| N-02 | 「失败恢复」（同步中断 / 服务强杀后恢复） | 未执行 | 未构造断网/强杀场景 | 系统测试补充 |
-| N-03 | e2e 在线预测 | 未验证 | `pipelines/e2e/data/commit_text.csv` 未生成（生成脚本 `build_text_dataset.py` 存在，[#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)），当前恒 40001 | 生成产物后重跑 T-IN-16 扩展用例 |
-| N-04 | 验收逐 Scenario（124 条） | 未执行 | 需按 `openspec/specs/` 逐条现场点验；本轮只覆盖四页面主干与异常态 | 组织验收演示，执行人 neon |
-| N-05 | 系统测试计划/总结、验收方案/报告 | 未产出 | AI-R5：须 neon 本人撰写并签字 | neon 依据 `evidence/2026-11-12/` 产出 |
-| N-06 | 前端逐接口联调截图 | 部分 | 只留四页面 + 两种异常态截图，未逐接口截图 | 验收阶段补齐 |
+| N-01 | 「缺权重」异常 | **已执行** | `system_exceptions.py --scenario missing-weights`：用空 `MODEL_DIR` 起独立实例，不移动真实权重 | — |
+| N-02 | 「失败恢复」（同步中断 / 服务强杀后恢复） | **已执行** | `system_exceptions.py --scenario failure-recovery`：强杀自建子进程后重启验证 | — |
+| N-03 | 25 模型在线 25/25 | 未达成 | 2 个 tabnet 权重绑定 CUDA（[#222](https://github.com/heapcluster/jit-defect-prediction/issues/222)） | 蛋神修权重后跑 `online_models_matrix.py` |
+| N-04 | 验收逐 Scenario（124 条） | 用例已生成 / 人工判定未做 | `acceptance_scenarios.py` 已生成全部 124 条对照清单并跑通 10 条自动子集；逐条「通过/失败/未执行」须现场判定 | 组织验收演示，neon 判定并签字 |
+| N-05 | 系统测试计划/总结、验收方案/报告 | 未产出 | 文档由 **sober** 整理；**neon 只给实测内容、下结论、签字**（AI-R5 禁止 AI 代写/代签） | sober 依据 `evidence/2026-11-12/` 成文，neon 签字 |
+| N-06 | 前端逐接口联调截图 | 部分 | 已有四页面 + 两种异常态截图；逐接口截图需浏览器自动化依赖（本机无 playwright/selenium，按要求不安装），HTTP 层联调留痕已由 `linkage_capture.py` 覆盖 | 具备浏览器自动化环境后补 |
 
 ## 4 · 本轮不做什么
 
-- 不把「249 passed」「35/35」「p95 48.1ms」之外的项写成通过；未执行的 N-01~N-06 一律标注。
+- 不把未执行项写成通过；N-03~N-06 一律如实标注。
 - 不安装 / 升级依赖、不改 `.env`、不放宽 pytest 配置、不把权重或数据集入库（本轮环境由用户提供）。
-- 不代写系统测试计划/总结与验收方案/报告（AI-R5）。
-- 不修改业务代码修复 #217/#218：缺陷修复属蛋神的蛋 / 模型线，本分支只做测试与记录。
+- 不代写正式测试文档、不代下结论、不代签字：文档归 sober，结论与签字归 neon（AI-R5）。
+- 不修改业务代码修复 #217 / #222：缺陷修复属蛋神的蛋 / 模型线，本分支只做测试代码与证据。
 
 ## 5 · 复现顺序
 
@@ -69,4 +73,7 @@
 3. `cd backend && python scripts/integration_cases.py --json out.json` → 期望 35/35
 4. `cd backend && python scripts/security_cases.py` → 期望 12/12；`python scripts/perf_loop.py` → 期望达标
 5. `cd frontend && npm run dev` → 浏览器走查四页面与 `/commit/<不存在>`、未知路由
-6. 空库场景：清空 `jit_test` 五表后以 `DB_NAME=jit_test` 另起实例（8001），核对 `code=0` 的空结果
+6. `python scripts/system_exceptions.py --scenario all` → 缺权重 / 空库 / 失败恢复 13/13
+7. `python scripts/online_models_matrix.py` → 25 模型门禁（当前 23/25）
+8. `python scripts/acceptance_scenarios.py` → 124 条 Scenario 对照清单 + 10 条自动子集
+9. `python scripts/linkage_capture.py` → 12 次逐端点联调留痕

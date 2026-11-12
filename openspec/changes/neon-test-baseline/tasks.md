@@ -18,15 +18,18 @@
 
 - [x] 2.1 准备真实环境（MySQL 建库 + 后端依赖 + 模型权重 + 浏览器） — 交付：conda `jit-defect-prediction` + `infra/setup_mysql.py --skip-start` + `uvicorn` + `vite`；验收：`health=ok, db=up, models_loaded=8`；负责人：neon（环境由用户提供）。
 - [x] 2.2 主线：同步真实提交 → 14 维特征 → 模型预测 → 四页展示 — 交付：25,285→25,307 同步、`et_v1` 0.97637、四页截图；验收：`evidence/2026-11-12/system-test-run.md` §1；负责人：neon。
-- [x] 2.3 异常 5 类 — 交付：空库 ✅ / 无效令牌 ✅ / 非法参数 ✅ / 详情不存在与未知路由 ✅；**缺权重、失败恢复未执行**；验收：同文件 §2；负责人：neon。
+- [x] 2.3 异常 5 类 — 交付：`system_exceptions.py --scenario all` **13/13 通过**（缺权重、空库、失败恢复），加上 35 条集成用例里的无效令牌/非法参数与浏览器两种异常态；验收：`backend/scripts/evidence/2026-11-12-system-exceptions.md`；负责人：neon。
 - [x] 2.4 非功能 ≥2 项实测 — 交付：新增 `backend/scripts/perf_loop.py`、`security_cases.py` 与两份 evidence；性能 p95=48.1ms 达标、安全 12/12；验收：`backend/scripts/evidence/2026-11-12-*.md`；负责人：neon。
-- [ ] 2.5 系统测试计划 / 总结（人工撰写 + 签字） — **未产出：AI-R5 要求 neon 本人依据 `evidence/2026-11-12/` 撰写，本 change 不代写**。
+- [ ] 2.5 系统测试计划 / 总结 — **未产出：文档由 sober 整理，neon 给实测内容并下结论/签字；AI-R5 禁止 AI 代写代签**。
+- [x] 2.7 逐端点联调留痕 — 交付：`backend/scripts/linkage_capture.py` + `evidence/2026-11-12-linkage.{md,json}`；验收：12 次请求（含 2 个异常）记录包络与响应摘要；负责人：neon。
+- [x] 2.8 25 模型矩阵固化为门禁 — 交付：`backend/scripts/online_models_matrix.py`；验收：实跑 23/25 且退出码 1（正确报警），#222 修完目标 25/25；负责人：neon。
 - [x] 2.6 25 模型在线矩阵 — 交付：`backend/scripts/evidence/2026-11-12-online-25.md`；验收：补齐两张输入表后逐个 `POST /api/predict`，**23/25 通过**，2 个 tabnet 挂 [#222](https://github.com/heapcluster/jit-defect-prediction/issues/222)；负责人：neon。
 
 ## 3 · 验收测试
 
-- [ ] 3.1 逐 Scenario 对照（活规格 12 份 / 124 条 Scenario） — **未执行：需真实环境演示；`openspec/specs/` 下 `feedback`、`observability`、`ops`、`quality`、`ui` 五个能力目录为空目录，无 `spec.md` 可对照**。
-- [ ] 3.2 验收方案 / 报告（人工撰写 + 签字） — **未产出：同 AI-R5 边界**。
+- [x] 3.1 验收用例设计 — 交付：`backend/scripts/acceptance_scenarios.py` 抽取活规格 **124 条 Scenario** 生成现场对照清单，并实跑 **10/10** 自动可判定子集；验收：`backend/scripts/evidence/2026-11-12-acceptance-checklist.md`；负责人：neon。
+- [ ] 3.2 逐条现场判定（124 条「通过/失败/未执行」） — **未执行：需 neon 组织演示、现场判定并签字，AI 不代签**。
+- [ ] 3.3 验收方案 / 报告 — **未产出：由 sober 整理成文，neon 下结论并签字（AI-R5）**。
 
 ## 4 · 过程记录与缺陷
 
@@ -55,26 +58,26 @@
 
 ### 3. 验收测试
 
-- 对照对象：`openspec/specs/**/spec.md` 的 124 条 Scenario。
-- 已覆盖：四页面主干 + 「提交不存在」「未知路由」两种异常态（浏览器实拍）。
-- 未执行：逐 Scenario 全量对照（124 条）与验收方案/报告签字；空能力目录 5 个仍需补规格。
-- 执行人：neon。
+- 对照对象：`openspec/specs/**/spec.md` 的 124 条 Scenario，已由 `acceptance_scenarios.py` 生成完整对照清单。
+- 已覆盖：自动可判定子集 10/10 + 四页面主干 + 「提交不存在」「未知路由」两种异常态（浏览器实拍）。
+- 未执行：124 条的现场逐条判定与签字；空能力目录 5 个仍需补规格。
+- 执行人：neon（判定/签字），sober（整理文档）。
 
 ### 4. 非功能验证
 
 - 性能：**已实测**。`python scripts/perf_loop.py`（100 次）→ p50 28.3ms / p95 48.1ms / p99 48.9ms / max 56.0ms，目标 p95<500ms **达标**；证据 `backend/scripts/evidence/2026-11-12-perf.md`。
 - 安全：**已实测**。`python scripts/security_cases.py` → 12/12（鉴权 6 项、畸形参数 4 项、模型不可用 1 项、未知模型 1 项），响应无堆栈/SQL/路径泄漏；证据 `backend/scripts/evidence/2026-11-12-security.md`。
-- 可靠性：未执行（同步中断 / 服务强杀后的恢复路径未构造）。
+- 可靠性：**已实测**。`system_exceptions.py --scenario all` 13/13（缺权重、空库、同步中强杀后重启恢复），证据 `backend/scripts/evidence/2026-11-12-system-exceptions.md`。
 - 易用性：部分实测。四页面与两种异常态截图见 `evidence/2026-11-12/`，未做多浏览器与无障碍专项。
 
 ### 5. 已知缺口与后续计划
 
 | 缺口 | 影响 | 责任人 | 完成条件 |
 |---|---|---|---|
-| 「缺权重」「失败恢复」两类异常未执行 | 异常覆盖不完整 | neon | 单独测试窗口执行，记录写入 `system-test-run.md` |
 | 2 个 tabnet 模型 CPU 加载失败 | 25 模型在线少 2 个 | 蛋神的蛋（[#222](https://github.com/heapcluster/jit-defect-prediction/issues/222)） | 重新导出 CPU 权重或加载侧 `map_location="cpu"`，复测后回填 25/25 |
-| e2e 在线路径不可用（`pipelines/e2e/data/commit_text.csv` 未生成，脚本已有） | 25 模型口径无法完全验证 | 蛋神的蛋（[#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)） | 生成产物后重跑 |
-| 逐 124 条 Scenario 未对照 | 验收测试未完成 | neon | 组织演示并逐条记录 |
+| 输入表未按交付布局生成 | 干净检出下 semantic/fused/e2e 不可用 | 蛋神的蛋（[#217](https://github.com/heapcluster/jit-defect-prediction/issues/217)） | 交付时放到约定路径或后端加回退 |
+| 逐 124 条 Scenario 现场判定未做 | 验收测试未完成 | neon（判定/签字） | 按生成的对照清单组织演示并逐条记录 |
+| 逐接口浏览器截图未自动化 | 联调截图证据不全 | neon | 需浏览器自动化环境；HTTP 层留痕已由 `linkage_capture.py` 覆盖 |
 | `openspec/specs/` 五个空能力目录 | 部分能力无规格可对照 | sober | 补 `spec.md` 或删除并说明 |
-| 系统测试计划/总结、验收方案/报告未产出 | 无签字版交付物 | neon（本人撰写） | 依据 `evidence/2026-11-12/` 撰写并签字 |
+| 系统测试计划/总结、验收方案/报告未产出 | 无签字版交付物 | sober（成文）/ neon（结论+签字） | 依据 `evidence/2026-11-12/` 成文，neon 签字 |
 | `nfr-evidence` 规格与实际契约冲突（模型缺失应为 50000，实现为 40001） | 规格侧失真 | sober / 后端 | 规格订正或后端对齐，二者择一 |
