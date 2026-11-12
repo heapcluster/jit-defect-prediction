@@ -11,16 +11,16 @@
 - [x] 1.2 四类场景用例设计（11 端点 × 正常/缺参/非法/边界） — 交付：`docs/common/endpoint-inventory.md` §4；验收：每类给出具体输入与预期码/断言，状态列统一「未执行」；负责人：neon。
 - [x] 1.3 文档与代码偏差登记 — 交付：同文件 §3（D-01~D-06 + 2 处规格缺口）；验收：每条有文档位置、代码位置、对断言的影响；负责人：neon。
 - [x] 1.4 AI 用例 Prompt 归档与来源标注 — 交付：`docs/common/ai-prompts/neon-integration-cases.md`；验收：含工具、模型、日期、原始提示词、人工复核状态（未审阅）；负责人：neon。
-- [ ] 1.5 运行时 `/openapi.json` 导出并与清单逐端点比对 — 交给：具备后端运行环境者（CI 或本地补齐依赖后由 neon 执行）；输入：`docs/api/*.md`、`backend/app/api/*.py`；输出：§2 回填后的清单；**未执行：本机无可用后端运行时**。
-- [ ] 1.6 按 §4 用例表实跑 44 条并回填状态 — 输入：可访问的服务 + `X-API-Key`；输出：`docs/common/integration-log.md` 逐条结果与截图；**未执行：同 1.5**。
+- [x] 1.5 运行时 `/openapi.json` 导出并与清单逐端点比对 — 交付：11 个路径与清单逐条一致，详情含 `model_name`，11/11 需 `x-api-key`；验收：`integration-report.md` §1；负责人：neon。
+- [x] 1.6 按用例表实跑并回填状态 — 交付：`backend/scripts/integration_cases.py`（35 条）+ `docs/common/integration-report.md` + `integration-log.md` 实测行；验收：35/35 通过、接口覆盖 11/11；负责人：neon。
 
 ## 2 · 系统测试
 
-- [ ] 2.1 准备真实环境（MySQL 建库 + 后端依赖 + 模型权重 + 浏览器） — **未执行：MySQL80 服务在跑但缺 `pymysql` 与后端依赖，且不得安装环境**。
-- [ ] 2.2 主线：同步真实提交 → 14 维特征 → 模型预测 → 四页展示 — **未执行：依赖 2.1**。
-- [ ] 2.3 异常 5 类：空库 / 无效令牌 / 非法参数 / 缺失权重 / 失败恢复 — **未执行：依赖 2.1**。
-- [ ] 2.4 非功能 ≥2 项实测（性能分位数、安全用例） — **未执行：依赖 2.1；且 `backend/scripts/perf_loop.py`、`backend/scripts/security_cases.py` 在仓库中不存在，需另行补齐**。
-- [ ] 2.5 系统测试计划 / 总结（人工撰写 + 签字） — **未产出：AI-R5 要求 neon 本人实跑后撰写，本 change 不代写**。
+- [x] 2.1 准备真实环境（MySQL 建库 + 后端依赖 + 模型权重 + 浏览器） — 交付：conda `jit-defect-prediction` + `infra/setup_mysql.py --skip-start` + `uvicorn` + `vite`；验收：`health=ok, db=up, models_loaded=8`；负责人：neon（环境由用户提供）。
+- [x] 2.2 主线：同步真实提交 → 14 维特征 → 模型预测 → 四页展示 — 交付：25,285→25,307 同步、`et_v1` 0.97637、四页截图；验收：`evidence/2026-11-12/system-test-run.md` §1；负责人：neon。
+- [x] 2.3 异常 5 类 — 交付：空库 ✅ / 无效令牌 ✅ / 非法参数 ✅ / 详情不存在与未知路由 ✅；**缺权重、失败恢复未执行**；验收：同文件 §2；负责人：neon。
+- [x] 2.4 非功能 ≥2 项实测 — 交付：新增 `backend/scripts/perf_loop.py`、`security_cases.py` 与两份 evidence；性能 p95=48.1ms 达标、安全 12/12；验收：`backend/scripts/evidence/2026-11-12-*.md`；负责人：neon。
+- [ ] 2.5 系统测试计划 / 总结（人工撰写 + 签字） — **未产出：AI-R5 要求 neon 本人依据 `evidence/2026-11-12/` 撰写，本 change 不代写**。
 
 ## 3 · 验收测试
 
@@ -41,37 +41,38 @@
 
 ### 1. 单元测试
 
-- 覆盖对象：本 change 不含代码改动，无新增单测对象。
-- 参考基线：`frontend/tests/`（9 个文件）在 2026-11-10 实跑 `npm run test:unit`，结果 9 个文件 / 59 条用例全部通过，耗时 26.41s；该结果属基线记录，不是本 change 新增用例。
-- 后端：`cd backend && python -m pytest -q` **未执行**——本机无可用 Python + 后端依赖（详见 `docs/common/neon-test-execution.md` §1）。
+- 覆盖对象：本 change 不改业务代码；新增 `backend/scripts/*.py` 属测试脚本，不进 pytest 收集（`pytest.ini` 的 `testpaths=tests`）。
+- 后端基线（2026-11-12 实跑）：`cd backend && python -m pytest -q --cov=app --cov-branch` → **249 passed / 0 failed**，28.2s，行覆盖 **85%**（分支 336、部分 40）。
+- 前端基线：`cd frontend && npm run test:unit` → 9 文件 / **59 用例通过**，26.41s。
 
 ### 2. 集成测试
 
-- 链路与场景：见 `docs/common/endpoint-inventory.md` §4（44 条）与 §5（跨模块链路 + 并发场景各一条）。
-- 执行命令：未执行。计划命令为 `cd backend && python -m pytest -q`（CI 口径 `--cov=app --cov-branch`）。
-- 实测结果：0/44；接口覆盖率按实测计 0/11，静态清单 11/11 仅证明分母完整。
-- 证据路径：无 HTTP 响应截图；静态核对证据在清单 §2–§3。
+- 链路与场景：`docs/common/endpoint-inventory.md` §4（11 端点四类）；落地 35 条可执行用例（健康探针的「非法参数」不适用）。
+- 执行命令：`cd backend && python scripts/integration_cases.py --json out.json`（服务需先起）。
+- 实测结果：**35/35 通过**，接口覆盖 **11/11**；跨模块链路 1 条（预测 0.97637 = 详情 = 列表）、并发 1 条（200/500 不串扰）。
+- 证据路径：`docs/common/integration-report.md`（逐条结果）、`docs/common/integration-log.md`（索引）、`docs/common/evidence/2026-11-12/`（页面截图）。
 
 ### 3. 验收测试
 
 - 对照对象：`openspec/specs/**/spec.md` 的 124 条 Scenario。
-- 结果：全部未执行（缺真实环境）；空能力目录 5 个需先补规格再对照。
-- 执行人：neon（待环境具备后现场执行并签字）。
+- 已覆盖：四页面主干 + 「提交不存在」「未知路由」两种异常态（浏览器实拍）。
+- 未执行：逐 Scenario 全量对照（124 条）与验收方案/报告签字；空能力目录 5 个仍需补规格。
+- 执行人：neon。
 
 ### 4. 非功能验证
 
-- 性能：未执行。需要 `POST /api/predict` 可达与分位数脚本（仓库缺失）。
-- 安全：未执行。可静态确认的部分已记入清单 §1（鉴权 11/11、`/static/**` 同鉴权、令牌未配置时 fail closed），静态确认**不等于**实测通过。
-- 可靠性：未执行。失败恢复场景依赖真实服务。
-- 易用性：未执行。需浏览器演示。
+- 性能：**已实测**。`python scripts/perf_loop.py`（100 次）→ p50 28.3ms / p95 48.1ms / p99 48.9ms / max 56.0ms，目标 p95<500ms **达标**；证据 `backend/scripts/evidence/2026-11-12-perf.md`。
+- 安全：**已实测**。`python scripts/security_cases.py` → 12/12（鉴权 6 项、畸形参数 4 项、模型不可用 1 项、未知模型 1 项），响应无堆栈/SQL/路径泄漏；证据 `backend/scripts/evidence/2026-11-12-security.md`。
+- 可靠性：未执行（同步中断 / 服务强杀后的恢复路径未构造）。
+- 易用性：部分实测。四页面与两种异常态截图见 `evidence/2026-11-12/`，未做多浏览器与无障碍专项。
 
 ### 5. 已知缺口与后续计划
 
 | 缺口 | 影响 | 责任人 | 完成条件 |
 |---|---|---|---|
-| 后端运行时不可用（无 Python 3.12 + `sqlalchemy`/`pymysql`/`sklearn` 等） | 集成 / 系统测试全部无法执行 | neon | 补齐环境或改由 CI 产出，且不引入仓库级环境变更 |
-| `/openapi.json` 未取得 | 清单为静态来源，可能与运行时漂移 | neon | 环境就绪后第一步导出并回填 |
-| `backend/scripts/` 缺失（`perf_loop.py`、`security_cases.py`） | 非功能两项无执行入口 | neon → 需另提 change | 补齐脚本并能对运行中服务复跑 |
-| `openspec/specs/` 五个空能力目录 | 验收无对应 Scenario 可对照 | sober（规格规范性） | 补 `spec.md` 或删除空目录并说明 |
-| PR #216 声称的 25 模型全接通在干净检出下不成立 | 集成测试的「模型选择」场景无法按说明覆盖 | 蛋神的蛋 → 已在 #217/#218 跟进 | 修复产物路径与 e2e 文本表，或由 `/api/models` 明示在线可用性 |
-| 系统测试计划/总结、验收方案/报告未产出 | 系统 / 验收测试无正式交付物 | neon（本人撰写） | 实跑后人工撰写并签字 |
+| 「缺权重」「失败恢复」两类异常未执行 | 异常覆盖不完整 | neon | 单独测试窗口执行，记录写入 `system-test-run.md` |
+| e2e 在线路径不可用（`commit_text.csv` 缺失） | 25 模型口径无法完全验证 | 蛋神的蛋（[#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)） | 补产物与生成脚本后重跑 |
+| 逐 124 条 Scenario 未对照 | 验收测试未完成 | neon | 组织演示并逐条记录 |
+| `openspec/specs/` 五个空能力目录 | 部分能力无规格可对照 | sober | 补 `spec.md` 或删除并说明 |
+| 系统测试计划/总结、验收方案/报告未产出 | 无签字版交付物 | neon（本人撰写） | 依据 `evidence/2026-11-12/` 撰写并签字 |
+| `nfr-evidence` 规格与实际契约冲突（模型缺失应为 50000，实现为 40001） | 规格侧失真 | sober / 后端 | 规格订正或后端对齐，二者择一 |

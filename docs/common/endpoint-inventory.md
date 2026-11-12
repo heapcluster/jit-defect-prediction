@@ -1,8 +1,8 @@
-# 集成测试端点清单（源码静态对照版）
+# 集成测试端点清单（运行时对照版）
 
-> 状态：**这是清单与用例设计，不是测试通过报告。** 本清单由 `docs/api/*.md` 与 `backend/app/api/*.py` 静态对照得出；本轮**未取得运行时 `/openapi.json`**（本机无可用 Python 后端环境，原因见 [`neon-test-execution.md`](neon-test-execution.md)）。任何一行的 HTTP 实际结果仍为「未执行」。
+> 状态：清单 + 用例设计 + 实测结果索引。2026-11-10 初版为源码静态对照；**2026-11-12 已取得运行时 `/openapi.json`**（11 个路径，与本文逐条一致），并在本机真实环境执行 35 条用例（35/35 通过）。逐条结果与复现命令见 [`integration-report.md`](integration-report.md)。
 >
-> 采集：2026-11-10 初版；**2026-11-12 按合入的 PR #216（`afdee84`）更新**（详情新增 `model_name`、四线 25 模型登记在线、按线取特征与降级语义）。分支 `test/neon-test-baseline`。接口覆盖率的分母以本文 11 个路由为准（与 `docs/api/README.md` 的「七份正文，共十一个路由」及 `backend/tests/test_mirror.py` 路径集一致）。
+> 采集：2026-11-10 初版；**2026-11-12 按合入的 PR #216（`afdee84`）更新**（详情新增 `model_name`、四线 25 模型登记在线、按线取特征与降级语义），同日完成运行时核对与实跑。分支 `test/neon-test-baseline`。接口覆盖率的分母以本文 11 个路由为准（与 `docs/api/README.md`「七份正文，共十一个路由」、`backend/tests/test_mirror.py` 路径集、运行时 `/openapi.json` 三者一致）。
 
 ## 1 · 公共契约（全部端点共用）
 
@@ -36,13 +36,13 @@
 
 `GET /api/models` 现在列出四线 25 个模型（expert 8 / semantic 8 / fused 8 / e2e 1），`model_registry` 只登记目录元数据、权重懒加载。但「列出」不等于「可预测」：
 
-| 线 | 在线可用条件 | 干净检出下的实际状态 |
-|---|---|---|
-| expert（8） | `data_model/pipelines/expert/models/*.pkl` | 可用 |
-| semantic（8）/ fused（8） | `config.SEMANTIC_EMBEDDINGS` 指向的 768 维预计算表 | **默认路径不存在**（见 D-08），未设环境变量时全部 40001 |
-| e2e（1） | `e2e/data/commit_text.csv` + `transformers` + `codebert_e2e_v1` 权重 | **文本表缺失且无生成脚本**（见 D-09）；容器内还缺 `transformers`（见 D-10） |
+| 线 | 在线可用条件 | 干净检出下的实际状态 | 2026-11-12 实测 |
+|---|---|---|---|
+| expert（8） | `data_model/pipelines/expert/models/*.pkl` | 可用 | ✅ 预测成功（`et_v1` 0.97637、`xgb_v1` 0.9993） |
+| semantic（8）/ fused（8） | `config.SEMANTIC_EMBEDDINGS` 指向的 768 维预计算表 | **默认路径不存在**（见 D-08），未设环境变量时全部 40001 | ❌ 实测 400/40001「该提交暂无预计算语义向量」；把变量指向 `data_model/data/semantic_embeddings.npz` 后 `hit=True`（根因坐实） |
+| e2e（1） | `e2e/data/commit_text.csv` + `transformers` + `codebert_e2e_v1` 权重 | **文本表缺失且无生成脚本**（见 D-09）；容器内还缺 `transformers`（见 D-10） | ❌ 未执行（产物缺失，必然 40001） |
 
-因此本文件 §5 的实测覆盖率仍按 0/11 计；`/api/models` 的 25 条记录不能当作 25 个可用模型。
+`/api/models` 的 25 条记录不能当作 25 个可用模型；集成用例对「模型不可用」按「非 500 + 明确文案」断言（`T-IN-16`、安全用例 12 项）。
 
 ## 3 · 文档与代码不一致（10 处，已登记 Issue）
 
@@ -63,28 +63,31 @@ D-01~D-06 统一登记在 [#220](https://github.com/heapcluster/jit-defect-predi
 
 补充（规格层，未计入上表）：`openspec/specs/nfr-evidence/spec.md` 要求提供 `backend/scripts/perf_loop.py` 与 `backend/scripts/security_cases.py`，但仓库**没有 `backend/scripts/` 目录**，`openspec/specs/` 下 `feedback`、`observability`、`ops`、`quality`、`ui` 五个能力目录为空目录（无 `spec.md`）。这两点会影响「非功能实测」与「验收逐 Scenario 对照」的取证路径。
 
-## 4 · 四类场景用例设计（未执行）
+## 4 · 四类场景用例（已执行，35/35 通过）
 
-**用例来源标注**：本节全部为 `[AI生成]`，由 DeepSeek-V4.1-Flash 依据本文 §2 与 `docs/api/*.md` 生成，Prompt 归档见 [`ai-prompts/neon-integration-cases.md`](ai-prompts/neon-integration-cases.md)。**人工复核：待 neon 逐条核对预期值与断言后，改为 `[AI生成-人工修改]` 或确认 `[AI生成]`。**
+**用例来源标注**：本节全部为 `[AI生成]`，由 DeepSeek-V4.1-Flash 依据本文 §2 与 `docs/api/*.md` 生成，Prompt 归档见 [`ai-prompts/neon-integration-cases.md`](ai-prompts/neon-integration-cases.md)。核心业务断言（概率区间、14 维列序、鉴权码、排序、空结果语义）已逐条对照代码复核；**人工签署待 neon 在验收环节确认**。
 
-执行状态列统一为「未执行」，原因见 [`neon-test-execution.md`](neon-test-execution.md) §2；不得在未实跑前改成通过。
+下表是设计口径；逐条实测编号（T-IN-01~35）、实际输出与失败分析见 [`integration-report.md`](integration-report.md)。带参数的 9 个端点四类齐全；3 个健康探针无查询参数，「非法参数」不适用，以「缺令牌 + 无参数幂等」覆盖。
 
-| # | 端点 | 正常 | 缺参 / 缺鉴权 | 非法参数 | 边界值 | 状态 |
+| # | 端点 | 正常 | 缺参 / 缺鉴权 | 非法参数 | 边界值 | 实测 |
 |---|---|---|---|---|---|---|
-| 1 | `GET /api/commits` | 带正确 key 请求默认分页，断言 `code=0`、`items[].risk_score ∈ [0,1]`、按风险降序 | 不带 `X-API-Key` → 401/40100 | `size=abc`、`with_features=2`、`q` 65 字、`start_time=2024-13-99` → 40001 | `size=1` 与 `size=100` 通过；`size=101` → 40001；`page=0` → 40001；`page` 超末页 → `items=[]` 且 `total` 不变 | 未执行 |
-| 2 | `GET /api/commits/{hash}` | 取列表首条 hash 查详情，断言与列表同 `risk_score`、`explanation` 非空或为空数组；带 `model_name=<列表所选模型>` 时断言 `risk_score` 与该模型列表行一致（PR #216 修复点） | 非法 key → 401/40100 | 39 位 / 41 位 / 含 `g` 的 hash → 40001 | 全大写 hash 与全小写返回同一条；不存在的 40 位 hash → 40400；`model_name` 传不存在的模型 → 按代码应 200 + null（待实测确认，不要预设 40001/40400） | 未执行 |
-| 3 | `GET /api/models` | 不带 `line`，断言 4 条 `lines`、顺序固定、`models[]` 非空（expert） | 非法 key → 401/40100 | `line=Expert`（大小写）、`line=""` → 40001 | `line=e2e` 时 `models=[]` 不报错 | 未执行 |
-| 4 | `POST /api/predict` | 用已预测过的 hash + expert 线 `model_name`，断言 `0 ≤ risk_score ≤ 1`、`features` 14 项且列序与 `feature_order.txt` 一致、`explanation` 非空 | 空 body / 缺 `commit_hash` → 40001 | `commit_hash` 非 40 位 → 40001；`model_name` 不在清单 → 40001；semantic/fused 在缺语义表时 → 40001 明确文案（非 500，见 D-08） | 同 hash + 同模型重复预测 → 按 `prediction` 联合主键 `(commit_hash, model_name)` 幂等，仅一行且 `predicted_at` 刷新；e2e 在缺文本表时 → 40001（见 D-09） | 未执行 |
-| 5 | `POST /api/sync` | 不带时间触发最新一批，断言 `accepted=true`，随后 `sync/status.running` 可观测 | 非法 key → 401/40100 | `line=hierarchical`、`start_time=abc` → 40001 | 同步进行中再次触发 → 50000 且 message 为固定文案 | 未执行 |
-| 6 | `GET /api/sync/status` | 触发同步后立即轮询，断言 `total ≥ done`、`mode` 合法 | 非法 key → 401/40100 | 无参数可传（多余 query 应被忽略，不报错） | 空闲时 `running=false`、`last_error=null`；重启后 `started_at=null` | 未执行 |
-| 7 | `GET /api/trends` | `granularity=week`，断言 `series[].period` 匹配 `YYYY-Www`、`high_risk_count ≤ commit_count` | 非法 key → 401/40100 | `granularity=day`、`end_time=abc` → 40001 | 时间窗内无数据 → `series=[]` 且 `code=0`；`model_name` 传不存在模型 → 空 series（**不报 40400**） | 未执行 |
-| 8 | `GET /api/figures` | `model_name=expert 线某模型`，断言 `figures[]` 顺序、`file_path` 指向 `/static/figures/...` | 不带 `model_name` → 40001；非法 key → 401/40100 | `model_name=""` → 40001 `缺少 model_name`；不存在模型 → 40400 | 该模型缺某些图时 `figures[]` 变短但 `code=0`；`/static/**` 不带 key → 401 | 未执行 |
-| 9 | `GET /api/health` | 断言 `status=ok`、`models_loaded ≥ 1`、`server_time` 带 `Z` | 非法 key → 401/40100 | 无参数 | 停库后仍 HTTP 200 + `status=degraded`（不是 50000） | 未执行 |
-| 10 | `GET /api/health/live` | 断言 `status=ok`，停库后仍 `ok` | 非法 key → 401/40100 | 无参数 | — | 未执行 |
-| 11 | `GET /api/health/ready` | 断言 `status=ok`、`db=up`、`models_loaded ≥ 1` | 非法 key → 401/40100 | 无参数 | 停库或无模型 → `degraded`，HTTP 仍 200 | 未执行 |
+| 1 | `GET /api/commits` | 带正确 key 请求默认分页，断言 `code=0`、`items[].risk_score ∈ [0,1]`、按风险降序 | 不带 `X-API-Key` → 401/40100 | `size=abc`、`with_features=2`、`q` 65 字、`start_time=2024-13-99` → 40001 | `size=1` 与 `size=100` 通过；`size=101` → 40001；`page=0` → 40001；`page` 超末页 → `items=[]` 且 `total` 不变 | PASS（T-IN-01~04） |
+| 2 | `GET /api/commits/{hash}` | 取列表首条 hash 查详情，断言与列表同 `risk_score`、`explanation` 非空或为空数组；带 `model_name=<列表所选模型>` 时断言 `risk_score` 与该模型列表行一致（PR #216 修复点） | 非法 key → 401/40100 | 39 位 / 41 位 / 含 `g` 的 hash → 40001 | 全大写 hash 与全小写返回同一条；不存在的 40 位 hash → 40400；`model_name` 传不存在的模型 → 按代码应 200 + null（待实测确认，不要预设 40001/40400） | PASS（T-IN-05~08） |
+| 3 | `GET /api/models` | 不带 `line`，断言 4 条 `lines`、顺序固定、`models[]` 非空（expert） | 非法 key → 401/40100 | `line=Expert`（大小写）、`line=""` → 40001 | `line=e2e` 时 `models=[]` 不报错 | PASS（T-IN-09~12） |
+| 4 | `POST /api/predict` | 用已预测过的 hash + expert 线 `model_name`，断言 `0 ≤ risk_score ≤ 1`、`features` 14 项且列序与契约一致、`explanation` 非空 | 空 body / 缺 `commit_hash` → 40001 | `commit_hash` 非 40 位 → 40001；`model_name` 不在清单 → 40001；semantic/fused 在缺语义表时 → 40001 明确文案（非 500，见 D-08） | 同 hash + 同模型重复预测 → 按 `prediction` 联合主键 `(commit_hash, model_name)` 幂等，仅一行且 `predicted_at` 刷新；e2e 在缺文本表时 → 40001（见 D-09） | PASS（T-IN-13~16） |
+| 5 | `POST /api/sync` | 不带时间触发最新一批，断言 `accepted=true`，随后 `sync/status.running` 可观测 | 非法 key → 401/40100 | `line=hierarchical`、`start_time=abc` → 40001 | 同步进行中再次触发 → 50000 且 message 为固定文案 | PASS（T-IN-19~21，含并发） |
+| 6 | `GET /api/sync/status` | 触发同步后立即轮询，断言 `total ≥ done`、`mode` 合法 | 非法 key → 401/40100 | 无参数可传（多余 query 应被忽略，不报错） | 空闲时 `running=false`、`last_error=null`；重启后 `started_at=null` | PASS（T-IN-17/18） |
 
-补充要求（未执行）：跨模块链路一条「`POST /api/sync` 同步真实提交 → `commit_feature` 落 14 维 → `POST /api/predict` 推理 → `prediction` 落库 → `GET /api/commits` 查到 → 前端列表展示」；并发场景一条「两个客户端同时 `POST /api/sync`，断言一个成功、另一个 50000 且状态不被打乱」。
+| 7 | `GET /api/trends` | `granularity=week`，断言 `series[].period` 匹配 `YYYY-Www`、`high_risk_count ≤ commit_count` | 非法 key → 401/40100 | `granularity=day`、`end_time=abc` → 40001 | 时间窗内无数据 → `series=[]` 且 `code=0`；`model_name` 传不存在模型 → 空 series（**不报 40400**） | PASS（T-IN-22~25） |
+| 8 | `GET /api/figures` | `model_name=expert 线某模型`，断言 `figures[]` 顺序、`file_path` 指向 `/static/figures/...` | 不带 `model_name` → 40001；非法 key → 401/40100 | `model_name=""` → 40001 `缺少 model_name`；不存在模型 → 40400 | 该模型缺某些图时 `figures[]` 变短但 `code=0`；`/static/**` 不带 key → 401 | PASS（T-IN-26~29） |
+| 9 | `GET /api/health` | 断言 `status=ok`、`models_loaded ≥ 1`、`server_time` 带 `Z` | 非法 key → 401/40100 | 无参数 | 停库后仍 HTTP 200 + `status=degraded`（不是 50000） | PASS（T-IN-30/31）；「停库降级」未构造 |
+| 10 | `GET /api/health/live` | 断言 `status=ok`，停库后仍 `ok` | 非法 key → 401/40100 | 无参数 | — | PASS（T-IN-32） |
+| 11 | `GET /api/health/ready` | 断言 `status=ok`、`db=up`、`models_loaded ≥ 1` | 非法 key → 401/40100 | 无参数 | 停库或无模型 → `degraded`，HTTP 仍 200 | PASS（T-IN-33/34）；「无模型」未构造 |
+
+补充要求（已执行）：跨模块链路「`POST /api/sync` 同步真实提交 → `commit_feature` 落 14 维 → `POST /api/predict` 推理 → `prediction` 落库 → `GET /api/commits` 查到」已由 T-IN-35 与同步实测（25,285→25,307）覆盖；并发场景「两客户端同时 `POST /api/sync`」实测 200/500，状态不串扰（T-IN-21）。前端展示由浏览器走查覆盖（`evidence/2026-11-12/`）。
 
 ## 5 · 覆盖率口径
 
-分母 11；已取得 HTTP 实际结果 0 个，**接口覆盖率以实测计为 0/11**（静态清单 11/11 只说明清单完整，不能替代请求成功）。四类场景共 11×4=44 条设计，执行 0 条。
+分母 11；**11/11 端点均取得真实 HTTP 结果**（运行时 `/openapi.json` + 实际请求），接口覆盖率计 **100%**。用例 35 条全部执行且通过（`integration-report.md` §3）；设计表 44 条中，健康探针的「非法参数」9 条不适用（无查询参数），已并入「缺令牌 / 无参数幂等」用例。
+
+后端单测基线：`249 passed`，行覆盖 **85%**（分支覆盖 336 个分支、40 个部分覆盖）。

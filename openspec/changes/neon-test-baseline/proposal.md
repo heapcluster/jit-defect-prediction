@@ -12,7 +12,9 @@
 - 新增 `docs/common/neon-test-execution.md`：本机环境能力核查结果、已执行项真实结果、未执行项与阻断原因、解除条件。
 - 新增 `docs/common/ai-prompts/neon-integration-cases.md`：AI 生成用例的 Prompt 归档与人工复核状态（AI-R1 / AI-R2）。
 - 新增活规格能力 `test-evidence`：把「清单来源、执行记录、不得以文档冒充实测」固化为可校验的 Requirement。
-- 更新 `docs/common/integration-log.md`：注明本轮未执行及原因，避免旧占位被误读为已执行。
+- 更新 `docs/common/integration-log.md`：登记 2026-11-12 的实测结果与环境；未执行项（缺权重、失败恢复）单独标注。
+- 新增三个可复跑脚本（**不改业务代码**）：`backend/scripts/integration_cases.py`（11 端点四类场景 35 条）、`perf_loop.py`（100 次预测分位数，对应 `nfr-evidence` 性能要求）、`security_cases.py`（鉴权/畸形参数/模型不可用，对应安全要求），并产出 `backend/scripts/evidence/2026-11-12-*.md`。
+- 新增 `docs/common/integration-report.md`（35 条逐条结果）与 `docs/common/evidence/2026-11-12/`（四页面 + 两种异常态截图、系统测试执行记录）。
 
 ## 不做什么
 
@@ -30,5 +32,5 @@
 
 - 文档：`docs/common/` 新增 3 份、修改 1 份；`docs/README.md` 导航补 2 行。
 - OpenSpec：新增 `changes/neon-test-baseline/`，并在 `changes/README.md` 活跃 change 表登记。
-- 代码：**零改动**。不触及 `backend/`、`frontend/`、`data_model/`、`infra/`，因此不影响 CI 的构建与既有测试口径。
-- 后续依赖：真实取证需具备 Python 3.12 + 后端依赖 + MySQL 的环境（本机 MySQL 已在跑但缺驱动），或由 CI 产出后端测试结果。
+- 代码：**业务代码零改动**。仅在 `backend/scripts/` 新增三个测试脚本，不进 `pytest` 收集（`testpaths=tests`），不改变接口行为；`backend/tests`、`frontend/src`、`data_model/` 均未触碰。CI 会因 `backend/` 路径被判为需跑后端测试，现有 249 条用例全部通过（本地实测）。
+- 后续依赖：`缺权重`、`失败恢复` 两类异常仍未执行；系统测试计划/总结、验收方案/报告待 neon 本人撰写签字；e2e 在线路径待 #218 修复。

@@ -20,9 +20,9 @@
 |---|---|---|---|---|
 | 蛋神的蛋-1 | 蛋神的蛋 | 在线预测能力对齐（25 模型全部接入 + 详情/进度 bug） | P1 | 代码已合入（PR #216 / `afdee84`），**产物侧未闭环**：#217 #218 未修复前 semantic/fused/e2e 无法在干净检出下预测 |
 | 蛋神的蛋-2 | 蛋神的蛋 | 单元测试（三例 + 覆盖率，自测通过即可） | P0 | 测试代码已补（PR #215/#216），覆盖率以 CI 报告为准（归档见 PR #212），待 sober 核对归档 |
-| neon-1 | neon | 集成测试 | P0 | 清单与用例设计已交付；44 条用例未执行（无后端运行时） |
-| neon-2 | neon | 系统测试 | P0 | 未执行（环境阻断，见 `docs/common/neon-test-execution.md`） |
-| neon-3 | neon | 验收测试 | P0 | 未执行（需真实环境演示 + 本人签字文档） |
+| neon-1 | neon | 集成测试 | P0 | **已完成主体**：11 端点四类场景，35/35 通过，接口覆盖 11/11（`integration-report.md`）；新增 `backend/scripts/integration_cases.py` |
+| neon-2 | neon | 系统测试 | P0 | **部分完成**：四页面主线 + 空库/无效令牌/非法参数已实测；性能 p95 48.1ms、安全 12/12；缺权重与失败恢复未执行；计划/总结待本人签字 |
+| neon-3 | neon | 验收测试 | P0 | 部分：四页面与两种异常态已取证；124 条 Scenario 未逐条对照，方案/报告待本人签字 |
 | neon-4 | neon | 缺陷与 PR 管理 | P1 | 进行中：PR #216 已审阅合入并留痕，缺陷 #217~#220 已登记；飞书缺陷看板未建 |
 | neon-5 | neon | 项目看板与周报 | P1 | 进行中：11 项任务已映射到[看板](https://gcnlk66qul6p.feishu.cn/base/SilBbJZFPaDct1slrIVcN2Nonsc)（Sprint 2/3），[工作周报-20261113](https://gcnlk66qul6p.feishu.cn/docx/QTKgdRDNFoiN3uxc6OecURV2nZa) 已建；后续按周更新 |
 | sober-1 | sober | 测试文档（含 OpenSpec 规范化） | P0 | 未开始（依赖 neon-1/2/3 结果） |

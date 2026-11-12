@@ -12,13 +12,15 @@
 - 用 Postman Collection 直连远端服务：本机无部署实例，且远端不可假定存在。
 - 用 `frontend/tests/*` 的 mock 响应反推清单：mock 是前端作者写的断言，不是服务端事实，会形成循环取证。
 
-## 2 · 不写当前环境无法收集的 pytest 用例
+## 2 · 集成用例放进 `backend/scripts/`，不进 `backend/tests/`
 
-**取舍**：集成测试代码属交付物，但本机无法 `pytest --collect-only`。
+**取舍**：仓库 CI 会真实执行 `backend/tests`（依赖 MySQL 服务与固定夹具），而集成用例需要一台**已启动的服务**与真实数据。
 
-**决定**：只交付用例设计表（输入 / 预期码 / 断言 / 状态），不写 `backend/tests/test_integration_*.py`。
+**决定**：集成用例实现为 `backend/scripts/integration_cases.py`，用 `httpx` 打运行中的 `BASE_URL`；`perf_loop.py`、`security_cases.py` 同理。三者都不进 `pytest` 收集（`pytest.ini` 的 `testpaths=tests`）。
 
-**理由**：仓库 CI 会真实执行 `backend/tests`，提交未收集验证的用例会把失败转移给流水线，且失败原因（缺依赖 vs 断言写错）难以区分。用例设计表已经把「预期值」与「代码实际」的冲突显式标出（D-01~D-06），具备环境后可机械转成 pytest，不需要重新推导。
+**理由**：把「需要活服务的黑盒用例」塞进单测目录会让 CI 必须额外起进程与随机端口，失败原因（服务没起 vs 断言写错）混在一起；脚本形态可本地随时复跑、可传 `BASE_URL` 指向预发环境，也贴近课程「接口测试脚本」的交付口径。
+
+**修订记录**：2026-11-10 初版曾决定「不写任何可执行用例」，理由是当时本机无可用 Python 运行时、无法收集验证。2026-11-12 用户提供了 conda 环境后该前提消失，脚本已实跑（35/35、12/12、perf 达标），原决定随之撤销；保留此条以说明为何前后不一致。
 
 ## 3 · 执行记录独立成文，不改 `integration-log.md` 的结论列
 
