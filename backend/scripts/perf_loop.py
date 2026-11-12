@@ -63,7 +63,7 @@ def main() -> None:
     headers = {"X-API-Key": API_TOKEN}
     try:
         client = httpx.Client(base_url=BASE_URL, timeout=180.0)
-        client.get("/api/health").status_code  # 故意不带 key，仅确认可达
+        _ = client.get("/api/health").status_code  # 故意不带 key，仅确认可达
     except Exception as exc:  # noqa: BLE001
         fail(f"服务不可达 {BASE_URL}：{type(exc).__name__}")
 
@@ -76,7 +76,7 @@ def main() -> None:
 
     latencies: list[float] = []
     errors = 0
-    for i in range(N):
+    for _ in range(N):
         started = time.perf_counter()
         try:
             r = client.post(

@@ -23,9 +23,10 @@ import re
 import sys
 import threading
 import time
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 from dotenv import load_dotenv
@@ -60,7 +61,9 @@ class Case:
 CASES: list[Case] = []
 
 
-def case(cid: str, endpoint: str, scenario: str) -> Callable[[Callable[[], str]], Callable[[], str]]:
+def case(
+    cid: str, endpoint: str, scenario: str
+) -> Callable[[Callable[[], str]], Callable[[], str]]:
     def wrap(fn: Callable[[], str]) -> Callable[[], str]:
         CASES.append(Case(cid, endpoint, scenario, fn))
         return fn
@@ -215,9 +218,14 @@ def detail_boundary() -> str:
     m = sample_model()
     listed = expect(200)(get("/api/commits", params={"size": 1, "model_name": m}))["data"]["items"]
     if listed:
-        got = expect(200)(get(f"/api/commits/{listed[0]['commit_hash']}", params={"model_name": m}))["data"]
+        got = expect(200)(
+            get(f"/api/commits/{listed[0]['commit_hash']}", params={"model_name": m})
+        )["data"]
         check(got["model_name"] == m, "详情未按 model_name 取模型")
-        check(abs((got["risk_score"] or -1) - listed[0]["risk_score"]) < 1e-9, "详情与列表同模型风险值不一致")
+        check(
+            abs((got["risk_score"] or -1) - listed[0]["risk_score"]) < 1e-9,
+            "详情与列表同模型风险值不一致",
+        )
     expect(404)(get("/api/commits/" + "f" * 40))
     return "大小写一致、model_name 对齐列表、未知 hash 40400"
 
@@ -282,7 +290,9 @@ def predict_missing_body() -> str:
 @case("T-IN-15", "POST /api/predict", "非法参数")
 def predict_bad_params() -> str:
     expect(400)(post("/api/predict", json={"commit_hash": "abc"}))
-    expect(400)(post("/api/predict", json={"commit_hash": "a" * 40, "model_name": "not_exist_model"}))
+    expect(400)(
+        post("/api/predict", json={"commit_hash": "a" * 40, "model_name": "not_exist_model"})
+    )
     return "短 hash 与未知模型 40001"
 
 
@@ -410,7 +420,10 @@ def figures_normal() -> str:
     order = ["roc", "pr", "confusion", "calibration", "effort", "feat_importance"]
     types = [f["figure_type"] for f in d["figures"]]
     check(types == [t for t in order if t in types], f"图序不符 {types}")
-    check(all(f["file_path"].startswith("/static/figures/") for f in d["figures"]), "file_path 前缀不符")
+    check(
+        all(f["file_path"].startswith("/static/figures/") for f in d["figures"]),
+        "file_path 前缀不符",
+    )
     return f"{m} 图 {len(types)} 张，顺序 OK"
 
 
@@ -449,7 +462,9 @@ def health_normal() -> str:
     check(d["db"] in ("up", "down"), "db 取值异常")
     check(d["models_loaded"] >= 1, "模型未加载")
     check(d["server_time"].endswith("Z"), "server_time 未用 UTC Z")
-    return f"status={d['status']} db={d['db']} models={d['models_loaded']} commits={d['commit_count']}"
+    return (
+        f"status={d['status']} db={d['db']} models={d['models_loaded']} commits={d['commit_count']}"
+    )
 
 
 @case("T-IN-31", "GET /api/health", "缺参")
@@ -486,8 +501,12 @@ def cross_module() -> str:
     predicted = expect(200)(post("/api/predict", json={"commit_hash": h, "model_name": m}))["data"]
     detail = expect(200)(get(f"/api/commits/{h}", params={"model_name": m}))["data"]
     check(detail["model_name"] == m, "详情未读到该模型 prediction")
-    check(abs((detail["risk_score"] or -1) - predicted["risk_score"]) < 1e-9, "落库值与预测返回不一致")
-    listed = expect(200)(get("/api/commits", params={"size": 100, "model_name": m}))["data"]["items"]
+    check(
+        abs((detail["risk_score"] or -1) - predicted["risk_score"]) < 1e-9, "落库值与预测返回不一致"
+    )
+    listed = expect(200)(get("/api/commits", params={"size": 100, "model_name": m}))["data"][
+        "items"
+    ]
     hit = [x for x in listed if x["commit_hash"] == h]
     check(bool(hit), "列表未查到刚落库的 prediction")
     return f"{h[:8]}/{m} 预测={predicted['risk_score']} 详情/列表一致"

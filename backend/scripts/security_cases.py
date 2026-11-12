@@ -52,7 +52,7 @@ def main() -> None:
         client.get("/api/health")
     except Exception as exc:  # noqa: BLE001
         print(f"[security] 服务不可达 {BASE_URL}：{type(exc).__name__}", file=sys.stderr)
-        raise SystemExit(2)
+        raise SystemExit(2) from exc
 
     auth = {"X-API-Key": API_TOKEN}
 
@@ -66,7 +66,9 @@ def main() -> None:
                 and body.get("code") == 40100
                 and body.get("message") == "missing or invalid token"
             )
-            record(f"{path} {name}", ok, f"{r.status_code}/{body.get('code')} {body.get('message')}")
+            record(
+                f"{path} {name}", ok, f"{r.status_code}/{body.get('code')} {body.get('message')}"
+            )
 
     # 2) 畸形参数
     bad_cases = [
@@ -79,14 +81,20 @@ def main() -> None:
         r = client.get(url, headers=auth)
         text = r.text
         ok = r.status_code == 400 and r.json().get("code") == 40001 and no_leak(text)
-        record(f"畸形参数 {name}", ok, f"{r.status_code}/{r.json().get('code')} leak={not no_leak(text)}")
+        record(
+            f"畸形参数 {name}",
+            ok,
+            f"{r.status_code}/{r.json().get('code')} leak={not no_leak(text)}",
+        )
 
     # 3) 模型不可用（非 expert 线默认无在线权重/产物）
     r = client.get("/api/models", params={"line": "semantic"}, headers=auth)
     semantic = r.json()["data"]["lines"][0]["models"] if r.json()["data"]["lines"] else []
     if semantic:
         model_name = semantic[0] if isinstance(semantic[0], str) else semantic[0]["model_name"]
-        sample = client.get("/api/commits", params={"size": 1}, headers=auth).json()["data"]["items"]
+        sample = client.get("/api/commits", params={"size": 1}, headers=auth).json()["data"][
+            "items"
+        ]
         commit_hash = sample[0]["commit_hash"] if sample else "a" * 40
         pr = client.post(
             "/api/predict",
@@ -109,7 +117,9 @@ def main() -> None:
         record("模型不可用", False, "semantic 线无模型，无法构造该场景")
 
     # 4) 未知模型名
-    pr = client.post("/api/predict", json={"commit_hash": "a" * 40, "model_name": "no_such_model"}, headers=auth)
+    pr = client.post(
+        "/api/predict", json={"commit_hash": "a" * 40, "model_name": "no_such_model"}, headers=auth
+    )
     ok = pr.status_code == 400 and pr.json().get("code") == 40001 and no_leak(pr.text)
     record("未知模型名", ok, f"{pr.status_code}/{pr.json().get('code')}")
 
