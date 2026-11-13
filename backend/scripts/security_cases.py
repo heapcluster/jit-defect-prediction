@@ -1,4 +1,4 @@
-﻿"""安全用例：鉴权、畸形参数与不可用模型的错误面收敛。
+"""安全用例：鉴权、畸形参数与不可用模型的错误面收敛。
 
 对应 `openspec/specs/nfr-evidence/spec.md` 的「安全用例脚本」：
 
@@ -122,6 +122,56 @@ def main() -> None:
     )
     ok = pr.status_code == 400 and pr.json().get("code") == 40001 and no_leak(pr.text)
     record("未知模型名", ok, f"{pr.status_code}/{pr.json().get('code')}")
+
+    # 5) 新版考核说明 §4.1：SQL 注入防护、越权访问、上传安全
+    # 本项目无用户角色体系、无文件上传接口，越权/上传按「不适用」如实记录，不造假。
+    injections = [
+        ("q=' OR 1=1 --", "/api/commits", {"q": "' OR 1=1 --"}),
+        ("model_name='; DROP TABLE", "/api/figures", {"model_name": "'; DROP TABLE model; --"}),
+        ("start_time 注入", "/api/trends", {"start_time": "2024-01-01' OR '1'='1"}),
+        ("q 注入（DROP TABLE）", "/api/commits", {"q": "'; DROP TABLE `commit`; --"}),
+    ]
+    for name, path, params in injections:
+        r = client.get(path, params=params, headers=auth)
+        text = r.text
+        if path == "/api/commits":
+            # q 是模糊搜索关键字：注入串应被参数化查询当成普通字符串，返回空结果且不报错/不泄漏
+            body = r.json()
+            ok = (
+                r.status_code == 200
+                and body.get("code") == 0
+                and body["data"]["total"] == 0
+                and no_leak(text)
+            )
+        else:
+            ok = (
+                r.status_code in (400, 404)
+                and r.json().get("code") in (40001, 40400)
+                and no_leak(text)
+            )
+        record(
+            f"注入防护 {name}",
+            ok,
+            f"{r.status_code}/{r.json().get('code')} leak={not no_leak(text)}",
+        )
+
+    pr = client.post(
+        "/api/predict",
+        json={"commit_hash": "a" * 40, "model_name": "' OR 1=1 --"},
+        headers=auth,
+    )
+    ok = pr.status_code == 400 and pr.json().get("code") == 40001 and no_leak(pr.text)
+    record("注入防护 POST /api/predict", ok, f"{pr.status_code}/{pr.json().get('code')}")
+
+    r = client.get("/api/commits", headers={"X-API-Key": "another-team-token"})
+    record(
+        "越权访问（非本系统令牌）",
+        r.status_code == 401 and r.json().get("code") == 40100,
+        f"{r.status_code}/{r.json().get('code')}",
+    )
+    print(
+        "[security] 不适用：本项目无用户角色体系与上传接口，未构造「普通用户访问管理员接口 / 恶意文件上传」用例（不造假）"
+    )
 
     total = len(results)
     failed = [r for r in results if not r[1]]
