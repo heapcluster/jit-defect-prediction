@@ -7,7 +7,7 @@
 
 ### Requirement: 模型加载
 
-系统 SHALL 在启动时从 `MODEL_DIR`（`.env` 配置，默认 `data_model/models/`）加载 `.pkl` 模型文件并建立注册表；`model_name` SHALL 取文件名主干；加载失败 SHALL NOT 阻断服务启动。
+系统 SHALL 在启动时从 `MODEL_DIR`（`.env` 配置；留空时默认 `data_model/pipelines/expert/models/`）加载 `.pkl` 模型文件并建立注册表；`model_name` SHALL 取文件名主干；加载失败 SHALL NOT 阻断服务启动。
 
 #### Scenario: 正常加载
 

@@ -21,7 +21,7 @@
 
 ### Requirement: 一条命令建库
 
-系统 SHALL 提供单条命令在干净 clone 的环境下完成建库，并 SHALL 把该命令与「数据由实时同步产出、需先配置本地历史索引（`SOURCE_REPO`）」的前提写进 `backend/README.md`。
+系统 SHALL 提供单条命令在干净 clone 的环境下完成建库，并 SHALL 把该命令与「数据由实时同步产出、需先配置本地历史索引（`SOURCE_REPO`）」的前提写进 `docs/common/local-runbook.md`。
 
 #### Scenario: 干净环境建库
 

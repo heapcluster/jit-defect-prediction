@@ -2,6 +2,8 @@
 
 `specs/<capability>/spec.md` 是已归档能力的活规格；`changes/<change>/` 是尚待验收或归档的增量；`changes/archive/` 仅作历史证据。当前产品技术正文见 [`../docs/README.md`](../docs/README.md)。
 
+2026-11-13 已恢复原路径下的旧任务文档；[`todo/sober-2-OpenSpec归档.md`](../todo/sober-2-OpenSpec归档.md) 提供归档与证据一致性要求。旧编号与现行分工可能不同，任务负责人和进度以当前 [`todo/README.md`](../todo/README.md) 及飞书看板为准；OpenSpec 文件格式以本目录模板和 `config.yaml` 为准。
+
 ## 新变更统一格式
 
 - `proposal.md`：Why、What Changes、Capabilities、Impact；范围变化指向 `docs/overview.md`。
