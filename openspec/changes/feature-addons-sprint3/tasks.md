@@ -47,7 +47,7 @@
 | 项 | 内容 |
 |---|---|
 | 集成范围 | G1-1/G1-2 的返回数据 ↔ 提交详情页；缺少后端数据时显示明确空态 |
-| 测试文件 | `frontend/tests/`（待新增），真实后端联调记录见 `docs/common/integration-log.md` |
+| 测试文件 | `frontend/tests/`（待新增），真实后端联调记录见 `docs/test/integration_test/report.md` |
 | 用例数与结果 | 0 条（未开始） |
 | 关键断言 | 不伪造行级证据或修复建议；现行接口未提供对应字段时明确记为未实现，不改现行 `docs/api/` 契约 |
 
@@ -56,7 +56,7 @@
 |---|---|
 | 验收依据 | `specs/defect-visualization/spec.md`、`specs/fix-suggestion/spec.md` |
 | 用例数与结果 | 0 条（未开始） |
-| 证据归档 | 实测页面与接口证据待记录在 `docs/common/integration-log.md` 或对应 PR；目前未提供 |
+| 证据归档 | 实测页面与接口证据待记录在 `docs/test/integration_test/report.md` 或对应 PR；目前未提供 |
 
 ### 4. 非功能验证
 | 维度 | 是否触及 | 证据 |
@@ -71,4 +71,4 @@
 |---|---|---|---|
 | G1-1/G1-2 功能任务 2.1–3.2 未完成 | 当前接口与页面没有可验收的行级证据和修复建议 | 蒋励 / 刘帅华 | 由飞书看板确定 |
 | 测试计划已立但无实测证据 | 功能尚未交付 | 同上 | 对应功能 PR 中补 |
-| G1-3/G1-4 的文献与实验缺口 | 已移交独立 change，本 change 不验收 | 蒋励 | 见 `docs/common/research-notes.md`，由对应 change 追踪 |
+| G1-3/G1-4 的文献与实验缺口 | 已移交独立 change，本 change 不验收 | 蒋励 | 见 `docs/common/pending.md`，由对应 change 追踪 |

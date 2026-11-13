@@ -1,4 +1,4 @@
-﻿"""集成测试用例：对**运行中的服务**执行 11 个端点的四类场景，输出逐条结果。
+"""集成测试用例：对**运行中的服务**执行 11 个端点的四类场景，输出逐条结果。
 
 用法（在 backend/ 目录，先起服务）：
 
@@ -11,7 +11,7 @@
 鉴权失败码、空结果不等于错误）。只断言 HTTP 200 的用例不算通过。
 
 来源标注：`[AI生成]`（DeepSeek-V4.1-Flash，2026-11-12），核心业务断言已按
-`docs/common/endpoint-inventory.md` §2 逐条对照代码复核。
+`docs/test/integration_test/endpoint_inventory.md` §2 逐条对照代码复核。
 """
 
 from __future__ import annotations
