@@ -17,6 +17,18 @@
 | `frontend-integration` | 记录旧三页的历史联调；当前为四页 | 在 `docs/common/integration-log.md` 补现行四页截图与异常场景 |
 | `pr-review-automation-prototype` | 旧工作流已删除 | 标为历史原型；不要把它算作当前自动审阅能力 |
 | `model-training-scope-8`、`online-eight-model-selection`、`test-set-eval-figures` | 八分类器、expert 在线八模型、五表图集与当前设计方向一致 | 补未勾选任务、真实权重/数据库/页面证据后再归档 |
-| `neon-test-baseline` | 只新增测试取证清单与执行边界记录，不改契约、不动代码；与当前五表十一端点一致 | 取得运行时 `/openapi.json` 与真实环境后回填实测，再按 `tasks.md` 逐项勾选 |
+| `neon-test-baseline` | 已新增测试脚本、取证清单和执行记录；PR #221 已合入。运行时十一端点和部分系统用例已有作者证据，但 25 模型矩阵仍为 23/25 | 复核并发与强杀恢复用例的有效性；补 124 条现场判定、系统/验收正式签字文档及 #222 复测，再按 `tasks.md` 逐项结案 |
 
 其他 change 也必须逐条核对 Requirement 标题、实际代码与证据路径。未复核不能直接勾选或归档。历史归档目录保留当时的路径和结论，不回写历史。
+
+## 2026-11-13 结构与归档复核
+
+旧任务要求见 [`todo/sober-2-OpenSpec归档.md`](../../todo/sober-2-OpenSpec归档.md)：归档前要确认活规格、代码、文档和测试证据一致，已勾选任务可复现。旧任务编号只作历史验收线索；现行文件格式仍以 [`../TASKS_TEMPLATE.md`](../TASKS_TEMPLATE.md) 与 [`../config.yaml`](../config.yaml) 为准。
+
+- 已核对 25 个活跃 change：`proposal.md` 均含 Why / What Changes / Capabilities / Impact，`tasks.md` 均有四项文件头和末尾「测试与验证」五节。`neon-test-baseline` 第 2 章的任务已按 2.1–2.8 顺序重排，4.2 的验收语句已改为「未执行项不写通过」。
+- 活跃 delta 中 9 条 `MODIFIED` Requirement 的标题均能在对应活规格中精确找到，当前没有同一 capability、同一标题被多个活跃 change 同时 `MODIFIED` 的情况。这只是静态标题检查，不能证明几个 change 的语义互不冲突。
+- 活规格 `db-schema`、`environment`、`predict-api` 的三个已删除路径已改成仓库现有运行说明与实际默认模型目录。`data_model/data/` 和 `data_model/preparation/reports/` 是运行时生成目录，干净 clone 中不存在时不得当成已交付证据。
+- `architecture-refactor`、`feedback-observability`、`frontend-redesign`、`ops-hardening`、`quality-loop` 虽然任务已全勾选，仍须逐项核对当前代码与证据。尤其反馈/质量页面和部分运维接口已下线，不能将旧 delta 直接应用到活规格；本次没有凭勾选状态自动归档。
+- `backend-mysql-schema-sql`、`model-training-scope-8` 等活跃 change 仍含 `backend/README.md`、`data_model/ENVIRONMENT.md` 等历史交付路径。它们是待复核的旧任务证据，不等于这些文件当前存在。负责人须提供现行可打开的证据链接或在结案时明确说明被取代的部分。
+
+本节是结构与路径复核，不是 25 个 change 的产品验收结论。OpenSpec CLI 在本次本机环境中不可用；`openspec validate --specs --strict` 和逐 change 校验仍需在装有 CLI 的环境补跑，并把输出附在后续归档 PR。

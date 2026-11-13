@@ -21,9 +21,9 @@
 - [x] 2.3 异常 5 类 — 交付：`system_exceptions.py --scenario all` **13/13 通过**（缺权重、空库、失败恢复），加上 35 条集成用例里的无效令牌/非法参数与浏览器两种异常态；验收：`backend/scripts/evidence/2026-11-12-system-exceptions.md`；负责人：neon。
 - [x] 2.4 非功能 ≥2 项实测 — 交付：新增 `backend/scripts/perf_loop.py`、`security_cases.py` 与两份 evidence；性能 p95=48.1ms 达标、安全 12/12；验收：`backend/scripts/evidence/2026-11-12-*.md`；负责人：neon。
 - [ ] 2.5 系统测试计划 / 总结 — **未产出：文档由 sober 整理，neon 给实测内容并下结论/签字；AI-R5 禁止 AI 代写代签**。
+- [x] 2.6 25 模型在线矩阵 — 交付：`backend/scripts/evidence/2026-11-12-online-25.md`；验收：补齐两张输入表后逐个 `POST /api/predict`，**23/25 通过**，2 个 tabnet 挂 [#222](https://github.com/heapcluster/jit-defect-prediction/issues/222)；负责人：neon。
 - [x] 2.7 逐端点联调留痕 — 交付：`backend/scripts/linkage_capture.py` + `evidence/2026-11-12-linkage.{md,json}`；验收：12 次请求（含 2 个异常）记录包络与响应摘要；负责人：neon。
 - [x] 2.8 25 模型矩阵固化为门禁 — 交付：`backend/scripts/online_models_matrix.py`；验收：实跑 23/25 且退出码 1（正确报警），#222 修完目标 25/25；负责人：neon。
-- [x] 2.6 25 模型在线矩阵 — 交付：`backend/scripts/evidence/2026-11-12-online-25.md`；验收：补齐两张输入表后逐个 `POST /api/predict`，**23/25 通过**，2 个 tabnet 挂 [#222](https://github.com/heapcluster/jit-defect-prediction/issues/222)；负责人：neon。
 
 ## 3 · 验收测试
 
@@ -34,7 +34,7 @@
 ## 4 · 过程记录与缺陷
 
 - [x] 4.1 执行边界与未执行清单归档 — 交付：`docs/common/neon-test-execution.md`；验收：环境核查逐项有命令与结果，未执行项有阻断原因与解除条件；负责人：neon。
-- [x] 4.2 联调证据索引口径说明 — 交付：`docs/common/integration-log.md` 追加说明段；验收：不出现「通过」字样，未执行原因可追溯；负责人：neon。
+- [x] 4.2 联调证据索引口径说明 — 交付：`docs/common/integration-log.md` 追加说明段；验收：已执行与未执行分别标明，未执行项不写“通过”，原因可追溯；负责人：neon。
 - [x] 4.3 缺陷登记到 GitHub Issue — 交付：[#217](https://github.com/heapcluster/jit-defect-prediction/issues/217)（语义表默认路径）、[#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)（e2e 文本表）、[#219](https://github.com/heapcluster/jit-defect-prediction/issues/219)（契约/部署）、[#220](https://github.com/heapcluster/jit-defect-prediction/issues/220)（D-01~D-06）；验收：`docs/common/defect-records.md` 有链接与关联提交；负责人：neon。
 - [x] 4.4 PR 审阅留痕 — 交付：`docs/common/pr-review-log.md`；验收：PR #216 的审阅结论、跟进缺陷与合并提交号可反查；负责人：neon。
 - [x] 4.5 回飞书看板映射 11 项任务并写本周周报 — 交付：[看板](https://gcnlk66qul6p.feishu.cn/base/SilBbJZFPaDct1slrIVcN2Nonsc) 11 条新记录（Sprint 2/3 + 负责人 + 状态 + change）、[工作周报-20261113](https://gcnlk66qul6p.feishu.cn/docx/QTKgdRDNFoiN3uxc6OecURV2nZa)；验收：任务可对应负责人与状态，周报含三要素；负责人：neon。
