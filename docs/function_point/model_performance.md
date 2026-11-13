@@ -38,10 +38,9 @@
 
 ## 数据准备（联调前）
 1. 在 `data_model/` 执行 `python -m evaluation.run_all`，生成：
-   - `evaluation/out/schema.sql`：建表 DDL
-   - `evaluation/out/data_init.sql`：`commit`（测试集）/ `commit_feature`（14 维 + `is_test` + `is_bug_inducing` + `labeled_at`）/ `model`（25 个）/ `prediction`（25 模型 × 测试集）/ `model_figure`
-   - `evaluation/out/model_metrics.csv`：25 模型聚合指标
-2. 依次导入 MySQL：`schema.sql` → `data_init.sql`。
+   - `evaluation/out/data_init.sql`：`commit`（测试集）/ `commit_feature`（14 维 + `is_test` + `is_bug_inducing` + `labeled_at`）/ `model`（25 个）/ `prediction`（25 模型 × 测试集）/ `model_figure`（生成物，不入库）
+   - `evaluation/out/model_metrics.csv`：25 模型聚合指标（生成物，不入库）
+2. 依次导入 MySQL：仓库根 `infra/schema.sql`（建表唯一真源）→ `evaluation/out/data_init.sql`。
 3. 接口分工：
    - 逐条表格：`GET /api/commits?with_features=1&is_test=1` 读 MySQL，不读 `out/`，不在请求时跑脚本。
    - 图 + 指标：`GET /api/figures?model_name=` 读 `model_figure` 与 `out/model_metrics.csv`。

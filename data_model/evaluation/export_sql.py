@@ -1,7 +1,7 @@
-"""导出两份 MySQL 8.0 SQL（建表与数据初始化分开，不混成一个长文件）：
+"""导出 MySQL 8.0 测试集初始化 SQL。
 
-1. `schema.sql` —— 建表 DDL（5 张表）
-2. `data_init.sql` —— 测试集初始化数据 INSERT
+建表 DDL 的唯一真源是仓库根 `infra/schema.sql`（docker compose / CI 实际执行它），
+本模块不再导出 schema 副本；只负责生成 `data_init.sql`（测试集 INSERT）。
 
 字段口径以 `docs/database/*.md` 为准：
 - `commit` / `prediction` / `model_figure` 用自然键做主键（不再造自增 id）；
@@ -19,82 +19,6 @@ import numpy as np
 import pandas as pd
 
 from . import config
-
-# ── 建表 DDL ────────────────────────────────────────────────────────────────
-SCHEMA_DDL = """\
--- JIT 缺陷预测 建表脚本（MySQL 8.0）
--- 口径来源：docs/database/{commit,model,commit_feature,model_figure,prediction}.md
--- 共 5 张表；SZZ 真标签直接落在 commit_feature.is_bug_inducing / labeled_at
-
-CREATE TABLE IF NOT EXISTS commit (
-\tcommit_hash CHAR(40) NOT NULL, 
-\trepo_name VARCHAR(64) NOT NULL, 
-\tauthor_name VARCHAR(128) NOT NULL, 
-\tauthor_email VARCHAR(128), 
-\tcommitted_at DATETIME NOT NULL, 
-\tmessage TEXT NOT NULL, 
-\tparent_hash CHAR(40), 
-\tPRIMARY KEY (commit_hash), 
-\tINDEX ix_commit_committed_at (committed_at)
-);
-
-CREATE TABLE IF NOT EXISTS model (
-\tmodel_name VARCHAR(64) NOT NULL, 
-\tline VARCHAR(16) NOT NULL DEFAULT 'expert', 
-\talgo VARCHAR(64), 
-\tversion_key VARCHAR(64) NOT NULL DEFAULT '', 
-\ttrained_at DATETIME, 
-\tfeature_version VARCHAR(32), 
-\tPRIMARY KEY (model_name), 
-\tINDEX ix_model_line (line)
-);
-
-CREATE TABLE IF NOT EXISTS commit_feature (
-\tcommit_hash CHAR(40) NOT NULL, 
-\tfeature_version VARCHAR(32) NOT NULL, 
-\tns DECIMAL(20, 10) NOT NULL, 
-\tnd DECIMAL(20, 10) NOT NULL, 
-\tnf DECIMAL(20, 10) NOT NULL, 
-\tentropy DECIMAL(20, 10) NOT NULL, 
-\tla DECIMAL(20, 10) NOT NULL, 
-\tld DECIMAL(20, 10) NOT NULL, 
-\tlt DECIMAL(20, 10) NOT NULL, 
-\tfix TINYINT(1) NOT NULL, 
-\tndev DECIMAL(20, 10) NOT NULL, 
-\tage DECIMAL(20, 10) NOT NULL, 
-\tnuc DECIMAL(20, 10) NOT NULL, 
-\texp DECIMAL(20, 10) NOT NULL, 
-\trexp DECIMAL(20, 10) NOT NULL, 
-\tsexp DECIMAL(20, 10) NOT NULL, 
-\tis_test TINYINT(1) NOT NULL DEFAULT 0, 
-\tis_bug_inducing TINYINT(1), 
-\tlabeled_at DATETIME, 
-\tPRIMARY KEY (commit_hash), 
-\tFOREIGN KEY(commit_hash) REFERENCES commit (commit_hash), 
-\tINDEX ix_commit_feature_is_test (is_test)
-);
-
-CREATE TABLE IF NOT EXISTS model_figure (
-\tmodel_name VARCHAR(64) NOT NULL, 
-\tfigure_type VARCHAR(32) NOT NULL, 
-\ttitle VARCHAR(128) NOT NULL, 
-\tfile_path VARCHAR(255) NOT NULL, 
-\tgenerated_at DATETIME NOT NULL, 
-\tPRIMARY KEY (model_name, figure_type), 
-\tFOREIGN KEY(model_name) REFERENCES model (model_name)
-);
-
-CREATE TABLE IF NOT EXISTS prediction (
-\tcommit_hash CHAR(40) NOT NULL, 
-\tmodel_name VARCHAR(64) NOT NULL, 
-\trisk_score DECIMAL(6, 5) NOT NULL, 
-\tpredicted_at DATETIME NOT NULL, 
-\tPRIMARY KEY (commit_hash, model_name), 
-\tFOREIGN KEY(commit_hash) REFERENCES commit (commit_hash), 
-\tFOREIGN KEY(model_name) REFERENCES model (model_name), 
-\tINDEX ix_prediction_model_risk (model_name, risk_score)
-);
-"""
 
 
 # ── 值转义 ──────────────────────────────────────────────────────────────────
@@ -145,14 +69,6 @@ def _write_inserts(
 
 
 # ── 导出 ────────────────────────────────────────────────────────────────────
-def write_schema(path: Path) -> Path:
-    """写建表 DDL（口径与 docs/database/*.md 一致）。"""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(SCHEMA_DDL, encoding="utf-8", newline="\n")
-    print(f"[eval] 建表脚本：{path}")
-    return path
-
-
 def write_data_init(path: Path, test: pd.DataFrame, preds: pd.DataFrame, figures: list[dict]) -> Path:
     test_hashes = test["commit_hash"].tolist()
     predicted_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")

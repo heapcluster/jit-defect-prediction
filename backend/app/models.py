@@ -1,4 +1,4 @@
-"""SQLAlchemy 模型：逐字对齐 docs/database（5 张表）与 data_model/evaluation/out/schema.sql。
+"""SQLAlchemy 模型：逐字对齐 docs/database（5 张表）与仓库根 infra/schema.sql。
 
 口径（docs/overview.md「数据库口径（5 张表）」）：
 - `commit_label` 并入 `commit_feature.is_bug_inducing`（可空）+ `labeled_at`（审计，不对外）；

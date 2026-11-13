@@ -25,12 +25,9 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(BACKEND_DIR / ".env")
 BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 AUTH = {"X-API-Key": os.getenv("API_TOKEN", "")}
-DEFAULT_OUT = (
-    BACKEND_DIR / "scripts" / "evidence" / f"{datetime.now().date().isoformat()}-linkage.md"
-)
-DEFAULT_RAW = (
-    BACKEND_DIR / "scripts" / "evidence" / f"{datetime.now().date().isoformat()}-linkage.json"
-)
+EVIDENCE_DIR = BACKEND_DIR.parent / "docs" / "test" / "integration_test" / "execution_records"
+DEFAULT_OUT = EVIDENCE_DIR / f"{datetime.now().date().isoformat()}-linkage.md"
+DEFAULT_RAW = EVIDENCE_DIR / f"{datetime.now().date().isoformat()}-linkage.json"
 
 
 def git_sha() -> str:

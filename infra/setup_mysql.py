@@ -132,7 +132,7 @@ def resolve_credentials(args: argparse.Namespace, env: dict[str, str] | None = N
         "        DB_USER=jit\n"
         "        DB_PASSWORD=<你的口令>\n"
         "        DB_NAME=jit_demo\n"
-        "        模板见 backend/.env.example，引导见 docs/common/local-runbook.md。"
+        "        模板见 backend/.env.example，引导见仓库根 README.md「本机开发」。"
     )
 
 

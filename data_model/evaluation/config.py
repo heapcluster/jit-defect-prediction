@@ -80,5 +80,5 @@ BACKEND_STATIC_FIGURES = REPO_ROOT / "backend" / "static" / "figures"
 
 # 交付物输出目录（生成的 SQL 较大，放这里，不入库）
 OUT_DIR = PKG / "out"
-SCHEMA_SQL = REPO_ROOT / "infra" / "schema.sql"
+# 建表 DDL 的唯一真源是仓库根 infra/schema.sql，此处不再保留第二个路径常量（原 SCHEMA_SQL 无消费方）。
 DATA_INIT_SQL = OUT_DIR / "data_init.sql"

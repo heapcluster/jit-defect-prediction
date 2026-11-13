@@ -1,4 +1,4 @@
-"""消融脚本（`15_feature_ablation.py`）的守门测试。
+"""消融脚本（`evaluation/feature_ablation.py`）的守门测试。
 
 钉住四件事：
 1. 留一法的符号约定 —— 删掉有用特征后 AUC **下降**，`delta_auc` 为负；
@@ -6,7 +6,7 @@
 3. 两口径的名次排序与「分歧」判定是纯函数、可复算；
 4. 报告必须把负贡献与分歧如实写出，不允许只挑顺眼的一口径。
 
-脚本名以数字开头，不能按模块名 import，故用 `importlib` 按路径装载。
+用 `importlib` 按路径装载，避免调用方依赖 cwd 与 `-m`。
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from pipelines.expert import config
 
 
 def _load_module():
-    path = DATA_MODEL_DIR / "15_feature_ablation.py"
+    path = DATA_MODEL_DIR / "evaluation" / "feature_ablation.py"
     spec = importlib.util.spec_from_file_location("feature_ablation_mod", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

@@ -1,6 +1,6 @@
 # 一键启动全栈：docker compose up --build
 # 前端 http://localhost:8080 ｜ 后端 http://localhost:8000/api/health
-# 模型权重与历史仓库不随镜像分发，通过 volume 从本机挂载（见 deploy/README.md）。
+# 模型权重与历史仓库不随镜像分发，通过 volume 从本机挂载（见 infra/deployment.md）。
 services:
   mysql:
     image: mysql:8.0

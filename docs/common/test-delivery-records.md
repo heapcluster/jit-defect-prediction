@@ -1,6 +1,6 @@
 # 四类测试交付说明与记录表
 
-> 状态：组织与记录格式；**不是测试通过报告**。实际结果、截图、覆盖率和签名必须对应同一提交和真实运行。课程细则见 [`test-assessment-guide.md`](test-assessment-guide.md)，当前功能与接口入口见 [`../README.md`](../README.md)。
+> 状态：组织与记录格式；**不是测试通过报告**。实际结果、截图、覆盖率和签名必须对应同一提交和真实运行。课程细则见 [`test-assessment-guide.md`](test-assessment-guide.md)，当前功能与接口入口见 [`../README.md`](../../README.md)。
 
 ## 交付责任与顺序
 

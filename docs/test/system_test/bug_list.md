@@ -4,7 +4,7 @@
 >
 > **状态**：字段已按课程要求补齐；**当前计入 4 条可追溯缺陷，距「≥8 个得满分」还差 4 条**。另有 5 条有证据的候选观察列于 §3，**未经人工确认可复现前不计入个数**。严禁编造 Bug 或伪造截图（红线：数据造假该类型计 0 分；无法复现每个扣 2 分）。
 >
-> 权威动态状态以 **GitHub Issues / 飞书缺陷看板** 为唯一真源；按 `docs/README.md` 口径，仓库不另存动态记录副本，本表只登记可核验的现象与证据链接。来源标注统一写「待核」——条目原始来源无法确认时不得倒填成 `[手写]`（AI-R1）。
+> 权威动态状态以 **GitHub Issues / 飞书缺陷看板** 为唯一真源；按仓库根 `README.md` 口径，仓库不另存动态记录副本，本表只登记可核验的现象与证据链接。来源标注统一写「待核」——条目原始来源无法确认时不得倒填成 `[手写]`（AI-R1）。
 
 ## 1 · 已登记缺陷
 
@@ -33,7 +33,7 @@
 
 | # | 观察 | 证据 | 待人工确认点 |
 |---|---|---|---|
-| C-01 | 10 并发 × 10 请求时 `POST /api/predict` p95 = 694.0ms，超出 500ms 判据（错误率仍 0%） | `backend/scripts/evidence/2026-11-13-load-test.md`；[`performance/README.md`](performance/README.md) §2.1 | 波动原因未定位，是否稳定复现；属性能缺陷还是同机资源争用 |
+| C-01 | 10 并发 × 10 请求时 `POST /api/predict` p95 = 694.0ms，超出 500ms 判据（错误率仍 0%） | `backend/scripts/evidence/2026-11-13-load-test.md`；[`performance/performance_report.md`](performance/performance_report.md) §2.1 | 波动原因未定位，是否稳定复现；属性能缺陷还是同机资源争用 |
 | C-02 | `sync/status.started_at` 输出 `2026-11-12T09:04:02.303942`（无 `Z`），与规格「时间统一 UTC + `Z`」不符（D-06） | [`../integration_test/report.md`](../integration_test/report.md) §6 | 按文档口径修正还是修改实现 |
 | C-03 | `POST /api/predict` 传多余字段仍返回 200（Pydantic 忽略），与 `docs/api/predict.md`「非法请求体 40001」不符（D-03） | 同上 §6 | 是否加 `extra="forbid"`；已并入 #220 还是单列 |
 | C-04 | 规格 `openspec/specs/nfr-evidence/spec.md` 要求模型缺失返回 `50000`，实现统一收敛为 `40001` 明确文案 | `backend/scripts/evidence/2026-11-12-security.md` §规格偏差 | 规格订正或代码回改 |
@@ -41,11 +41,18 @@
 
 已确认**不成立**的观察（D-01「`features` 条件返回」、语义表「路径写错」、「e2e 无生成脚本」等）复核结论已落在对应 Issue，**不重复登记**（红线：Bug 报告无法复现每个扣 2 分）。
 
-## 4 · 未闭合项
+## 4 · 未闭合项与闭环计划
 
-| 项 | 要求 | 责任人 |
-|---|---|---|
-| 人工逐条验证复现步骤并采集截图 | 4 条 + 候选观察 | neon 组织系统测试窗口 |
-| 补齐 ≥4 条真实可复现缺陷 | ≥8 条拿满该维度 | 各模块作者；如无新缺陷如实记录，**不得凑数** |
-| 缺陷修复、回归验证与关闭记录 | Bug 闭环 | 缺陷 owner（#222 / #217 属模型线） |
-| 严重级别人工复核 | 验收通过标准依据 | neon 在 [`../acceptance_test/defect_residual.md`](../acceptance_test/defect_residual.md) 签字确认 |
+| 项 | 要求 | 处置与完成判据 | 状态 |
+|---|---|---|---|
+| 复现步骤验证与人工采集截图 | 4 条 + 候选观察 | 在系统测试窗口逐条实跑、采集截图，缺项不得计入「Bug 描述规范」加分 | 未开始 |
+| 补齐 ≥4 条真实可复现缺陷 | ≥8 条拿满该维度 | 各模块作者如实登记；如无新缺陷保持 4 条并申报扣分，**不得凑数** | 未开始 |
+| #222 / #217 严重缺陷修复与回归 | 验收前置条件 | 模型线修复后跑 `online_models_matrix.py` 至 25/25、干净检出复现，附回归记录 | 未开始 |
+| #219 / #220 与候选观察裁定 | 契约与部署一致性 | 逐条给出「改文档 / 改代码 / 不成立」，同步 `docs/api/` 与 `/openapi.json` | 未开始 |
+| 缺陷关闭记录 | Bug 闭环 | 状态置已修复、附关联提交与回归用例结果、Issue 关闭 | 0 / 4 关闭 |
+| 影响评估与修复计划确认 | 验收通过标准依据 | 见 [`../acceptance_test/defect_residual.md`](../acceptance_test/defect_residual.md) §1；本轮为 AI 代写草案，须人工复核（不要求逐份签字） | 待复核 |
+| 单元测试代码整改分派 | §2.1 / §2.2 / §7 红线 | 已创建 [Issue #233](https://github.com/heapcluster/jit-defect-prediction/issues/233) 并指派 `s1mple-less`；#222 / #225 / #226 / #227 / #228 / #230 已追加测试侧反馈评论 | 已分派，待负责人处理 |
+
+> #233 是测试体系整改单（依赖隔离、弱断言、来源注释），**不计入本表产品缺陷数量**；按分工由蛋神（DS-4 单元测试）处理，测试侧不修改代码本体。
+
+> 本清单与 [`../acceptance_test/defect_residual.md`](../acceptance_test/defect_residual.md)、[`../summary_report.md`](summary_report.md) §3 口径一致；按红线，未修复项不得写成已闭环。

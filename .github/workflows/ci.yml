@@ -70,7 +70,7 @@ jobs:
           else
             base=""
           fi
-          python3 infra/ci_scope.py "$base" > "$GITHUB_OUTPUT"
+          python3 .github/ci/ci_scope.py "$base" > "$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
 
       - name: Report lightweight PR
@@ -107,7 +107,9 @@ jobs:
 
       - name: Test infra
         if: steps.scope.outputs.infra == 'true'
-        run: python -m pytest -q infra/tests
+        run: |
+          python -m pytest -q infra/tests
+          python -m unittest discover -s .github/ci/tests -p 'test_*.py' -v
 
       - name: Test backend
         if: steps.scope.outputs.backend == 'true'
@@ -158,5 +160,5 @@ jobs:
           paths=()
           if [[ '${{ steps.scope.outputs.backend }}' == 'true' ]]; then paths+=(backend/app); fi
           if [[ '${{ steps.scope.outputs.model }}' == 'true' ]]; then paths+=(data_model); fi
-          if [[ '${{ steps.scope.outputs.infra }}' == 'true' ]]; then paths+=(infra); fi
+          if [[ '${{ steps.scope.outputs.infra }}' == 'true' ]]; then paths+=(infra .github/ci); fi
           python -m compileall -q -x 'data_model[\\/]data' "${paths[@]}"

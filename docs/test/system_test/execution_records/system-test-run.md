@@ -1,4 +1,4 @@
-# 系统测试执行记录 · 2026-11-12
+﻿# 系统测试执行记录 · 2026-11-12
 
 > **性质**：执行记录（运行证据），**不是**系统测试计划/总结。按 AI-R5，`docs/common/` 的正式系统测试计划、总结与验收报告须由 neon 本人依据本记录撰写并签字，AI 不代写。
 >
@@ -31,8 +31,8 @@
 
 | 维度 | 阈值/口径 | 实测 | 证据 |
 |---|---|---|---|
-| 性能 | `POST /api/predict` p95 < 500ms（100 次） | p50 28.3ms / **p95 48.1ms** / p99 48.9ms / max 56.0ms，达标 | [`backend/scripts/evidence/2026-11-12-perf.md`](../../../../backend/scripts/evidence/2026-11-12-perf.md) |
-| 安全 | 鉴权失败 401/40100；畸形参数 40001 不泄漏；模型不可用不 500 | 12/12 通过；`et_semantic_v1` 返回 400/40001 明确文案 | [`backend/scripts/evidence/2026-11-12-security.md`](../../../../backend/scripts/evidence/2026-11-12-security.md) |
+| 性能 | `POST /api/predict` p95 < 500ms（100 次） | p50 28.3ms / **p95 48.1ms** / p99 48.9ms / max 56.0ms，达标 | [`backend/scripts/evidence/2026-11-12-perf.md`](../../integration_test/execution_records/2026-11-12-perf.md) |
+| 安全 | 鉴权失败 401/40100；畸形参数 40001 不泄漏；模型不可用不 500 | 12/12 通过；`et_semantic_v1` 返回 400/40001 明确文案 | [`backend/scripts/evidence/2026-11-12-security.md`](../../integration_test/execution_records/2026-11-12-security.md) |
 
 ## 4 · 界面异常态与可用性观察
 

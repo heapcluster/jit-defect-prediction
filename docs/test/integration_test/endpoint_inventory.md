@@ -2,7 +2,7 @@
 
 > 状态：清单 + 用例设计 + 实测结果索引。2026-11-10 初版为源码静态对照；**2026-11-12 已取得运行时 `/openapi.json`**（11 个路径，与本文逐条一致），并在本机真实环境执行 35 条用例（35/35 通过）。逐条结果与复现命令见 [`report.md`](report.md)。
 >
-> 采集：2026-11-10 初版；**2026-11-12 按合入的 PR #216（`afdee84`）更新**（详情新增 `model_name`、四线 25 模型登记在线、按线取特征与降级语义），同日完成运行时核对与实跑。分支 `test/neon-test-baseline`。接口覆盖率的分母以本文 11 个路由为准（与 `docs/api/README.md`「七份正文，共十一个路由」、`backend/tests/test_mirror.py` 路径集、运行时 `/openapi.json` 三者一致）。
+> 采集：2026-11-10 初版；**2026-11-12 按合入的 PR #216（`afdee84`）更新**（详情新增 `model_name`、四线 25 模型登记在线、按线取特征与降级语义），同日完成运行时核对与实跑。分支 `test/neon-test-baseline`。接口覆盖率的分母以本文 11 个路由为准（与 `docs/api/`「七份正文，共十一个路由」、`backend/tests/test_mirror.py` 路径集、运行时 `/openapi.json` 三者一致）。
 
 ## 1 · 公共契约（全部端点共用）
 
@@ -72,7 +72,7 @@
 
 ## 4 · 四类场景用例（已执行，35/35 通过）
 
-**用例来源标注**：本节全部为 `[AI生成]`，由 DeepSeek-V4.1-Flash 依据本文 §2 与 `docs/api/*.md` 生成，Prompt 归档见 [`prompts/integration_api_cases_01.md`](prompts/integration_api_cases_01.md)。核心业务断言（概率区间、14 维列序、鉴权码、排序、空结果语义）已逐条对照代码复核；**人工签署待 neon 在验收环节确认**。
+**用例来源标注**：本节全部为 `[AI生成]`，由 DeepSeek-V4.1-Flash 依据本文 §2 与 `docs/api/*.md` 生成，Prompt 归档见 [`prompts/integration_api_cases_01.md`](prompts/integration_api_cases_01.md)。核心业务断言（概率区间、14 维列序、鉴权码、排序、空结果语义）已逐条对照代码复核；**完整人工复核记录待补（不要求逐份签字）**。
 
 下表是设计口径；逐条实测编号（T-IN-01~35）、实际输出与失败分析见 [`report.md`](report.md)。带参数的 9 个端点四类齐全；3 个健康探针无查询参数，「非法参数」不适用，以「缺令牌 + 无参数幂等」覆盖。
 

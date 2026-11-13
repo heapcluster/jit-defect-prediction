@@ -237,9 +237,11 @@ def main() -> None:
     ap.add_argument(
         "--out",
         type=Path,
-        default=BACKEND_DIR
-        / "scripts"
-        / "evidence"
+        default=BACKEND_DIR.parent
+        / "docs"
+        / "test"
+        / "integration_test"
+        / "execution_records"
         / f"{date.today().isoformat()}-system-exceptions.md",
     )
     args = ap.parse_args()

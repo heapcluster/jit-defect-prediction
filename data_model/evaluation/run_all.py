@@ -33,8 +33,8 @@ def main() -> int:
     metrics.to_csv(config.OUT_DIR / "model_metrics.csv", index=False)
     print(f"[eval] 指标汇总：{config.OUT_DIR / 'model_metrics.csv'}")
 
-    # 建表 DDL 由模型线自产（口径 = docs/database/*.md），不再回写 infra/schema.sql
-    export_sql.write_schema(config.OUT_DIR / "schema.sql")
+    # 建表 DDL 的唯一真源是仓库根 infra/schema.sql（docker compose / CI 实际执行它）；
+    # 评测流程不再导出第二份副本，避免双维护漂移。
     export_sql.write_data_init(config.DATA_INIT_SQL, test, preds, figs)
 
     print(

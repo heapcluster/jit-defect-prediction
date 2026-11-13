@@ -33,6 +33,14 @@ artifacts/
 *.db
 # 本地临时模型目录（联调用；正式交付在 data_model/pipelines/*/models/）
 model/
+# 模型线评测产物：
+# - data_init.sql（约 87MB）是测试集初始化生成物，不入库；
+# - schema.sql 副本已下线（建表真源固定为仓库根 infra/schema.sql），如再生成也不入库；
+# - model_metrics.csv **必须入库**：它是 25 个模型在测试集上的性能指标，
+#   前端「模型性能看板」抽屉（GET /api/figures 的 metrics）直接依赖，
+#   backend/tests/test_mirror.py 也断言了 pos_rate 字段。
+data_model/evaluation/out/data_init.sql
+data_model/evaluation/out/schema.sql
 
 # ===== Python =====
 __pycache__/
@@ -55,7 +63,7 @@ dist/
 .vite/
 frontend/coverage/
 .next/
-out/
+frontend/out/
 
 # ===== Java（data_model 用 Java 实现）=====
 *.class

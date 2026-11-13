@@ -2,8 +2,8 @@
 
 5 张表（docs/overview.md「数据库口径」）：`model` / `commit` / `commit_feature` /
 `prediction` / `model_figure`，直接 `create_all` 建成；历史库的 7 表 → 5 表迁移
-不由本模块承担（数据口径以 docs 为准，现库由模型线 `data_model/evaluation/out/`
-的 schema.sql + data_init.sql 重建）。
+不由本模块承担（数据口径以 docs 为准，现库由仓库根 `infra/schema.sql` 建表、
+`data_model/evaluation/out/data_init.sql` 灌入测试数据）。
 """
 
 from __future__ import annotations

@@ -2,8 +2,8 @@
 #
 # 2026-10-26 起，配置从 `backend/ruff.toml` 上提到仓库根：此前只有 backend 有配置，
 # data_model 与 infra 走默认值，导致「同一条规则在三个目录结论不同」。
-# 现在只有一个入口：`python -m ruff check backend data_model infra` 与
-# `python -m ruff format --check backend data_model infra`。
+# 现在只有一个入口：`python -m ruff check backend data_model infra .github/ci` 与
+# `python -m ruff format --check backend data_model infra .github/ci`。
 
 target-version = "py312"
 line-length = 100

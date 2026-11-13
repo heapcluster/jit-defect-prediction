@@ -27,7 +27,12 @@ BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 AUTH = {"X-API-Key": os.getenv("API_TOKEN", "")}
 SPECS = REPO_ROOT / "openspec" / "specs"
 DEFAULT_OUT = (
-    BACKEND_DIR / "scripts" / "evidence" / f"{date.today().isoformat()}-acceptance-checklist.md"
+    BACKEND_DIR.parent
+    / "docs"
+    / "test"
+    / "integration_test"
+    / "execution_records"
+    / f"{date.today().isoformat()}-acceptance-checklist.md"
 )
 
 
