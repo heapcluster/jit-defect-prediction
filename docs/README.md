@@ -13,6 +13,11 @@
 | 四类测试交付责任与记录格式 | [`common/test-delivery-records.md`](common/test-delivery-records.md) |
 | 固定数据源、SZZ 自检和特征链路 | [`common/data-pipeline.md`](common/data-pipeline.md) |
 | 本机运行、联调证据、缺陷记录入口 | [`common/local-runbook.md`](common/local-runbook.md)、[`common/integration-log.md`](common/integration-log.md)、[`common/defect-records.md`](common/defect-records.md) |
+| 集成测试端点清单、四类场景与文档/代码偏差 | [`common/endpoint-inventory.md`](common/endpoint-inventory.md)（静态对照版，未取得运行时 `/openapi.json`） |
+| 测试执行边界与未执行项 | [`common/neon-test-execution.md`](common/neon-test-execution.md) |
+| PR 审阅留痕入口 | [`common/pr-review-log.md`](common/pr-review-log.md) |
+| 集成接口测试报告（35 条实测） | [`common/integration-report.md`](common/integration-report.md) |
+| 系统测试运行证据（截图 / 执行记录） | [`common/evidence/2026-11-12/system-test-run.md`](common/evidence/2026-11-12/system-test-run.md) |
 | 可选模型扩展的研究依据状态 | [`common/research-notes.md`](common/research-notes.md) |
 | 文档引用修复与尚待补充的内容 | [`common/reference-audit.md`](common/reference-audit.md) |
 | 模型交付的 14 维列序 | `data_model/pipelines/expert/models/feature_order.txt`；库内字段见 `database/commit_feature.md` |

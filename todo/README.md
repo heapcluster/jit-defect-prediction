@@ -16,25 +16,28 @@
 
 ## 任务分配
 
-| 编号 | 负责人 | 任务 | 优先级 |
-|---|---|---|---|
-| 蛋神的蛋-1 | 蛋神的蛋 | 在线预测能力对齐（25 模型全部接入 + 详情/进度 bug） | P1 |
-| 蛋神的蛋-2 | 蛋神的蛋 | 单元测试（三例 + 覆盖率，自测通过即可） | P0 |
-| neon-1 | neon | 集成测试 | P0 |
-| neon-2 | neon | 系统测试 | P0 |
-| neon-3 | neon | 验收测试 | P0 |
-| neon-4 | neon | 缺陷与 PR 管理 | P1 |
-| neon-5 | neon | 项目看板与周报 | P1 |
-| sober-1 | sober | 测试文档（含 OpenSpec 规范化） | P0 |
-| lsh-1 | lsh | 飞书《产品需求文档》维护与同步 | P1 |
-| lsh-2 | lsh | 飞书《产品设计文档》维护与同步 | P1 |
-| lsh-3 | lsh | 答辩 PPT 初稿（骨架 + 图 + 文字） | P1 |
+| 编号 | 负责人 | 任务 | 优先级 | 状态（2026-11-12） |
+|---|---|---|---|---|
+| 蛋神的蛋-1 | 蛋神的蛋 | 在线预测能力对齐（25 模型全部接入 + 详情/进度 bug） | P1 | 代码已合入（PR #216 / `afdee84`）；补齐两张输入表后实测 **23/25 可预测**，剩 `tabnet_semantic_v1`/`tabnet_fused_v1` 因 CUDA 权重失败（[#222](https://github.com/heapcluster/jit-defect-prediction/issues/222)），交付布局见 [#217](https://github.com/heapcluster/jit-defect-prediction/issues/217) |
+| 蛋神的蛋-2 | 蛋神的蛋 | 单元测试（三例 + 覆盖率，自测通过即可） | P0 | 测试代码已补（PR #215/#216），覆盖率以 CI 报告为准（归档见 PR #212），待 sober 核对归档 |
+| neon-1 | neon | 集成测试 | P0 | **测试代码已完成**：35/35、接口覆盖 11/11、25 模型门禁 23/25（#222 待修）、逐端点联调留痕；`backend/scripts/` 6 个脚本均可复跑 |
+| neon-2 | neon | 系统测试 | P0 | **测试代码已完成**：四页主线、异常 5 类（`system_exceptions.py` 13/13）、性能 p95 48.1ms、安全 12/12、截图 6 张；正式计划/总结由 sober 成文、neon 签字 |
+| neon-3 | neon | 验收测试 | P0 | **用例设计已完成**：124 条 Scenario 对照清单 + 自动子集 10/10；逐条现场判定与签字待 neon，文档由 sober 整理 |
+| neon-4 | neon | 缺陷与 PR 管理 | P1 | 进行中：PR #216 已审阅合入并留痕，缺陷 #217/#219/#220/#222 已登记（#218 合并关闭）；PR #221 待非作者审阅，飞书缺陷看板未建 |
+| neon-5 | neon | 项目看板与周报 | P1 | 进行中：11 项任务已映射到[看板](https://gcnlk66qul6p.feishu.cn/base/SilBbJZFPaDct1slrIVcN2Nonsc)（Sprint 2/3），[工作周报-20261113](https://gcnlk66qul6p.feishu.cn/docx/QTKgdRDNFoiN3uxc6OecURV2nZa) 已建；后续按周更新 |
+| sober-1 | sober | 测试文档（含 OpenSpec 规范化） | P0 | **可开始**：neon 的测试代码/证据/124 条对照清单已齐；待 sober 整理四类文档与 OpenSpec 勾选，结论与签字仍归 neon |
+| lsh-1 | lsh | 飞书《产品需求文档》维护与同步 | P1 | 未开始 |
+| lsh-2 | lsh | 飞书《产品设计文档》维护与同步 | P1 | 未开始 |
+| lsh-3 | lsh | 答辩 PPT 初稿（骨架 + 图 + 文字） | P1 | 未开始 |
+
+> **状态口径**：本表的「状态」只反映仓库内可核对的证据（PR / 提交 / 文档）。任务是否算完成以飞书看板与负责人确认为准；未闭环项不写成已完成。
 
 ## 编号变更记录
 
 - **2026-11-10 分工确认**：蛋神的蛋=全栈开发（25 模型接入 + bug）+ 单元测试；neon=集成/系统/验收测试 + 缺陷与 PR + 项目看板/周报；sober=测试文档（+ OpenSpec 规范化）；lsh=产品需求文档 + 产品设计文档 + 答辩 PPT 初稿。
 - 每人编号从 1 连续：蛋神的蛋 1–2、neon 1–5、sober 1、lsh 1–3。
 - 已完成的旧任务文档（S-1~S-4、DS-1、DS-2 等）已删除；公开数据集暂不做。
+- **2026-11-12 合入同步**：PR #215（DS-1 容器化插件化 + DS-2 缺陷定位/修复参考 + 三线单测补齐，`2e1896a`）与 PR #216（25 模型在线预测接通 + 详情/进度两 bug + 单测 AI 标注，`afdee84`）已合入 main。据此更新蛋神的蛋-1/-2 状态；同时登记审阅发现的产物缺口 [#217](https://github.com/heapcluster/jit-defect-prediction/issues/217)、[#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)、[#219](https://github.com/heapcluster/jit-defect-prediction/issues/219) 与接口口径偏差 [#220](https://github.com/heapcluster/jit-defect-prediction/issues/220)。
 
 ## 课程要求 vs 增强
 
@@ -83,5 +86,9 @@
 
 ## 现状快照
 
-- **已具备**：5 张表、9 个 API、25 模型、SZZ 时间序切分、Effort-aware 指标、四个前端页面、CI（四线全测 + build）、OpenSpec 体系、容器化与插件化（#215）、localization 与 fix_references（#215）。
-- **缺口**：25 模型中仅 expert 8 接入在线预测；详情按 default_model 查 prediction 与列表不一致；预测/同步进度随页面卸载丢失；测试执行与证据（覆盖率/系统/验收/联调）未完成；AI 标注与 Prompt 归档未补；缺陷 Issue 与 PR 审阅留痕缺。
+- **已具备**：5 张表、11 个 API、25 模型（四线清单全部登记在线）、SZZ 时间序切分、Effort-aware 指标、四个前端页面、CI（四线全测 + build）、OpenSpec 体系、容器化与插件化（#215）、localization 与 fix_references（#215）、详情按 `model_name` 与列表对齐、同步进度全局化（#216）。
+- **缺口**：
+  - semantic/fused 在线默认路径失效（[#217](https://github.com/heapcluster/jit-defect-prediction/issues/217)）、e2e 缺文本表与生成脚本（[#218](https://github.com/heapcluster/jit-defect-prediction/issues/218)）——「25 模型可预测」当前只在作者环境成立。
+  - 契约与部署未随 #216 同步（[#219](https://github.com/heapcluster/jit-defect-prediction/issues/219)）；接口文档 6 处偏差待裁定（[#220](https://github.com/heapcluster/jit-defect-prediction/issues/220)）。
+  - 测试执行与证据：集成 44 条用例、系统与验收测试均未执行（无可用后端运行时）；系统测试计划/总结与验收方案/报告待 neon 本人撰写签字。
+  - AI 来源标注已在测试文件补齐（#215/#216），Prompt 归档仍只有集成用例一份（`docs/common/ai-prompts/`）。

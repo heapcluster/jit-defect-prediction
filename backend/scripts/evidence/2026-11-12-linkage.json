@@ -1,0 +1,2607 @@
+[
+  {
+    "method": "GET",
+    "params": {
+      "size": 5
+    },
+    "body": null,
+    "status": 200,
+    "envelope": {
+      "code": 0,
+      "message": "ok",
+      "data": {
+        "total": 25206,
+        "page": 1,
+        "size": 5,
+        "items": [
+          {
+            "commit_hash": "3f166232023e04689bfa3814a569920e30fef42b",
+            "author_name": "nickshoe",
+            "committed_at": "2024-09-26T09:40:29Z",
+            "message": "CAMEL-21244: camel-clickup (webhooks only) (#15637)\n\n* first version\n\n* WIP: tests\n\n* fix imports\n\n* configuration test\n\n* post build\n\n* fix wrong characters\n\n* remove space from OracleConnectorEmbeddedDebeziumConfiguration doc\n\n* mvn clean install -DskipTests\n\n* remove comments\n\n* WIP: webhook test\n\n* successful webhook call test\n\n* mvn clean install -DskipTests\n\n* remove wrong comment\n\n* WIP: webhook registration test\n\n* webhook automatic registration/unregistration tests\n\n* remove wildcard import\n\n* organize imports\n\n* fix documentation\n\n* test fixtures\n\n* fix tests\n\n* use parent pom version for google guava\n\n* refactor time trackin event action discrimination\n\n* maven build\n\n* consumerOnly support + add firstVersion to pom.xml\n\n* fix firstVersion\n\n* reduce clickup mock api starting timeout in test",
+            "risk_score": 0.9993,
+            "model_name": "xgb_v1",
+            "features": null,
+            "is_bug_inducing": 1
+          },
+          {
+            "commit_hash": "b4826aa727c02ff9a80c52731a9d5cb0600a72e8",
+            "author_name": "Ivan Mashtak",
+            "committed_at": "2024-02-10T11:24:32Z",
+            "message": "CAMEL-20333 Camel Kotlin API (#12786)\n\n* CAMEL-20333 camel-kotlin-api: added new dsl-component and made generator of Endpoint DSL and DataFormat DSL\n\n* CAMEL-20333 camel-kotlin-api: added wrappers for REST\n\n* CAMEL-20333 camel-kotlin-api: add docs for all except bean instantiation\n\n* CAMEL-20333 camel-kotlin-api: all EIPs are now implemented\n\n* CAMEL-20333 camel-kotlin-api: remade rests to avoid usage of RouteBuilder\n\n* CAMEL-20333 camel-kotlin-api: moved all internal configuration to RouteBuilder API, added intercepts and error handling\n\n* CAMEL-20333 camel-kotlin-api: fixed dataformat dsl generation\n\n* CAMEL-20333 camel-kotlin-api: regen\n\n* CAMEL-20333 camel-kotlin-api: added variableName parameter for languages\n\n* CAMEL-20333 camel-kotlin-api: regen and fix languages\n\n* CAMEL-20333 camel-kotlin-api: added autogen Language DSL\n\n* CAMEL-20333 camel-kotlin-api: regen\n\n* CAMEL-20333 camel-kotlin-api: regen and fix throttle\n\n* CAMEL-20333 camel-kotlin-api: regen\n\n* CAMEL-20333 camel-kotlin-api: rename test classes, make generation less verbose",
+            "risk_score": 0.99836,
+            "model_name": "xgb_v1",
+            "features": null,
+            "is_bug_inducing": 1
+          },
+          {
+            "commit_hash": "62d814748d2d8ca208bc93b3b17e24048ebf03d1",
+            "author_name": "吴伟杰",
+            "committed_at": "2022-12-07T08:43:48Z",
+            "message": "CAMEL-14831: Add camel-rocketmq component (#8820)\n\n* CAMEL-14831: Initial commit of RocketMQ component\n\n* CAMEL-14831: Add rocketmq-component.adoc\n\n* CAMEL-14831: Add camel-rocketmq to camel-parent\n\n* CAMEL-14831: Format RocketMQConstants and document\n\n* CAMEL-14831: Generate files for camel-rocketmq\n\n* CAMEL-14831: Fix indent of pom.xml\n\n* CAMEL-14831: Rename header keys\n\n* CAMEL-14831: Regenerate rocketmq.json\n\n* CAMEL-14831: Revise MetaData and code cleanup\n\n* CAMEL-14831: Code cleanup and refactor\n\n* CAMEL-14831: Add log marker to ReplyTimeoutMap\n\n* CAMEL-14831: Perform code cleanup and format\n\n* CAMEL-14831: Regenerate codes\n\n* CAMEL-14831: Revise log in ReplyTimeoutMap\n\n* CAMEL-14831: Clarify RocketMQ version compatibility in doc",
+            "risk_score": 0.99772,
+            "model_name": "xgb_v1",
+            "features": null,
+            "is_bug_inducing": 1
+          },
+          {
+            "commit_hash": "86023c2d0064292a6310df6b9c468fd3c000c572",
+            "author_name": "vdomrachev",
+            "committed_at": "2024-07-22T08:22:17Z",
+            "message": "CAMEL-20996: revive camel-solr and upgrade to 9.6.1 (#14865)\n\n* restore camel-solr component from 4.0.0-M2\n\n* camel-solr 9.6.1 update. green tests\n\n* fixes\n\n* fix from version\n\n* fix first version\n\n* fix first version\n\n* fix jetty-version placement\n\n* add generated sources\n\n* work on reviewed changes\n\n* fixes\n\n* fixed cloud it tests\n\n* changes after clean install -Dquickly\n\n* fix\n\n* fallback to apache http client\n\n* fix\n\n---------\n\nCo-authored-by: sm_slavad <vjacheslav.domrachev@ediweb.com>",
+            "risk_score": 0.99583,
+            "model_name": "xgb_v1",
+            "features": null,
+            "is_bug_inducing": 1
+          },
+          {
+            "commit_hash": "9898d2b08a24986f4dafc69be2221ec07567022f",
+            "author_name": "Luigi De Masi",
+            "committed_at": "2026-02-07T07:45:50Z",
+            "message": "CAMEL-22379: Add Mina Sftp Component (#21304)",
+            "risk_score": 0.99539,
+            "model_name": "xgb_v1",
+            "features": null,
+            "is_bug_inducing": 1
+          }
+        ]
+      }
+    },
+    "sha256_12": "51f065cd28b2"
+  },
+  {
+    "method": "GET",
+    "params": {
+      "model_name": "xgb_v1"
+    },
+    "body": null,
+    "status": 200,
+    "envelope": {
+      "code": 0,
+      "message": "ok",
+      "data": {
+        "commit_hash": "3f166232023e04689bfa3814a569920e30fef42b",
+        "author_name": "nickshoe",
+        "committed_at": "2024-09-26T09:40:29Z",
+        "message": "CAMEL-21244: camel-clickup (webhooks only) (#15637)\n\n* first version\n\n* WIP: tests\n\n* fix imports\n\n* configuration test\n\n* post build\n\n* fix wrong characters\n\n* remove space from OracleConnectorEmbeddedDebeziumConfiguration doc\n\n* mvn clean install -DskipTests\n\n* remove comments\n\n* WIP: webhook test\n\n* successful webhook call test\n\n* mvn clean install -DskipTests\n\n* remove wrong comment\n\n* WIP: webhook registration test\n\n* webhook automatic registration/unregistration tests\n\n* remove wildcard import\n\n* organize imports\n\n* fix documentation\n\n* test fixtures\n\n* fix tests\n\n* use parent pom version for google guava\n\n* refactor time trackin event action discrimination\n\n* maven build\n\n* consumerOnly support + add firstVersion to pom.xml\n\n* fix firstVersion\n\n* reduce clickup mock api starting timeout in test",
+        "risk_score": 0.9993,
+        "model_name": "xgb_v1",
+        "predicted_at": "2026-11-12T15:24:44Z",
+        "features": {
+          "ns": 1.9459101491,
+          "nd": 3.4965075615,
+          "nf": 4.1743872699,
+          "entropy": 2.184311203,
+          "la": -2.1140582155,
+          "ld": 0.0,
+          "lt": 6.1863668893,
+          "fix": 1,
+          "ndev": 5.6383546693,
+          "age": 2.6887067161,
+          "nuc": 5.4551238572,
+          "exp": 0.0,
+          "rexp": 0.0,
+          "sexp": 0.0
+        },
+        "explanation": [
+          {
+            "feature": "ns",
+            "contribution": 0.278551,
+            "direction": "increase",
+            "label": "变更子系统多"
+          },
+          {
+            "feature": "nd",
+            "contribution": 0.234066,
+            "direction": "increase",
+            "label": "变更目录多"
+          },
+          {
+            "feature": "nf",
+            "contribution": 2.231739,
+            "direction": "increase",
+            "label": "改动文件多"
+          },
+          {
+            "feature": "entropy",
+            "contribution": 0.11613,
+            "direction": "increase",
+            "label": "改动分散"
+          },
+          {
+            "feature": "la",
+            "contribution": 1.068486,
+            "direction": "increase",
+            "label": "代码改动量大"
+          },
+          {
+            "feature": "ld",
+            "contribution": 1.349013,
+            "direction": "increase",
+            "label": "删除代码多"
+          },
+          {
+            "feature": "lt",
+            "contribution": 0.620939,
+            "direction": "increase",
+            "label": "测试改动少"
+          },
+          {
+            "feature": "fix",
+            "contribution": 1.642369,
+            "direction": "increase",
+            "label": "历史修复标记"
+          },
+          {
+            "feature": "ndev",
+            "contribution": 0.43054,
+            "direction": "increase",
+            "label": "涉及开发者多"
+          },
+          {
+            "feature": "age",
+            "contribution": 0.14084,
+            "direction": "increase",
+            "label": "文件陈旧"
+          },
+          {
+            "feature": "nuc",
+            "contribution": 0.007038,
+            "direction": "increase",
+            "label": "近期改动频繁"
+          },
+          {
+            "feature": "exp",
+            "contribution": 0.450831,
+            "direction": "increase",
+            "label": "作者历史经验低"
+          },
+          {
+            "feature": "rexp",
+            "contribution": 0.335327,
+            "direction": "increase",
+            "label": "作者项目经验低"
+          },
+          {
+            "feature": "sexp",
+            "contribution": 0.548239,
+            "direction": "decrease",
+            "label": "作者近期经验低"
+          }
+        ],
+        "is_bug_inducing": 1,
+        "localization": {
+          "level": "line",
+          "notice": "按提交级缺陷概率对新增代码行着色（无 per-line 模型，新增行即可疑行）",
+          "highlights": [
+            {
+              "feature": "nf",
+              "label": "改动文件多",
+              "contribution": 2.231739,
+              "direction": "increase"
+            },
+            {
+              "feature": "fix",
+              "label": "历史修复标记",
+              "contribution": 1.642369,
+              "direction": "increase"
+            },
+            {
+              "feature": "ld",
+              "label": "删除代码多",
+              "contribution": 1.349013,
+              "direction": "increase"
+            },
+            {
+              "feature": "la",
+              "label": "代码改动量大",
+              "contribution": 1.068486,
+              "direction": "increase"
+            },
+            {
+              "feature": "lt",
+              "label": "测试改动少",
+              "contribution": 0.620939,
+              "direction": "increase"
+            }
+          ],
+          "files": [
+            {
+              "path": "dsl/camel-endpointdsl/src/generated/java/org/apache/camel/builder/endpoint/dsl/ClickUpEndpointBuilderFactory.java",
+              "added_lines": [
+                {
+                  "number": 1,
+                  "content": "/* Generated by camel build tools - do NOT edit this file! */"
+                },
+                {
+                  "number": 2,
+                  "content": "/*"
+                },
+                {
+                  "number": 3,
+                  "content": " * Licensed to the Apache Software Foundation (ASF) under one or more"
+                },
+                {
+                  "number": 4,
+                  "content": " * contributor license agreements.  See the NOTICE file distributed with"
+                },
+                {
+                  "number": 5,
+                  "content": " * this work for additional information regarding copyright ownership."
+                },
+                {
+                  "number": 6,
+                  "content": " * The ASF licenses this file to You under the Apache License, Version 2.0"
+                },
+                {
+                  "number": 7,
+                  "content": " * (the \"License\"); you may not use this file except in compliance with"
+                },
+                {
+                  "number": 8,
+                  "content": " * the License.  You may obtain a copy of the License at"
+                },
+                {
+                  "number": 9,
+                  "content": " *"
+                },
+                {
+                  "number": 10,
+                  "content": " *      http://www.apache.org/licenses/LICENSE-2.0"
+                },
+                {
+                  "number": 11,
+                  "content": " *"
+                },
+                {
+                  "number": 12,
+                  "content": " * Unless required by applicable law or agreed to in writing, software"
+                },
+                {
+                  "number": 13,
+                  "content": " * distributed under the License is distributed on an \"AS IS\" BASIS,"
+                },
+                {
+                  "number": 14,
+                  "content": " * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied."
+                },
+                {
+                  "number": 15,
+                  "content": " * See the License for the specific language governing permissions and"
+                },
+                {
+                  "number": 16,
+                  "content": " * limitations under the License."
+                },
+                {
+                  "number": 17,
+                  "content": " */"
+                },
+                {
+                  "number": 18,
+                  "content": "package org.apache.camel.builder.endpoint.dsl;"
+                },
+                {
+                  "number": 19,
+                  "content": ""
+                },
+                {
+                  "number": 20,
+                  "content": "import java.util.*;"
+                },
+                {
+                  "number": 21,
+                  "content": "import java.util.concurrent.*;"
+                },
+                {
+                  "number": 22,
+                  "content": "import java.util.function.*;"
+                },
+                {
+                  "number": 23,
+                  "content": "import java.util.stream.*;"
+                },
+                {
+                  "number": 24,
+                  "content": "import javax.annotation.processing.Generated;"
+                },
+                {
+                  "number": 25,
+                  "content": "import org.apache.camel.builder.EndpointConsumerBuilder;"
+                },
+                {
+                  "number": 26,
+                  "content": "import org.apache.camel.builder.EndpointProducerBuilder;"
+                },
+                {
+                  "number": 27,
+                  "content": "import org.apache.camel.builder.endpoint.AbstractEndpointBuilder;"
+                },
+                {
+                  "number": 28,
+                  "content": ""
+                },
+                {
+                  "number": 29,
+                  "content": "/**"
+                },
+                {
+                  "number": 30,
+                  "content": " * Receives events from ClickUp webhooks."
+                }
+              ]
+            },
+            {
+              "path": "components/camel-clickup/src/test/java/org/apache/camel/component/clickup/ClickUpWebhookRegistrationAlreadyExistsTest.java",
+              "added_lines": [
+                {
+                  "number": 1,
+                  "content": "/*"
+                },
+                {
+                  "number": 2,
+                  "content": " * Licensed to the Apache Software Foundation (ASF) under one or more"
+                },
+                {
+                  "number": 3,
+                  "content": " * contributor license agreements.  See the NOTICE file distributed with"
+                },
+                {
+                  "number": 4,
+                  "content": " * this work for additional information regarding copyright ownership."
+                },
+                {
+                  "number": 5,
+                  "content": " * The ASF licenses this file to You under the Apache License, Version 2.0"
+                },
+                {
+                  "number": 6,
+                  "content": " * (the \"License\"); you may not use this file except in compliance with"
+                },
+                {
+                  "number": 7,
+                  "content": " * the License.  You may obtain a copy of the License at"
+                },
+                {
+                  "number": 8,
+                  "content": " *"
+                },
+                {
+                  "number": 9,
+                  "content": " *      http://www.apache.org/licenses/LICENSE-2.0"
+                },
+                {
+                  "number": 10,
+                  "content": " *"
+                },
+                {
+                  "number": 11,
+                  "content": " * Unless required by applicable law or agreed to in writing, software"
+                },
+                {
+                  "number": 12,
+                  "content": " * distributed under the License is distributed on an \"AS IS\" BASIS,"
+                },
+                {
+                  "number": 13,
+                  "content": " * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied."
+                },
+                {
+                  "number": 14,
+                  "content": " * See the License for the specific language governing permissions and"
+                },
+                {
+                  "number": 15,
+                  "content": " * limitations under the License."
+                },
+                {
+                  "number": 16,
+                  "content": " */"
+                },
+                {
+                  "number": 17,
+                  "content": "package org.apache.camel.component.clickup;"
+                },
+                {
+                  "number": 18,
+                  "content": ""
+                },
+                {
+                  "number": 19,
+                  "content": "import java.io.IOException;"
+                },
+                {
+                  "number": 20,
+                  "content": "import java.io.InputStream;"
+                },
+                {
+                  "number": 21,
+                  "content": "import java.net.URI;"
+                },
+                {
+                  "number": 22,
+                  "content": "import java.net.UnknownHostException;"
+                },
+                {
+                  "number": 23,
+                  "content": "import java.net.http.HttpClient;"
+                },
+                {
+                  "number": 24,
+                  "content": "import java.net.http.HttpRequest;"
+                },
+                {
+                  "number": 25,
+                  "content": "import java.net.http.HttpResponse;"
+                },
+                {
+                  "number": 26,
+                  "content": "import java.util.HashSet;"
+                },
+                {
+                  "number": 27,
+                  "content": "import java.util.List;"
+                },
+                {
+                  "number": 28,
+                  "content": "import java.util.Optional;"
+                },
+                {
+                  "number": 29,
+                  "content": "import java.util.Set;"
+                },
+                {
+                  "number": 30,
+                  "content": "import java.util.concurrent.TimeUnit;"
+                }
+              ]
+            },
+            {
+              "path": "components/camel-clickup/src/main/java/org/apache/camel/component/clickup/model/Webhook.java",
+              "added_lines": [
+                {
+                  "number": 1,
+                  "content": "/*"
+                },
+                {
+                  "number": 2,
+                  "content": " * Licensed to the Apache Software Foundation (ASF) under one or more"
+                },
+                {
+                  "number": 3,
+                  "content": " * contributor license agreements.  See the NOTICE file distributed with"
+                },
+                {
+                  "number": 4,
+                  "content": " * this work for additional information regarding copyright ownership."
+                },
+                {
+                  "number": 5,
+                  "content": " * The ASF licenses this file to You under the Apache License, Version 2.0"
+                },
+                {
+                  "number": 6,
+                  "content": " * (the \"License\"); you may not use this file except in compliance with"
+                },
+                {
+                  "number": 7,
+                  "content": " * the License.  You may obtain a copy of the License at"
+                },
+                {
+                  "number": 8,
+                  "content": " *"
+                },
+                {
+                  "number": 9,
+                  "content": " *      http://www.apache.org/licenses/LICENSE-2.0"
+                },
+                {
+                  "number": 10,
+                  "content": " *"
+                },
+                {
+                  "number": 11,
+                  "content": " * Unless required by applicable law or agreed to in writing, software"
+                },
+                {
+                  "number": 12,
+                  "content": " * distributed under the License is distributed on an \"AS IS\" BASIS,"
+                },
+                {
+                  "number": 13,
+                  "content": " * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied."
+                },
+                {
+                  "number": 14,
+                  "content": " * See the License for the specific language governing permissions and"
+                },
+                {
+                  "number": 15,
+                  "content": " * limitations under the License."
+                },
+                {
+                  "number": 16,
+                  "content": " */"
+                },
+                {
+                  "number": 17,
+                  "content": "package org.apache.camel.component.clickup.model;"
+                },
+                {
+                  "number": 18,
+                  "content": ""
+                },
+                {
+                  "number": 19,
+                  "content": "import java.io.Serial;"
+                },
+                {
+                  "number": 20,
+                  "content": "import java.io.Serializable;"
+                },
+                {
+                  "number": 21,
+                  "content": "import java.util.HashSet;"
+                },
+                {
+                  "number": 22,
+                  "content": "import java.util.Set;"
+                },
+                {
+                  "number": 23,
+                  "content": ""
+                },
+                {
+                  "number": 24,
+                  "content": "import com.fasterxml.jackson.annotation.JsonIgnoreProperties;"
+                },
+                {
+                  "number": 25,
+                  "content": "import com.fasterxml.jackson.annotation.JsonProperty;"
+                },
+                {
+                  "number": 26,
+                  "content": "import com.google.common.collect.Sets;"
+                },
+                {
+                  "number": 27,
+                  "content": ""
+                },
+                {
+                  "number": 28,
+                  "content": "@JsonIgnoreProperties(ignoreUnknown = true)"
+                },
+                {
+                  "number": 29,
+                  "content": "public class Webhook implements Serializable {"
+                },
+                {
+                  "number": 30,
+                  "content": ""
+                }
+              ]
+            },
+            {
+              "path": "components/camel-clickup/src/test/java/org/apache/camel/component/clickup/ClickUpWebhookRegistrationTest.java",
+              "added_lines": [
+                {
+                  "number": 1,
+                  "content": "/*"
+                },
+                {
+                  "number": 2,
+                  "content": " * Licensed to the Apache Software Foundation (ASF) under one or more"
+                },
+                {
+                  "number": 3,
+                  "content": " * contributor license agreements.  See the NOTICE file distributed with"
+                },
+                {
+                  "number": 4,
+                  "content": " * this work for additional information regarding copyright ownership."
+                },
+                {
+                  "number": 5,
+                  "content": " * The ASF licenses this file to You under the Apache License, Version 2.0"
+                },
+                {
+                  "number": 6,
+                  "content": " * (the \"License\"); you may not use this file except in compliance with"
+                },
+                {
+                  "number": 7,
+                  "content": " * the License.  You may obtain a copy of the License at"
+                },
+                {
+                  "number": 8,
+                  "content": " *"
+                },
+                {
+                  "number": 9,
+                  "content": " *      http://www.apache.org/licenses/LICENSE-2.0"
+                },
+                {
+                  "number": 10,
+                  "content": " *"
+                },
+                {
+                  "number": 11,
+                  "content": " * Unless required by applicable law or agreed to in writing, software"
+                },
+                {
+                  "number": 12,
+                  "content": " * distributed under the License is distributed on an \"AS IS\" BASIS,"
+                },
+                {
+                  "number": 13,
+                  "content": " * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied."
+                },
+                {
+                  "number": 14,
+                  "content": " * See the License for the specific language governing permissions and"
+                },
+                {
+                  "number": 15,
+                  "content": " * limitations under the License."
+                },
+                {
+                  "number": 16,
+                  "content": " */"
+                },
+                {
+                  "number": 17,
+                  "content": "package org.apache.camel.component.clickup;"
+                },
+                {
+                  "number": 18,
+                  "content": ""
+                },
+                {
+                  "number": 19,
+                  "content": "import java.io.IOException;"
+                },
+                {
+                  "number": 20,
+                  "content": "import java.io.InputStream;"
+                },
+                {
+                  "number": 21,
+                  "content": "import java.net.URI;"
+                },
+                {
+                  "number": 22,
+                  "content": "import java.net.http.HttpClient;"
+                },
+                {
+                  "number": 23,
+                  "content": "import java.net.http.HttpRequest;"
+                },
+                {
+                  "number": 24,
+                  "content": "import java.net.http.HttpResponse;"
+                },
+                {
+                  "number": 25,
+                  "content": "import java.util.HashSet;"
+                },
+                {
+                  "number": 26,
+                  "content": "import java.util.List;"
+                },
+                {
+                  "number": 27,
+                  "content": "import java.util.Set;"
+                },
+                {
+                  "number": 28,
+                  "content": "import java.util.concurrent.TimeUnit;"
+                },
+                {
+                  "number": 29,
+                  "content": ""
+                },
+                {
+                  "number": 30,
+                  "content": "import com.fasterxml.jackson.databind.ObjectMapper;"
+                }
+              ]
+            },
+            {
+              "path": "components/camel-clickup/src/test/java/org/apache/camel/component/clickup/util/ClickUpMockRoutes.java",
+              "added_lines": [
+                {
+                  "number": 1,
+                  "content": "/*"
+                },
+                {
+                  "number": 2,
+                  "content": " * Licensed to the Apache Software Foundation (ASF) under one or more"
+                },
+                {
+                  "number": 3,
+                  "content": " * contributor license agreements.  See the NOTICE file distributed with"
+                },
+                {
+                  "number": 4,
+                  "content": " * this work for additional information regarding copyright ownership."
+                },
+                {
+                  "number": 5,
+                  "content": " * The ASF licenses this file to You under the Apache License, Version 2.0"
+                },
+                {
+                  "number": 6,
+                  "content": " * (the \"License\"); you may not use this file except in compliance with"
+                },
+                {
+                  "number": 7,
+                  "content": " * the License.  You may obtain a copy of the License at"
+                },
+                {
+                  "number": 8,
+                  "content": " *"
+                },
+                {
+                  "number": 9,
+                  "content": " *      http://www.apache.org/licenses/LICENSE-2.0"
+                },
+                {
+                  "number": 10,
+                  "content": " *"
+                },
+                {
+                  "number": 11,
+                  "content": " * Unless required by applicable law or agreed to in writing, software"
+                },
+                {
+                  "number": 12,
+                  "content": " * distributed under the License is distributed on an \"AS IS\" BASIS,"
+                },
+                {
+                  "number": 13,
+                  "content": " * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied."
+                },
+                {
+                  "number": 14,
+                  "content": " * See the License for the specific language governing permissions and"
+                },
+                {
+                  "number": 15,
+                  "content": " * limitations under the License."
+                },
+                {
+                  "number": 16,
+                  "content": " */"
+                },
+                {
+                  "number": 17,
+                  "content": "package org.apache.camel.component.clickup.util;"
+                },
+                {
+                  "number": 18,
+                  "content": ""
+                },
+                {
+                  "number": 19,
+                  "content": "import java.nio.charset.StandardCharsets;"
+                },
+                {
+                  "number": 20,
+                  "content": "import java.util.*;"
+                },
+                {
+                  "number": 21,
+                  "content": "import java.util.concurrent.TimeUnit;"
+                },
+                {
+                  "number": 22,
+                  "content": ""
+                },
+                {
+                  "number": 23,
+                  "content": "import com.fasterxml.jackson.databind.ObjectMapper;"
+                },
+                {
+                  "number": 24,
+                  "content": "import org.apache.camel.Exchange;"
+                },
+                {
+                  "number": 25,
+                  "content": "import org.apache.camel.Message;"
+                },
+                {
+                  "number": 26,
+                  "content": "import org.apache.camel.Processor;"
+                },
+                {
+                  "number": 27,
+                  "content": "import org.apache.camel.builder.RouteBuilder;"
+                },
+                {
+                  "number": 28,
+                  "content": "import org.awaitility.Awaitility;"
+                },
+                {
+                  "number": 29,
+                  "content": "import org.slf4j.Logger;"
+                },
+                {
+                  "number": 30,
+                  "content": "import org.slf4j.LoggerFactory;"
+                }
+              ]
+            }
+          ],
+          "truncated": true
+        },
+        "fix_references": {
+          "basis": "同仓库历史修复提交（commit_feature.fix=1），按提交时间倒序",
+          "items": [
+            {
+              "commit_hash": "5af71ab258b8b0262267c32971bd8b40862e5b1c",
+              "message": "CAMEL-25413: camel-kubernetes: fix trustCerts annotation from security=secret to insecure:ssl\n\nThe trustCerts option turns off TLS certificate validation, so it is an\ninsecure TLS flag, not a secret. The bulk migration in CAMEL-23250\nannotated it as security=secret, so the security policy framework\n(camel.main.profile=prod) could not warn or fail fast when certificate\nvalidation was disabled.\n\nKubernetesConfiguration.trustCerts is now annotated with\nsecurity=insecure:ssl and insecureValue=true, the catalog metadata, the\nendpoint URI factories and SecurityUtils are regenerated for the 20\nkubernetes and openshift components, and the 4.23 upgrade guide documents\nthat trustCerts=true is now flagged by the security policy, with the\ncamel.security.allowedProperties escape hatch. This follows the same\npattern as CAMEL-24999 (camel-hivemq) and CAMEL-25414 (camel-mongodb).\n\nCloses #27503\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nSigned-off-by: Andrea Cosentino <ancosen@gmail.com>",
+              "committed_at": "2026-10-10T07:44:31Z"
+            },
+            {
+              "commit_hash": "f4ac7fb1c76e554b662fe2ad0ef74b23c1029681",
+              "message": "CAMEL-25495: camel-jbang: pick the Quarkus Dockerfile by --java-version\n\ncamel export --runtime=quarkus wrote src/main/docker/Dockerfile and\nDockerfile.jvm with a fixed ubi9/openjdk-21-runtime base image, whatever\n--java-version said. A project exported with --java-version=25 was\ncompiled for Java 25 but started on a Java 21 runtime, so the container\nfailed with UnsupportedClassVersionError.\n\nThe Quarkus fast-jar Dockerfile is now picked by Java version from the\nFreeMarker templates Dockerfile-quarkus21.ftl and Dockerfile-quarkus25.ftl,\nas Camel Main and Spring Boot already do. That selection moves into\nExport.processDockerfileTemplate. It falls back to the Java 21 template\nonly when no template exists for the requested version\n(TemplateNotFoundException). Any other template error is now raised\ninstead of silently producing the Java 21 image. Camel Main and Spring\nBoot export the same Dockerfiles as before.\n\nCloses #27617\n\nCo-authored-by: Claude <noreply@anthropic.com>",
+              "committed_at": "2026-10-09T20:27:09Z"
+            },
+            {
+              "commit_hash": "3b3e0ae7bb2693ad92b7bf514205845f69fa7197",
+              "message": "CAMEL-25481: camel-dataweave - convert XML namespaces, attributes and the DataSonnet XML model (#27612)\n\n* CAMEL-25481: camel-dataweave - convert XML namespaces, attributes and the DataSonnet XML model\n\nThe DataWeave to DataSonnet conversion now follows the DataWeave XML semantics.\n\nXML input: a selector matches an element by its local name whatever its namespace\nprefix (such as payload.Envelope.Body of a SOAP message), .ns#name only in the namespace\nof an ns header directive, .@ gives all the attributes and ..* all the descendants, an\nempty element is null, and the object functions see the child elements in document\norder. An output other than XML writes the elements without the attributes, namespace\ndeclarations and positions of the DataSonnet XML model (dw.output).\n\nXML output: attributes (key @(name: value)), namespace-qualified keys (ns0#key),\nnull as an empty element, arrays, object spreads and keys that repeat as elements that\nrepeat (in the order of the script), elements of the input with their attributes and\nnamespaces, and the writeDeclaration and skipNullOn writer properties.\n\nDataSonnet does not keep the value of a function argument (each use evaluates it\nagain), so nested calls of the camel-dataweave.libsonnet functions took exponential time\nin the depth of the nesting. The functions now evaluate their arguments once.\n\nThe corpus has 29 new XML entries, verified with the DataWeave CLI, and compares XML\noutputs without formatting.\n\nCo-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>\nSigned-off-by: Claus Ibsen <claus.ibsen@gmail.com>\n\n* CAMEL-25481: parenthesize mixed && / || conditions, rewrap the upgrade guide note\n\nReview feedback.\n\nCo-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>\nSigned-off-by: Claus Ibsen <claus.ibsen@gmail.com>\n\n* CAMEL-25481: camel-dataweave - fix CDATA next to text, namespaces with the same local name, empty arrays and nested lambdas\n\nReview fixes:\n\n- The text of an element with text and CDATA segments was read twice (the reader also\n  gives it in '$'); adjacent text and CDATA in mixed content are one __text.\n- .*name and ..*name give the elements of every namespace with that local name, in\n  document order (and .name the first in document order).\n- An empty array is an empty element also in an object with a spread or a repeated key.\n- A lambda parameter kept as an XML element for its attributes is tracked in its scope,\n  so an inner lambda with a parameter of the same name does not change it.\n\nFive corpus entries for these, verified with the DataWeave CLI.\n\nCo-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>\nSigned-off-by: Claus Ibsen <claus.ibsen@gmail.com>\n\n---------\n\nSigned-off-by: Claus Ibsen <claus.ibsen@gmail.com>\nCo-authored-by: Claude Opus 5.5 (1M context) <noreply@anthropic.com>",
+              "committed_at": "2026-10-09T19:52:18Z"
+            },
+            {
+              "commit_hash": "5e08a7e3b8eaa2e0319601cdd440f2dacd3c876b",
+              "message": "CAMEL-25491: Fix semantic evaluation lifecycle and diagnostics\n\nSerialize CLI semantic executor initialization, submission and shutdown,\nand reject late requests once stopping begins. Stop transport polling before\nacquiring the executor monitor so file dispatch can finish safely.\n\nPreserve error details for message-less exceptions on both console failure\npaths, and reject calls after console shutdown until it is restarted.\nThrottle missing semantic-console discovery to five-second retries while\npreserving late registration. Restore server-side action failure warnings.\n\nAdd regressions for executor initialization racing with shutdown, late\ncalls, failure details, and discovery retry behavior.\n\nCo-authored-by: Codex <noreply@openai.com>",
+              "committed_at": "2026-10-09T19:44:47Z"
+            },
+            {
+              "commit_hash": "6bd370054f2ba236b544de170f3fbaadaaf79db0",
+              "message": "CAMEL-25191: Fix flaky test MainNotAutoConfiguredWarningTest (#27603)\n\nThe test installs a custom WARN appender on the BaseMainSupport Log4j logger in\n@BeforeEach/@AfterEach, mutating global LoggerContext state. Under JUnit parallel\nexecution, AiObservabilityConfigurationPropertiesTest concurrently emits WARN logs for\nunconsumed camel.aiObservability.enable properties, which leak into the test appender\nand cause assertion failures (17% rate normally, 78% with -T1C).\n\nThe test is now @Isolated, as the other tests in the module that mutate global JVM\nstate, and drops the public modifiers per JUnit 5 conventions.\n\nCo-authored-by: Claude Sonnet <noreply@anthropic.com>",
+              "committed_at": "2026-10-09T16:46:45Z"
+            }
+          ]
+        }
+      }
+    },
+    "sha256_12": "b61f58280d6b"
+  },
+  {
+    "method": "GET",
+    "params": null,
+    "body": null,
+    "status": 200,
+    "envelope": {
+      "code": 0,
+      "message": "ok",
+      "data": {
+        "lines": [
+          {
+            "line": "expert",
+            "label": "专家特征",
+            "models": [
+              "et_v1",
+              "lgbm_v1",
+              "lr_v1",
+              "mlp_deep_v1",
+              "rf_v1",
+              "svm_v1",
+              "tabnet_v1",
+              "xgb_v1"
+            ]
+          },
+          {
+            "line": "semantic",
+            "label": "语义",
+            "models": [
+              "et_semantic_v1",
+              "lgbm_semantic_v1",
+              "lr_semantic_v1",
+              "mlp_deep_semantic_v1",
+              "rf_semantic_v1",
+              "svm_semantic_v1",
+              "tabnet_semantic_v1",
+              "xgb_semantic_v1"
+            ]
+          },
+          {
+            "line": "fused",
+            "label": "融合",
+            "models": [
+              "et_fused_v1",
+              "lgbm_fused_v1",
+              "lr_fused_v1",
+              "mlp_deep_fused_v1",
+              "rf_fused_v1",
+              "svm_fused_v1",
+              "tabnet_fused_v1",
+              "xgb_fused_v1"
+            ]
+          },
+          {
+            "line": "e2e",
+            "label": "端到端",
+            "models": [
+              "codebert_e2e_v1"
+            ]
+          }
+        ]
+      }
+    },
+    "sha256_12": "50d7fa0b0579"
+  },
+  {
+    "method": "GET",
+    "params": {
+      "granularity": "week"
+    },
+    "body": null,
+    "status": 200,
+    "envelope": {
+      "code": 0,
+      "message": "ok",
+      "data": {
+        "granularity": "week",
+        "model_name": "xgb_v1",
+        "series": [
+          {
+            "period": "2022-W30",
+            "commit_count": 103,
+            "avg_risk": 0.2271,
+            "high_risk_count": 14
+          },
+          {
+            "period": "2022-W31",
+            "commit_count": 123,
+            "avg_risk": 0.1553,
+            "high_risk_count": 5
+          },
+          {
+            "period": "2022-W32",
+            "commit_count": 62,
+            "avg_risk": 0.2348,
+            "high_risk_count": 9
+          },
+          {
+            "period": "2022-W33",
+            "commit_count": 55,
+            "avg_risk": 0.2654,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2022-W34",
+            "commit_count": 150,
+            "avg_risk": 0.1622,
+            "high_risk_count": 9
+          },
+          {
+            "period": "2022-W35",
+            "commit_count": 111,
+            "avg_risk": 0.2047,
+            "high_risk_count": 16
+          },
+          {
+            "period": "2022-W36",
+            "commit_count": 159,
+            "avg_risk": 0.2193,
+            "high_risk_count": 18
+          },
+          {
+            "period": "2022-W37",
+            "commit_count": 130,
+            "avg_risk": 0.2086,
+            "high_risk_count": 16
+          },
+          {
+            "period": "2022-W38",
+            "commit_count": 142,
+            "avg_risk": 0.1684,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2022-W39",
+            "commit_count": 80,
+            "avg_risk": 0.0978,
+            "high_risk_count": 4
+          },
+          {
+            "period": "2022-W40",
+            "commit_count": 107,
+            "avg_risk": 0.1788,
+            "high_risk_count": 11
+          },
+          {
+            "period": "2022-W41",
+            "commit_count": 140,
+            "avg_risk": 0.1424,
+            "high_risk_count": 6
+          },
+          {
+            "period": "2022-W42",
+            "commit_count": 109,
+            "avg_risk": 0.1791,
+            "high_risk_count": 8
+          },
+          {
+            "period": "2022-W43",
+            "commit_count": 114,
+            "avg_risk": 0.1712,
+            "high_risk_count": 6
+          },
+          {
+            "period": "2022-W44",
+            "commit_count": 85,
+            "avg_risk": 0.2336,
+            "high_risk_count": 14
+          },
+          {
+            "period": "2022-W45",
+            "commit_count": 100,
+            "avg_risk": 0.2116,
+            "high_risk_count": 11
+          },
+          {
+            "period": "2022-W46",
+            "commit_count": 40,
+            "avg_risk": 0.1974,
+            "high_risk_count": 6
+          },
+          {
+            "period": "2022-W47",
+            "commit_count": 99,
+            "avg_risk": 0.1923,
+            "high_risk_count": 12
+          },
+          {
+            "period": "2022-W48",
+            "commit_count": 109,
+            "avg_risk": 0.1479,
+            "high_risk_count": 8
+          },
+          {
+            "period": "2022-W49",
+            "commit_count": 109,
+            "avg_risk": 0.2264,
+            "high_risk_count": 14
+          },
+          {
+            "period": "2022-W50",
+            "commit_count": 106,
+            "avg_risk": 0.1625,
+            "high_risk_count": 9
+          },
+          {
+            "period": "2022-W51",
+            "commit_count": 95,
+            "avg_risk": 0.1325,
+            "high_risk_count": 4
+          },
+          {
+            "period": "2022-W52",
+            "commit_count": 52,
+            "avg_risk": 0.2568,
+            "high_risk_count": 8
+          },
+          {
+            "period": "2023-W01",
+            "commit_count": 147,
+            "avg_risk": 0.2107,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2023-W02",
+            "commit_count": 256,
+            "avg_risk": 0.1266,
+            "high_risk_count": 15
+          },
+          {
+            "period": "2023-W03",
+            "commit_count": 159,
+            "avg_risk": 0.0957,
+            "high_risk_count": 4
+          },
+          {
+            "period": "2023-W04",
+            "commit_count": 118,
+            "avg_risk": 0.154,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2023-W05",
+            "commit_count": 155,
+            "avg_risk": 0.1257,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2023-W06",
+            "commit_count": 92,
+            "avg_risk": 0.1845,
+            "high_risk_count": 6
+          },
+          {
+            "period": "2023-W07",
+            "commit_count": 136,
+            "avg_risk": 0.2111,
+            "high_risk_count": 17
+          },
+          {
+            "period": "2023-W08",
+            "commit_count": 151,
+            "avg_risk": 0.1625,
+            "high_risk_count": 17
+          },
+          {
+            "period": "2023-W09",
+            "commit_count": 163,
+            "avg_risk": 0.1374,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2023-W10",
+            "commit_count": 145,
+            "avg_risk": 0.1343,
+            "high_risk_count": 11
+          },
+          {
+            "period": "2023-W11",
+            "commit_count": 98,
+            "avg_risk": 0.1763,
+            "high_risk_count": 11
+          },
+          {
+            "period": "2023-W12",
+            "commit_count": 142,
+            "avg_risk": 0.185,
+            "high_risk_count": 15
+          },
+          {
+            "period": "2023-W13",
+            "commit_count": 208,
+            "avg_risk": 0.2157,
+            "high_risk_count": 29
+          },
+          {
+            "period": "2023-W14",
+            "commit_count": 122,
+            "avg_risk": 0.1991,
+            "high_risk_count": 11
+          },
+          {
+            "period": "2023-W15",
+            "commit_count": 95,
+            "avg_risk": 0.1687,
+            "high_risk_count": 9
+          },
+          {
+            "period": "2023-W16",
+            "commit_count": 96,
+            "avg_risk": 0.134,
+            "high_risk_count": 7
+          },
+          {
+            "period": "2023-W17",
+            "commit_count": 94,
+            "avg_risk": 0.1364,
+            "high_risk_count": 1
+          },
+          {
+            "period": "2023-W18",
+            "commit_count": 49,
+            "avg_risk": 0.2575,
+            "high_risk_count": 7
+          },
+          {
+            "period": "2023-W19",
+            "commit_count": 101,
+            "avg_risk": 0.1284,
+            "high_risk_count": 6
+          },
+          {
+            "period": "2023-W20",
+            "commit_count": 220,
+            "avg_risk": 0.1887,
+            "high_risk_count": 20
+          },
+          {
+            "period": "2023-W21",
+            "commit_count": 89,
+            "avg_risk": 0.1497,
+            "high_risk_count": 6
+          },
+          {
+            "period": "2023-W22",
+            "commit_count": 97,
+            "avg_risk": 0.1057,
+            "high_risk_count": 3
+          },
+          {
+            "period": "2023-W23",
+            "commit_count": 119,
+            "avg_risk": 0.1421,
+            "high_risk_count": 7
+          },
+          {
+            "period": "2023-W24",
+            "commit_count": 271,
+            "avg_risk": 0.1506,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2023-W25",
+            "commit_count": 205,
+            "avg_risk": 0.1827,
+            "high_risk_count": 20
+          },
+          {
+            "period": "2023-W26",
+            "commit_count": 127,
+            "avg_risk": 0.148,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2023-W27",
+            "commit_count": 130,
+            "avg_risk": 0.1242,
+            "high_risk_count": 11
+          },
+          {
+            "period": "2023-W28",
+            "commit_count": 130,
+            "avg_risk": 0.1719,
+            "high_risk_count": 14
+          },
+          {
+            "period": "2023-W29",
+            "commit_count": 184,
+            "avg_risk": 0.1306,
+            "high_risk_count": 14
+          },
+          {
+            "period": "2023-W30",
+            "commit_count": 121,
+            "avg_risk": 0.2591,
+            "high_risk_count": 24
+          },
+          {
+            "period": "2023-W31",
+            "commit_count": 115,
+            "avg_risk": 0.1223,
+            "high_risk_count": 11
+          },
+          {
+            "period": "2023-W32",
+            "commit_count": 101,
+            "avg_risk": 0.2646,
+            "high_risk_count": 14
+          },
+          {
+            "period": "2023-W33",
+            "commit_count": 65,
+            "avg_risk": 0.1842,
+            "high_risk_count": 7
+          },
+          {
+            "period": "2023-W34",
+            "commit_count": 61,
+            "avg_risk": 0.2153,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2023-W35",
+            "commit_count": 70,
+            "avg_risk": 0.3115,
+            "high_risk_count": 20
+          },
+          {
+            "period": "2023-W36",
+            "commit_count": 41,
+            "avg_risk": 0.2224,
+            "high_risk_count": 5
+          },
+          {
+            "period": "2023-W37",
+            "commit_count": 55,
+            "avg_risk": 0.1835,
+            "high_risk_count": 6
+          },
+          {
+            "period": "2023-W38",
+            "commit_count": 95,
+            "avg_risk": 0.2507,
+            "high_risk_count": 16
+          },
+          {
+            "period": "2023-W39",
+            "commit_count": 86,
+            "avg_risk": 0.2258,
+            "high_risk_count": 12
+          },
+          {
+            "period": "2023-W40",
+            "commit_count": 62,
+            "avg_risk": 0.1853,
+            "high_risk_count": 7
+          },
+          {
+            "period": "2023-W41",
+            "commit_count": 55,
+            "avg_risk": 0.148,
+            "high_risk_count": 5
+          },
+          {
+            "period": "2023-W42",
+            "commit_count": 85,
+            "avg_risk": 0.1943,
+            "high_risk_count": 7
+          },
+          {
+            "period": "2023-W43",
+            "commit_count": 63,
+            "avg_risk": 0.2489,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2023-W44",
+            "commit_count": 52,
+            "avg_risk": 0.187,
+            "high_risk_count": 7
+          },
+          {
+            "period": "2023-W45",
+            "commit_count": 65,
+            "avg_risk": 0.2157,
+            "high_risk_count": 8
+          },
+          {
+            "period": "2023-W46",
+            "commit_count": 121,
+            "avg_risk": 0.1393,
+            "high_risk_count": 9
+          },
+          {
+            "period": "2023-W47",
+            "commit_count": 133,
+            "avg_risk": 0.126,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2023-W48",
+            "commit_count": 117,
+            "avg_risk": 0.2327,
+            "high_risk_count": 20
+          },
+          {
+            "period": "2023-W49",
+            "commit_count": 121,
+            "avg_risk": 0.1985,
+            "high_risk_count": 20
+          },
+          {
+            "period": "2023-W50",
+            "commit_count": 118,
+            "avg_risk": 0.1881,
+            "high_risk_count": 15
+          },
+          {
+            "period": "2023-W51",
+            "commit_count": 159,
+            "avg_risk": 0.1939,
+            "high_risk_count": 24
+          },
+          {
+            "period": "2023-W52",
+            "commit_count": 41,
+            "avg_risk": 0.1787,
+            "high_risk_count": 5
+          },
+          {
+            "period": "2024-W01",
+            "commit_count": 70,
+            "avg_risk": 0.1544,
+            "high_risk_count": 6
+          },
+          {
+            "period": "2024-W02",
+            "commit_count": 112,
+            "avg_risk": 0.1236,
+            "high_risk_count": 6
+          },
+          {
+            "period": "2024-W03",
+            "commit_count": 87,
+            "avg_risk": 0.1604,
+            "high_risk_count": 11
+          },
+          {
+            "period": "2024-W04",
+            "commit_count": 109,
+            "avg_risk": 0.1853,
+            "high_risk_count": 13
+          },
+          {
+            "period": "2024-W05",
+            "commit_count": 50,
+            "avg_risk": 0.2776,
+            "high_risk_count": 12
+          },
+          {
+            "period": "2024-W06",
+            "commit_count": 161,
+            "avg_risk": 0.296,
+            "high_risk_count": 35
+          },
+          {
+            "period": "2024-W07",
+            "commit_count": 125,
+            "avg_risk": 0.1881,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2024-W08",
+            "commit_count": 398,
+            "avg_risk": 0.1166,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2024-W09",
+            "commit_count": 152,
+            "avg_risk": 0.1848,
+            "high_risk_count": 17
+          },
+          {
+            "period": "2024-W10",
+            "commit_count": 92,
+            "avg_risk": 0.2101,
+            "high_risk_count": 13
+          },
+          {
+            "period": "2024-W11",
+            "commit_count": 100,
+            "avg_risk": 0.2274,
+            "high_risk_count": 15
+          },
+          {
+            "period": "2024-W12",
+            "commit_count": 131,
+            "avg_risk": 0.2059,
+            "high_risk_count": 18
+          },
+          {
+            "period": "2024-W13",
+            "commit_count": 98,
+            "avg_risk": 0.1361,
+            "high_risk_count": 8
+          },
+          {
+            "period": "2024-W14",
+            "commit_count": 57,
+            "avg_risk": 0.1982,
+            "high_risk_count": 6
+          },
+          {
+            "period": "2024-W15",
+            "commit_count": 97,
+            "avg_risk": 0.1782,
+            "high_risk_count": 9
+          },
+          {
+            "period": "2024-W16",
+            "commit_count": 116,
+            "avg_risk": 0.1673,
+            "high_risk_count": 14
+          },
+          {
+            "period": "2024-W17",
+            "commit_count": 122,
+            "avg_risk": 0.1219,
+            "high_risk_count": 7
+          },
+          {
+            "period": "2024-W18",
+            "commit_count": 117,
+            "avg_risk": 0.1514,
+            "high_risk_count": 13
+          },
+          {
+            "period": "2024-W19",
+            "commit_count": 86,
+            "avg_risk": 0.2096,
+            "high_risk_count": 13
+          },
+          {
+            "period": "2024-W20",
+            "commit_count": 136,
+            "avg_risk": 0.1659,
+            "high_risk_count": 11
+          },
+          {
+            "period": "2024-W21",
+            "commit_count": 118,
+            "avg_risk": 0.1628,
+            "high_risk_count": 6
+          },
+          {
+            "period": "2024-W22",
+            "commit_count": 91,
+            "avg_risk": 0.1684,
+            "high_risk_count": 8
+          },
+          {
+            "period": "2024-W23",
+            "commit_count": 135,
+            "avg_risk": 0.1489,
+            "high_risk_count": 17
+          },
+          {
+            "period": "2024-W24",
+            "commit_count": 131,
+            "avg_risk": 0.206,
+            "high_risk_count": 22
+          },
+          {
+            "period": "2024-W25",
+            "commit_count": 134,
+            "avg_risk": 0.2076,
+            "high_risk_count": 12
+          },
+          {
+            "period": "2024-W26",
+            "commit_count": 93,
+            "avg_risk": 0.2037,
+            "high_risk_count": 11
+          },
+          {
+            "period": "2024-W27",
+            "commit_count": 104,
+            "avg_risk": 0.1931,
+            "high_risk_count": 12
+          },
+          {
+            "period": "2024-W28",
+            "commit_count": 74,
+            "avg_risk": 0.1794,
+            "high_risk_count": 11
+          },
+          {
+            "period": "2024-W29",
+            "commit_count": 74,
+            "avg_risk": 0.1193,
+            "high_risk_count": 3
+          },
+          {
+            "period": "2024-W30",
+            "commit_count": 55,
+            "avg_risk": 0.2444,
+            "high_risk_count": 12
+          },
+          {
+            "period": "2024-W31",
+            "commit_count": 68,
+            "avg_risk": 0.2048,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2024-W32",
+            "commit_count": 95,
+            "avg_risk": 0.2664,
+            "high_risk_count": 25
+          },
+          {
+            "period": "2024-W33",
+            "commit_count": 105,
+            "avg_risk": 0.1552,
+            "high_risk_count": 14
+          },
+          {
+            "period": "2024-W34",
+            "commit_count": 146,
+            "avg_risk": 0.1862,
+            "high_risk_count": 20
+          },
+          {
+            "period": "2024-W35",
+            "commit_count": 148,
+            "avg_risk": 0.1754,
+            "high_risk_count": 11
+          },
+          {
+            "period": "2024-W36",
+            "commit_count": 119,
+            "avg_risk": 0.3118,
+            "high_risk_count": 27
+          },
+          {
+            "period": "2024-W37",
+            "commit_count": 134,
+            "avg_risk": 0.1489,
+            "high_risk_count": 11
+          },
+          {
+            "period": "2024-W38",
+            "commit_count": 87,
+            "avg_risk": 0.083,
+            "high_risk_count": 2
+          },
+          {
+            "period": "2024-W39",
+            "commit_count": 116,
+            "avg_risk": 0.2235,
+            "high_risk_count": 21
+          },
+          {
+            "period": "2024-W40",
+            "commit_count": 121,
+            "avg_risk": 0.1759,
+            "high_risk_count": 21
+          },
+          {
+            "period": "2024-W41",
+            "commit_count": 95,
+            "avg_risk": 0.1469,
+            "high_risk_count": 8
+          },
+          {
+            "period": "2024-W42",
+            "commit_count": 89,
+            "avg_risk": 0.1588,
+            "high_risk_count": 12
+          },
+          {
+            "period": "2024-W43",
+            "commit_count": 97,
+            "avg_risk": 0.1538,
+            "high_risk_count": 11
+          },
+          {
+            "period": "2024-W44",
+            "commit_count": 55,
+            "avg_risk": 0.2802,
+            "high_risk_count": 14
+          },
+          {
+            "period": "2024-W45",
+            "commit_count": 62,
+            "avg_risk": 0.109,
+            "high_risk_count": 5
+          },
+          {
+            "period": "2024-W46",
+            "commit_count": 110,
+            "avg_risk": 0.1723,
+            "high_risk_count": 15
+          },
+          {
+            "period": "2024-W47",
+            "commit_count": 68,
+            "avg_risk": 0.0657,
+            "high_risk_count": 1
+          },
+          {
+            "period": "2024-W48",
+            "commit_count": 52,
+            "avg_risk": 0.1523,
+            "high_risk_count": 5
+          },
+          {
+            "period": "2024-W49",
+            "commit_count": 86,
+            "avg_risk": 0.1846,
+            "high_risk_count": 11
+          },
+          {
+            "period": "2024-W50",
+            "commit_count": 73,
+            "avg_risk": 0.1067,
+            "high_risk_count": 6
+          },
+          {
+            "period": "2024-W51",
+            "commit_count": 71,
+            "avg_risk": 0.1371,
+            "high_risk_count": 4
+          },
+          {
+            "period": "2024-W52",
+            "commit_count": 36,
+            "avg_risk": 0.2011,
+            "high_risk_count": 7
+          },
+          {
+            "period": "2025-W01",
+            "commit_count": 65,
+            "avg_risk": 0.2211,
+            "high_risk_count": 11
+          },
+          {
+            "period": "2025-W02",
+            "commit_count": 92,
+            "avg_risk": 0.1934,
+            "high_risk_count": 17
+          },
+          {
+            "period": "2025-W03",
+            "commit_count": 91,
+            "avg_risk": 0.1786,
+            "high_risk_count": 13
+          },
+          {
+            "period": "2025-W04",
+            "commit_count": 88,
+            "avg_risk": 0.1457,
+            "high_risk_count": 8
+          },
+          {
+            "period": "2025-W05",
+            "commit_count": 124,
+            "avg_risk": 0.2032,
+            "high_risk_count": 18
+          },
+          {
+            "period": "2025-W06",
+            "commit_count": 110,
+            "avg_risk": 0.2102,
+            "high_risk_count": 20
+          },
+          {
+            "period": "2025-W07",
+            "commit_count": 74,
+            "avg_risk": 0.1101,
+            "high_risk_count": 5
+          },
+          {
+            "period": "2025-W08",
+            "commit_count": 92,
+            "avg_risk": 0.1228,
+            "high_risk_count": 6
+          },
+          {
+            "period": "2025-W09",
+            "commit_count": 118,
+            "avg_risk": 0.1682,
+            "high_risk_count": 16
+          },
+          {
+            "period": "2025-W10",
+            "commit_count": 90,
+            "avg_risk": 0.1163,
+            "high_risk_count": 7
+          },
+          {
+            "period": "2025-W11",
+            "commit_count": 70,
+            "avg_risk": 0.1218,
+            "high_risk_count": 8
+          },
+          {
+            "period": "2025-W12",
+            "commit_count": 77,
+            "avg_risk": 0.1385,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2025-W13",
+            "commit_count": 57,
+            "avg_risk": 0.1774,
+            "high_risk_count": 8
+          },
+          {
+            "period": "2025-W14",
+            "commit_count": 66,
+            "avg_risk": 0.1551,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2025-W15",
+            "commit_count": 82,
+            "avg_risk": 0.1363,
+            "high_risk_count": 5
+          },
+          {
+            "period": "2025-W16",
+            "commit_count": 81,
+            "avg_risk": 0.1873,
+            "high_risk_count": 9
+          },
+          {
+            "period": "2025-W17",
+            "commit_count": 95,
+            "avg_risk": 0.1753,
+            "high_risk_count": 13
+          },
+          {
+            "period": "2025-W18",
+            "commit_count": 88,
+            "avg_risk": 0.1432,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2025-W19",
+            "commit_count": 91,
+            "avg_risk": 0.1159,
+            "high_risk_count": 8
+          },
+          {
+            "period": "2025-W20",
+            "commit_count": 92,
+            "avg_risk": 0.1168,
+            "high_risk_count": 7
+          },
+          {
+            "period": "2025-W21",
+            "commit_count": 100,
+            "avg_risk": 0.1497,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2025-W22",
+            "commit_count": 76,
+            "avg_risk": 0.1309,
+            "high_risk_count": 7
+          },
+          {
+            "period": "2025-W23",
+            "commit_count": 90,
+            "avg_risk": 0.1259,
+            "high_risk_count": 7
+          },
+          {
+            "period": "2025-W24",
+            "commit_count": 77,
+            "avg_risk": 0.1358,
+            "high_risk_count": 8
+          },
+          {
+            "period": "2025-W25",
+            "commit_count": 83,
+            "avg_risk": 0.1475,
+            "high_risk_count": 6
+          },
+          {
+            "period": "2025-W26",
+            "commit_count": 88,
+            "avg_risk": 0.1554,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2025-W27",
+            "commit_count": 68,
+            "avg_risk": 0.1814,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2025-W28",
+            "commit_count": 58,
+            "avg_risk": 0.1541,
+            "high_risk_count": 8
+          },
+          {
+            "period": "2025-W29",
+            "commit_count": 85,
+            "avg_risk": 0.1688,
+            "high_risk_count": 8
+          },
+          {
+            "period": "2025-W30",
+            "commit_count": 103,
+            "avg_risk": 0.1376,
+            "high_risk_count": 8
+          },
+          {
+            "period": "2025-W31",
+            "commit_count": 89,
+            "avg_risk": 0.2153,
+            "high_risk_count": 16
+          },
+          {
+            "period": "2025-W32",
+            "commit_count": 60,
+            "avg_risk": 0.1911,
+            "high_risk_count": 11
+          },
+          {
+            "period": "2025-W33",
+            "commit_count": 77,
+            "avg_risk": 0.1817,
+            "high_risk_count": 14
+          },
+          {
+            "period": "2025-W34",
+            "commit_count": 66,
+            "avg_risk": 0.1483,
+            "high_risk_count": 8
+          },
+          {
+            "period": "2025-W35",
+            "commit_count": 86,
+            "avg_risk": 0.13,
+            "high_risk_count": 6
+          },
+          {
+            "period": "2025-W36",
+            "commit_count": 23,
+            "avg_risk": 0.1426,
+            "high_risk_count": 3
+          },
+          {
+            "period": "2025-W37",
+            "commit_count": 78,
+            "avg_risk": 0.1389,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2025-W38",
+            "commit_count": 102,
+            "avg_risk": 0.1532,
+            "high_risk_count": 13
+          },
+          {
+            "period": "2025-W39",
+            "commit_count": 90,
+            "avg_risk": 0.1641,
+            "high_risk_count": 11
+          },
+          {
+            "period": "2025-W40",
+            "commit_count": 90,
+            "avg_risk": 0.1905,
+            "high_risk_count": 15
+          },
+          {
+            "period": "2025-W41",
+            "commit_count": 117,
+            "avg_risk": 0.1569,
+            "high_risk_count": 13
+          },
+          {
+            "period": "2025-W42",
+            "commit_count": 98,
+            "avg_risk": 0.1464,
+            "high_risk_count": 11
+          },
+          {
+            "period": "2025-W43",
+            "commit_count": 84,
+            "avg_risk": 0.1838,
+            "high_risk_count": 14
+          },
+          {
+            "period": "2025-W44",
+            "commit_count": 95,
+            "avg_risk": 0.2046,
+            "high_risk_count": 15
+          },
+          {
+            "period": "2025-W45",
+            "commit_count": 77,
+            "avg_risk": 0.1801,
+            "high_risk_count": 11
+          },
+          {
+            "period": "2025-W46",
+            "commit_count": 80,
+            "avg_risk": 0.1086,
+            "high_risk_count": 6
+          },
+          {
+            "period": "2025-W47",
+            "commit_count": 83,
+            "avg_risk": 0.1957,
+            "high_risk_count": 12
+          },
+          {
+            "period": "2025-W48",
+            "commit_count": 71,
+            "avg_risk": 0.1781,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2025-W49",
+            "commit_count": 109,
+            "avg_risk": 0.1758,
+            "high_risk_count": 12
+          },
+          {
+            "period": "2025-W50",
+            "commit_count": 95,
+            "avg_risk": 0.1918,
+            "high_risk_count": 13
+          },
+          {
+            "period": "2025-W51",
+            "commit_count": 132,
+            "avg_risk": 0.1475,
+            "high_risk_count": 12
+          },
+          {
+            "period": "2025-W52",
+            "commit_count": 57,
+            "avg_risk": 0.1412,
+            "high_risk_count": 5
+          },
+          {
+            "period": "2026-W01",
+            "commit_count": 27,
+            "avg_risk": 0.1353,
+            "high_risk_count": 3
+          },
+          {
+            "period": "2026-W02",
+            "commit_count": 73,
+            "avg_risk": 0.2361,
+            "high_risk_count": 17
+          },
+          {
+            "period": "2026-W03",
+            "commit_count": 93,
+            "avg_risk": 0.1532,
+            "high_risk_count": 7
+          },
+          {
+            "period": "2026-W04",
+            "commit_count": 208,
+            "avg_risk": 0.1944,
+            "high_risk_count": 14
+          },
+          {
+            "period": "2026-W05",
+            "commit_count": 304,
+            "avg_risk": 0.2351,
+            "high_risk_count": 31
+          },
+          {
+            "period": "2026-W06",
+            "commit_count": 159,
+            "avg_risk": 0.2073,
+            "high_risk_count": 20
+          },
+          {
+            "period": "2026-W07",
+            "commit_count": 140,
+            "avg_risk": 0.1871,
+            "high_risk_count": 14
+          },
+          {
+            "period": "2026-W08",
+            "commit_count": 141,
+            "avg_risk": 0.1845,
+            "high_risk_count": 15
+          },
+          {
+            "period": "2026-W09",
+            "commit_count": 114,
+            "avg_risk": 0.2355,
+            "high_risk_count": 15
+          },
+          {
+            "period": "2026-W10",
+            "commit_count": 158,
+            "avg_risk": 0.1773,
+            "high_risk_count": 20
+          },
+          {
+            "period": "2026-W11",
+            "commit_count": 173,
+            "avg_risk": 0.1526,
+            "high_risk_count": 19
+          },
+          {
+            "period": "2026-W12",
+            "commit_count": 150,
+            "avg_risk": 0.2105,
+            "high_risk_count": 27
+          },
+          {
+            "period": "2026-W13",
+            "commit_count": 107,
+            "avg_risk": 0.2285,
+            "high_risk_count": 23
+          },
+          {
+            "period": "2026-W14",
+            "commit_count": 103,
+            "avg_risk": 0.1787,
+            "high_risk_count": 12
+          },
+          {
+            "period": "2026-W15",
+            "commit_count": 145,
+            "avg_risk": 0.2309,
+            "high_risk_count": 21
+          },
+          {
+            "period": "2026-W16",
+            "commit_count": 109,
+            "avg_risk": 0.1302,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2026-W17",
+            "commit_count": 94,
+            "avg_risk": 0.1108,
+            "high_risk_count": 6
+          },
+          {
+            "period": "2026-W18",
+            "commit_count": 111,
+            "avg_risk": 0.1357,
+            "high_risk_count": 10
+          },
+          {
+            "period": "2026-W19",
+            "commit_count": 202,
+            "avg_risk": 0.1682,
+            "high_risk_count": 25
+          },
+          {
+            "period": "2026-W20",
+            "commit_count": 139,
+            "avg_risk": 0.1921,
+            "high_risk_count": 17
+          },
+          {
+            "period": "2026-W21",
+            "commit_count": 181,
+            "avg_risk": 0.188,
+            "high_risk_count": 23
+          },
+          {
+            "period": "2026-W22",
+            "commit_count": 145,
+            "avg_risk": 0.2404,
+            "high_risk_count": 28
+          },
+          {
+            "period": "2026-W23",
+            "commit_count": 161,
+            "avg_risk": 0.211,
+            "high_risk_count": 24
+          },
+          {
+            "period": "2026-W24",
+            "commit_count": 175,
+            "avg_risk": 0.2386,
+            "high_risk_count": 37
+          },
+          {
+            "period": "2026-W25",
+            "commit_count": 144,
+            "avg_risk": 0.2567,
+            "high_risk_count": 31
+          },
+          {
+            "period": "2026-W26",
+            "commit_count": 131,
+            "avg_risk": 0.222,
+            "high_risk_count": 26
+          },
+          {
+            "period": "2026-W27",
+            "commit_count": 172,
+            "avg_risk": 0.2446,
+            "high_risk_count": 31
+          },
+          {
+            "period": "2026-W28",
+            "commit_count": 236,
+            "avg_risk": 0.191,
+            "high_risk_count": 28
+          },
+          {
+            "period": "2026-W29",
+            "commit_count": 245,
+            "avg_risk": 0.2981,
+            "high_risk_count": 49
+          },
+          {
+            "period": "2026-W30",
+            "commit_count": 172,
+            "avg_risk": 0.3078,
+            "high_risk_count": 43
+          },
+          {
+            "period": "2026-W31",
+            "commit_count": 155,
+            "avg_risk": 0.2049,
+            "high_risk_count": 20
+          },
+          {
+            "period": "2026-W32",
+            "commit_count": 149,
+            "avg_risk": 0.3065,
+            "high_risk_count": 42
+          },
+          {
+            "period": "2026-W33",
+            "commit_count": 119,
+            "avg_risk": 0.1951,
+            "high_risk_count": 17
+          },
+          {
+            "period": "2026-W34",
+            "commit_count": 10,
+            "avg_risk": 0.1738,
+            "high_risk_count": 0
+          },
+          {
+            "period": "2026-W35",
+            "commit_count": 258,
+            "avg_risk": 0.2045,
+            "high_risk_count": 41
+          },
+          {
+            "period": "2026-W36",
+            "commit_count": 190,
+            "avg_risk": 0.2493,
+            "high_risk_count": 43
+          },
+          {
+            "period": "2026-W37",
+            "commit_count": 188,
+            "avg_risk": 0.2801,
+            "high_risk_count": 48
+          },
+          {
+            "period": "2026-W38",
+            "commit_count": 230,
+            "avg_risk": 0.3049,
+            "high_risk_count": 66
+          },
+          {
+            "period": "2026-W39",
+            "commit_count": 240,
+            "avg_risk": 0.3061,
+            "high_risk_count": 59
+          },
+          {
+            "period": "2026-W40",
+            "commit_count": 429,
+            "avg_risk": 0.3903,
+            "high_risk_count": 152
+          },
+          {
+            "period": "2026-W41",
+            "commit_count": 334,
+            "avg_risk": 0.3803,
+            "high_risk_count": 109
+          },
+          {
+            "period": "2026-W46",
+            "commit_count": 23,
+            "avg_risk": 0.3123,
+            "high_risk_count": 6
+          }
+        ]
+      }
+    },
+    "sha256_12": "03861bc045b9"
+  },
+  {
+    "method": "GET",
+    "params": {
+      "model_name": "et_v1"
+    },
+    "body": null,
+    "status": 200,
+    "envelope": {
+      "code": 0,
+      "message": "ok",
+      "data": {
+        "model_name": "et_v1",
+        "line": "expert",
+        "metrics": {
+          "auc": 0.8223332803458686,
+          "ap": 0.44997360625822397,
+          "f1": 0.39547635366689515,
+          "precision": 0.5212285456187895,
+          "recall": 0.31860850358917725,
+          "accuracy": 0.8599054918000238,
+          "n": 25183,
+          "pos_rate": 0.14382718500575786
+        },
+        "figures": [
+          {
+            "figure_type": "roc",
+            "title": "ROC curve",
+            "file_path": "/static/figures/expert/et_v1/roc.png"
+          },
+          {
+            "figure_type": "pr",
+            "title": "Precision-Recall curve",
+            "file_path": "/static/figures/expert/et_v1/pr.png"
+          },
+          {
+            "figure_type": "confusion",
+            "title": "Confusion matrix (threshold=0.5)",
+            "file_path": "/static/figures/expert/et_v1/confusion.png"
+          },
+          {
+            "figure_type": "calibration",
+            "title": "Calibration (reliability) curve",
+            "file_path": "/static/figures/expert/et_v1/calibration.png"
+          },
+          {
+            "figure_type": "effort",
+            "title": "Effort-aware curve (LOC proxy)",
+            "file_path": "/static/figures/expert/et_v1/effort.png"
+          },
+          {
+            "figure_type": "feat_importance",
+            "title": "Feature importance (Kamei 14)",
+            "file_path": "/static/figures/expert/et_v1/feat_importance.png"
+          }
+        ]
+      }
+    },
+    "sha256_12": "5b6dbc1dbc03"
+  },
+  {
+    "method": "GET",
+    "params": null,
+    "body": null,
+    "status": 200,
+    "envelope": {
+      "code": 0,
+      "message": "ok",
+      "data": {
+        "running": false,
+        "mode": null,
+        "scope": null,
+        "total": 0,
+        "done": 0,
+        "current_hash": null,
+        "started_at": null,
+        "last_error": null
+      }
+    },
+    "sha256_12": "141753f3c04e"
+  },
+  {
+    "method": "GET",
+    "params": null,
+    "body": null,
+    "status": 200,
+    "envelope": {
+      "code": 0,
+      "message": "ok",
+      "data": {
+        "status": "ok",
+        "db": "up",
+        "models_loaded": 22,
+        "model_names": [
+          "lr_v1",
+          "rf_v1",
+          "xgb_v1",
+          "lgbm_v1",
+          "et_v1",
+          "svm_v1",
+          "mlp_deep_v1",
+          "tabnet_v1",
+          "et_semantic_v1",
+          "lgbm_semantic_v1",
+          "lr_semantic_v1",
+          "mlp_deep_semantic_v1",
+          "rf_semantic_v1",
+          "svm_semantic_v1",
+          "xgb_semantic_v1",
+          "et_fused_v1",
+          "lgbm_fused_v1",
+          "lr_fused_v1",
+          "mlp_deep_fused_v1",
+          "rf_fused_v1",
+          "svm_fused_v1",
+          "xgb_fused_v1"
+        ],
+        "commit_count": 25308,
+        "prediction_count": 629861,
+        "last_sync_at": null,
+        "server_time": "2026-11-12T15:24:55.355572Z"
+      }
+    },
+    "sha256_12": "d0bc75073284"
+  },
+  {
+    "method": "GET",
+    "params": null,
+    "body": null,
+    "status": 200,
+    "envelope": {
+      "code": 0,
+      "message": "ok",
+      "data": {
+        "status": "ok",
+        "server_time": "2026-11-12T15:24:55.362519Z"
+      }
+    },
+    "sha256_12": "691c4f836039"
+  },
+  {
+    "method": "GET",
+    "params": null,
+    "body": null,
+    "status": 200,
+    "envelope": {
+      "code": 0,
+      "message": "ok",
+      "data": {
+        "status": "ok",
+        "db": "up",
+        "models_loaded": 22,
+        "server_time": "2026-11-12T15:24:55.362519Z"
+      }
+    },
+    "sha256_12": "1c0531189e63"
+  },
+  {
+    "method": "POST",
+    "params": null,
+    "body": {
+      "commit_hash": "3f166232023e04689bfa3814a569920e30fef42b",
+      "model_name": "xgb_v1"
+    },
+    "status": 200,
+    "envelope": {
+      "code": 0,
+      "message": "ok",
+      "data": {
+        "commit_hash": "3f166232023e04689bfa3814a569920e30fef42b",
+        "model_name": "xgb_v1",
+        "risk_score": 0.9993,
+        "predicted_at": "2026-11-12T15:24:55Z",
+        "features": {
+          "ns": 1.9459101491,
+          "nd": 3.4965075615,
+          "nf": 4.1743872699,
+          "entropy": 2.184311203,
+          "la": -2.1140582155,
+          "ld": 0.0,
+          "lt": 6.1863668893,
+          "fix": 1,
+          "ndev": 5.6383546693,
+          "age": 2.6887067161,
+          "nuc": 5.4551238572,
+          "exp": 0.0,
+          "rexp": 0.0,
+          "sexp": 0.0
+        },
+        "explanation": [
+          {
+            "feature": "ns",
+            "contribution": 0.278551,
+            "direction": "increase",
+            "label": "变更子系统多"
+          },
+          {
+            "feature": "nd",
+            "contribution": 0.234066,
+            "direction": "increase",
+            "label": "变更目录多"
+          },
+          {
+            "feature": "nf",
+            "contribution": 2.231739,
+            "direction": "increase",
+            "label": "改动文件多"
+          },
+          {
+            "feature": "entropy",
+            "contribution": 0.11613,
+            "direction": "increase",
+            "label": "改动分散"
+          },
+          {
+            "feature": "la",
+            "contribution": 1.068486,
+            "direction": "increase",
+            "label": "代码改动量大"
+          },
+          {
+            "feature": "ld",
+            "contribution": 1.349013,
+            "direction": "increase",
+            "label": "删除代码多"
+          },
+          {
+            "feature": "lt",
+            "contribution": 0.620939,
+            "direction": "increase",
+            "label": "测试改动少"
+          },
+          {
+            "feature": "fix",
+            "contribution": 1.642369,
+            "direction": "increase",
+            "label": "历史修复标记"
+          },
+          {
+            "feature": "ndev",
+            "contribution": 0.43054,
+            "direction": "increase",
+            "label": "涉及开发者多"
+          },
+          {
+            "feature": "age",
+            "contribution": 0.14084,
+            "direction": "increase",
+            "label": "文件陈旧"
+          },
+          {
+            "feature": "nuc",
+            "contribution": 0.007038,
+            "direction": "increase",
+            "label": "近期改动频繁"
+          },
+          {
+            "feature": "exp",
+            "contribution": 0.450831,
+            "direction": "increase",
+            "label": "作者历史经验低"
+          },
+          {
+            "feature": "rexp",
+            "contribution": 0.335327,
+            "direction": "increase",
+            "label": "作者项目经验低"
+          },
+          {
+            "feature": "sexp",
+            "contribution": 0.548239,
+            "direction": "decrease",
+            "label": "作者近期经验低"
+          }
+        ]
+      }
+    },
+    "sha256_12": "2d95c67a22cb"
+  },
+  {
+    "method": "POST",
+    "params": null,
+    "body": {
+      "commit_hash": "3f166232023e04689bfa3814a569920e30fef42b",
+      "model_name": "no_such_model"
+    },
+    "status": 400,
+    "envelope": {
+      "code": 40001,
+      "message": "参数非法：model_name 不存在",
+      "data": null
+    },
+    "sha256_12": "60e1322b1658"
+  },
+  {
+    "method": "GET",
+    "params": {
+      "size": 101
+    },
+    "body": null,
+    "status": 400,
+    "envelope": {
+      "code": 40001,
+      "message": "参数非法：size 超过上限 100",
+      "data": null
+    },
+    "sha256_12": "25fb954fb020"
+  }
+]
