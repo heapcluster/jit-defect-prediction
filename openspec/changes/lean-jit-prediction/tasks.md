@@ -24,7 +24,7 @@
 ## 3. 「只保留最新」的边界
 
 - [x] 3.1 **删除种子链路**（2026-10-27 已执行）：`backend/scripts/seed_dev_data.py` 删除；`infra/setup_mysql.py` 去掉 `--seed` 参数与 `run_seed()`，完成提示改为「起服务后 `POST /api/sync?limit=10`」 — 证据：`ruff check infra` 通过、`setup_mysql.py` 语法校验通过
-- [x] 3.2 文档同步去种子：`docs/common/test-assessment-guide.md` §2、`docs/common/integration-log.md` §0（建库/数据来源/启动三行）、`AGENTS.md`（负责范围与联调库）、`data_model/pipelines/expert/README.md` §4 — 证据：全仓 `grep seed_dev_data` 仅剩 `backend/scripts/evidence/**` 与 `openspec/changes/archive/**` 等历史归档
+- [x] 3.2 文档同步去种子：`docs/common/test-assessment-guide.md` §2、`docs/test/integration_test/report.md` §0（建库/数据来源/启动三行）、`AGENTS.md`（负责范围与联调库）、`data_model/pipelines/expert/README.md` §4 — 证据：全仓 `grep seed_dev_data` 仅剩 `backend/scripts/evidence/**` 与 `openspec/changes/archive/**` 等历史归档
 - [ ] 3.3 `limit` 越界（> 50）返回 40001，不静默截断；`sync/catchup` 与 `sync` 的 `limit` 语义统一为「最新 N 条」 — `backend/app/api/sync.py`
 - [ ] 3.4 空库首启引导：前端空态只说「拉取最新 N 条」（含 `limit` 说明与预计耗时），`MUST NOT` 出现「导入/初始化/回填/种子」字样 — `frontend/src/views/RiskList.vue`
 - [ ] 3.5 数据稀疏的空态：趋势页数据点 < 2、质量看板 0 样本时的文案复核，避免被误读成「功能坏了」 — `frontend/src/views/{TrendBoard,QualityBoard}.vue`

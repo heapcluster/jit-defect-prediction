@@ -97,6 +97,8 @@ _tmp/
 .mypy_cache/
 .dmypy.json
 coverage.xml
+# 集成脚本 `--json out.json` 的临时输出，正式证据归档到 docs/test/
+out.json
 
 # ===== 本地辅助脚本（个人工具，不入库；见 tools/）=====
 tools/
@@ -108,5 +110,9 @@ data_model/condaenv.*.requirements.txt
 # 这些文件供各 AI 编码工具在本地使用，但不进仓库：
 .claude/
 .qoder/
+.codebuddy/
+.cursor/
+.trae/
+.windsurf/
 AGENTS.md
 CLAUDE.md

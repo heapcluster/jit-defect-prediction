@@ -1,7 +1,7 @@
 """前后端联调留痕：逐端点记录真实请求/响应包络，生成可复核的证据文件。
 
 不依赖浏览器自动化（本机未装 playwright/selenium，且不为此安装依赖）。
-浏览器截图另见 `docs/common/evidence/2026-11-12/`（四页面 + 两种异常态，共 6 张）。
+浏览器截图另见 `docs/test/system_test/execution_records/`（四页面 + 两种异常态，共 6 张）。
 
     cd backend && python scripts/linkage_capture.py
     python scripts/linkage_capture.py --out evidence/2026-11-12-linkage.md
@@ -121,7 +121,7 @@ def main() -> None:
         "## 说明",
         "",
         "- 第 11/12 行是异常联调：未知模型 → 40001，越界 `size` → 40001，证明错误包络与前端三态口径一致。",
-        "- 逐接口浏览器截图见 `docs/common/evidence/2026-11-12/`；本文件只留 HTTP 层证据，不冒充截图。",
+        "- 逐接口浏览器截图见 `docs/test/system_test/execution_records/`；本文件只留 HTTP 层证据，不冒充截图。",
         f"- 原始响应（已截断大字段）见 `{args.raw.name}`，按 sha 可与上方表格对齐。",
         "",
     ]

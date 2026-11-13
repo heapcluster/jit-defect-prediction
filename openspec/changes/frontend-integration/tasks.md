@@ -28,7 +28,7 @@
 - [ ] 4.2 API-04 独立联调：`POST /api/predict` 用真实 40 位 commit_hash（阻塞于真实 commit 灌库；seed 占位 `000...001` 仅证明接口通，不作为通过证据）
 - [ ] 4.3 提交 PR 并写明关联 change id `frontend-integration`，由非作者审阅合入
 - [ ] 4.4 回飞书看板更新任务状态
-- [ ] 4.5 浏览器人工冒烟补齐现行四页取证：在 `docs/common/integration-log.md` 登记提交号、结果及截图链接，覆盖加载中、空数据和契约错误码（40001/40100/50000）；历史 9 张截图只覆盖旧三页的部分场景
+- [ ] 4.5 浏览器人工冒烟补齐现行四页取证：在 `docs/test/integration_test/report.md` 登记提交号、结果及截图链接，覆盖加载中、空数据和契约错误码（40001/40100/50000）；历史 9 张截图只覆盖旧三页的部分场景
 
 ## 测试与验证（强制板块）
 
@@ -36,22 +36,22 @@
 
 - 覆盖对象：三页面的加载、空数据、错误码分发和日期筛选；测试文件位于 `frontend/tests/`。
 - 复现命令：在 `frontend/` 运行 `npm run test:unit`。本节是测试入口，不把历史构建成功写成当前提交的单测通过；当前结果以 CI 为准。
-- 正向与边界：列表数据展示、缺失结果与非法参数提示均需有具体断言。当前浏览器取证缺口登记在 `docs/common/integration-log.md`。
+- 正向与边界：列表数据展示、缺失结果与非法参数提示均需有具体断言。当前浏览器取证缺口登记在 `docs/test/integration_test/report.md`。
 
 ### 2. 集成测试
 
 - 范围：前端请求封装与 `GET /api/commits`、`GET /api/commits/{hash}`、`GET /api/trends`、`POST /api/predict` 的响应契约。
 - 复现步骤：按 `docs/common/local-runbook.md` 起前后端服务，逐一核对正常响应、缺少 `X-API-Key` 的 40100、详情不存在的 40400 和服务错误的 50000。
-- 历史联调记录已随旧文档重组移出；当前记录见 `docs/common/integration-log.md`，本次文档整理未重新执行联调。
+- 历史联调记录已随旧文档重组移出；当前记录见 `docs/test/integration_test/report.md`，本次文档整理未重新执行联调。
 
 ### 3. 验收测试
 
 - 验收依据：`specs/risk-list/spec.md`、`specs/commit-detail/spec.md`、`specs/trend-board/spec.md`、`specs/frontend-error-envelope/spec.md` 的 Scenario。
-- 提案结构复现命令：`openspec validate frontend-integration --strict --no-interactive`；页面现场走查按 `docs/web_page/README.md` 的四页清单执行，证据登记到 `docs/common/integration-log.md`。
+- 提案结构复现命令：`openspec validate frontend-integration --strict --no-interactive`；页面现场走查按 `docs/web_page/README.md` 的四页清单执行，证据登记到 `docs/test/integration_test/report.md`。
 
 #### 场景覆盖矩阵（实现范围，非现场通过率）
 
-> 下表只记录当时三页的**实现覆盖**，不是现行四页现场通过率。当前浏览器取证见 `docs/common/integration-log.md`；历史截图须从 [PR #117](https://github.com/heapcluster/jit-defect-prediction/pull/117) 追溯。
+> 下表只记录当时三页的**实现覆盖**，不是现行四页现场通过率。当前浏览器取证见 `docs/test/integration_test/report.md`；历史截图须从 [PR #117](https://github.com/heapcluster/jit-defect-prediction/pull/117) 追溯。
 
 | 场景 | 风险列表 | 提交详情 | 趋势看板 |
 |---|---|---|---|
@@ -90,7 +90,7 @@
 | 命令 | `npm run build` / `npm run lint` / `openspec validate --changes frontend-integration` |
 | 结果 | build ✓（<1s）；lint 0 error 0 warning；openspec validate 通过 |
 | 联调证据 | `GET /api/commits?page=1&size=3`（`X-API-Key: dev-token-*`）→ `{"code":0,...,"items":[...3 条]}`；无 key → HTTP 401；详情 `GET /api/commits/{hash}`、趋势 `GET /api/trends` 同链路可达 |
-| 当前联调记录 | `docs/common/integration-log.md`（现为待填索引；历史请求与脱敏响应须从 PR 记录追溯） |
+| 当前联调记录 | `docs/test/integration_test/report.md`（现为待填索引；历史请求与脱敏响应须从 PR 记录追溯） |
 
 ### 4. 非功能验证
 
@@ -102,8 +102,8 @@
 #### 阻断 / 不适用说明
 
 - **阻断（已解除）**：#62（时间范围闭区间语义）已于 2026-10-16 合入，前端送纯日期的端到端含当天行为可验证。
-- **范围变更**：`POST /api/predict` 原标注「无页面依赖」，现已在详情页加「重新预测」入口（`postPredict` + 模型下拉），纳入本 change；结果一次性展示（刷新回到默认模型），联调见 integration-log.md API-04 节。
+- **范围变更**：`POST /api/predict` 原标注「无页面依赖」，现已在详情页加「重新预测」入口（`postPredict` + 模型下拉），纳入本 change；结果一次性展示（刷新回到默认模型），联调见 docs/test/integration_test/report.md API-04 节。
 
 #### 落地结论与缺口
 
-F2/F3 历史三页面实现与 F4 当时的 API 联调记录可从 [PR #117](https://github.com/heapcluster/jit-defect-prediction/pull/117) 追溯；当前产品为四页。现行四页浏览器验收尚未由本 change 重新取证，待补场景和证据登记到 `docs/common/integration-log.md`，不得把旧 9 张截图计作现行验收通过。
+F2/F3 历史三页面实现与 F4 当时的 API 联调记录可从 [PR #117](https://github.com/heapcluster/jit-defect-prediction/pull/117) 追溯；当前产品为四页。现行四页浏览器验收尚未由本 change 重新取证，待补场景和证据登记到 `docs/test/integration_test/report.md`，不得把旧 9 张截图计作现行验收通过。

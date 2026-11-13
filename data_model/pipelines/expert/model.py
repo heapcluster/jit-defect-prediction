@@ -137,9 +137,9 @@ def build_model(name: str, seed: int):
             ]
         )
     if name == "rf":
-        # D-14：原 min_samples_leaf=2、不限深度，长成 300 棵 / 366 万节点 / 279MB，
+        # 原 min_samples_leaf=2、不限深度，长成 300 棵 / 366 万节点 / 279MB，
         # SHAP 单次 782ms 把 p95 顶到 713.8ms。收敛到叶数上限后节点数降一个量级，
-        # 换取 SHAP 可算（验收：p95<500ms 且 AUC 降 ≤0.01，见 docs/common/defect-records.md D-14）。
+        # 换取 SHAP 可算（验收口径：p95<500ms 且 AUC 降 ≤0.01）。
         return RandomForestClassifier(
             n_estimators=300, min_samples_leaf=100, max_depth=15, random_state=seed, n_jobs=-1
         )

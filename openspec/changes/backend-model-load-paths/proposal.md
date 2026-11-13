@@ -8,7 +8,7 @@
 - 汇总清单已声明但文件缺失、反序列化失败或特征宽度不符的模型名，以 `logger.error` 输出失败清单；保留成功清单与单文件异常详情，失败不阻断其它模型加载。清单本身缺失或列序漂移时沿用 #96 的整目录拒绝语义，不伪造失败名单。
 - `backend/.env.example` 注明 MODEL_DIR 留空时使用 `data_model/pipelines/expert/models/`，原有本地 `.env` 不改动。
 - 在 `backend/tests/test_integration_*.py` 建立可运行的 SQLite 建表、四类 CSV 灌入、四接口及幂等验证，不依赖真实 MySQL 或外部权重。
-- D-09 按用户最新要求另开独立 change；保留 `docs/common/defect-records.md` 的 P3登记，不在本次模型加载修复中修改哈希大小写语义。
+- D-09 按用户最新要求另开独立 change；保留其 P3 定级，不在本次模型加载修复中修改哈希大小写语义。
 - 定位：在 #96 已合并的清单加载之上补导入路径与失败汇总，不改清单解析、不动 `[models]` 白名单范围与列序校验。不做：不修改模型导出格式、不注册 `__main__` 兼容别名、不修改前端或训练代码、不做 MySQL 灌库、不新增接口/健康检查/在线特征抽取。
 
 ## Capabilities
