@@ -28,6 +28,9 @@ def select_checks(paths: Iterable[str]) -> dict[str, bool]:
     for path in changed:
         if is_documentation(path):
             continue
+        if path.startswith("openspec/changes/") and path.endswith("/.openspec.yaml"):
+            # Change-local OpenSpec metadata follows the document review path.
+            continue
         if path == ".gitignore":
             checks["infra"] = True
             continue
