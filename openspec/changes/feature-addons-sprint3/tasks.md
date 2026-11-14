@@ -11,12 +11,12 @@
 - [x] 1.3 课程 2026/10/12 新增两项可选附加功能：`G1-3`（公开缺陷数据集加载与质量治理）/ `G1-4`（预训练语义特征建模），已登记入 PRD 第五章与《需求范围表》；看板新增 Sprint 3 两行（G1-3 `reczz28MirZUzuxq` / G1-4 `reczz28MirZV4HRJ`），关联本 change
 
 ## 2. 缺陷可视化定位（Sprint 3）
-- [ ] 2.1 详情页接入文件级 SHAP / 行级高亮
-- [ ] 2.2 联调记录入库（前置：前端三页面 F3 完成）
+- [ ] 2.1 对照 `backend/app/services/commits.py`、`backend/app/api/commits.py` 与详情页，验收提交级归因、真实 diff 新增行及缺源仓库降级；不得把新增行写成文件级 SHAP / 行级概率
+- [ ] 2.2 补四页联调证据，包含真实 diff 可达与不可达两种场景；现有报告入口为 `docs/test/integration_test/report.md`
 
 ## 3. 高质量修复建议（Sprint 3）
-- [ ] 3.1 历史修复提交检索脚本（data_model/）
-- [ ] 3.2 高风险提交 Top-K 建议输出与联调
+- [ ] 3.1 对照 `backend/app/services/commits.py` 的只读检索，验证 `commit_feature.fix=1`、同仓库、排除自身、按时间倒序及空态
+- [ ] 3.2 补详情页 `fix_references` Top-K 与空列表的联调证据；不得把时间倒序写成相关度排序
 
 ## 4. 公开数据集加载与质量治理（G1-3）—— 已于 2026-10-13 移出本 change
 > **已移出**：G1-3 由 `public-dataset-quality` 承接。本节仅保留迁移记录，不属于本 change 的待办或验收范围。
@@ -69,6 +69,6 @@
 ### 5. 已知缺口与后续计划
 | 缺口 | 原因 | 归属 | 计划时间 |
 |---|---|---|---|
-| G1-1/G1-2 功能任务 2.1–3.2 未完成 | 当前接口与页面没有可验收的行级证据和修复建议 | 蒋励 / 刘帅华 | 由飞书看板确定 |
+| G1-1/G1-2 任务 2.1–3.2 待验收 | 后端已有提交级归因、真实 diff 与修复参考；缺页面与接口联调证据 | 蒋励 / 刘帅华 / 吕建江 | 由飞书看板确定 |
 | 测试计划已立但无实测证据 | 功能尚未交付 | 同上 | 对应功能 PR 中补 |
-| G1-3/G1-4 的文献与实验缺口 | 已移交独立 change，本 change 不验收 | 蒋励 | 见 `docs/common/pending.md`，由对应 change 追踪 |
+| G1-3/G1-4 的文献与实验缺口 | 已移交独立 change，本 change 不验收 | 蒋励 | 见 `public-dataset-quality`、`semantic-feature-mainline` 的任务清单 |

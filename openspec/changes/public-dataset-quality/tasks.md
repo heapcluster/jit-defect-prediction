@@ -3,15 +3,15 @@
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/public-dataset/spec.md`
 > 负责人：model 蒋励 ｜ 创建：2026-10-13
 > 关联需求：C1-2（数据集加载）/ C1-3（数据质量治理）—— 回应课程附加功能 (3) 三条问题
-> 状态：进行中（Sprint 2 启动）
+> 状态：待补证据（旧交付路径已删除；未复核前不得视为完成）
 
 ## 1. 阻塞前置：可下载性验证（第 1 号任务，不过则整体降级）
-- [x] 1.1 逐个验证候选公开 JIT 数据集的可下载性（网络、链接、体积、许可证），输出 `data_model/preparation/reports/public_dataset_probe.md`：候选清单 / 可达性 / 体积 / 许可证 / 字段完备性
+- [ ] 1.1 逐个验证候选公开 JIT 数据集的可下载性（网络、链接、体积、许可证），输出 `data_model/preparation/reports/public_dataset_probe.md`：候选清单 / 可达性 / 体积 / 许可证 / 字段完备性
 - [ ] 1.2 **若全部不可达**：本 change 降级为「加载器 + 质量评价框架 + 用 Apache Camel 数据自验」，并在 1.1 报告与周报中**如实写明「未能获取公开数据集及原因」**，**不虚构数据** —— **本轮未触发**（有可达且字段可用的数据集），保留条目以便后续复核
-- [x] 1.3 若部分可达：按「字段完备性优先、语种多样性优先」选定 1–2 个入change，其余记入候选清单备查 —— 选定 Trac（`3910003`，提交级 + 标签 + 非 Java），CPJITSDP 备查，ApacheJIT 探测为不可达（记录在报告 §1）
+- [ ] 1.3 若部分可达：按「字段完备性优先、语种多样性优先」选定 1–2 个入change，其余记入候选清单备查 —— 选定 Trac（`3910003`，提交级 + 标签 + 非 Java），CPJITSDP 备查，ApacheJIT 探测为不可达（记录在报告 §1）
 
 ## 2. 加载器（蒋励）
-- [ ] 2.1 新增 `data_model/20_load_public_dataset.py`：解析公开数据集为与契约一 `commit` / `commit_label` 对齐的记录；**缺必需字段报错终止，不产半成品**
+- [ ] 2.1 新增 `data_model/20_load_public_dataset.py`：解析公开数据集为与 `commit` / `commit_feature.is_bug_inducing` 口径可映射的离线记录；不直接入库；**缺必需字段报错终止，不产半成品**
 - [ ] 2.2 字段映射表输出（公开数据集字段 ↔ 契约字段）；口径冲突显式登记，不静默对齐
 - [ ] 2.3 元数据落盘：来源、许可证、获取日期、原始体积、抽样方法（若抽样）
 - [ ] 2.4 落盘位置 `data_model/data/public/<name>/`；**不入库、不进交付链**
@@ -28,7 +28,7 @@
 - [ ] 4.2 超模型上限按行截断并记录截断统计，不静默丢数据
 
 ## 5. 与 Apache Camel 基线并列（蒋励）
-- [ ] 5.1 确认 Apache Camel 基线未被改动：`data_model/models/[models]` 段、契约三接口、契约二 14 项列名与顺序均无变化
+- [ ] 5.1 确认 Apache Camel 基线未被改动：`data_model/pipelines/expert/models/feature_order.txt` 的 `[models]` 段、现行 `docs/api/` 接口、`docs/database/commit_feature.md` 的 14 项列名与顺序均无变化
 - [ ] 5.2 任何基于公开数据集的结论**必须标注**「基于公开数据集 X，与 Apache Camel 基线并列对照」，不得表述为替换了交付数据
 
 ## 6. 抽样纪律（蒋励）
@@ -43,7 +43,7 @@
 - [ ] 8.1 `docs/overview.md` 边界表述改写：「公开数据集（可选）」→「已提升为承诺范围（Sprint 2）」
 - [ ] 8.2 `feature-addons-sprint3` 的 G1-3 条目移出，proposal/tasks/design 同步注明「已由 `public-dataset-quality` 顶替」，不留双入口
 - [ ] 8.3 `docs/common/project-requirements.md` §3 G1-3 定位改写；`docs/common/data-pipeline.md` 增补公开数据集加载步骤
-- [ ] 8.4 `docs/common/pending.md` §9 补「公开数据集与质量评价」文献依据行
+- [ ] 8.4 在本 change 的 `design.md` 补「公开数据集与质量评价」文献依据及适用范围，列出可核验出处；未核验不写完成
 
 ## 测试与验证（强制板块）
 
@@ -86,6 +86,9 @@
 | 易用 | 是 | 质量报告含异常样本可点回具体记录，便于定位 |
 
 ### 5. 已知缺口与后续计划
+
+- 2026-11-14 规格统一复核：1.1 的 `data_model/preparation/reports/public_dataset_probe.md` 不在当前树；1.3 的选集结论依赖同一缺失报告。两项撤回勾选，补可下载性、许可证和字段核对报告后再复审。
+
 | 缺口 | 原因 | 归属 | 计划时间 |
 |---|---|---|---|
 | **公开数据集可下载性未验证**（代理不通，无法访问 GitHub） | 当前网络环境受限 | 蒋励 | Sprint 2 第 1 天（tasks 1.1） |

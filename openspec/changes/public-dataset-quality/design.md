@@ -1,6 +1,6 @@
 # 公开数据集加载与质量治理 — 设计要点
 
-> 只记技术决策与取舍，不重复 proposal 的内容。关联：`docs/common/pending.md` §9、`docs/common/project-requirements.md` §3、`docs/overview.md`。
+> 只记技术决策与取舍，不重复 proposal 的内容。关联：`docs/common/project-requirements.md` §3、`docs/overview.md`；待决策事项见本 change 的 `tasks.md`。
 
 ## D1：为什么公开数据集的定位是「验证 + 治理 + 对照」，不是「换交付数据」
 
@@ -28,7 +28,7 @@
 
 ## D3：加载器设计与字段映射
 
-- 新增 `data_model/20_load_public_dataset.py`，产出与契约一 `commit` / `commit_label` 对齐的记录。
+- 新增 `data_model/20_load_public_dataset.py`，产出与 `commit` / `commit_feature.is_bug_inducing` 口径可映射的**离线**记录，不直接写入现行数据库。
 - **缺必需字段（commit 标识 / 标签 / 时间戳）→ 报错终止，不产半成品**。用默认值填充会让下游把「缺失」当成「无缺陷」，是静默污染。
 - 字段名不一致时输出**字段映射表**；口径冲突显式登记，**不静默对齐**（例如公开数据集的 `bug` 列是「修复提交」还是「引入提交」，必须分清）。
 - 元数据落盘：来源、许可证、获取日期、原始体积、抽样方法。
@@ -46,7 +46,7 @@
 
 ## D5：与 Apache Camel 并列而非替换
 
-- Apache Camel 基线与现有管线**一行不动**：`data_model/models/[models]` 段、契约三接口、契约二 14 项列名与顺序均无变化。
+- Apache Camel 基线与现有管线**一行不动**：`data_model/pipelines/expert/models/feature_order.txt` 的 `[models]` 段、现行 `docs/api/` 接口、`docs/database/commit_feature.md` 的 14 项列名与顺序均无变化。
 - 任何基于公开数据集的结论**必须标注**「基于公开数据集 X，与 Apache Camel 基线并列对照」，不得表述为替换了交付数据。
 
 ## D6：抽样纪律

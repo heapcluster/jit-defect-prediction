@@ -2,12 +2,12 @@
 
 ### Requirement: 公开数据集加载与保存
 
-系统 SHALL 支持加载并保存现有公开 JIT 缺陷数据集，解析为与 `commit` / `commit_label` / `commit_feature` 对齐的记录；缺必需字段 MUST 报错终止，MUST NOT 产出半成品。
+系统 SHALL 支持加载并保存现有公开 JIT 缺陷数据集，产出与 `commit` / `commit_feature.is_bug_inducing` 字段口径可映射的离线记录；加载器 MUST NOT 直接写入现行数据库；缺必需字段 MUST 报错终止，MUST NOT 产出半成品。
 
 #### Scenario: 正常加载
 
 - **WHEN** 给定一个公开数据集目录
-- **THEN** 产出与契约一 `commit` / `commit_label` 字段对齐的记录集，并附带来源、许可证、获取日期元数据
+- **THEN** 产出可映射到 `commit` 与 `commit_feature.is_bug_inducing` 的离线记录集，并附带来源、许可证、获取日期元数据；现行数据库不增加记录
 
 #### Scenario: 缺必需字段
 
@@ -68,7 +68,7 @@
 #### Scenario: 基线不变
 
 - **WHEN** 公开数据集加载与治理完成
-- **THEN** `data_model/models/[models]` 段、契约三接口、契约二 14 项列名与顺序均无改动
+- **THEN** `data_model/pipelines/expert/models/feature_order.txt` 的 `[models]` 段、现行 `docs/api/` 接口、`docs/database/commit_feature.md` 的 14 项列名与顺序均无改动
 
 #### Scenario: 用途限定
 

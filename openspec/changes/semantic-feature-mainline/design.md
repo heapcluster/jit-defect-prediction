@@ -1,6 +1,6 @@
 # 语义特征主线 — 设计要点
 
-> 只记技术决策与取舍，不重复 proposal 的内容。关联：`docs/common/pending.md` §9、`docs/common/project-requirements.md` §4。
+> 只记技术决策与取舍，不重复 proposal 的内容。关联：`docs/common/project-requirements.md` §4；待决策事项见本 change 的 `tasks.md`。
 
 ## D1：为什么 CodeBERT 是主路线，MiniLM 只是可选弱基线（2026-10-13 订正）
 
