@@ -110,6 +110,7 @@ jobs:
         run: |
           python -m pytest -q infra/tests
           python -m unittest discover -s .github/ci/tests -p 'test_*.py' -v
+          python openspec/check_structure.py
 
       - name: Test backend
         if: steps.scope.outputs.backend == 'true'
