@@ -39,6 +39,12 @@ class CIScopeTests(unittest.TestCase):
             {"backend": False, "frontend": False, "model": False, "infra": True},
         )
 
+    def test_openspec_checker_change_tests_infra_only(self):
+        self.assertEqual(
+            select_checks(["openspec/check_structure.py", "openspec/specs/ui/spec.md"]),
+            {"backend": False, "frontend": False, "model": False, "infra": True},
+        )
+
     def test_dependency_or_unknown_changes_run_all(self):
         for paths in (
             ["data_model/environment.yml"],

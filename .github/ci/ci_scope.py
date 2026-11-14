@@ -43,7 +43,7 @@ def select_checks(paths: Iterable[str]) -> dict[str, bool]:
             return dict.fromkeys(checks, True)
         elif path.startswith("data_model/"):
             checks["model"] = True
-        elif path.startswith("infra/"):
+        elif path == "openspec/check_structure.py" or path.startswith("infra/"):
             checks["infra"] = True
             if path in {"infra/schema.sql", "infra/setup_mysql.py"}:
                 checks["backend"] = True
