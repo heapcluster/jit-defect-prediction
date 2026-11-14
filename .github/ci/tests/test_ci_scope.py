@@ -13,7 +13,11 @@ from ci_scope import select_checks  # noqa: E402
 
 class CIScopeTests(unittest.TestCase):
     def test_docs_are_lightweight(self):
-        for paths in (["docs/api/commits.md"], ["docs/web_page/model_performance.md"]):
+        for paths in (
+            ["docs/api/commits.md"],
+            ["docs/web_page/model_performance.md"],
+            ["openspec/changes/archive/old/.openspec.yaml"],
+        ):
             with self.subTest(paths=paths):
                 self.assertFalse(any(select_checks(paths).values()))
 
@@ -36,6 +40,12 @@ class CIScopeTests(unittest.TestCase):
     def test_ci_change_tests_infra_without_inheriting_broken_backend_baseline(self):
         self.assertEqual(
             select_checks([".github/workflows/ci.yml", ".github/ci/ci_scope.py"]),
+            {"backend": False, "frontend": False, "model": False, "infra": True},
+        )
+
+    def test_openspec_checker_change_tests_infra_only(self):
+        self.assertEqual(
+            select_checks(["openspec/check_structure.py", "openspec/specs/ui/spec.md"]),
             {"backend": False, "frontend": False, "model": False, "infra": True},
         )
 

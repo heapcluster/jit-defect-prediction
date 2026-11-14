@@ -63,16 +63,21 @@
 
 ### Requirement: 模型不可用错误
 
-预测所需模型缺失或加载失败 SHALL 返回 50000（HTTP 500），message 为固定文案；异常详情 SHALL 只写服务端日志。
+注册表整体无可用模型 SHALL 返回 50000（HTTP 500）；显式指定的模型名不存在或该模型暂无在线权重 SHALL 返回 40001（HTTP 400）并说明不可用。异常详情 SHALL 只写服务端日志，响应不得泄露本地路径。
 
 #### Scenario: 无可用模型
 
 - **WHEN** 注册表为空时调用 predict
 - **THEN** 返回 50000 且 message 不回显任何文件路径
 
+#### Scenario: 指定的模型无在线权重
+
+- **WHEN** 注册表中有其它模型，但请求明确指定的模型不在在线清单或其权重未加载
+- **THEN** 返回 40001，说明模型名不存在或仅能离线评估，且不回显权重路径
+
 ### Requirement: 预测结果幂等落库
 
-predict 成功后 SHALL 将结果写入 `prediction` 表（聊天第三条：A 与 C 写同一张表、靠 `model_name` 区分）；同一 `(commit_hash, model_name)` 重复调用 SHALL 只保留最新一行（update-or-insert，design D7），MUST NOT 累积重复行；写入时 `feature_version` SHALL 读自该提交 `commit_feature.feature_version` 同值落库（契约一表三必填列的取值来源，方案 A 与方案 C 同此口径）。
+predict 成功后 SHALL 将结果写入 `prediction` 表；同一 `(commit_hash, model_name)` 重复调用 SHALL 只保留最新一行（update-or-insert），MUST NOT 累积重复行；写入时 `feature_version` SHALL 读自该提交 `commit_feature.feature_version`。批量同步走 `POST /api/sync`，离线测试集初始化另行取证。
 
 #### Scenario: 重复调用不累积
 

@@ -2,7 +2,7 @@
 
 `specs/<capability>/spec.md` 是已归档能力的活规格；`changes/<change>/` 是尚待验收或归档的增量；`changes/archive/` 仅作历史证据。当前产品技术正文见 [`../docs/README.md`](../docs/README.md)。
 
-2026-11-13 已恢复原路径下的旧任务文档；[`todo/sober-2-OpenSpec归档.md`](../todo/sober-2-OpenSpec归档.md) 提供归档与证据一致性要求。旧编号与现行分工可能不同，任务负责人和进度以当前 [`todo/README.md`](../todo/README.md) 及飞书看板为准；OpenSpec 文件格式以本目录模板和 `config.yaml` 为准。
+2026-11-13 已恢复原路径下的旧任务文档；[`todo/sober-2-OpenSpec归档.md`](../todo/sober-2-OpenSpec归档.md) 提供归档与证据一致性要求。旧编号与现行分工可能不同，任务负责人和进度以当前 [`todo/README.md`](../todo/README.md) 及飞书看板为准；OpenSpec 文件格式以本目录模板和 `config.yaml` 为准。2026-11-14 将被当前范围取代的旧提案移到 `changes/archive/2026-11-14-withdrawn-*/`，每份有 `WITHDRAWN.md`；**撤回不等于实施完成，也不应用旧 delta**。
 
 ## 新变更统一格式
 
@@ -12,12 +12,12 @@
 - `tasks.md`：按 [`TASKS_TEMPLATE.md`](TASKS_TEMPLATE.md) 写文件头、连续编号、可验收任务和末尾五节「测试与验证」。证据未产生就写“未执行/待补”，不能勾选。
 - `.openspec.yaml`：仅在需要自定义 schema 或生成上下文时使用；是否存在不作为格式合格判据。
 
-命令：在仓库根目录执行 `openspec validate --specs --strict`；每个活跃 change 再执行 `openspec validate <change> --strict`。CLI 未安装时在 PR 中如实标记未执行。纯文档 PR 的 CI 仍走轻量检查；OpenSpec 规范校验由提交者和审阅者执行。
+命令：在仓库根目录执行 `openspec validate --specs --strict` 和 `openspec validate --changes --strict`；再执行 `python openspec/check_structure.py` 核对模板、连续编号、已勾选任务的现存证据路径和活规格链接。CLI 未安装时在 PR 中如实标记未执行。纯文档 PR 的 CI 仍走轻量检查；OpenSpec 规范校验由提交者和审阅者执行。
 
 ## 2026-11 文档重组后的待迁移项
 
 原 `docs/backend/`、`docs/model/`、`docs/design/` 等目录已移除。历史归档里的路径保留作为当时记录；**活规格和活跃 change 中的旧路径不能当可点击证据**，应指向 `docs/api/`、`docs/database/`、`docs/function_point/`、`docs/web_page/` 或实际测试报告。旧版本号及“4 表/3 页/2–3 模型”等历史口径不代表现行系统。
 
-现行基线以 `docs/overview.md` 为准：5 张表、4 个页面、四条模型线共 25 模型（在线权重的可用范围按实际交付清单核验）。本轮已订正 `db-schema`、`query-api`、`model-training`、`model-delivery`、`model-coverage`、`szz-labeling`、`commit-collection`、`feature-extraction` 八份活规格中的旧结构与路径。规范订正不等于功能验收；真实权重、数据库及页面结果仍须按对应 change 逐项取证。
+现行基线以 `docs/overview.md` 为准：5 张表、4 个页面、四条模型线共 25 模型（在线权重的可用范围按实际交付清单核验）。规范订正不等于功能验收；真实权重、数据库及页面结果仍须按对应 change 逐项取证。
 
 活跃 change 的口径冲突与证据缺口见 [`changes/README.md`](changes/README.md)。本次重组映射的路径是**导航入口**；旧 `§` 章节号及原文里的历史验收数字不自动迁移。任何指向已删除截图、报告或脚本的证据，都需由负责人重新提供可打开的 PR/飞书链接并复核结果。
