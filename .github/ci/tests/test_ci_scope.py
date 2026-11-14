@@ -13,7 +13,11 @@ from ci_scope import select_checks  # noqa: E402
 
 class CIScopeTests(unittest.TestCase):
     def test_docs_are_lightweight(self):
-        for paths in (["docs/api/commits.md"], ["docs/web_page/model_performance.md"]):
+        for paths in (
+            ["docs/api/commits.md"],
+            ["docs/web_page/model_performance.md"],
+            ["openspec/changes/archive/old/.openspec.yaml"],
+        ):
             with self.subTest(paths=paths):
                 self.assertFalse(any(select_checks(paths).values()))
 
