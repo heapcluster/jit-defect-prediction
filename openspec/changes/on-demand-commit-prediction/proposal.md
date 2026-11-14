@@ -2,20 +2,20 @@
 
 ## Why
 
-原预测接口只读取 `commit` 与 `commit_feature` 表；新提交尚未跑批量 CSV 灌库时返回 40400，无法满足“新提交即可在线预测”。模型线的 `single-commit-feature-extraction` 已提供与冻结 v1 一致的单条入口，本 change 把它接入后端，同时修复详情在全局默认模型与该提交预测模型不同情况下误显示“尚未预测”。
+原预测接口只读取 `commit` 与 `commit_feature` 表；新提交未入库时返回 40400，无法满足“新提交即可在线预测”。模型线的 `single-commit-feature-extraction` 已提供单条入口，本 change 把它接入后端，并要求详情通过显式 `model_name` 查看所选模型的预测。
 
 ## What Changes
 
 - 服务端 `.env` 新增可选 `SOURCE_REPO`，由服务端指定本地 Git 仓库，客户端仍只提交 hash 与可选 model_name。
 - 提交/特征缺失时调用模型线单条入口，按现有表字段落库，再实时推理并幂等写 `prediction`。
-- 详情在全局默认模型没有该提交预测时，回退到该提交已有的最新版本模型；回归测试覆盖新提交、重复调用、来源缺失与哈希规范化。
+- 详情按显式 `model_name` 查询所选模型；未指定时使用全站默认模型，不跨模型自动回退；回归测试覆盖新提交、重复调用、来源缺失与哈希规范化。
 
 ## Capabilities
 
 ### Modified Capabilities
 
 - `predict-api`: 新提交可从配置的仓库现算特征；错误码仍用冻结集合。
-- `query-api`: 详情不因全局默认模型与该提交模型不同而隐藏已有预测。
+- `query-api`: 详情显式指定模型时展示该模型预测；未指定时与列表使用同一默认模型。
 
 ## Impact
 

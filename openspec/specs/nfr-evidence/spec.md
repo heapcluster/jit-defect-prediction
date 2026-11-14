@@ -21,7 +21,7 @@
 
 ### Requirement: 安全用例脚本
 
-系统 SHALL 提供 `backend/scripts/security_cases.py`，覆盖两组用例并断言：① 缺失令牌与错误令牌均返回 HTTP 401 且 `code=40100`、message 为 `missing or invalid token`；② 畸形参数（`size=101`、`granularity=day`、非 40 位十六进制 hash）返回 40001 且响应体不含异常堆栈、SQL 语句、文件路径关键字；③ 模型缺失时 `POST /api/predict` 返回 50000 且 message 为固定文案、不含路径。
+系统 SHALL 提供 `backend/scripts/security_cases.py`，覆盖并断言：① 缺失令牌与错误令牌均返回 HTTP 401 且 `code=40100`、message 为 `missing or invalid token`；② 畸形参数（`size=101`、`granularity=day`、非 40 位十六进制 hash）返回 40001 且响应体不含异常堆栈、SQL 语句、文件路径关键字；③ 显式指定的模型不可用时 `POST /api/predict` 返回 40001 且不含路径，注册表整体为空时返回固定文案 50000。具体区分见 `openspec/specs/predict-api/spec.md`。
 
 #### Scenario: 全部用例通过
 
@@ -35,7 +35,7 @@
 
 ### Requirement: 证据留档与占位模型标注
 
-每次运行 SHALL 产出 `backend/scripts/evidence/<日期>-<主题>.md`，含运行日期、模型来源标注（占位模型 / 真模型及 model_name）、命令与关键输出，并提交版本控制；占位模型证据 SHALL 显式标注「占位模型」，真 `.pkl` 交付后 SHALL 重跑并追加新证据，旧证据保留不删。
+每次正式取证 SHALL 在 `docs/test/integration_test/execution_records/` 产出带日期的 Markdown 记录，含运行日期、模型来源标注（占位模型 / 真模型及 model_name）、命令与关键输出，并提交版本控制；占位模型证据 SHALL 显式标注「占位模型」，真 `.pkl` 交付后 SHALL 重跑并追加新证据，旧证据保留不删。
 
 #### Scenario: 证据文件含模型来源行
 
@@ -45,4 +45,4 @@
 #### Scenario: 真模型重跑追加
 
 - **WHEN** 真 `.pkl` 交付后重跑压测
-- **THEN** 新增一份带真模型标注的证据 md，原占位证据文件保留在 evidence/ 目录
+- **THEN** 新增一份带真模型标注的证据 md，原占位证据文件仍保留在 `docs/test/integration_test/execution_records/`
