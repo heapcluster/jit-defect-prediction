@@ -196,14 +196,15 @@ def test_sync_endpoint_is_async(client, monkeypatch):
 
 
 def test_sync_endpoint_rejects_when_running(client, monkeypatch):
-    """已有同步任务时再次 POST → 50000（服务端串行锁，不排队）。"""
+    """已有同步任务时再次 POST → 40001「同步进行中」（可解释冲突，不排队）。"""
     from app.services import sync_state
 
     sync_state.set_state(running=True)
     try:
         resp = client.post("/api/sync", headers=HEADERS)
-        assert resp.status_code == 500
-        assert resp.json()["code"] == 50000
+        assert resp.status_code == 400
+        assert resp.json()["code"] == 40001
+        assert resp.json()["message"] == sync_module.SYNC_BUSY_MESSAGE
     finally:
         sync_state.set_state(running=False)
 
@@ -271,12 +272,13 @@ def test_sync_endpoint_unreachable_commit_counts_as_skipped(client, monkeypatch,
 
 
 def test_sync_concurrent_calls_rejected(monkeypatch):
-    """持锁期间再次进入 → 50000（不排队、不并发操作同一仓库）。"""
+    """持锁期间再次进入 → 40001（可解释冲突，不并发操作同一仓库）。"""
     assert sync_module._sync_lock.acquire(blocking=False)
     try:
         with pytest.raises(AppError) as exc:
             sync_module.sync_manual()
-        assert exc.value.code == 50000
+        assert exc.value.code == 40001
+        assert exc.value.message == sync_module.SYNC_BUSY_MESSAGE
     finally:
         sync_module._sync_lock.release()
 
@@ -326,6 +328,7 @@ def test_sync_status_reports_idle_and_after_catchup(client, monkeypatch, tmp_pat
     assert after["running"] is False
     assert after["mode"] == "startup"
     assert after["scope"] == "catchup-to-head"
+    assert after["started_at"].endswith("Z")
 
 
 def test_unpredicted_truncates_at_limit_and_says_so():

@@ -16,6 +16,7 @@ from app import config, db, model_registry
 from app.api import commits, figures, health, models, predict, sync, trends
 from app.auth import MISSING_OR_INVALID_TOKEN
 from app.errors import error_payload, register_error_handlers
+from app.services import figure_store
 
 logging.basicConfig(level=logging.INFO)
 
@@ -97,7 +98,10 @@ def create_app() -> FastAPI:
     app.include_router(sync.router)
     app.include_router(figures.router)
     app.include_router(health.router)
-    # 模型性能图集：<img> 带不了 X-API-Key，前端 fetch（带鉴权头）取二进制转 ObjectURL 渲染
+    # 模型性能图集：<img> 带不了 X-API-Key，前端 fetch（带鉴权头）取二进制转 ObjectURL 渲染。
+    # 目录不入库（干净检出为空），启动时先建目录再把仓库内图集落地，避免 mount 直接 RuntimeError。
+    config.FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    figure_store.sync_figures()
     app.mount("/static", StaticFiles(directory=str(config.FIGURES_DIR.parent)), name="static")
     return app
 

@@ -15,6 +15,7 @@ def test_health_ok_reports_counts_and_models(client):
     assert data["db"] == "up"
     assert data["models_loaded"] >= 1
     assert data["model_names"]
+    assert data["catalog_count"] >= data["models_loaded"]
     assert data["commit_count"] >= 1
     assert data["prediction_count"] >= 1
     assert data["server_time"].endswith("Z")

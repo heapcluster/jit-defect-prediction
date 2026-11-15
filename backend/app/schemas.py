@@ -6,7 +6,7 @@ PR、质量、反馈、运行时配置等已下线模块的 schema 一并删除�
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ExplanationItem(BaseModel):
@@ -184,6 +184,8 @@ class FiguresData(BaseModel):
     line: str
     metrics: MetricsData | None = None
     figures: list[FigureData]
+    # 库内有记录但磁盘缺图：前端据此提示降级，不把不可用路径当可用返回
+    missing: list[str] = Field(default_factory=list)
 
 
 class FiguresResponse(BaseModel):
@@ -199,6 +201,7 @@ class HealthData(BaseModel):
     db: str
     models_loaded: int
     model_names: list[str]
+    catalog_count: int
     commit_count: int
     prediction_count: int
     last_sync_at: str | None

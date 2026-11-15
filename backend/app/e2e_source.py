@@ -9,13 +9,19 @@ from __future__ import annotations
 
 import csv
 import logging
+import threading
 from functools import lru_cache
 
 from app import config
+from app.services import text_inputs
 
 logger = logging.getLogger("backend.e2e_source")
 
 MAX_LEN = 512
+
+# 预计算 commit_text.csv 未覆盖的新提交：在线构造 diff 文本后缓存在进程内
+_computed: dict[str, str] = {}
+_computed_lock = threading.Lock()
 
 
 def _text_csv():
@@ -55,15 +61,31 @@ def _runtime():
 
 
 def available() -> bool:
-    return _texts() is not None and _runtime() is not None
+    has_text = _texts() is not None or config.SOURCE_REPO is not None
+    return has_text and _runtime() is not None
+
+
+def _text_for(commit_hash: str) -> str | None:
+    """先查预计算表，缺失时在线构造并缓存。"""
+    key = commit_hash.lower()
+    text = (_texts() or {}).get(key)
+    if text is not None:
+        return text
+    with _computed_lock:
+        text = _computed.get(key)
+    if text is not None:
+        return text
+    text = text_inputs.commit_text(commit_hash)
+    if text is None:
+        return None
+    with _computed_lock:
+        _computed[key] = text
+    return text
 
 
 def predict_proba(commit_hash: str) -> float | None:
-    """返回缺陷概率；文本不在表内 / 编码器不可用 → None（不编造）。"""
-    texts = _texts()
-    if texts is None:
-        return None
-    text = texts.get(commit_hash.lower())
+    """返回缺陷概率；文本缺预计算时在线构造，仍不可用 → None（不编造）。"""
+    text = _text_for(commit_hash)
     if text is None:
         return None
     runtime = _runtime()

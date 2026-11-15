@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import csv
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
@@ -47,6 +48,17 @@ def _load_metrics() -> dict[str, dict]:
     return out
 
 
+def _local_file(file_path: str) -> Path | None:
+    """把契约里的 `/static/...` URL 还原成磁盘路径；越界路径一律视为不存在。"""
+    prefix = "/static/"
+    if not file_path.startswith(prefix):
+        return None
+    relative = Path(file_path[len(prefix) :])
+    if relative.is_absolute() or ".." in relative.parts:
+        return None
+    return config.FIGURES_DIR.parent / relative
+
+
 @router.get("/api/figures", response_model=schemas.FiguresResponse)
 def figures(model_name: str = Query(default=...)) -> dict:
     if not model_name:
@@ -61,15 +73,24 @@ def figures(model_name: str = Query(default=...)) -> dict:
     if model is None or not rows:
         raise AppError(40400, "model figures not found")
     by_type = {f.figure_type: f for f in rows}
-    figures_list = [
-        {"figure_type": t, "title": by_type[t].title, "file_path": by_type[t].file_path}
-        for t in _FIGURE_ORDER
-        if t in by_type
-    ]
+    figures_list = []
+    missing: list[str] = []
+    for figure_type in _FIGURE_ORDER:
+        row = by_type.get(figure_type)
+        if row is None:
+            continue
+        local = _local_file(row.file_path)
+        if local is None or not local.is_file():
+            missing.append(row.file_path)
+            continue
+        figures_list.append(
+            {"figure_type": figure_type, "title": row.title, "file_path": row.file_path}
+        )
     data = {
         "model_name": model_name,
         "line": model.line,
         "metrics": _load_metrics().get(model_name),
         "figures": figures_list,
+        "missing": missing,
     }
     return ok(data)

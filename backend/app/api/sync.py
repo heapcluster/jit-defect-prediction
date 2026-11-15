@@ -25,7 +25,7 @@ from sqlalchemy import select
 from app import config, model_registry
 from app.auth import require_api_key
 from app.db import SessionLocal
-from app.errors import INTERNAL_ERROR_MESSAGE, AppError, ok
+from app.errors import AppError, ok
 from app.models import Model, Prediction
 from app.services import sync_state
 from app.services.git import (
@@ -37,11 +37,14 @@ from app.services.git import (
     list_recent_hashes,
 )
 from app.services.predict import predict_commit_all_models
-from app.timeutil import parse_time_param
+from app.timeutil import iso_z, parse_time_param
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
 
 logger = logging.getLogger("backend.sync")
+
+# 并发冲突走 40001（业务可解释错误），不回 50000「internal error」：前端据此置灰按钮而非报服务异常
+SYNC_BUSY_MESSAGE = "同步进行中，请稍候"
 
 # 架构取值（与库表 model.line 同值，小写）
 VALID_LINES = ("expert", "semantic", "fused", "e2e")
@@ -130,7 +133,7 @@ def _run_batch(
 ) -> dict:
     """取锁 → fetch → 按 plan 算待预测 → 逐条预测入库 → 归还锁。"""
     if not _sync_lock.acquire(blocking=False):
-        raise AppError(50000, INTERNAL_ERROR_MESSAGE)
+        raise AppError(40001, SYNC_BUSY_MESSAGE)
     sync_state.set_state(
         running=True,
         mode=mode,
@@ -272,7 +275,7 @@ def sync_endpoint(
     """按架构 / 模型 / commit 时间区间**异步**补算入库（docs/api/sync.md）。
 
     提交后立即返回；进度轮 `/api/sync/status`。同一时刻只允许一个同步任务，
-    已在同步中时返回 50000（不排队）。
+    已在同步中时返回 40001（可解释冲突，不排队）。
     """
     if line is not None and line not in VALID_LINES:
         raise AppError(40001, "参数非法：line 取值需为 expert / semantic / fused / e2e")
@@ -285,7 +288,7 @@ def sync_endpoint(
     # 覆盖胜者正在跑的状态。
     with _sync_lock:
         if sync_state.get_sync_state()["running"]:
-            raise AppError(50000, INTERNAL_ERROR_MESSAGE)
+            raise AppError(40001, SYNC_BUSY_MESSAGE)
         # 在请求内先置 running=True：否则前端提交后立即轮询时，worker 可能还没启动，
         # 会读到上一次任务的 running=false 而误判「已完成」。
         sync_state.set_state(
@@ -305,7 +308,10 @@ def sync_endpoint(
 @router.get("/api/sync/status")
 def sync_status() -> dict:
     """同步状态快照（running / mode / scope / total / done / current_hash / started_at / last_error）。"""
-    return ok(sync_state.get_sync_state())
+    state = sync_state.get_sync_state()
+    # 契约三：时间字段统一 UTC + Z；内存里是 naive UTC，出参前统一格式化
+    state["started_at"] = iso_z(state.get("started_at"))
+    return ok(state)
 
 
 __all__ = [
