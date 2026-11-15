@@ -28,7 +28,7 @@
 
 ### 4.3 扩展范围
 
-语义特征与公开数据集质量治理的新增承诺须经过独立 OpenSpec change 和验收，不因旧提案存在就视为已完成。待实施项见 [`../openspec/changes/README.md`](../openspec/changes/README.md)。
+语义特征与公开数据集质量治理的新增承诺须经过独立 OpenSpec change 和验收，不因旧提案存在就视为已完成。待实施项以 `openspec/changes/` 下的活跃 change 为准，已完成的归档在 `openspec/changes/archive/`。
 
 ## 5. 页面与交付
 

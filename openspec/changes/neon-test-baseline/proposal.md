@@ -9,10 +9,10 @@
 ## What Changes
 
 - 新增 `docs/test/integration_test/endpoint_inventory.md`：11 个真实端点的参数、错误码、成功字段与四类场景用例设计，并单列 6 处「文档与代码不一致」和 2 处规格缺口。
-- 新增 `docs/test/system_test/execution_records/neon-test-execution.md`：本机环境能力核查结果、已执行项真实结果、未执行项与阻断原因、解除条件。
+- 新增环境能力核查与执行边界说明：已执行项的真实结果、未执行项与阻断原因、解除条件，落在 `docs/test/overview.md` 与 `docs/test/human-todo.md`。
 - 将 AI 生成用例的 Prompt 与人工复核状态记录在 `docs/test/integration_test/prompts/`（现有 `integration_api_cases_01.md`、`integration_api_cases_02.md`）。
 - 新增 `test-evidence` change delta：把「清单来源、执行记录、不得以文档冒充实测」写成待验收 Requirement；归档前不称为活规格。
-- 更新 `docs/test/integration_test/report.md`：登记 2026-11-12 的实测结果与环境；未执行项（缺权重、失败恢复）单独标注。
+- 更新 `docs/test/integration_test/report.md`：登记 2026-11-15（`2734c1b`）的实测结果与环境，35 条中 34 通过、1 条失败并定位到图集产物缺失。
 - 新增三个可复跑脚本（**不改业务代码**）：`backend/scripts/integration_cases.py`（11 端点四类场景 35 条）、`backend/scripts/perf_loop.py`（100 次预测分位数，对应 `nfr-evidence` 性能要求）、`backend/scripts/security_cases.py`（鉴权/畸形参数/模型不可用，对应安全要求），执行记录统一存于 `docs/test/integration_test/execution_records/`。
 - 新增 `docs/test/integration_test/report.md`（35 条逐条结果）与 `docs/test/system_test/execution_records/`（四页面 + 两种异常态截图、系统测试执行记录）。
 
@@ -32,5 +32,5 @@
 
 - 文档：`docs/common/` 新增 3 份、修改 1 份；`docs/README.md` 导航补 2 行。
 - OpenSpec：新增 `changes/neon-test-baseline/`，并在 `changes/README.md` 活跃 change 表登记。
-- 代码：**业务代码零改动**。仅在 `backend/scripts/` 新增三个测试脚本，不进 `pytest` 收集（`testpaths=tests`），不改变接口行为；`backend/tests`、`frontend/src`、`data_model/` 均未触碰。CI 会因 `backend/` 路径被判为需跑后端测试，现有 249 条用例全部通过（本地实测）。
-- 后续依赖：`缺权重`、`失败恢复` 两类异常仍未执行；系统测试计划/总结、验收方案/报告待 neon 本人撰写签字；e2e 在线路径待 #218 修复。
+- 代码：**业务代码零改动**。仅在 `backend/scripts/` 新增测试脚本，不进 `pytest` 收集（`testpaths=tests`），不改变接口行为；`backend/tests`、`frontend/src`、`data_model/` 均未触碰。CI 会因 `backend/` 路径被判为需跑后端测试，现有 254 条用例全部通过（本地实测）。
+- 后续依赖：`缺权重`、`空库`、`失败恢复` 三类异常已由脚本覆盖（13/13）；系统测试计划/总结、验收方案/报告待 neon 本人复核签字；两个 tabnet 模型仍受 #222 限制。

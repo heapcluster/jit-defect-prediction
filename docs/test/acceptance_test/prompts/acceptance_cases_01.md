@@ -3,7 +3,7 @@
 ## 基本信息
 - 使用工具：CodeBuddy（IDE 内 Agent），模型 DeepSeek-V4.1-Flash
 - 使用日期：2026-11-13
-- 关联测试文件：backend/scripts/evidence/2026-11-13-acceptance-cases.md、backend/scripts/acceptance_scenarios.py
+- 关联测试文件：backend/scripts/acceptance_scenarios.py、docs/test/acceptance_test/acceptance_cases.md
 
 ## 提示词原文
 

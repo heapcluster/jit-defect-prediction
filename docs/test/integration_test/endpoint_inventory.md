@@ -1,8 +1,8 @@
 ﻿# 集成测试端点清单（运行时对照版）
 
-> 状态：清单 + 用例设计 + 实测结果索引。2026-11-10 初版为源码静态对照；**2026-11-12 已取得运行时 `/openapi.json`**（11 个路径，与本文逐条一致），并在本机真实环境执行 35 条用例（35/35 通过）。逐条结果与复现命令见 [`report.md`](report.md)。
+> 状态：清单 + 用例设计 + 实测结果索引。运行时 `/openapi.json` 共 11 个路径，与本文逐条一致；2026-11-15 在 `2734c1b` 上实跑 35 条用例，**34 通过 / 1 失败**。逐条结果与复现命令见 [`report.md`](report.md)。
 >
-> 采集：2026-11-10 初版；**2026-11-12 按合入的 PR #216（`afdee84`）更新**（详情新增 `model_name`、四线 25 模型登记在线、按线取特征与降级语义），同日完成运行时核对与实跑。分支 `test/neon-test-baseline`。接口覆盖率的分母以本文 11 个路由为准（与 `docs/api/`「七份正文，共十一个路由」、`backend/tests/test_mirror.py` 路径集、运行时 `/openapi.json` 三者一致）。
+> 采集：清单按运行时 `/openapi.json` 与代码逐端点核对（详情含 `model_name`、四线 25 模型登记在线、按线取特征与降级语义）。接口覆盖率的分母以本文 11 个路由为准（与 `docs/api/`「七份正文，共十一个路由」、`backend/tests/test_mirror.py` 路径集、运行时 `/openapi.json` 三者一致）。
 
 ## 1 · 公共契约（全部端点共用）
 
@@ -32,23 +32,23 @@
 | 10 | `GET /api/health/live` | 同上 | 无 | `status` 恒 `ok`（不碰 DB）、`server_time` | 40100 |
 | 11 | `GET /api/health/ready` | 同上 | 无 | `status`、`db`、`models_loaded`、`server_time`；DB 不通或模型为 0 → `degraded`，HTTP 仍 200 | 40100 |
 
-### 2.1 模型覆盖口径（2026-11-12 更新，来自 PR #216 `afdee84`）
+### 2.1 模型覆盖口径（本轮实测，`2734c1b`）
 
-`GET /api/models` 现在列出四线 25 个模型（expert 8 / semantic 8 / fused 8 / e2e 1），`model_registry` 只登记目录元数据、权重懒加载。但「列出」不等于「可预测」：
+`GET /api/models` 列出四线 25 个模型（expert 8 / semantic 8 / fused 8 / e2e 1），`model_registry` 只登记目录元数据、权重懒加载。但「列出」不等于「可预测」：
 
-| 线 | 在线可用条件 | 干净检出下的实际状态 | 2026-11-12 实测 |
+| 线 | 在线可用条件 | 干净检出下的实际状态 | 本轮实测 |
 |---|---|---|---|
-| expert（8） | `data_model/pipelines/expert/models/*.pkl` | 可用 | ✅ 8/8 通过（`et_v1` 0.97637、`xgb_v1` 0.9993） |
-| semantic（8）/ fused（8） | `pipelines/semantic/data/semantic_embeddings.npz`（后端默认路径与模型线 config 一致） | 产物原本未生成（仓库只有 `data_model/data/` 旧副本）；**补到约定路径后** 7/8 + 7/8 通过 | ✅ `xgb_semantic_v1` 0.55491、`xgb_fused_v1` 0.99433；❌ 两个 tabnet 因 CUDA 权重无法加载（[#222](https://github.com/heapcluster/jit-defect-prediction/issues/222)） |
-| e2e（1） | `pipelines/e2e/data/commit_text.csv` + `transformers` + `codebert_e2e_v1` 权重 | 权重齐全（475MB），文本表原本未生成（脚本 `build_text_dataset.py` 存在）；补到约定路径后可用 | ✅ `0.44606`（与 PR #216 一致，首载 33.6s、复跑 0.3s）；容器内仍缺 `transformers`（[#219](https://github.com/heapcluster/jit-defect-prediction/issues/219)） |
+| expert（8） | `data_model/pipelines/expert/models/*.pkl` | 可用 | ✅ 8/8（`et_v1` 0.97637、`xgb_v1` 0.9993） |
+| semantic（8）/ fused（8） | `pipelines/semantic/data/semantic_embeddings.npz`（后端默认路径与模型线 config 一致） | 本机产物已就位 | ✅ 各 7/8 通过（`xgb_semantic_v1` 0.55491、`xgb_fused_v1` 0.99433）；❌ 两个 tabnet 因 CUDA 权重无法加载（[#222](https://github.com/heapcluster/jit-defect-prediction/issues/222)） |
+| e2e（1） | `pipelines/e2e/data/commit_text.csv` + `transformers` + `codebert_e2e_v1` 权重 | 产物已就位 | ✅ `0.44606`（首跑 62.3s，缓存后秒回）；容器内仍缺 `transformers`（[#219](https://github.com/heapcluster/jit-defect-prediction/issues/219)） |
 
-**25 模型逐条矩阵**见 `backend/scripts/evidence/2026-11-12-online-25.md`：23 通过 / 2 失败。
+**25 模型逐条矩阵**由 `backend/scripts/online_models_matrix.py` 产出，本轮 **23 通过 / 2 失败**，逐条结论见 [`report.md`](report.md) §8。
 
-`/api/models` 的 25 条记录不能当作 25 个可用模型；集成用例对「模型不可用」按「非 500 + 明确文案」断言（`T-IN-16`、安全用例 12 项）。
+`/api/models` 的 25 条记录不能当作 25 个可用模型；集成用例对「模型不可用」按「非 500 + 明确文案」断言（`T-IN-16`、安全用例 18 项）。
 
 ## 3 · 文档与实现偏差（复核后 6 条，已登记 Issue）
 
-> 2026-11-12 按 `afdee84` 代码逐条复核：**D-01 不成立已剔除**；原 D-07（详情参数）并入下表；D-08/D-09 重新定性为「产物未按布局生成」而非「路径写错」；D-10 单独成 Issue（部署）。
+> 按 `2734c1b` 代码逐条复核：**D-01 不成立已剔除**；原 D-07（详情参数）并入下表；D-08/D-09 重新定性为「产物未按布局生成」而非「路径写错」；D-10 单独成 Issue（部署）。
 
 | # | 位置 | 文档口径 / 期望 | 实际 | 对用例的影响 | 归属 |
 |---|---|---|---|---|---|
@@ -56,21 +56,21 @@
 | D-03 | `docs/api/predict.md` | 多余字段 / 非法请求体 → 40001 | `PredictRequest` 未设 `extra="forbid"`，多余字段被忽略并 200 | 非法请求体用例只能用类型错误触发 | #220（建议改代码） |
 | D-04 | `docs/api/figures.md` | 40400 含「图文件不存在」 | 只查 DB，不校验 PNG 是否在盘；丢文件时接口 200，坏在 `/static/**` | 不能把「丢图」写成 `/api/figures` 的 40400 | #220 |
 | D-05 | `docs/api/sync.md` | 50000 = 同步中 / git 源不可达 / 内部错误 | git 不可达在后台 worker 抛 40400，只落 `last_error`；HTTP 仅「已在同步中」返回 50000 | 断言 HTTP 50000 会失败，应按 `sync/status.last_error` 断言 | #220 |
-| D-06 | `docs/api/sync.md` + `openspec/config.yaml` | 时间字段统一 UTC + `Z` | `sync/status.started_at` 实测 `2026-11-12T09:04:02.303942`，**无 `Z`** | 时间格式断言需放宽，或先修代码 | #220（建议改代码） |
+| D-06 | `docs/api/sync.md` + `openspec/config.yaml` | 时间字段统一 UTC + `Z` | `sync/status.started_at` 实测形如 `2026-11-15T09:04:02.303942`，**无 `Z`**（其余接口带 `Z`） | 时间格式断言需放宽，或先修代码 | #220（建议改代码） |
 | D-07 | `docs/api/commits.md` | 参数小节标题为「参数（列表）」 | 详情新增 query `model_name` 无对应参数条目（列表参数里早有 `model_name`） | 文档读者会以为详情不接受该参数 | #220 |
 
 ## 3.1 · 交付/部署缺口（非代码路径错误）
 
 | 项 | 事实 | Issue |
 |---|---|---|
-| semantic/fused 产物 | `pipelines/semantic/config.py:21` 与后端默认值一致（`pipelines/semantic/data/*.npz`），但该 npz 未生成；仓库只有 `data_model/data/` 旧副本。**补到约定路径后 7+7 个模型通过** | [#217](https://github.com/heapcluster/jit-defect-prediction/issues/217) |
-| e2e 文本表 | `build_text_dataset.py` 存在（`OUT_CSV=pipelines/e2e/data/commit_text.csv`），产物未生成；补齐后 e2e 实测 `0.44606` 通过 | #217（原 #218 已合并关闭） |
+| semantic/fused 产物 | `pipelines/semantic/config.py:21` 与后端默认值一致（`pipelines/semantic/data/*.npz`）；本机产物已就位，semantic / fused 各 7/8 通过（余 2 个是 tabnet） | [#217](https://github.com/heapcluster/jit-defect-prediction/issues/217)（本轮不复现，待确认关闭） |
+| e2e 文本表 | `build_text_dataset.py` 生成 `pipelines/e2e/data/commit_text.csv`；本机已就位，e2e 实测 `0.44606` 通过 | #217 / #218 已关闭，剩余风险由 #226 跟踪 |
 | tabnet 权重 | `tabnet_semantic_v1` / `tabnet_fused_v1` 保存于 CUDA，CPU 加载抛 `Attempting to deserialize object on a CUDA device`；**这是真缺陷** | [#222](https://github.com/heapcluster/jit-defect-prediction/issues/222) |
 | 容器依赖 | `docker-compose` 用 `backend/Dockerfile` 构建，该文件未装 `transformers`（`environment.yml` 声明 4.46.1） | [#219](https://github.com/heapcluster/jit-defect-prediction/issues/219) |
 
-补充（规格层，未计入上表）：`openspec/specs/` 下 `feedback`、`observability`、`ops`、`quality`、`ui` 五个能力目录为空目录（无 `spec.md`），会影响「验收逐 Scenario 对照」的取证路径；`nfr-evidence` 要求的两个脚本已补（`backend/scripts/perf_loop.py`、`security_cases.py`）。
+补充（规格层，未计入上表）：`openspec/specs/` 下 `feedback`、`observability`、`ops`、`quality` 四个能力目录仍为空（无 `spec.md`），会影响「验收逐 Scenario 对照」的取证路径；`nfr-evidence` 要求的两个脚本已补（`backend/scripts/perf_loop.py`、`security_cases.py`）。
 
-## 4 · 四类场景用例（已执行，35/35 通过）
+## 4 · 四类场景用例（已执行，34/35 通过）
 
 **用例来源标注**：本节全部为 `[AI生成]`，由 DeepSeek-V4.1-Flash 依据本文 §2 与 `docs/api/*.md` 生成，Prompt 归档见 [`prompts/integration_api_cases_01.md`](prompts/integration_api_cases_01.md)。核心业务断言（概率区间、14 维列序、鉴权码、排序、空结果语义）已逐条对照代码复核；**完整人工复核记录待补（不要求逐份签字）**。
 
@@ -86,15 +86,15 @@
 | 6 | `GET /api/sync/status` | 触发同步后立即轮询，断言 `total ≥ done`、`mode` 合法 | 非法 key → 401/40100 | 无参数可传（多余 query 应被忽略，不报错） | 空闲时 `running=false`、`last_error=null`；重启后 `started_at=null` | PASS（T-IN-17/18） |
 
 | 7 | `GET /api/trends` | `granularity=week`，断言 `series[].period` 匹配 `YYYY-Www`、`high_risk_count ≤ commit_count` | 非法 key → 401/40100 | `granularity=day`、`end_time=abc` → 40001 | 时间窗内无数据 → `series=[]` 且 `code=0`；`model_name` 传不存在模型 → 空 series（**不报 40400**） | PASS（T-IN-22~25） |
-| 8 | `GET /api/figures` | `model_name=expert 线某模型`，断言 `figures[]` 顺序、`file_path` 指向 `/static/figures/...` | 不带 `model_name` → 40001；非法 key → 401/40100 | `model_name=""` → 40001 `缺少 model_name`；不存在模型 → 40400 | 该模型缺某些图时 `figures[]` 变短但 `code=0`；`/static/**` 不带 key → 401 | PASS（T-IN-26~29） |
+| 8 | `GET /api/figures` | `model_name=expert 线某模型`，断言 `figures[]` 顺序、`file_path` 指向 `/static/figures/...` | 不带 `model_name` → 40001；非法 key → 401/40100 | `model_name=""` → 40001 `缺少 model_name`；不存在模型 → 40400 | 该模型缺某些图时 `figures[]` 变短但 `code=0`；`/static/**` 不带 key → 401 | 26~28 PASS；**29 FAIL**（元数据 6 条齐全但 PNG 不在盘，带令牌 404 → BUG-02；补齐生成物后 200） |
 | 9 | `GET /api/health` | 断言 `status=ok`、`models_loaded ≥ 1`、`server_time` 带 `Z` | 非法 key → 401/40100 | 无参数 | 停库后仍 HTTP 200 + `status=degraded`（不是 50000） | PASS（T-IN-30/31）；「停库降级」未构造 |
 | 10 | `GET /api/health/live` | 断言 `status=ok`，停库后仍 `ok` | 非法 key → 401/40100 | 无参数 | — | PASS（T-IN-32） |
 | 11 | `GET /api/health/ready` | 断言 `status=ok`、`db=up`、`models_loaded ≥ 1` | 非法 key → 401/40100 | 无参数 | 停库或无模型 → `degraded`，HTTP 仍 200 | PASS（T-IN-33/34）；「无模型」未构造 |
 
-补充要求（已执行）：跨模块链路「`POST /api/sync` 同步真实提交 → `commit_feature` 落 14 维 → `POST /api/predict` 推理 → `prediction` 落库 → `GET /api/commits` 查到」已由 T-IN-35 与同步实测（25,285→25,307）覆盖；并发场景「两客户端同时 `POST /api/sync`」实测 200/500，状态不串扰（T-IN-21）。前端展示由浏览器走查覆盖（`../system_test/execution_records/`）。
+补充要求（已执行）：跨模块链路「`POST /api/sync` 同步真实提交 → `commit_feature` 落 14 维 → `POST /api/predict` 推理 → `prediction` 落库 → `GET /api/commits` 查到」已由 T-IN-35 与同步实测（25,404→25,414）覆盖；并发场景「两客户端同时 `POST /api/sync`」实测 200/500，状态不串扰（T-IN-21）。前端展示由浏览器走查覆盖（`../system_test/execution_records/`）。
 
 ## 5 · 覆盖率口径
 
-分母 11；**11/11 端点均取得真实 HTTP 结果**（运行时 `/openapi.json` + 实际请求），接口覆盖率计 **100%**。用例 35 条全部执行且通过（`report.md` §3）；设计表 44 条中，健康探针的「非法参数」9 条不适用（无查询参数），已并入「缺令牌 / 无参数幂等」用例。
+分母 11；**11/11 端点均取得真实 HTTP 结果**（运行时 `/openapi.json` + 实际请求），接口覆盖率计 **100%**。用例 35 条全部执行，34 通过 / 1 失败（`report.md` §3）；设计表 44 条中，健康探针的「非法参数」9 条不适用（无查询参数），已并入「缺令牌 / 无参数幂等」用例。
 
-后端单测基线：`249 passed`，行覆盖 **85%**（分支覆盖 336 个分支、40 个部分覆盖）。
+后端单测基线：`254 passed`，行覆盖 **87.2%**（1333/1528）、分支 **76.2%**（256/336）。
