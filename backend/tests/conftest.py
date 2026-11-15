@@ -173,3 +173,21 @@ def client(engine):
     model_registry.load_models()
     with TestClient(create_app()) as test_client:
         yield test_client
+
+
+_DB_FIXTURES = {"client", "engine", "integration_db", "populated_api"}
+
+
+def pytest_collection_modifyitems(config, items):
+    """按是否请求 DB 夹具自动分层：unit 不连库，integration 连 jit_test。
+
+    课程口径要求「纯函数测试不依赖数据库」；显式写 300 条 marker 易漏，按夹具自动判定。
+    直接连库、不走夹具的模块（如 test_db.py）在文件内自行 `pytestmark` 声明。
+    """
+    for item in items:
+        if item.get_closest_marker("integration") is not None:
+            continue
+        if _DB_FIXTURES.intersection(getattr(item, "fixturenames", ())):
+            item.add_marker(pytest.mark.integration)
+        else:
+            item.add_marker(pytest.mark.unit)

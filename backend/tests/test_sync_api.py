@@ -331,6 +331,7 @@ def test_sync_status_reports_idle_and_after_catchup(client, monkeypatch, tmp_pat
     assert after["started_at"].endswith("Z")
 
 
+@pytest.mark.integration
 def test_unpredicted_truncates_at_limit_and_says_so():
     """catchup 的差集按上限提前截断：不把全历史/全表 prediction 都算完才知道超限。"""
     hashes = ["f" * 40, "e" * 40, "9" * 40]  # 三条在 DB 均无 prediction
@@ -339,6 +340,7 @@ def test_unpredicted_truncates_at_limit_and_says_so():
     assert truncated is True
 
 
+@pytest.mark.integration
 def test_unpredicted_within_limit_is_not_truncated():
     hashes = ["f" * 40]
     assert sync_module._unpredicted(hashes, {"fixture_v1"}, 5) == (hashes, False)

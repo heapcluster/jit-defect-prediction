@@ -33,6 +33,8 @@ from sqlalchemy import (
     text,
 )
 
+pytestmark = pytest.mark.integration
+
 
 def _new_engine():
     # 只连本机 MySQL 测试库 jit_test（MUST NOT 碰 jit_demo 演示库）
