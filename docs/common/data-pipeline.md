@@ -30,7 +30,7 @@ python -m preparation.05_split_dataset --dataset data/dataset_szz.csv
 
 ## 4. 特征与训练边界
 
-`03_extract_features.py` 产出 Kamei 14 维；落库含义和 log 变换见 [`../database/commit_feature.md`](../database/commit_feature.md)。在线 expert 权重的列序以 `data_model/pipelines/expert/models/feature_order.txt` 为准。训练/检验按 `committed_at` 前 70% / 后 30% 时间序切分，禁止随机切分。`expert`、`semantic`、`fused` 三线默认各 8 个分类器，`e2e` 另 1 个；训练结果与在线交付权重是两种状态，见 [`../overview.md`](../overview.md)。
+`03_extract_features.py` 产出 Kamei 14 维；落库含义和 log 变换见 [`../database/commit_feature.md`](../database/commit_feature.md)。在线 expert 权重的列序以 `data_model/pipelines/expert/models/feature_order.txt` 为准。训练/检验按 `committed_at` 前 70% / 后 30% 时间序切分，禁止随机切分。`expert`、`semantic`、`fused` 三线默认各 8 个分类器，`e2e` 另 1 个；训练结果与在线交付权重是两种状态，见 [`../overview.md`](../overview.md)。若 tabnet 权重在 GPU 上训练、CPU 机器加载报 CUDA 反序列化错误，运行 `python data_model/pipelines/reexport_tabnet_cpu.py` 重导出（原文件备份为 `*.bak-cuda`）。
 
 ## 5. 在线语义 / e2e 输入（增量口径）
 
