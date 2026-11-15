@@ -28,6 +28,7 @@ from dotenv import load_dotenv
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(BACKEND_DIR / ".env")
+sys.path.insert(0, str(BACKEND_DIR))  # 复用 app.config 拼 DSN，避免第二套环境变量解析
 AUTH = {"X-API-Key": os.getenv("API_TOKEN", "")}
 
 results: list[tuple[str, bool, str]] = []
@@ -97,6 +98,29 @@ def no_leak(text: str) -> bool:
     return not any(k in text for k in ("Traceback", "sqlalchemy", "SELECT ", "C:\\", "/app/"))
 
 
+def clear_test_db() -> str:
+    """把「空库」场景的前置做实：清空测试库五表，不动演示库。
+
+    原先只把 DB_NAME 指向 `DB_TEST_NAME` 就假定它是空的；只要当天跑过 pytest，
+    conftest 的种子数据就还在，本场景必然误报失败（2026-11-15 实测 commits=4）。
+    """
+    from app import config
+    from sqlalchemy import create_engine, text
+
+    db = os.getenv("DB_TEST_NAME", "jit_test")
+    url = config.build_database_url(db)
+    if not url:
+        raise SystemExit("未配置数据库连接，无法准备空库场景（检查 backend/.env）")
+    engine = create_engine(url, future=True)
+    try:
+        with engine.begin() as conn:
+            for table in ("prediction", "commit_feature", "commit", "model_figure", "model"):
+                conn.execute(text(f"DELETE FROM `{table}`"))
+    finally:
+        engine.dispose()
+    return db
+
+
 def scenario_missing_weights(logdir: Path) -> None:
     """MODEL_DIR 指向空目录 → expert 权重缺失：健康降级、预测明确报错、不 500。"""
     empty = Path(tempfile.mkdtemp(prefix="neon-empty-models-"))
@@ -132,9 +156,9 @@ def scenario_missing_weights(logdir: Path) -> None:
 
 
 def scenario_empty_db(logdir: Path) -> None:
-    """空库：DB_NAME 指向空的测试库 → 空数据返回 code=0，不是系统错误。"""
+    """空库：DB_NAME 指向清空的测试库 → 空数据返回 code=0，不是系统错误。"""
     port = free_port()
-    db = os.getenv("DB_TEST_NAME", "jit_test")
+    db = clear_test_db()
     proc = start(port, {"DB_NAME": db}, logdir / "empty-db.log")
     try:
         client = wait_ready(port)

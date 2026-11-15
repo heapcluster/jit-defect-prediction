@@ -4,7 +4,7 @@
 浏览器截图另见 `docs/test/system_test/execution_records/`（四页面 + 两种异常态，共 6 张）。
 
     cd backend && python scripts/linkage_capture.py
-    python scripts/linkage_capture.py --out evidence/2026-11-12-linkage.md
+    python scripts/linkage_capture.py --out ../docs/test/integration_test/execution_records/2026-11-15-linkage.md
 """
 
 from __future__ import annotations
