@@ -1,4 +1,4 @@
-# Bug 清单
+﻿# Bug 清单
 
 > 依据：[`../../common/test-assessment-guide.md`](../../common/test-assessment-guide.md) §4.1 缺陷管理要求、§4.2「Bug 发现与记录」、§7 红线。
 >
@@ -50,7 +50,7 @@
 | #222 / #217 严重缺陷修复与回归 | 验收前置条件 | 模型线修复后跑 `online_models_matrix.py` 至 25/25、干净检出复现，附回归记录 | 未开始 |
 | #219 / #220 与候选观察裁定 | 契约与部署一致性 | 逐条给出「改文档 / 改代码 / 不成立」，同步 `docs/api/` 与 `/openapi.json` | 未开始 |
 | 缺陷关闭记录 | Bug 闭环 | 状态置已修复、附关联提交与回归用例结果、Issue 关闭 | 0 / 4 关闭 |
-| 影响评估与修复计划确认 | 验收通过标准依据 | 见 [`../acceptance_test/defect_residual.md`](../acceptance_test/defect_residual.md) §1；本轮为 AI 代写草案，须人工复核（不要求逐份签字） | 待复核 |
+| 影响评估与修复计划确认 | 验收通过标准依据 | 见 [`../acceptance_test/defect_residual.md`](../acceptance_test/defect_residual.md) §1；为 AI 生成草案，须人工复核（不要求逐份签字） | 待复核 |
 | 单元测试代码整改分派 | §2.1 / §2.2 / §7 红线 | 已创建 [Issue #233](https://github.com/heapcluster/jit-defect-prediction/issues/233) 并指派 `s1mple-less`；#222 / #225 / #226 / #227 / #228 / #230 已追加测试侧反馈评论 | 已分派，待负责人处理 |
 
 > #233 是测试体系整改单（依赖隔离、弱断言、来源注释），**不计入本表产品缺陷数量**；按分工由蛋神（DS-4 单元测试）处理，测试侧不修改代码本体。

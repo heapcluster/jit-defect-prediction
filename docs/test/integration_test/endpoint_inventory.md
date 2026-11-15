@@ -1,4 +1,4 @@
-# 集成测试端点清单（运行时对照版）
+﻿# 集成测试端点清单（运行时对照版）
 
 > 状态：清单 + 用例设计 + 实测结果索引。2026-11-10 初版为源码静态对照；**2026-11-12 已取得运行时 `/openapi.json`**（11 个路径，与本文逐条一致），并在本机真实环境执行 35 条用例（35/35 通过）。逐条结果与复现命令见 [`report.md`](report.md)。
 >
@@ -68,7 +68,7 @@
 | tabnet 权重 | `tabnet_semantic_v1` / `tabnet_fused_v1` 保存于 CUDA，CPU 加载抛 `Attempting to deserialize object on a CUDA device`；**这是真缺陷** | [#222](https://github.com/heapcluster/jit-defect-prediction/issues/222) |
 | 容器依赖 | `docker-compose` 用 `backend/Dockerfile` 构建，该文件未装 `transformers`（`environment.yml` 声明 4.46.1） | [#219](https://github.com/heapcluster/jit-defect-prediction/issues/219) |
 
-补充（规格层，未计入上表）：`openspec/specs/` 下 `feedback`、`observability`、`ops`、`quality`、`ui` 五个能力目录为空目录（无 `spec.md`），会影响「验收逐 Scenario 对照」的取证路径；`nfr-evidence` 要求的两个脚本本轮已补（`backend/scripts/perf_loop.py`、`security_cases.py`）。
+补充（规格层，未计入上表）：`openspec/specs/` 下 `feedback`、`observability`、`ops`、`quality`、`ui` 五个能力目录为空目录（无 `spec.md`），会影响「验收逐 Scenario 对照」的取证路径；`nfr-evidence` 要求的两个脚本已补（`backend/scripts/perf_loop.py`、`security_cases.py`）。
 
 ## 4 · 四类场景用例（已执行，35/35 通过）
 

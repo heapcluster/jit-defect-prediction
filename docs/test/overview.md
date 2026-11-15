@@ -1,10 +1,8 @@
-# 测试交付总说明
+﻿# 测试交付总说明
 
 > 本目录按 [`../common/test-assessment-guide.md`](../common/test-assessment-guide.md) 第八章「交付物清单汇总」组织，最终将整个 `docs/test/` 改名为小组名后上传飞书小组文件夹。仓库唯一入口见仓库根 `README.md`。
 >
 > **本目录是纯文档目录**：放测试文档、覆盖率 HTML 报告及其渲染资源、执行证据截图；**不存放测试代码或脚本**。运行与维护的唯一真源在仓库各端目录，见 §2。
->
-> **本轮变更（2026-11-13）**：删除根目录 `prompts/` 重复副本；`docs/test` 下代码副本清空并改为文档索引；四份核心文档与用例执行结果由 AI 依据真实实测证据代写；关闭过时的 GitHub Issue #231、澄清其余 8 个 open 单；归档 `b24852d` 覆盖率 HTML；产出 JMeter / 三浏览器走查 / 一键复跑三个自动化脚本。所有结果只引用已有证据，不伪造执行数据、截图或签名。
 
 ## 1 · 项目概述
 
@@ -36,7 +34,7 @@
 | 系统（30 分） | [`system_test/test_plan.md`](system_test/test_plan.md)、[`system_test/test_cases.md`](system_test/test_cases.md)、[`system_test/bug_list.md`](system_test/bug_list.md)、[`system_test/performance/performance_report.md`](system_test/performance/performance_report.md)、[`system_test/summary_report.md`](system_test/summary_report.md) |
 | 验收（20 分） | [`acceptance_test/acceptance_plan.md`](acceptance_test/acceptance_plan.md)、[`acceptance_test/acceptance_cases.md`](acceptance_test/acceptance_cases.md)、[`acceptance_test/defect_residual.md`](acceptance_test/defect_residual.md)、[`acceptance_test/acceptance_report.md`](acceptance_test/acceptance_report.md) |
 
-四份核心文档已由 AI 代写完成、**无人工签字**；按 AI-R5 该部分存在计 0 分风险，须由人工复核修订。
+四份核心文档由 AI 生成、**无人工签字**；按 AI-R5 该部分存在计 0 分风险，须由人工复核修订。
 
 ## 3 · 用例总数与来源统计
 
@@ -50,7 +48,7 @@
 | 验收测试 | 20 | 20 | 0 | 0 | 文档化预验收 12 通过 / 8 不通过（60%），结论「验收不通过」 |
 | 合计 | 555 | 85 | 0 | 0 | 470 条单元来源与 0 条手写标注均为缺口 |
 
-**扣分风险如实申报**：AI-R5（四份文档 AI 代写无签字，该部分可能计 0）；AI-R3（85 条 AI 用例未审核）；§6.3 采纳率 100% > 90% 扣 2；AI-R1 单元来源待核扣 5；AI-R2 单元无独立提示词扣 3；§7 红线验收未现场执行、缺逐条截图，该部分计 0。
+**扣分风险如实申报**：AI-R5（四份文档 AI 生成无签字，该部分可能计 0）；AI-R3（85 条 AI 用例未审核）；§6.3 采纳率 100% > 90% 扣 2；AI-R1 单元来源待核扣 5；AI-R2 单元无独立提示词扣 3；§7 红线验收未现场执行、缺逐条截图，该部分计 0。
 
 来源标签规则：`[AI生成]` / `[AI生成-人工修改]` / `[手写]`；无法确认写「待核」。
 
@@ -63,7 +61,7 @@
 | 验收用例初稿、124 条 Scenario 对照清单 | `acceptance_test/prompts/`（1 个文件） |
 | 单元三线用例 | **未归档**；整改见 [Issue #233](https://github.com/heapcluster/jit-defect-prediction/issues/233) |
 
-单元线可追溯线索（**非提示词原文，不计入归档数**）：疑用 CodeBuddy + DeepSeek-V4.1-Flash（待作者确认）；`backend/pytest.ini` 注释记录后端测试基线 2026-10-13 建立；关联 `backend/tests/`（24）、`data_model/tests/`（16）、`frontend/tests/`（10）、`infra/tests/`（3）；输出摘要 249 / 162 / 59 passed、行覆盖 85%。原始提示词不可追溯时**不得补写「还原版」冒充原文**（§7 红线）。
+单元线可追溯线索（**非提示词原文，不计入归档数**）：疑用 CodeBuddy + DeepSeek-V4.1-Flash（待作者确认）；`backend/pytest.ini` 记录后端测试基线；关联 `backend/tests/`（24）、`data_model/tests/`（16）、`frontend/tests/`（10）、`infra/tests/`（3）；输出摘要 249 / 162 / 59 passed、行覆盖 85%。原始提示词不可追溯时**不得补写「还原版」冒充原文**（§7 红线）。
 
 当前 6 个提示词文件审核状态均为「待人工审核」，不得标为已审核；提示词中不得含密钥、令牌或个人数据。
 
@@ -93,9 +91,9 @@
 | 集成 35/35、安全 12/12、单客户端 p95 48.1ms | `afdee84` | 报告与留痕已入库 |
 | 并发负载 5×5 / 10×5 / 10×10（含 694ms 未达标轮次） | `afdee84`（11-13 复跑） | [`performance_report.md`](system_test/performance/performance_report.md) 已成文；JMeter Test Plan 已产出，截图待人工 |
 | 系统主线 7 步、异常 13/13、6 张页面截图 | `afdee84` | 执行记录已入库；30 条用例按既有证据判定，未现场独立复跑 |
-| 四份测试文档与用例结果 | `afdee84`（依据其证据代写） | AI 代写完成，无人工签字 |
+| 四份测试文档与用例结果 | `afdee84`（AI 生成） | AI 生成，无人工签字 |
 | 验收 124 条 Scenario / 20 条用例 | `afdee84` | 自动子集 10/10；文档化预验收，**无现场演示与逐条截图** |
-| 自动化取证脚本 | 本轮新增 | 真源 `backend/scripts/`，**尚未运行** |
+| 自动化取证脚本 | 已产出（未运行） | 真源 `backend/scripts/` |
 
 后一步引用前一步的**同一 SHA、环境和证据**；不能拿旧版本绿灯填本次结果。
 
@@ -105,8 +103,8 @@
 |---|---|---|---|
 | 1 | 单元 | 各模块代码作者 | 说明已整理；作者复核 AI 来源与核心断言 |
 | 2 | 集成 | neon 统筹，前后端联调 | 接口报告已整理 |
-| 3 | 系统 | neon 组织真实环境 | 计划 / 总结由 AI 代写，人工复核修订 |
-| 4 | 验收 | neon 组织用户视角演示 | 方案 / 报告由 AI 代写，结论「验收不通过」，人工复核修订 |
+| 3 | 系统 | neon 组织真实环境 | 计划 / 总结由 AI 生成，人工复核修订 |
+| 4 | 验收 | neon 组织用户视角演示 | 方案 / 报告由 AI 生成，结论「验收不通过」，人工复核修订 |
 
 ## 8 · 符合性自查矩阵
 
@@ -123,9 +121,9 @@
 | 系统 | 测试计划 / 总结报告 | **AI代写** | 结构完整、结论明确；无人工签字，AI-R5 风险 |
 | 系统 | 用例 / Bug / 性能报告 | 部分 | 30 条用例、4 条 Bug、四指标齐全；Bug <8、缺截图闭环、JMeter 截图待人工 |
 | 验收 | 方案 / 用例 / 缺陷遗留 / 总结 | **AI代写** / 部分 | 20 条四类齐全、结论「验收不通过」；**执行记录缺**（红线计 0） |
-| 全局 | AI-R1 / R2 / R3 / R4 / R5 | 部分 / **待人工** | 来源待核、提示词缺、85 条用例未审核、核心断言未复核、四份文档 AI 代写 |
+| 全局 | AI-R1 / R2 / R3 / R4 / R5 | 部分 / **待人工** | 来源待核、提示词缺、85 条用例未审核、核心断言未复核、四份文档 AI 生成 |
 
-**红线自查**：不伪造覆盖率报告、Bug、截图、验收结论与人工签字；AI 代写文档均标注来源与授权；未执行项标「未执行」；文档化预验收不冒充现场演示；历史数值标注来源提交；不适用项如实申报。
+**红线自查**：不伪造覆盖率报告、Bug、截图、验收结论与人工签字；AI 生成文档均标注来源与授权；未执行项标「未执行」；文档化预验收不冒充现场演示；历史数值标注来源提交；不适用项如实申报。
 
 ## 9 · 上传飞书前检查
 
@@ -134,6 +132,6 @@
 - [ ] 四类产物 SHA 一致；`docs/test` 无 `.py` 测试代码（覆盖率报告的 `.js` 为渲染资源）。
 - [ ] 覆盖率 HTML 已按最终 SHA 重跑归档，PDF 截图已人工采集并脱敏。
 - [ ] 已运行 `reproduce_all.ps1` 与 `browser_walkthrough.py`，自动截图经人工复核；JMeter 结果截图已采集。
-- [ ] 四份 AI 代写文档已由人工复核修订；验收逐条截图齐备、结论二选一；Bug 已闭环；AI 采纳率经复核落在 40%–70%。
+- [ ] 四份 AI 生成文档已由人工复核修订；验收逐条截图齐备、结论二选一；Bug 已闭环；AI 采纳率经复核落在 40%–70%。
 
 真人待办清单（含上述人工动作）见本地 `temp/B-人工待办任务清单.md`（`temp/` 不入库）。

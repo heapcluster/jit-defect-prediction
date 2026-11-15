@@ -1,4 +1,4 @@
-# 性能测试报告
+﻿# 性能测试报告
 
 > 依据：[`../../../common/test-assessment-guide.md`](../../../common/test-assessment-guide.md) §4.1 / §4.3；状态：**数据为真实实跑，报告已整理成文**；截图仍待人工采集（不得伪造）。
 >
@@ -70,5 +70,5 @@ USERS=10 REQUESTS=10 python scripts/load_test.py        # 高并发复跑（曾�
 ## 6 · 来源与人工审核
 
 - 负载脚本与指标口径由 AI 生成（`[AI生成]`，提示词见 `../prompts/system_perf_locust_01.md`），**数据由人工在真实服务上实跑取得**，不是 AI 推断值；脚本须经人工审核后方可计入交付（AI-R3）。
-- 本报告为结构化整理，§3 分析为基于实测数据的客观描述；性能结论、风险评估与发布建议按课程属人工撰写范畴，本轮由 AI 代写于 [`../summary_report.md`](../summary_report.md)，须人工复核修订。
+- 本报告为结构化整理，§3 分析为基于实测数据的客观描述；性能结论、风险评估与发布建议按课程属人工撰写范畴，由 AI 生成于 [`../summary_report.md`](../summary_report.md)，须人工复核修订。
 - 待补：JMeter / Locust 原生结果截图、人工采集的终端 / UI 截图，以及 10×10 超标问题的复测记录。截图脱敏后再归档。

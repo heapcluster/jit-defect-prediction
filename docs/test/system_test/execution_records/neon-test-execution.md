@@ -1,4 +1,4 @@
-# neon 测试工作执行记录
+﻿# neon 测试工作执行记录
 
 > 本文件记录 neon 承接的集成 / 系统 / 验收测试**执行边界与证据**，不是测试报告。逐条用例见 [`../../integration_test/report.md`](../../integration_test/report.md)，系统侧执行见 [`system-test-run.md`](system-test-run.md)。
 >
@@ -56,7 +56,7 @@
 | N-02 | 「失败恢复」（同步中断 / 服务强杀后恢复） | **已执行** | `system_exceptions.py --scenario failure-recovery`：强杀自建子进程后重启验证 | — |
 | N-03 | 25 模型在线 25/25 | 未达成 | 2 个 tabnet 权重绑定 CUDA（[#222](https://github.com/heapcluster/jit-defect-prediction/issues/222)） | 蛋神修权重后跑 `online_models_matrix.py` |
 | N-04 | 验收逐 Scenario（124 条） | 用例已生成 / 人工判定未做 | `acceptance_scenarios.py` 已生成全部 124 条对照清单并跑通 10 条自动子集；逐条「通过/失败/未执行」须现场判定 | 组织验收演示，neon 判定并签字 |
-| N-05 | 系统测试计划/总结、验收方案/报告 | 未产出 | 文档由 **sober** 整理；**neon 只给实测内容、下结论、签字**（AI-R5 禁止 AI 代写/代签） | sober 依据 `./` 成文，neon 签字 |
+| N-05 | 系统测试计划/总结、验收方案/报告 | 未产出 | 文档由 **sober** 整理；**neon 只给实测内容、下结论、签字**（AI-R5 禁止 AI 生成/代签） | sober 依据 `./` 成文，neon 签字 |
 | N-06 | 前端逐接口联调截图 | 部分 | 已有四页面 + 两种异常态截图；逐接口截图需浏览器自动化依赖（本机无 playwright/selenium，按要求不安装），HTTP 层联调留痕已由 `linkage_capture.py` 覆盖 | 具备浏览器自动化环境后补 |
 
 ## 4 · 本轮不做什么

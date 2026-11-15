@@ -1,4 +1,4 @@
-# 四类测试交付说明与记录表
+﻿# 四类测试交付说明与记录表
 
 > 状态：组织与记录格式；**不是测试通过报告**。实际结果、截图、覆盖率和签名必须对应同一提交和真实运行。课程细则见 [`test-assessment-guide.md`](test-assessment-guide.md)，当前功能与接口入口见 [`../README.md`](../../README.md)。
 
@@ -68,7 +68,7 @@
 | `neon-3` 验收 | 逐条 Scenario 的现场结果；本人写方案/报告并签字 | PR #221 的 `backend/scripts/evidence/2026-11-12-acceptance-checklist.md` | 已生成 124 条对照行，作者记录 10 条自动子集通过；124 条现场判定与签字仍未完成。 |
 | `sober-1` 文档 | 单元说明、接口报告、系统/验收材料检查、联调索引、OpenSpec 证据映射 | 本文及上列源文件 | 本文只整理与核对，不能把“材料齐备”勾成“验收通过”。 |
 
-PR #221 提议的 [`test-evidence` 规格](https://github.com/heapcluster/jit-defect-prediction/blob/0c759252b7a614a9759a946d8819684a9abfa357/openspec/changes/neon-test-baseline/specs/test-evidence/spec.md) 有三项 Requirement：端点清单来源与偏差登记、执行记录区分已执行与未执行、人工签署文档不由 AI 代写。前两项以运行时 `/openapi.json`、逐项命令/日期/结果和缺陷链接核对；第三项以 neon 的正式签字文件核对。这里的十条自动检查不替代 124 条 Scenario 的人工结论。
+PR #221 提议的 [`test-evidence` 规格](https://github.com/heapcluster/jit-defect-prediction/blob/0c759252b7a614a9759a946d8819684a9abfa357/openspec/changes/neon-test-baseline/specs/test-evidence/spec.md) 有三项 Requirement：端点清单来源与偏差登记、执行记录区分已执行与未执行、人工签署文档不由 AI 生成。前两项以运行时 `/openapi.json`、逐项命令/日期/结果和缺陷链接核对；第三项以 neon 的正式签字文件核对。这里的十条自动检查不替代 124 条 Scenario 的人工结论。
 
 ### 测试与验证
 
