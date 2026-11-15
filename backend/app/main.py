@@ -65,6 +65,7 @@ def _startup_sync_if_enabled() -> None:
 async def _lifespan(app: FastAPI):
     db.get_engine()
     model_registry.load_models()
+    model_registry.warmup()
     # 启动时把已加载模型元数据 upsert 进 model 表（供 FK 与查询，空库首启也需补齐）。
     # 在线权重仅 expert 线交付，故 line 恒为 expert（语义/融合/e2e 由 data_init.sql 导入）。
     entries = []
