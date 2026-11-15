@@ -33,7 +33,7 @@
 - **模型标识统一用 `model_name`**：`line` / `model_name` 参数对外都是字符串标识，与库表 `prediction.model_name` 直接对应。
 - 现算一条实测 **P50 ≈ 108 秒**，补算**必须走异步**：前端提交后立即返回，靠 `/api/sync/status` 轮进度，MUST NOT 同步等结果、MUST NOT 把超时设成 10 秒。
 - 「刷新」只负责按当前筛选触发同步；完成后前端再按同一组筛选条件重新查询列表，MUST NOT 把同步结果当查询结果直接拼进表格。
-- 同一时刻只允许一个同步任务（服务端串行锁），并发请求返回「已在同步中」而不是排队重试。
+- 同一时刻只允许一个同步任务（服务端串行锁），并发请求返回 `40001` +「同步进行中，请稍候」而不是排队重试；前端据此把「刷新」置灰并接上 `/api/sync/status` 轮询。
 
 ## 响应 `data`（`/api/sync/status`）
 | 字段 | 含义 |
@@ -43,7 +43,7 @@
 | `scope` | `baseline` / `latest` / `catchup-to-head`；空闲为 `null`（`catchup-to-head` 由启动同步产生） |
 | `total` / `done` | 本批总量 / 已完成（刚开始 `total` 仍为 0，计划算出后才回填） |
 | `current_hash` | 当前处理提交 |
-| `started_at` | 本批开始时间 |
+| `started_at` | 本批开始时间（UTC，ISO 8601 带 `Z`） |
 | `last_error` | 最近错误（如有） |
 
 **状态只在内存**（`services/sync_state.py`）：进程重启即清零，`/api/health` 的 `last_sync_at` 同步变 `null`。MUST NOT 拿它当历史同步记录查询。
@@ -51,6 +51,6 @@
 ## 错误
 | 业务码 | HTTP | 含义 |
 |---|---|---|
-| 40001 | 400 | 参数非法（`line` / `model_name` / 时间格式错误等） |
+| 40001 | 400 | 参数非法（`line` / `model_name` / 时间格式错误等）；**已在同步中**（message=`同步进行中，请稍候`） |
 | 40100 | 401 | 缺 / 错 token |
-| 50000 | 500 | 同步中重复触发 / git 源不可达 / 内部错误 |
+| 50000 | 500 | 内部错误（git 源不可达只记 `last_error`，不通过 HTTP 50000 暴露） |

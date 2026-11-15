@@ -9,7 +9,7 @@
 
 ## 处理功能
 - **方式一（索引）**：`GET /api/figures?model_name=`，返回该模型的**指标数值 + 逐模型图清单**（后端路由已实现；指标 CSV 缺失时 `metrics=null`）
-- **方式二（静态）**：逐模型图集：`StaticFiles` 挂 `backend/static/figures/{line}/{model}/{figure_type}.png`（**已实现**；当前仓库按文件清单计 133 张 PNG，变更后须重新核对）
+- **方式二（静态）**：逐模型图集：`StaticFiles` 挂 `backend/static/figures/{line}/{model}/{figure_type}.png`（**已实现**）。源文件在 `data_model/pipelines/{line}/reports/figs_by_model/` 并入库；`backend/static/figures/` 不入库，后端启动时自动建目录并补齐缺失文件（`app/services/figure_store.py`），干净检出无需人工拷贝。
 - **权限**：沿用后端统一鉴权
 - **关联数据**：`model_figure`（图元数据）、`model.line`（路径分组）、`data_model/evaluation/out/model_metrics.csv`（指标数值，由 `cd data_model && python -m evaluation.run_all` 生成；后端只读，不跑脚本）
 
@@ -27,7 +27,8 @@
 | `figures[]` | 图数组 |
 | `figures[].figure_type` | `roc` / `pr` / `confusion` / `calibration` / `effort` / `feat_importance` |
 | `figures[].title` | 图标题 |
-| `figures[].file_path` | 图 URL（指向静态目录） |
+| `figures[].file_path` | 图 URL（指向静态目录；**只返回磁盘上真实存在的文件**） |
+| `missing[]` | 库内有记录但磁盘缺图的 `file_path` 列表；非空即降级提示，前端不应渲染这些路径 |
 
 ### `metrics` 字段
 | 字段 | 含义 |
@@ -43,7 +44,7 @@
 |---|---|---|
 | 40001 | 400 | 缺少 `model_name` |
 | 40100 | 401 | 缺 / 错 token |
-| 40400 | 404 | 模型无图、架构目录或图文件不存在 |
+| 40400 | 404 | 模型无图（`model` / `model_figure` 无记录） |
 
 ## 口径
 - **模型标识统一用 `model_name`**：请求/响应都用 `model_name`，库表 `model_figure` 外键即 `model_name`，无中间转换。
@@ -51,6 +52,7 @@
 - **逐模型图集（`model_figure`，实测已交付）**：`figure_type` 取值 `roc` / `pr` / `confusion` / `calibration` / `effort` / `feat_importance`；
   - `effort`：effort-aware 曲线（累计 LOC 预算 vs 召回率，含随机基线与 oracle）；
   - `feat_importance`：**仅 `expert` 线产出**（Kamei 14 维可读）；semantic / fused 的 768 维、e2e 文本不产出该图——e2e 只有 5 张，无 `feat_importance`。
-  - `file_path` 形如 `/static/figures/{line}/{model}/{figure_type}.png`，由 `data_model/evaluation/` 生成并拷贝到 `backend/static/figures/`。
+  - `file_path` 形如 `/static/figures/{line}/{model}/{figure_type}.png`，由 `data_model/evaluation/` 生成；后端启动时从 `data_model/pipelines/{line}/reports/figs_by_model/` 复制到 `backend/static/figures/`。
+  - **缺图降级**：接口只返回真实存在的文件，并把库内有记录但磁盘缺失的路径放进 `missing[]`；不把不可用路径当可用返回。`/static/**` 由 `StaticFiles` 直接处理，404 不走统一错误包络，前端以 `missing[]` 为准，不靠撞 404 发现缺图。
 - 课程《项目要求》要求 effort-unaware 与 effort-aware **两类**指标，各对应至少一张图（`effort.png` 即 effort-aware 那张）。
 - **取图方式**：`<img src>` 带不了 `X-API-Key`，前端用 `fetch`（带鉴权头）取二进制再转 `ObjectURL` 渲染；不许为了让 `<img>` 能显示就把静态路径开成免鉴权。

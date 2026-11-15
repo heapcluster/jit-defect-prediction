@@ -48,9 +48,9 @@ curl http://localhost:8000/api/health -H "X-API-Key: dev-token"
 2. **配置后端**：`cp backend/.env.example backend/.env`，填 MySQL `jit_demo` 的账号与密码。要同步实时提交时填 `SOURCE_REPO`（目录须含 `.git`）。`MODEL_DIR` 留空时回落到仓库内 expert 权重目录，但权重本体需另行取得并核对，不在 Git 中。
 3. **起数据库与后端**：确保 MySQL 已建好并授权 `jit_demo`；在 `backend/` 运行 `python -m app.db init` 建立现行五表，再运行
    `python -m uvicorn app.main:app --host 127.0.0.1 --port 8000`。
-   旧七表库不会被 `create_all` 自动迁移，应在隔离库重建并验证。建表真源是 `infra/schema.sql`。
+   旧七表库不会被 `create_all` 自动迁移，应在隔离库重建并验证。建表真源是 `infra/schema.sql`。模型性能图集由后端启动时自动从 `data_model/pipelines/{line}/reports/figs_by_model/` 补齐到 `backend/static/figures/`（该目录不入库），无需手工拷贝。
 4. **起前端**：`cp frontend/.env.example frontend/.env.local`，确保 `VITE_API_KEY` 与后端 `API_TOKEN` 相同；在 `frontend/` 运行 `npm ci`、`npm run dev -- --host 127.0.0.1`，打开 http://127.0.0.1:5173/ 。
-5. **走通链路**：先查公开的 `GET /api/health`，再带 `X-API-Key: <本机 API_TOKEN>` 查 `GET /api/models`；本地 Git 源可用时从页面触发同步，或带同一请求头调用 `POST /api/sync`。该接口异步返回，随后轮询 `GET /api/sync/status`，确认 `running=false`、`last_error` 为空，再查询 `/api/commits`。**无数据与同步失败要分开记录。**
+5. **走通链路**：先带 `X-API-Key: <本机 API_TOKEN>` 查 `GET /api/health`（三条健康探针都要鉴权，不带 token 返回 401），再查 `GET /api/models`；本地 Git 源可用时从页面触发同步，或带同一请求头调用 `POST /api/sync`。该接口异步返回，随后轮询 `GET /api/sync/status`，确认 `running=false`、`last_error` 为空，再查询 `/api/commits`。若已有同步在跑，第二次触发返回 `40001` +「同步进行中，请稍候」，前端会接上轮询而不再报服务异常。**无数据与同步失败要分开记录。**
 
 ## 三、关键环境变量
 

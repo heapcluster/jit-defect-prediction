@@ -28,7 +28,8 @@
 |---|---|
 | `status` | `ok` / `degraded` |
 | `db` | `up` / `down` |
-| `models_loaded` / `model_names` | 已加载模型数与名单 |
+| `models_loaded` / `model_names` | 已加载进内存的模型数与名单（不等于可用模型清单；其余模型按需懒加载） |
+| `catalog_count` | 交付清单总数（`model` 表行数，当前 25）；与 `models_loaded` 区分，避免把「已加载」误读成「可用」 |
 | `commit_count` / `prediction_count` | 两张表行数 |
 | `last_sync_at` | 最近一次同步开始时间；进程重启后为 `null` |
 | `server_time` | 服务端当前时间（`Z` 结尾） |
@@ -53,5 +54,6 @@
 | 40100 | 401 | 缺 / 错 token |
 
 ## 口径
+- **25 个模型都是在线可预测**：`model_names` / `models_loaded` 只反映进程内已加载的权重，**不表示**未列出的模型离线；前端不据此标注「（离线）」。
 - `labeled_count` 字段**已随 `commit_label` 表删除下线**；真标签改在 `commit_feature.is_bug_inducing`，不再单独计数。
 - 三条探针均无业务参数，集成测试按「正常 / 缺 token / 非法 token / 篡改 token」四类场景覆盖即可。
