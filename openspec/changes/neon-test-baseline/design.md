@@ -20,11 +20,11 @@
 
 **理由**：把「需要活服务的黑盒用例」塞进单测目录会让 CI 必须额外起进程与随机端口，失败原因（服务没起 vs 断言写错）混在一起；脚本形态可本地随时复跑、可传 `BASE_URL` 指向预发环境，也贴近课程「接口测试脚本」的交付口径。
 
-**修订记录**：2026-11-10 初版曾决定「不写任何可执行用例」，理由是当时本机无可用 Python 运行时、无法收集验证。2026-11-12 用户提供了 conda 环境后该前提消失，脚本已实跑（35/35、12/12、perf 达标），原决定随之撤销；保留此条以说明为何前后不一致。
+**修订记录**：初版曾决定「不写任何可执行用例」，理由是当时本机无可用 Python 运行时、无法收集验证。环境补齐后该前提消失，脚本已实跑（集成 34/35、安全 18/18、性能 p95 68.1ms 达标），原决定随之撤销。保留此条以说明为何前后不一致。
 
 ## 3 · 执行记录独立成文，不改 `docs/test/integration_test/report.md` 的结论列
 
-**决定**：`docs/test/system_test/execution_records/neon-test-execution.md` 记录本轮执行边界；`docs/test/integration_test/report.md` 只追加一段「本轮未执行 + 指向执行记录」的说明，不填任何「通过」。
+**决定**：执行边界与环境核查写在 `docs/test/overview.md` 与 `docs/test/human-todo.md`；原始输出放 `docs/test/integration_test/execution_records/`。`docs/test/integration_test/report.md` 只写实测结论并指向记录文件，不把「未执行」写成「通过」。
 
 **理由**：`docs/test/integration_test/report.md` 是**证据索引**，其表格列写的是「结果 / 证据链接」，一旦把「环境受限」写进结果列，后续读者容易把索引里的文字当结论。索引保持原样、只补口径说明，能把「未执行」与「已执行」的边界留在独立文档里，便于按提交号追证据。
 

@@ -3,7 +3,7 @@
 ## 基本信息
 - 使用工具：CodeBuddy（IDE 内 Agent），模型 DeepSeek-V4.1-Flash
 - 使用日期：2026-11-13
-- 关联测试文件：backend/scripts/evidence/2026-11-13-system-cases.md
+- 关联测试文件：docs/test/system_test/test_cases.md、docs/test/system_test/execution_records/
 
 ## 提示词原文
 

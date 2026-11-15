@@ -6,7 +6,7 @@
 - 模型：DeepSeek-V4.1-Flash
 - 使用日期：2026-11-10
 - 关联测试文件：[`../endpoint_inventory.md`](../endpoint_inventory.md) §2、§4
-- 生成人 / 分支：neon / `test/neon-test-baseline`
+- 生成人：neon
 - 来源标签：`[AI生成]`
 
 ## 提示词原文

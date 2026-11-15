@@ -4,7 +4,7 @@
 正式验收方案/报告由 sober 整理，neon 现场判定并签字（AI-R5）。
 
     cd backend && python scripts/acceptance_scenarios.py
-    python scripts/acceptance_scenarios.py --out evidence/2026-11-12-acceptance-checklist.md
+    python scripts/acceptance_scenarios.py --out ../docs/test/integration_test/execution_records/2026-11-15-acceptance-checklist.md
 """
 
 from __future__ import annotations
