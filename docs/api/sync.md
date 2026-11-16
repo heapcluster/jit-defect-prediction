@@ -41,6 +41,7 @@
 | 字段 | 含义 |
 |---|---|
 | `running` | 是否同步中 |
+| `phase` | 当前阶段：`fetch`（拉取源仓库）/ `plan`（计算待补提交）/ `extract`（批量抽特征）/ `predict`（逐条打分）；空闲为 `null` |
 | `mode` | `startup` / `manual`；空闲为 `null` |
 | `scope` | `baseline` / `latest` / `catchup-to-head`；空闲为 `null`（`catchup-to-head` 由启动同步产生） |
 | `total` / `done` | 本批总量 / 已完成（刚开始 `total` 仍为 0，计划算出后才回填） |

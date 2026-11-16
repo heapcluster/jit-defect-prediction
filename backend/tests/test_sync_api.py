@@ -316,6 +316,7 @@ def test_sync_status_reports_idle_and_after_catchup(client, monkeypatch, tmp_pat
     idle = client.get("/api/sync/status", headers=HEADERS)
     assert idle.status_code == 200
     assert idle.json()["data"]["running"] is False
+    assert idle.json()["data"]["phase"] is None
 
     repo = tmp_path / "camel5"
     repo.mkdir()
@@ -332,6 +333,7 @@ def test_sync_status_reports_idle_and_after_catchup(client, monkeypatch, tmp_pat
     sync_module.sync_catchup()
     after = client.get("/api/sync/status", headers=HEADERS).json()["data"]
     assert after["running"] is False
+    assert after["phase"] is None
     assert after["mode"] == "startup"
     assert after["scope"] == "catchup-to-head"
     assert after["started_at"].endswith("Z")

@@ -170,6 +170,7 @@ def _run_batch(
         raise AppError(40001, SYNC_BUSY_MESSAGE)
     sync_state.set_state(
         running=True,
+        phase="fetch" if config.SYNC_FETCH else "plan",
         mode=mode,
         scope=scope,
         total=0,
@@ -188,8 +189,11 @@ def _run_batch(
             if config.SYNC_FETCH
             else run_git(str(repo), "rev-parse", "HEAD").strip()
         )
+        sync_state.set_state(phase="plan")
         scanned, pending, truncated = plan(str(repo), tip)
-        sync_state.set_state(total=len(pending))
+        sync_state.set_state(
+            total=len(pending), phase="extract" if pending else "predict"
+        )
 
         model_names = sorted(models)
         extract_repo, release = ensure_extractable(str(repo), tip)
@@ -197,6 +201,7 @@ def _run_batch(
             extracted = _prefetch_features(pending, extract_repo)
             if pending:
                 logger.info("sync prefetch: pending=%s extracted=%s", len(pending), extracted)
+            sync_state.set_state(phase="predict")
             results: list[dict] = []
             skipped: list[dict] = []
             for commit_hash in pending:
@@ -236,7 +241,7 @@ def _run_batch(
         sync_state.set_state(last_error=str(exc)[:200])
         raise
     finally:
-        sync_state.set_state(running=False)
+        sync_state.set_state(running=False, phase=None)
         _sync_lock.release()
 
 
@@ -334,6 +339,7 @@ def sync_endpoint(
         # 会读到上一次任务的 running=false 而误判「已完成」。
         sync_state.set_state(
             running=True,
+            phase="fetch" if config.SYNC_FETCH else "plan",
             mode="manual",
             scope="latest",
             total=0,
