@@ -5,3 +5,5 @@
 离线测试数据与实时同步结果应分别留证，不能互相冒充。真实数据库、权重和页面验收仍须由实际操作者执行并记录。
 
 **本机代理提醒**：若终端或 `backend/.env` 配了 `HTTP_PROXY` / `HTTPS_PROXY`，必须同时设 `NO_PROXY=127.0.0.1,localhost`（`.env.example` 已给出），否则 `httpx` / `requests` 连本机 8000 也会走代理并报连接被拒。脚本侧可用 `httpx.Client(trust_env=False)` 兜底。
+
+**同步离线提示**：`SYNC_FETCH=0` 时刷新跳过 `git fetch`，直接使用 `SOURCE_REPO` 的本地 HEAD，适合固定版本/断网演示；需要追踪远端新提交时保持默认 `1`。

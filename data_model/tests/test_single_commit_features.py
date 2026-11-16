@@ -109,3 +109,11 @@ def test_rejects_bad_or_unreachable_commit(tiny_repo):
         extract.extract_single_commit(repo, "bad")
     with pytest.raises(ValueError, match="HEAD 可达"):
         extract.extract_single_commit(repo, "f" * 40)
+
+
+def test_extract_commits_matches_single(tiny_repo):
+    """批量抽取与逐条抽取结果必须逐字段一致（同步提速的前提）。"""
+    repo, hashes = tiny_repo
+    batch = extract.extract_commits(repo, hashes)
+    singles = [extract.extract_single_commit(repo, commit_hash) for commit_hash in hashes]
+    assert batch == singles

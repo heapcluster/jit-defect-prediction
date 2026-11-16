@@ -22,7 +22,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 
-from app import config, model_registry
+from app import config, feature_source, model_registry
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import AppError, ok
@@ -35,8 +35,13 @@ from app.services.git import (
     list_all_hashes,
     list_hashes_in_range,
     list_recent_hashes,
+    run_git,
 )
-from app.services.predict import predict_commit_all_models, predict_single
+from app.services.predict import (
+    predict_commit_all_models,
+    predict_single,
+    store_extracted_features,
+)
 from app.timeutil import iso_z, parse_time_param
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
@@ -123,6 +128,22 @@ def _update_done(results: list, skipped: list) -> None:
     sync_state.set_state(done=len(results) + len(skipped))
 
 
+def _prefetch_features(hashes: list[str], repo) -> int:
+    """批量现算待补提交的 14 维特征并落库。
+
+    逐条预测各自调用 extract_single_commit 会各扫一遍全历史；这里一次扫描算完
+    整批，N 条新提交的耗时从 N×110s 降到约 1×110s + 批量打分。
+    """
+    if not hashes:
+        return 0
+    try:
+        items = feature_source.extract_many(hashes, repo)
+        return store_extracted_features(items)
+    except Exception:  # noqa: BLE001 —— 预取失败退回逐条现算，不阻断同步
+        logger.exception("batch feature prefetch failed; fallback to per-commit extraction")
+        return 0
+
+
 def _predict_commit_models(commit_hash: str, repo, model_names: list[str]) -> None:
     """按模型线分流：expert 走 14 维批量路径，semantic/fused/e2e 走单模型在线路径。
 
@@ -142,9 +163,9 @@ def _run_batch(
     mode: str,
     scope: str,
     models: set[str],
-    plan: Callable[[str], tuple[int, list[str], bool | None]],
+    plan: Callable[[str, str], tuple[int, list[str], bool | None]],
 ) -> dict:
-    """取锁 → fetch → 按 plan 算待预测 → 逐条预测入库 → 归还锁。"""
+    """取锁 → （可选 fetch）→ 按 plan 算待预测 → 批量抽特征 → 逐条预测入库 → 归还锁。"""
     if not _sync_lock.acquire(blocking=False):
         raise AppError(40001, SYNC_BUSY_MESSAGE)
     sync_state.set_state(
@@ -162,13 +183,20 @@ def _run_batch(
         if repo is None or not (repo / ".git").exists():
             raise AppError(40400, "sync source repository unavailable")
 
-        tip = fetch_latest_tip(str(repo))
-        scanned, pending, truncated = plan(str(repo))
+        tip = (
+            fetch_latest_tip(str(repo))
+            if config.SYNC_FETCH
+            else run_git(str(repo), "rev-parse", "HEAD").strip()
+        )
+        scanned, pending, truncated = plan(str(repo), tip)
         sync_state.set_state(total=len(pending))
 
         model_names = sorted(models)
         extract_repo, release = ensure_extractable(str(repo), tip)
         try:
+            extracted = _prefetch_features(pending, extract_repo)
+            if pending:
+                logger.info("sync prefetch: pending=%s extracted=%s", len(pending), extracted)
             results: list[dict] = []
             skipped: list[dict] = []
             for commit_hash in pending:
@@ -225,11 +253,11 @@ def sync_manual(
     with SessionLocal() as session:
         models = _resolve_scope_models(session, line, model_name)
 
-    def plan(repo: str) -> tuple[int, list[str], bool | None]:
+    def plan(repo: str, tip: str) -> tuple[int, list[str], bool | None]:
         if start is not None or end is not None:
-            hashes = list_hashes_in_range(repo, start, end)
+            hashes = list_hashes_in_range(repo, start, end, ref=tip)
         else:
-            hashes = list_recent_hashes(repo, config.SYNC_BATCH_LIMIT)
+            hashes = list_recent_hashes(repo, config.SYNC_BATCH_LIMIT, ref=tip)
         pending, _ = _unpredicted(hashes, models)
         return len(hashes), pending, None
 
@@ -243,8 +271,8 @@ def sync_catchup(mode: str = "startup", scope: str = "catchup-to-head") -> dict:
     """
     models = _loaded_model_names()
 
-    def plan(repo: str) -> tuple[int, list[str], bool | None]:
-        hashes = list_all_hashes(repo)
+    def plan(repo: str, tip: str) -> tuple[int, list[str], bool | None]:
+        hashes = list_all_hashes(repo, ref=tip)
         pending, truncated = _unpredicted(hashes, models, config.SYNC_CATCHUP_LIMIT)
         return len(hashes), pending, truncated
 
@@ -256,8 +284,8 @@ def run_startup_sync() -> dict:
     if is_first_run():
         models = _loaded_model_names()
 
-        def plan(repo: str) -> tuple[int, list[str], bool | None]:
-            hashes = list_recent_hashes(repo, config.SYNC_INITIAL_LIMIT)
+        def plan(repo: str, tip: str) -> tuple[int, list[str], bool | None]:
+            hashes = list_recent_hashes(repo, config.SYNC_INITIAL_LIMIT, ref=tip)
             pending, _ = _unpredicted(hashes, models)
             return len(hashes), pending, None
 
