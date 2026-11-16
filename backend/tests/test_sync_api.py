@@ -359,3 +359,48 @@ def test_git_failure_without_network_error_is_not_retried(monkeypatch, tmp_path)
         sync_module.fetch_latest_tip(str(tmp_path), retries=3)
     assert exc.value.code == 50000
     assert calls["n"] == 1
+
+
+def test_resolve_scope_accepts_delivered_non_expert_model(monkeypatch):
+    """前端下拉展示 25 个交付模型后，显式指定 semantic/fused/e2e 模型不能再误报 40001。"""
+    monkeypatch.setattr(
+        sync_module.model_registry, "has", lambda name: name == "xgb_semantic_v1"
+    )
+    assert sync_module._resolve_scope_models(None, None, "xgb_semantic_v1") == {
+        "xgb_semantic_v1"
+    }
+
+
+def test_resolve_scope_rejects_unknown_model(monkeypatch):
+    monkeypatch.setattr(sync_module.model_registry, "has", lambda name: False)
+    with pytest.raises(AppError) as exc:
+        sync_module._resolve_scope_models(None, None, "no_such_model")
+    assert exc.value.code == 40001
+    assert "model_name 不存在" in exc.value.message
+
+
+def test_predict_commit_models_routes_by_line(monkeypatch):
+    """expert 走 14 维批量；semantic/fused/e2e 走单模型在线路径，不能拿 14 维硬喂。"""
+    calls = {"batch": [], "single": []}
+    monkeypatch.setattr(
+        sync_module,
+        "predict_commit_all_models",
+        lambda h, repo=None, model_names=None: calls["batch"].append(list(model_names)),
+    )
+    monkeypatch.setattr(
+        sync_module,
+        "predict_single",
+        lambda h, name, repo=None: calls["single"].append(name) or {},
+    )
+    lines = {
+        "xgb_v1": "expert",
+        "xgb_semantic_v1": "semantic",
+        "codebert_e2e_v1": "e2e",
+    }
+    monkeypatch.setattr(sync_module.model_registry, "line_of", lambda name: lines[name])
+
+    sync_module._predict_commit_models(
+        "a" * 40, None, ["xgb_v1", "xgb_semantic_v1", "codebert_e2e_v1"]
+    )
+    assert calls["batch"] == [["xgb_v1"]]
+    assert calls["single"] == ["xgb_semantic_v1", "codebert_e2e_v1"]

@@ -36,7 +36,7 @@ from app.services.git import (
     list_hashes_in_range,
     list_recent_hashes,
 )
-from app.services.predict import predict_commit_all_models
+from app.services.predict import predict_commit_all_models, predict_single
 from app.timeutil import iso_z, parse_time_param
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
@@ -63,22 +63,21 @@ def _loaded_model_names() -> set[str]:
 
 
 def _resolve_scope_models(session, line: str | None, model_name: str | None) -> set[str]:
-    """把 line / model_name 解析成要补齐的模型集合（已加载 ∩ 该架构）。
+    """把 line / model_name 解析成要补齐的模型集合。
 
-    只补「在线」模型：语义/融合/e2e 尚未交付在线权重时不触发计算（docs：某架构尚未
-    交付模型时为空）。
+    显式指定 `line` / `model_name` 时覆盖四线交付模型（semantic/fused/e2e 懒加载）；
+    未指定时只取已加载模型（当前为 expert 批量路径），保持普通「刷新」轻量。
     """
-    loaded = _loaded_model_names()
     if model_name:
-        if model_name not in loaded:
-            raise AppError(40001, "参数非法：model_name 不在已加载模型清单")
+        if not model_registry.has(model_name):
+            raise AppError(40001, "参数非法：model_name 不存在")
         return {model_name}
     if line:
         rows = session.execute(
             select(Model.model_name).where(Model.line == line)
         ).scalars().all()
-        return {name for name in rows if name in loaded}
-    return loaded
+        return {name for name in rows if model_registry.has(name)}
+    return _loaded_model_names()
 
 
 def _unpredicted(
@@ -124,6 +123,20 @@ def _update_done(results: list, skipped: list) -> None:
     sync_state.set_state(done=len(results) + len(skipped))
 
 
+def _predict_commit_models(commit_hash: str, repo, model_names: list[str]) -> None:
+    """按模型线分流：expert 走 14 维批量路径，semantic/fused/e2e 走单模型在线路径。
+
+    非 expert 线的输入维度/文本不同，不能复用 14 维批量打分；缺向量或文本时由
+    `predict_single` 的在线补算兜底。
+    """
+    expert = [name for name in model_names if model_registry.line_of(name) == "expert"]
+    others = [name for name in model_names if name not in expert]
+    if expert:
+        predict_commit_all_models(commit_hash, repo=repo, model_names=expert)
+    for name in others:
+        predict_single(commit_hash, name, repo=repo)
+
+
 def _run_batch(
     *,
     mode: str,
@@ -161,7 +174,7 @@ def _run_batch(
             for commit_hash in pending:
                 sync_state.set_state(current_hash=commit_hash)
                 try:
-                    predict_commit_all_models(commit_hash, repo=extract_repo, model_names=model_names)
+                    _predict_commit_models(commit_hash, extract_repo, model_names)
                     results.append({"commit_hash": commit_hash})
                 except AppError as exc:
                     skipped.append(
@@ -280,7 +293,7 @@ def sync_endpoint(
     if line is not None and line not in VALID_LINES:
         raise AppError(40001, "参数非法：line 取值需为 expert / semantic / fused / e2e")
     if model_name is not None and not model_registry.has(model_name):
-        raise AppError(40001, "参数非法：model_name 不在已加载模型清单")
+        raise AppError(40001, "参数非法：model_name 不存在")
     start = parse_time_param(start_time, "start_time") if start_time else None
     end = parse_time_param(end_time, "end_time", "end") if end_time else None
     # 「检查 running + 置 running=True」必须在锁内原子完成：否则两个并发请求都能通过
