@@ -1,6 +1,7 @@
 # db-schema Specification
 
 ## Purpose
+
 把 `docs/database/` 的五张表及 14 维特征列序落地为可执行建库与实时同步入库，为查询接口、在线预测和模型图集提供数据落点。
 
 ## Requirements

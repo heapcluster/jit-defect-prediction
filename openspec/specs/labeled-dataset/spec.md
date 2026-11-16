@@ -1,6 +1,7 @@
 # labeled-dataset Specification
 
 ## Purpose
+
 把提交清单与缺陷标签汇成一份可训练样本集，并报出判断数据是否可用的统计证据，使下游模型线拿到的是可复现、可对照的同一份数据。
 
 ## Requirements

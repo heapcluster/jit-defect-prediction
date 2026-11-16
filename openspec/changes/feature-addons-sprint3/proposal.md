@@ -3,6 +3,7 @@
 > 起草 2026-10-09 ｜ 起草人 蒋励 ｜ 当前技术入口：`docs/README.md`。G1-3/G1-4 已交由独立 change；旧契约三及冻结日期只属历史记录。
 
 ## Why
+
 课程《项目要求》鼓励在 MVP 之外做附加功能。0925 周报已写「排 Sprint 3」，但看板与 openspec
 至今没有对应条目——写了就得有东西可点，否则会烂尾。四项候选：
 1. 缺陷可视化定位：在提交详情页展示提交级特征归因及真实 diff 中的文件与新增行；新增行不代表模型算出的行级风险。
@@ -12,17 +13,20 @@
 两项均不在 Sprint 1 交付范围，须先立项以便看板可追踪。
 
 ## What Changes
+
 1. 新增看板 Sprint 3 行（或本 change 的 tasks 即对应条目），使 J7 验收「列点得开」。
 2. 缺陷可视化定位：前端详情页呈现提交级 SHAP 归因及真实 diff 新增行，缺少源仓库时明确降级，不虚构文件级贡献度或行级概率。
 3. 修复参考：读取同仓库 `commit_feature.fix=1` 的历史修复提交，按提交时间倒序输出 Top-K 参考；不称为相似度排序。
 4. 公开数据集与语义特征已移出，分别由 `public-dataset-quality`、`semantic-feature-mainline` 独立提出、测试及归档；本 change 不重复规定。
 
 ## Capabilities
+
 - `defect-visualization`：提交级归因与真实 diff 文件 / 新增行展示，缺源仓库时降级。
 - `fix-suggestion`：基于历史修复的高风险提交修复建议。
 > `public-dataset` 与 `semantic-features` 不由本 change 修改，见各自独立 change。
 
 ## Impact（影响与边界）
+
 | 项 | 内容 |
 |---|---|
 | 影响目录 | `frontend/`（详情页）、`data_model/`（可选修复检索脚本）；公开数据集和语义特征由独立 change 负责 |

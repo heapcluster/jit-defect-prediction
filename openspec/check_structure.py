@@ -126,6 +126,28 @@ def check_doc_references(path: Path) -> list[str]:
     return errors
 
 
+def check_markdown_spacing(path: Path) -> list[str]:
+    """Keep active Markdown readable in GitHub, Feishu and plain-text viewers."""
+    errors = []
+    lines = path.read_text(encoding="utf-8").splitlines()
+    fenced = False
+    for index, line in enumerate(lines):
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced:
+            continue
+        number = index + 1
+        if re.match(r"^#{1,6} ", line):
+            if index and lines[index - 1].strip():
+                errors.append(f"{path}:{number}: add a blank line before heading")
+            if index + 1 < len(lines) and lines[index + 1].strip():
+                errors.append(f"{path}:{number}: add a blank line after heading")
+        if line.startswith("|") and index and not lines[index - 1].startswith("|") and lines[index - 1].strip():
+            errors.append(f"{path}:{number}: add a blank line before table")
+    return errors
+
+
 def check_collisions(changes: list[Path]) -> list[str]:
     modified: dict[tuple[str, str], list[str]] = defaultdict(list)
     for change in changes:
@@ -173,9 +195,14 @@ def main() -> int:
         for path in change.rglob("*.md"):
             errors.extend(check_links(path))
             errors.extend(check_doc_references(path))
+            errors.extend(check_markdown_spacing(path))
     for path in (OPEN_SPEC / "specs").rglob("*.md"):
         errors.extend(check_links(path))
         errors.extend(check_doc_references(path))
+        errors.extend(check_markdown_spacing(path))
+    for path in (OPEN_SPEC / "README.md", OPEN_SPEC / "WRITING_GUIDE.md", CHANGES / "README.md"):
+        errors.extend(check_links(path))
+        errors.extend(check_markdown_spacing(path))
     errors.extend(check_collisions(changes))
     errors.extend(check_modified_targets(changes))
     for error in errors:

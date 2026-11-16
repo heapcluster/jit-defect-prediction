@@ -1,6 +1,7 @@
 # nfr-evidence Specification
 
 ## Purpose
+
 把课程两项非功能要求（性能、安全）变成可复跑、可出示的证据：分位数压测与两组安全用例，证据进仓库并标注模型来源。
 
 ## Requirements

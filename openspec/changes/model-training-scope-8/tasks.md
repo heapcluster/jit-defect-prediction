@@ -63,6 +63,7 @@
 > 铁律：**勾了 tasks ≠ 功能合格，必须有可复现的运行证据。**
 
 ### 1. 单元测试
+
 | 项 | 内容 |
 |---|---|
 | 覆盖对象 | ① `budget_order`/`effort_aware_metrics` 的评审下限按口径取值与无下限跳过；② 报告结论由本轮 `results` 计算（非负、子集两形态）；③ 三线 `DEFAULT_MODELS`=8 且 `MODEL_NAMES`=12；④ `semantic`/`fused` 报告标题取实际训练数；⑤ `--from-saved` 报告与图表双隔离 |
@@ -73,6 +74,7 @@
 | 异常 / 边界用例 | nf 口径误用 floor=10 → 全部被判「太小」、排序退化为按分数（`test_floor_unit_follows_effort_unit` 末段断言）；P_norm 全非负 → 报告不出现「全为负」且不写死模型名（`test_narrative_does_not_claim_all_negative_when_results_are_positive`）；`--models lr` 子集 → 报告只含 `lr`（`test_narrative_scales_to_model_subset`） |
 
 ### 2. 集成测试
+
 | 项 | 内容 |
 |---|---|
 | 集成范围 | 训练入口 ↔ 05 时间序切分产物 ↔ 03 原始特征表（effort 列）↔ 交付清单 `models/feature_order.txt` |
@@ -82,6 +84,7 @@
 | 关键断言 | ① 训练/检验 `commit_hash` 交集为空，人为构造交集时退出码 2 且不写任何报告（泄漏闸门）；② `--from-saved` 运行后 `reports/model_metrics.md` mtime 不变、`reports/figs/` 在 `git status` 中零改动；③ `models/feature_order.txt` 的 `[models]` 段仍为 `lr/rf/xgb`（交付清单不随训练口径变化） |
 
 ### 3. 验收测试
+
 | 项 | 内容 |
 |---|---|
 | 验收依据 | `specs/model-training-scope/spec.md` 的 4 条 Requirement + 6 个 Scenario |
@@ -90,6 +93,7 @@
 | 证据归档 | `data_model/pipelines/expert/reports/model_metrics.md`、`data_model/pipelines/expert/reports/model_matrix.md`、`data_model/ENVIRONMENT.md` §5、`data_model/pipelines/expert/models/feature_order.txt` |
 
 ### 4. 非功能验证
+
 | 维度 | 是否触及 | 证据 |
 |---|---|---|
 | 性能 | 否 | 训练为离线批处理，不触及接口 SLA |

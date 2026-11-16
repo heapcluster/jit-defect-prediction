@@ -1,6 +1,7 @@
 # predict-api Specification
 
 ## Purpose
+
 落地课程要求的「对外提供在线预测服务」：启动时加载模型文件（方案 A），`POST /api/predict` 对库中提交实时推理并给出 SHAP 解释，结果按幂等口径落 `prediction` 表。
 
 ## Requirements

@@ -1,6 +1,7 @@
 # feature-extraction Specification
 
 ## Purpose
+
 把样本集中的每次提交转为 Kamei 14 项特征向量，供模型训练与在线 expert 推理消费。当前落库字段见 `docs/database/commit_feature.md`，在线列序见 `data_model/pipelines/expert/models/feature_order.txt`；运行统计须由本次生成的报告证明。
 
 ## Requirements
@@ -10,14 +11,17 @@
 特征产物 MUST 保留用于关联的 `commit_hash`、`committed_at`、`feature_version` 与 Kamei 14 项；入库时列名、类型及 log 变换 MUST 对齐 `docs/database/commit_feature.md`，expert 输入列序 MUST 对齐 `data_model/pipelines/expert/models/feature_order.txt`。产出特征 MUST 标明实际 `feature_version`，不得凭历史契约版本推断。
 
 #### Scenario: 列名逐字比对
+
 - **WHEN** 特征表产出后与当前 14 维交付清单逐字比对
 - **THEN** 缺列 0、多列 0、改名 0；`feature_version` 与实际抽取版本一致
 
 #### Scenario: 口径可复算
+
 - **WHEN** 抽取任一提交按 `03_extract_features.py` 当前口径手工复算 `rexp` 与 `nuc`
 - **THEN** 与特征表落盘值一致（浮点误差按 DECIMAL 精度允许）
 
 #### Scenario: 出现契约未定义的列名（边界场景）
+
 - **WHEN** 特征表校验时发现当前落库文档及交付清单未定义的列名，或缺列、改名
 - **THEN** 校验判定失败，必须先改契约再重跑，MUST NOT 带着未定义列名进入模型训练
 
@@ -26,10 +30,12 @@
 `ndev` / `age` / `nuc` / `exp` / `rexp` / `sexp` 等历史类特征 MUST 基于窗口之前的完整提交历史计算；`--since` 参数只决定「给哪些提交算特征」，MUST NOT 截断历史。
 
 #### Scenario: 窗口运行不缩水历史
+
 - **WHEN** 以 `--since 2023-01-01` 只给 2023 年后的提交算特征
 - **THEN** 历史类特征的输入仍覆盖 2005 年起的全部提交，与全量运行时同一条提交的特征值一致
 
 #### Scenario: 窗口越界或非法（边界场景）
+
 - **WHEN** `--since` 取值早于仓库首个提交（2005-12-12），或传入无法解析的日期字符串
 - **THEN** 按全量处理或显式报错退出；MUST NOT 因窗口越界而产出空特征表或半截结果
 
@@ -38,6 +44,7 @@
 特征表落 `data_model/data/`（不入库）；统计报告落 `data_model/preparation/reports/feature_stats.md`（可入库），报告 MUST 含 14 项特征的取值外沿与契约缺口登记结论。
 
 #### Scenario: 干净环境复现
+
 - **WHEN** 在干净 clone 上按 `docs/common/data-pipeline.md` 第 2 节的顺序重跑特征计算
 - **THEN** 特征表与既有产物逐值一致（版本已固定，允许 ±0）
 
@@ -53,5 +60,6 @@
 > **为什么钉死「记 0」而不是「排除」**：已产出的特征表行数与**提交清单全量一致**，说明实现走的是「记 0」；若走「排除」，行数会少于全量。原文同时允许两种互斥规则、又不指定哪一种，与本节「干净环境复现、逐值一致」直接冲突 —— 选不同规则行数就不同。**口径钉死为「记 0」**，与 `03_extract_features.py` 的 `log_v1`（非 0 取 `ln(x)`、0 值记 0）一致。
 
 #### Scenario: 边界提交处理透明
+
 - **WHEN** 存在历史类特征无定义的提交
 - **THEN** 报告列出处理规则与受影响条数，规则在全量运行中一致应用

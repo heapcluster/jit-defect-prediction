@@ -12,4 +12,4 @@
 #### Scenario: 缺某类图时不阻塞
 
 - **WHEN** 某模型未生成某一类图（如非 expert 线没有 `feat_importance`）
-- **THEN** `GET /api/figures` 不因缺少该类型报错，只返回 `model_figure` 中已登记的行
+- **THEN** `GET /api/figures` 不因缺少该类型报错；`figures[]` 只包含磁盘上真实存在的文件，已登记但缺失的路径列入 `missing[]`

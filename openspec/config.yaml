@@ -10,7 +10,7 @@ context: |
   数据库及特征列用 snake_case；布尔字段以 is_ 开头，时间字段以 _at 结尾并使用 UTC。
   API 前缀 /api，响应包络 {"code":0,"message":"ok","data":{...}}；端点详情及错误码以 docs/api/ 为准。
   数据与模型：data_model/；后端：backend/；前端：frontend/；工程化：infra/；docs/ 和 openspec/ 公共维护、蒋励统稿。
-  飞书看板是任务负责人、状态与时间的权威；todo/ 只是临时拆解，不得据此宣布任务完成。
+  飞书看板是任务负责人、状态与时间的权威；仓库内历史任务记录不能据此宣布当前任务完成。
   改代码须同步改规格；技术契约变更须显式记录 change，并与对应 docs 一起评审。
   不得提交数据集、权重、.env 或密钥；不得直接推送 main。
 

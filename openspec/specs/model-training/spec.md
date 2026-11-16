@@ -1,6 +1,7 @@
 # model-training Specification
 
 ## Purpose
+
 把带标签样本集训练成可用的 JIT 缺陷预测模型：按 `committed_at` 时间序切分，`expert`、`semantic`、`fused` 三条分类器线各按默认集合训练 8 个分类器，产出 Effort-unaware 与 Effort-aware 两类评估指标，全部结果可复现。模型线总览见 `docs/overview.md`。
 
 ## Requirements
@@ -10,6 +11,7 @@
 样本 MUST 按 `committed_at` 升序排列后切分：前 70% 为训练集、后 30% 为检验集。MUST 禁止随机切分、分层抽样切分或任何打乱时间顺序的切分方式。训练脚本 MUST 内置断言：检验集最早 `committed_at` > 训练集最晚 `committed_at`，断言失败 MUST 以非零退出码终止且不产出任何模型文件。
 
 #### Scenario: 正常切分
+
 - **WHEN** 对可训练样本集（`szz` 打标成功、剔除回溯未命中）执行时间序切分
 - **THEN** 训练集取**前 70%**、检验集取**后 30%**（按 `committed_at` 升序），且检验集最早的 `committed_at` 晚于训练集最晚的 `committed_at`。切分后的具体条数以 `reports/split_stats_szz.md` 实测登记为准（**Apache Camel 待回填**）
 
@@ -18,6 +20,7 @@
 > **待实测回填（Apache Camel，2026-10-14 换库）**：换库前登记的具体行数已随换库失效，须在 Camel 全量跑完后重新登记。
 
 #### Scenario: 切分断言拦截（边界场景）
+
 - **WHEN** 切分实现存在缺陷（如排序列写错）导致时间序被破坏
 - **THEN** 断言失败，脚本以非零退出码退出，控制台报「时间序被破坏」，不产出模型文件
 
@@ -26,10 +29,12 @@
 主模型训练 MUST 使用 `label_method = szz` 的标签（自研标准行级 SZZ，与 Kamei 原文口径可比）；`szz_lite` 仅作对照分析，MUST NOT 进入主模型训练或主指标报告。
 
 #### Scenario: 指定标签训练
+
 - **WHEN** 训练脚本读取样本集
 - **THEN** 仅加载 `szz` 标签列训练，报告中标注「主标签 szz」
 
 #### Scenario: 样本集缺 szz 标签（边界场景）
+
 - **WHEN** 样本集中不存在 `szz` 标签列（例如只产出了 `szz_lite`）
 - **THEN** 训练以非零退出码终止并提示缺列；MUST NOT 静默回退用 `szz_lite` 训练主模型
 
@@ -38,10 +43,12 @@
 `expert`、`semantic`、`fused` 三线默认集合 MUST 逐字一致，包含 `lr`、`rf`、`xgb`、`lgbm`、`et`、`svm`、`mlp_deep`、`tabnet`，覆盖经典机器学习与神经网络两类；`e2e` 线另有一个端到端模型。为兼容旧产物保留的额外名字不算默认训练集合。
 
 #### Scenario: 模型数量达标
+
 - **WHEN** 训练流程完成
 - **THEN** 三条分类器线各产出 8 个模型结果，每个模型有独立 `model_name` 与评估指标
 
 #### Scenario: 默认集合被改回子集（边界场景）
+
 - **WHEN** 任一分类器线的默认训练集合少于 8 个，或三线集合不一致
 - **THEN** 一致性检查失败，MUST NOT 把部分训练结果当作完整交付
 
@@ -64,9 +71,11 @@
 相同输入（样本集、标签、特征版本、超参）重复训练 MUST 得到相同评估结果（随机过程 MUST 显式固定随机种子）。
 
 #### Scenario: 连跑两次结果一致
+
 - **WHEN** 以相同命令与参数连续执行两次训练
 - **THEN** 两份评估指标逐项一致
 
 #### Scenario: 未显式传种子（边界场景）
+
 - **WHEN** 命令行未传随机种子参数
 - **THEN** 使用代码内的默认种子值，并在报告中登记实际取值；MUST NOT 依赖系统时间一类不可复现的随机源
