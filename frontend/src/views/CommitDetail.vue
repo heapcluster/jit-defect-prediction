@@ -179,7 +179,7 @@
           show-icon
           class="loc-notice"
         />
-        <!-- 行级定位：新增代码行按提交级缺陷概率分档着色 -->
+        <!-- 行级定位：按逐行可疑度分档着色（后端启发式，不是训练出的行级概率） -->
         <div
           v-if="localization.level === 'line' && localization.files.length"
           class="lines"
@@ -205,11 +205,20 @@
               v-for="l in f.added_lines"
               :key="`${f.path}:${l.number}`"
               class="line"
-              :style="{ borderLeftColor: riskColor(detail.risk_score), background: fileTint(f) }"
+              :style="{ borderLeftColor: riskColor(l.score), background: riskTint(l.score) }"
             >
               <span class="line-no mono">{{ l.number }}</span>
               <span class="line-content">{{ l.content }}</span>
+              <span
+                v-if="l.score != null"
+                class="line-score"
+              >{{ Math.round(l.score * 100) }}%</span>
             </div>
+          </div>
+          <div class="loc-legend">
+            <span><i class="dot high" />高可疑 ≥70%</span>
+            <span><i class="dot mid" />中 40–70%</span>
+            <span><i class="dot low" />低 &lt;40%</span>
           </div>
           <div
             v-if="localization.truncated"
@@ -273,9 +282,22 @@
         </div>
       </div>
 
-      <!-- 修复参考（G1-2）：同仓库历史修复提交；无依据时明确空态 -->
+      <!-- 修复建议与参考（G1-2）：可执行建议 + 同仓库历史修复提交 -->
       <template v-if="fixReferences">
-        <h3>修复参考</h3>
+        <h3>修复建议与参考</h3>
+        <div
+          v-if="fixReferences.suggestions && fixReferences.suggestions.length"
+          class="suggestions"
+        >
+          <ol>
+            <li
+              v-for="(s, i) in fixReferences.suggestions"
+              :key="i"
+            >
+              {{ s }}
+            </li>
+          </ol>
+        </div>
         <div
           v-if="fixReferences.items.length"
           class="refs"
@@ -292,7 +314,7 @@
         </div>
         <el-empty
           v-else
-          description="暂无历史修复参考"
+          description="暂无同类历史修复提交"
         />
       </template>
     </template>
@@ -367,15 +389,9 @@ function locBarWidth(contribution) {
   return `${pct.toFixed(0)}%`
 }
 
-// 新增行按提交级风险分着色：8 位 hex（6 位色值 + '1a' ≈ 10% 透明度背景）
+// 行背景按逐行可疑度着色（服务端启发式：提交风险 × 文件/hunk 权重 × 行内容）
 function riskTint(score) {
   return riskColor(score) + '1a'
-}
-
-// 行背景按“文件可疑度”相对提交风险分加权，高分文件更深
-function fileTint(file) {
-  const score = (detail.value.risk_score || 0) * (0.4 + 0.6 * (file.score || 0))
-  return riskTint(score)
 }
 
 function signed(v) {
@@ -505,6 +521,18 @@ watch(
   margin: 2px 0 6px;
   font-size: 12px;
 }
+.suggestions {
+  margin: 8px 0 16px;
+  padding: 10px 14px;
+  background: var(--el-color-success-light-9);
+  border-left: 3px solid var(--el-color-success);
+  border-radius: 4px;
+}
+.suggestions ol {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.8;
+}
 .e {
   display: flex;
   align-items: center;
@@ -571,6 +599,36 @@ watch(
 .line-content {
   white-space: pre-wrap;
   word-break: break-all;
+  flex: 1;
+}
+.line-score {
+  min-width: 42px;
+  text-align: right;
+  color: #909399;
+  font-size: 11px;
+}
+.loc-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 4px;
+  color: #7c838c;
+  font-size: 12px;
+}
+.loc-legend .dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 4px;
+}
+.loc-legend .dot.high {
+  background: #f56c6c;
+}
+.loc-legend .dot.mid {
+  background: #e6a23c;
+}
+.loc-legend .dot.low {
+  background: #67c23a;
 }
 .loc {
   display: flex;

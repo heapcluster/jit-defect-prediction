@@ -96,7 +96,7 @@ def _file_weight(path: str) -> tuple[float, str]:
     """启发式文件类型权重：源码 > 普通文件 > 配置/文档 > 测试/生成物。"""
     low = path.lower()
     if any(marker in low for marker in _GENERATED_MARKERS):
-        return 0.2, "生成物"
+        return 0.1, "生成物"
     if any(marker in low for marker in _TEST_MARKERS):
         return 0.35, "测试文件"
     if low.endswith(_SOURCE_SUFFIXES):
@@ -104,6 +104,10 @@ def _file_weight(path: str) -> tuple[float, str]:
     if low.endswith(_DOC_SUFFIXES):
         return 0.4, "文档/配置"
     return 0.6, "普通文件"
+
+
+_FILE_TIER = {"源码文件": 3, "普通文件": 2, "文档/配置": 1, "测试文件": 1, "生成物": 0}
+_LINE_PATH_FACTOR = {"源码文件": 1.0, "普通文件": 0.9, "文档/配置": 0.55, "测试文件": 0.6, "生成物": 0.35}
 
 
 def _file_raw_score(file: dict) -> tuple[float, list[str]]:
@@ -129,8 +133,63 @@ def _hunk_raw_score(hunk: dict) -> int:
     return added + 2 * deleted + (1 if added and deleted else 0)
 
 
+_SUSPICIOUS_KEYWORDS = (
+    "if ",
+    "else",
+    "throw",
+    "catch",
+    "return",
+    "null",
+    "none",
+    "optional",
+    "todo",
+    "fixme",
+    "lock",
+    "close",
+    "url",
+    "path",
+    "glob",
+    "security",
+    "auth",
+    "password",
+    "token",
+    "assert",
+    "while",
+    "for ",
+    "switch",
+    "case",
+    "synchronized",
+    "try",
+)
+
+
+def _line_suspicion(
+    line: dict, *, risk_score: float | None, file_score: float, hunk_norm: float, path: str
+) -> float:
+    """启发式逐行可疑度：提交风险 × 文件/hunk 权重 × 行内容信号（不是训练出的行级概率）。"""
+    text = (line.get("content") or "").strip()
+    if not text:
+        factor = 0.35
+    elif text.startswith(("//", "/*", "*", "#", "<!--")):
+        factor = 0.45
+    elif text.startswith(("import ", "package ", "from ", "using ")):
+        factor = 0.55
+    else:
+        low = text.lower()
+        factor = 1.25 if any(keyword in low for keyword in _SUSPICIOUS_KEYWORDS) else 1.0
+    _, kind = _file_weight(path)
+    factor *= _LINE_PATH_FACTOR.get(kind, 0.9)
+    base = risk_score if risk_score is not None else 0.5
+    score = base * (0.45 + 0.35 * file_score + 0.20 * hunk_norm) * factor
+    return round(max(0.02, min(score, 0.99)), 3)
+
+
 def diff_localization_for(
-    repo: str | Path | None, commit_hash: str, max_files: int = 5, max_lines: int = 30
+    repo: str | Path | None,
+    commit_hash: str,
+    max_files: int = 5,
+    max_lines: int = 30,
+    risk_score: float | None = None,
 ) -> dict | None:
     """启发式行级缺陷定位（G1-1）：按文件/hunk 可疑度排序后展示新增行。
 
@@ -154,7 +213,16 @@ def diff_localization_for(
         f["reasons"] = reasons
         f["added_count"] = len(f.get("added_lines") or [])
         f["deleted_count"] = int(f.get("deleted_count") or 0)
-    scored.sort(key=lambda item: (item[1]["score"], item[1]["added_count"]), reverse=True)
+    # 先按文件类型层级（源码 > 普通 > 文档/测试 > 生成物），再按可疑度与规模排序：
+    # 生成物/文档即使行数再多，也不能压过源码文件。
+    scored.sort(
+        key=lambda item: (
+            _FILE_TIER.get(item[2][0], 1),
+            item[1]["score"],
+            item[1]["added_count"],
+        ),
+        reverse=True,
+    )
 
     truncated = False
     if len(scored) > max_files:
@@ -167,7 +235,16 @@ def diff_localization_for(
             if len(f["added_lines"]) > max_lines:
                 f["added_lines"] = f["added_lines"][:max_lines]
                 truncated = True
+            for line in f["added_lines"]:
+                line["score"] = _line_suspicion(
+                    line,
+                    risk_score=risk_score,
+                    file_score=f["score"],
+                    hunk_norm=0.5,
+                    path=f["path"],
+                )
             continue
+        max_hunk = max((_hunk_raw_score(hunk) for hunk in hunks), default=1) or 1
         selected: list[dict] = []
         for hunk in hunks:
             if len(selected) >= max_lines:
@@ -176,6 +253,15 @@ def diff_localization_for(
             take = hunk["added_lines"][: max_lines - len(selected)]
             if len(take) < len(hunk["added_lines"]):
                 truncated = True
+            hunk_norm = _hunk_raw_score(hunk) / max_hunk
+            for line in take:
+                line["score"] = _line_suspicion(
+                    line,
+                    risk_score=risk_score,
+                    file_score=f["score"],
+                    hunk_norm=hunk_norm,
+                    path=f["path"],
+                )
             selected.extend(take)
         # 行号回序展示，避免按 hunk 分数跳来跳去
         f["added_lines"] = sorted(selected, key=lambda line: line["number"])
@@ -185,8 +271,9 @@ def diff_localization_for(
         "files": [f for _, f, _ in scored],
         "truncated": truncated,
         "notice": (
-            "启发式行级排序：综合改动规模、是否修改既有代码、文件类型与 hunk 分散度；"
-            "行内概率仍为提交级，不是独立行级模型"
+            "启发式行级定位：文件按类型/修改方式/规模/hunk 排序；"
+            "行级可疑度 = 提交风险 × 文件/hunk 权重 × 行内容信号，"
+            "不是训练出的独立行级概率"
         ),
     }
 

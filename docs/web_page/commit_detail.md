@@ -46,7 +46,9 @@
 3. **重新预测行**：架构下拉 → 模型下拉（联动）→「预测」按钮。
 4. **提交信息卡片**（5 行，键值对排版）：提交、作者、时间、**预测时间**、信息。
 5. **风险解释**：先展示后端 `summary` 一句话结论，再展示正负贡献条（按 `|contribution|` 降序取前 8 项）。semantic/fused/e2e 没有 SHAP 时，仍必须有 `summary`，不能只显示空状态。
-6. **14 项特征**：按五维度分组展示 Kamei 14 维。
+6. **缺陷定位**：按文件/hunk 可疑度排序；每行显示行号、代码、可疑度百分比；行背景按可疑度分档（≥70% 红、40–70% 橙、<40% 绿），下方有图例。必须标注“启发式行级定位，不是独立行级模型”。
+7. **修复建议与参考**：先展示 2–3 条可执行修复建议，再列同仓库历史修复提交；建议由 LLM 生成，未配置时回退模板。
+8. **14 项特征**：按五维度分组展示 Kamei 14 维。
 
 ## 交互
 - **架构 → 模型级联**（重新预测）：
@@ -78,7 +80,25 @@
   "is_bug_inducing": 1,
   "features": { "ns": 3, "…": "…" },
   "explanation": [ { "feature": "ns", "contribution": 0.21, "direction": "increase", "label": "变更子系统多" } ],
-  "summary": "该专家特征模型判为高风险（0.83）：改动文件多、代码改动量大；建议优先审查 core/A.java 等文件。"
+  "summary": "该专家特征模型判为高风险（0.83）：改动文件多、代码改动量大；建议优先审查 core/A.java 等文件。",
+  "localization": {
+    "level": "line",
+    "files": [
+      {
+        "path": "core/A.java",
+        "score": 1.0,
+        "reasons": ["源码文件", "修改既有代码", "5 个 hunk"],
+        "added_lines": [
+          { "number": 120, "content": "if (source == null) {", "score": 0.81 },
+          { "number": 121, "content": "throw new IllegalArgumentException();", "score": 0.74 }
+        ]
+      }
+    ]
+  },
+  "fix_references": {
+    "suggestions": ["优先复核 core/A.java 第 120 行附近的空值分支", "补充 null 输入的单测"],
+    "items": []
+  }
 }
 ```
 

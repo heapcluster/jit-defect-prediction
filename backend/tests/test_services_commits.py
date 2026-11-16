@@ -129,3 +129,42 @@ def test_file_score_prefers_modified_source_over_test_or_generated():
     }
     assert _file_raw_score(modified_source)[0] > _file_raw_score(new_source)[0]
     assert _file_raw_score(modified_source)[0] > _file_raw_score(test_file)[0]
+
+
+def test_line_suspicion_penalizes_comments_and_boosts_control_flow():
+    from app.services.commits import _line_suspicion
+
+    flow = _line_suspicion(
+        {"content": "if (source == null) throw new IllegalArgumentException();"},
+        risk_score=0.8,
+        file_score=1.0,
+        hunk_norm=1.0,
+        path="core/A.java",
+    )
+    comment = _line_suspicion(
+        {"content": "// explain the branch"},
+        risk_score=0.8,
+        file_score=1.0,
+        hunk_norm=1.0,
+        path="core/A.java",
+    )
+    test_line = _line_suspicion(
+        {"content": "if (source == null) throw new IllegalArgumentException();"},
+        risk_score=0.8,
+        file_score=1.0,
+        hunk_norm=1.0,
+        path="core/src/test/java/ATest.java",
+    )
+    assert flow > comment
+    assert flow > test_line
+    assert 0 <= comment <= 1 and 0 <= flow <= 1
+
+
+def test_source_tier_is_above_generated_and_docs():
+    """生成物/文档行数再多，也不能压过源码文件（排序第一优先级是类型层级）。"""
+    from app.services.commits import _FILE_TIER, _file_weight
+
+    assert _file_weight("core/src/main/java/A.java")[1] == "源码文件"
+    assert _file_weight("dsl/generated/A.java")[1] == "生成物"
+    assert _FILE_TIER["源码文件"] > _FILE_TIER["文档/配置"]
+    assert _FILE_TIER["源码文件"] > _FILE_TIER["生成物"]

@@ -27,10 +27,11 @@ class LocalizationHighlight(BaseModel):
 
 
 class LocalizationLine(BaseModel):
-    """新增代码行（可疑行）：行号 + 内容。"""
+    """新增代码行（可疑行）：行号 + 内容 + 启发式可疑度。"""
 
     number: int
     content: str
+    score: float = 0.0
 
 
 class LocalizationFile(BaseModel):
@@ -63,10 +64,11 @@ class FixReferenceItem(BaseModel):
 
 
 class FixReferences(BaseModel):
-    """高质量修复参考（G1-2）：同仓库历史修复提交；无依据时 items 为空。"""
+    """高质量修复参考（G1-2）：历史修复提交 + 针对本次缺陷的可执行建议。"""
 
     basis: str
     items: list[FixReferenceItem]
+    suggestions: list[str] = Field(default_factory=list)
 
 
 class CommitItem(BaseModel):

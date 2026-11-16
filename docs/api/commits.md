@@ -57,8 +57,8 @@
 | `explanation[]` | 解释因子：`feature` + `contribution` + `direction` + `label`（中文名；与已下线的人工标签 `label` 对象无关） |
 | `summary` | **一句话风险总结**：所有架构/模型都有；配置 LLM 时由 LLM 基于事实生成，未配置或失败时回退确定性模板句 |
 | `is_bug_inducing` | SZZ 真标签：`1` / `0` / `null`（未打标） |
-| `localization` | 缺陷可视化定位（G1-1）：`level`（`"line"`/`"commit"`）+ `notice` + `highlights[]` + `files[]`（`path`+`added_lines[]{number,content}`+`score`+`reasons`+`added_count`+`deleted_count`）+ `truncated`。有历史仓库可解析 diff 时为 `"line"`（按“修改既有代码/源码文件/改动规模/hunk 分散度”给文件和 hunk 打分，展示高分 hunk 的新增行），否则降级 `"commit"` 特征归因；行内概率仍是提交级概率，不编造独立行级模型输出 |
-| `fix_references` | 高质量修复参考（G1-2）：`basis` + `items[]`（`commit_hash`/`message`/`committed_at`）。同仓库 `fix=1` 历史修复提交，按时间倒序；无依据时 `items` 为空 |
+| `localization` | 缺陷可视化定位（G1-1）：`level`（`"line"`/`"commit"`）+ `notice` + `highlights[]` + `files[]`（`path`+`added_lines[]{number,content,score}`+`score`+`reasons`+`added_count`+`deleted_count`）+ `truncated`。有历史仓库可解析 diff 时为 `"line"`（按“修改既有代码/源码文件/改动规模/hunk 分散度”给文件和 hunk 打分，展示高分 hunk 的新增行；每行 `score` 为启发式可疑度，用于分档着色），否则降级 `"commit"` 特征归因；行内概率不是训练出的独立行级模型输出 |
+| `fix_references` | 高质量修复参考（G1-2）：`basis` + `items[]`（历史修复提交）+ `suggestions[]`（针对本次缺陷的可执行建议）。建议优先由 LLM 基于定位结果生成，未配置或失败时回退模板；`items` 来自同仓库 `fix=1` 历史修复提交，按时间倒序，无依据为空 |
 
 **详情不返回 `label` 对象**（人工标签已下线），**也不返回 `pr_submitted_at`**（无 commit→PR 持久数据源，见口径）。
 
@@ -82,6 +82,7 @@
 - **模型性能看板固定 `is_test=1`**：表格只取测试集，与性能图 / 指标同一口径，不混入训练集；风险列表不传该参数。`total` 即测试集内已预测且命中筛选的行数。
 - 列表是 `prediction` 与 `commit` 的内连接，**只有已预测的提交会出现**；「尚未预测」表现为少一行，而不是 `risk_score = null`。详情里 `risk_score` / `predicted_at` 可为 `null`（该提交没有选中模型的预测行）。
 - 详情不返回「各模型分数列表」：换模型 = 换列表 / 趋势的 `model_name` 参数，或在详情页重新预测；横向比对多模型走模型性能看板。
-- **`localization.level` 两级降级**：`SOURCE_REPO` 可解析出该提交 diff 时为 `"line"`（`files[]` 按启发式可疑度排序，取前 5 个文件；每文件只展示高分 hunk 的前 30 条新增行，`score`/`reasons` 说明排序依据，`truncated` 标记截断）；否则降级 `"commit"`（`highlights[]` 按 `|contribution|` 降序前 5）。**这不是独立行级模型**：行内概率仍为提交级概率，MUST NOT 宣称逐行训练出来的准确率。
+- **`localization.level` 两级降级**：`SOURCE_REPO` 可解析出该提交 diff 时为 `"line"`（`files[]` 按启发式可疑度排序，取前 5 个文件；每文件只展示高分 hunk 的前 30 条新增行，`score`/`reasons` 说明排序依据，行级 `score` 由“提交风险 × 文件/hunk 权重 × 行内容信号”合成，用于分档着色，`truncated` 标记截断）；否则降级 `"commit"`（`highlights[]` 按 `|contribution|` 降序前 5）。**这不是独立行级模型**：行级分数是启发式可疑度，MUST NOT 宣称逐行训练出来的准确率。
+- **`fix_references.suggestions`**：针对本次缺陷的 2–3 条可执行建议；LLM 可用时基于风险因子、Top 文件/行、提交信息生成，未配置/失败/超时回退模板。只允许使用接口已给出的事实，MUST NOT 编造文件、行号或 API。
 - **`summary` 的数据来源**：优先使用配置的 OpenAI 兼容 LLM（`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`）基于风险分、Top 因子、改动文件生成；三项缺一或调用失败/超时则回退模板句，保证每个架构/模型都有结论，不因 LLM 不可用而缺失。
 - **`fix_references` 只回真实历史修复提交**：数据源 = `commit_feature.fix=1`（同仓库，排除自身），按 `committed_at` 倒序取前 5；无依据返回 `items=[]`，MUST NOT 编造修复建议。

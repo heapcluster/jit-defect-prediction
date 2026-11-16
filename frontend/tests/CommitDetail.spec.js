@@ -198,11 +198,39 @@ describe('CommitDetail 缺陷定位与修复参考（G1-1/G1-2）', () => {
     expect(wrapper.find('.loc').exists()).toBe(false)
   })
 
-  it('G1-2：有历史修复提交时渲染「修复参考」列表', async () => {
+  it('G1-1：行级定位按逐行可疑度显示百分比与图例', async () => {
+    getCommitDetail.mockResolvedValue({
+      ...baseDetail(),
+      localization: {
+        level: 'line',
+        notice: '启发式行级排序',
+        highlights: [],
+        files: [
+          {
+            path: 'core/A.java',
+            score: 1,
+            reasons: ['源码文件', '修改既有代码'],
+            added_lines: [
+              { number: 10, content: 'if (x == null) {', score: 0.82 },
+              { number: 11, content: '// comment', score: 0.21 }
+            ]
+          }
+        ]
+      }
+    })
+    const wrapper = mountDetail()
+    await flushPromises()
+    expect(wrapper.findAll('.line-score').map((n) => n.text())).toEqual(['82%', '21%'])
+    expect(wrapper.find('.loc-legend').exists()).toBe(true)
+    expect(wrapper.text()).toContain('高可疑')
+  })
+
+  it('G1-2：有历史修复提交时渲染「修复建议与参考」列表', async () => {
     getCommitDetail.mockResolvedValue({
       ...baseDetail(),
       fix_references: {
         basis: '同仓库历史修复提交',
+        suggestions: ['优先复核 core/A.java 第 120 行附近的空值分支。'],
         items: [
           { commit_hash: 'b'.repeat(40), message: 'CAMEL-2 fix', committed_at: '2026-07-01T00:00:00Z' }
         ]
@@ -210,7 +238,8 @@ describe('CommitDetail 缺陷定位与修复参考（G1-1/G1-2）', () => {
     })
     const wrapper = mountDetail()
     await flushPromises()
-    expect(wrapper.text()).toContain('修复参考')
+    expect(wrapper.text()).toContain('修复建议与参考')
+    expect(wrapper.find('.suggestions').text()).toContain('core/A.java')
     expect(wrapper.find('.refs').exists()).toBe(true)
     expect(wrapper.find('.ref-hash').text()).toBe('b'.repeat(8))
     expect(wrapper.find('.ref-msg').text()).toContain('CAMEL-2 fix')
@@ -219,11 +248,11 @@ describe('CommitDetail 缺陷定位与修复参考（G1-1/G1-2）', () => {
   it('G1-2：无依据时渲染空态（不编造建议）', async () => {
     getCommitDetail.mockResolvedValue({
       ...baseDetail(),
-      fix_references: { basis: '同仓库历史修复提交', items: [] }
+      fix_references: { basis: '同仓库历史修复提交', suggestions: [], items: [] }
     })
     const wrapper = mountDetail()
     await flushPromises()
-    expect(wrapper.text()).toContain('修复参考')
+    expect(wrapper.text()).toContain('修复建议与参考')
     expect(wrapper.find('.refs').exists()).toBe(false)
   })
 
