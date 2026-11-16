@@ -32,6 +32,16 @@ def test_predict_missing_hash(client):
     assert resp.json()["code"] == 40001
 
 
+def test_predict_rejects_extra_fields(client):
+    """契约只收 commit_hash / model_name：多余字段必须 40001，不能静默忽略后 200。"""
+    resp = client.post(
+        "/api/predict", json={"commit_hash": C1, "repo_name": "camel"}, headers=HEADERS
+    )
+    assert resp.status_code == 400
+    assert resp.json()["code"] == 40001
+    assert "repo_name" in resp.json()["message"]
+
+
 def test_predict_bad_hash_format(client):
     resp = client.post("/api/predict", json={"commit_hash": "z" * 40}, headers=HEADERS)
     assert resp.status_code == 400

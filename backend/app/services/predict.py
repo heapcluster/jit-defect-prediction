@@ -209,7 +209,10 @@ def _vector_for_line(line: str, commit_hash: str, feature) -> list[float]:
         return expert
     embedding = semantic_source.embedding_for(commit_hash)
     if embedding is None:
-        raise AppError(40001, f"参数非法：该提交暂无预计算语义向量，{line} 模型无法在线预测")
+        raise AppError(
+            40001,
+            f"参数非法：该提交语义向量不可用（缺预计算且无法在线补算），{line} 模型无法在线预测",
+        )
     if line == "semantic":
         return embedding.tolist()
     if line == "fused":

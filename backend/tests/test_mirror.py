@@ -150,7 +150,7 @@ def test_models_response_fields_match_contract(client):
 
 def test_figures_response_fields_match_contract(client):
     doc, data = _data_props(client, "/api/figures")
-    assert _keys(doc, data) == {"model_name", "line", "metrics", "figures"}
+    assert _keys(doc, data) == {"model_name", "line", "metrics", "figures", "missing"}
     assert _keys(doc, data["properties"]["figures"]["items"]) == {
         "figure_type",
         "title",
@@ -175,6 +175,7 @@ def test_health_response_fields_match_contract(client):
         "db",
         "models_loaded",
         "model_names",
+        "catalog_count",
         "commit_count",
         "prediction_count",
         "last_sync_at",

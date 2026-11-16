@@ -120,3 +120,29 @@
 - 核心断言（概率区间、鉴权码、14 维列序、数据一致性）须人工编写或逐条复核（AI-R4）；本轮我只跑了用例、没动断言，复核仍待各线作者。
 - 模型线 `test_model_registry_parity.py` 会 import `pipelines/{expert,fused,semantic}.model`，需要 torch / lightgbm / xgboost / pytorch-tabnet 齐备，缺包会直接失败——本机环境齐备，故全绿；换机器时这是首个要确认的依赖。
 - 前端覆盖率本轮没跑出来：`node_modules` 里缺 `@vitest/coverage-v8`（`package.json` 与 `package-lock.json` 里都有，属本地依赖未装全），`npm run test:unit -- --coverage` 会直接报 `MISSING DEPENDENCY`。执行 `npm ci` 即可，属待办而非产品缺陷。
+
+## 8 · 2026-11-15 修复轮补充：分层与增量
+
+本轮代码修复（PR #244，对应 #225/#226/#227/#228/#233/#239/#240/#241/#242）后，补充以下增量；§3/§4 的历史数字保留为 `2734c1b` 基线，不回填成新结果。
+
+- **`backend/static` 不再需要手工建**：`create_app()` 会创建目录并从 `data_model/pipelines/*/reports/figs_by_model/` 补齐图集（#239/#240）；§2 的 `New-Item` 前置已失效。
+- **后端按夹具自动分层**（`backend/pytest.ini` 注册 `unit` / `integration`）：
+  - `test_<行为>` 若请求 `client` / `engine` / `integration_db` / `populated_api` 夹具 → `integration`；
+  - 其余 → `unit`；直接连库、不走夹具的 `test_db.py` 在文件内声明 `pytestmark = pytest.mark.integration`；
+  - 新增 `test_figures_api.py`（3 条）与 `test_online_inputs.py`（3 条），后端由 254 条增至 **261 条**。
+- **分层跑法（实测）**：
+  ```bash
+  cd backend
+  # 纯单元：把 DB 指向不可达地址也能全绿，证明不连库
+  TEST_DATABASE_URL='mysql+pymysql://x:x@127.0.0.1:1/x' python -m pytest -m unit
+  # → 121 passed / 140 deselected
+  TEST_DATABASE_URL='mysql+pymysql://x:x@127.0.0.1:1/x' python -m pytest -m unit --cov=app --cov-report=term
+  # → 行覆盖 66%（1698 语句 / 585 未覆盖）
+  # 集成：连 jit_test
+  python -m pytest -m integration
+  # 全量
+  python -m pytest -q
+  # → 261 passed / 0 failed
+  ```
+- **前端**：移除 `loadOnlineModels` 后同步删除 2 条过时单测，`npm run test:unit` → **57 passed / 9 files**；`v-loading` 已注册 noop 指令，不再出现 Vue warn。
+- 覆盖率报告仍以测试线重跑为准；本节只登记分层命令与增量条数。

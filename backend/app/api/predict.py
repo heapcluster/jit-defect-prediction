@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app import schemas
 from app.auth import require_api_key
@@ -17,6 +17,9 @@ router = APIRouter(dependencies=[Depends(require_api_key)])
 
 
 class PredictRequest(BaseModel):
+    # 契约：只收 commit_hash / model_name，多余字段必须 40001 而不是静默忽略
+    model_config = ConfigDict(extra="forbid")
+
     commit_hash: str
     model_name: str | None = None
 

@@ -129,5 +129,7 @@ def test_narrative_scales_to_model_subset():
 
 def test_report_without_budget_column_still_renders():
     text = report.render(_args(), _frame(10), _frame(10), _results({"lr": -0.2}, with_budget=False))
-    assert "预算感知" not in text.split("## 三")[0] or "未启用" in text
-    assert True  # 表头存在与否不作断言，只要不抛异常
+    assert "| **预算感知**" not in text
+    assert "预算感知列未启用" in text
+    assert "| **模型排序**" in text
+    assert "对照：按 `risk_score / 工作量` 降序（无下限）" in text

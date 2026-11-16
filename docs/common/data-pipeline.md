@@ -30,10 +30,18 @@ python -m preparation.05_split_dataset --dataset data/dataset_szz.csv
 
 ## 4. 特征与训练边界
 
-`03_extract_features.py` 产出 Kamei 14 维；落库含义和 log 变换见 [`../database/commit_feature.md`](../database/commit_feature.md)。在线 expert 权重的列序以 `data_model/pipelines/expert/models/feature_order.txt` 为准。训练/检验按 `committed_at` 前 70% / 后 30% 时间序切分，禁止随机切分。`expert`、`semantic`、`fused` 三线默认各 8 个分类器，`e2e` 另 1 个；训练结果与在线交付权重是两种状态，见 [`../overview.md`](../overview.md)。
+`03_extract_features.py` 产出 Kamei 14 维；落库含义和 log 变换见 [`../database/commit_feature.md`](../database/commit_feature.md)。在线 expert 权重的列序以 `data_model/pipelines/expert/models/feature_order.txt` 为准。训练/检验按 `committed_at` 前 70% / 后 30% 时间序切分，禁止随机切分。`expert`、`semantic`、`fused` 三线默认各 8 个分类器，`e2e` 另 1 个；训练结果与在线交付权重是两种状态，见 [`../overview.md`](../overview.md)。若 tabnet 权重在 GPU 上训练、CPU 机器加载报 CUDA 反序列化错误，运行 `python data_model/pipelines/reexport_tabnet_cpu.py` 重导出（原文件备份为 `*.bak-cuda`）。
 
-## 5. 统计与证据
+## 5. 在线语义 / e2e 输入（增量口径）
 
+semantic 线读 `data_model/pipelines/semantic/data/semantic_embeddings.npz`，e2e 线读 `data_model/pipelines/e2e/data/commit_text.csv`。两者都是训练阶段的预计算产物，体积大且被 `.gitignore` 忽略，不随仓库分发。
+
+- **正常路径**：预计算表覆盖的提交直接查表，在线预测不加载 CodeBERT。
+- **增量兜底**：新同步提交不在表内时，后端用 `SOURCE_REPO` 现场构造 diff 文本（口径与 `pipelines/text_source.py` 一致），semantic/fused 用冻结 CodeBERT mean-pool 编码，e2e 走交付的 CodeBERT 分类头；结果缓存在进程内，不重写大表。
+- **失败语义**：未配置 `SOURCE_REPO`、提交不可读或编码器不可用时，接口返回 `40001` 明确文案，不编造向量 / 文本。
+- 交付清单中的 `commit_text.csv` / `semantic_embeddings.npz` 仍按模型线流程生成；在线兜底保证干净检出 + 已配置源仓库时四线模型都能对新提交预测，但不替代离线重训所需的全量产物。
+
+## 6. 统计与证据
 采集条数、打标比例、特征缺口、切分边界应由本次运行的输出与 `data_model/preparation/reports/`（生成目录，未随仓库分发）记录。若该目录不存在，应写“尚未在本机生成”，不得引用历史数字冒充当前结果。对于报告中“40%–60%”告警，核对 `02_szz_labeling.py` 与 `04_build_dataset.py` 的判定方向一致后，再由负责人解释实际比例。
 
 `04_build_dataset.py` 的七项统计为：过滤合并提交后的总提交数、UTC 时间跨度、打标成功数、正样本数、负样本数、正样本比例、打标方法。正样本比例是正样本数除以打标成功数。报告还须检查标签与提交清单、特征表能否按 `commit_hash` 对齐，并列出被排除的行数；不能用历史报告数字填当前验收结果。

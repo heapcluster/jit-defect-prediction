@@ -228,6 +228,19 @@ def default_model() -> ModelEntry | None:
     return max(experts, key=lambda entry: version_key(entry.name))
 
 
+def warmup() -> None:
+    """预热默认模型的推理与 SHAP，避免首个并发请求承担解释器初始化尖峰（#230）。"""
+    entry = default_model()
+    if entry is None:
+        return
+    vector = [0.0] * len(config.FEATURE_COLUMNS)
+    try:
+        predict_proba(entry.model, vector)
+        explain(entry, vector)
+    except Exception:
+        logger.exception("model warmup failed")
+
+
 def predict_proba(model: Any, vector: list[float]) -> float:
     proba = model.predict_proba([vector])[0]
     classes = list(getattr(model, "classes_", [0, 1]))

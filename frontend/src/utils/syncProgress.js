@@ -68,6 +68,11 @@ export async function startSync(params) {
   } catch (e) {
     syncProgress.running = false
     syncProgress.msg = ''
+    // 已有同步在跑：后端返回 40001「同步进行中」，接上轮询而不是报服务异常
+    if (e?.code === 40001 && /同步进行中/.test(e?.detail || e?.message || '')) {
+      await resumeIfRunning()
+      return null
+    }
     throw e
   }
   stopTimer()
