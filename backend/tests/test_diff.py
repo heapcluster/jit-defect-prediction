@@ -49,3 +49,12 @@ def test_parse_metadata_lines_do_not_advance_line_numbers():
 
 def test_parse_empty_text():
     assert parse_unified_diff("") == []
+
+
+def test_parse_records_deleted_count_and_hunks():
+    files = parse_unified_diff(DIFF)
+    assert files[0]["deleted_count"] == 1
+    assert len(files[0]["hunks"]) == 1
+    assert files[0]["hunks"][0]["added_lines"] == files[0]["added_lines"]
+    assert files[0]["hunks"][0]["deleted_count"] == 1
+    assert files[1]["deleted_count"] == 0

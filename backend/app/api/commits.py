@@ -11,12 +11,13 @@ import re
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, or_, select
 
-from app import config, schemas
+from app import config, model_registry, schemas
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import AppError, ok
 from app.models import Commit, CommitFeature, Prediction
 from app.services import commits as commit_service
+from app.services import risk_summary
 from app.timeutil import iso_z, parse_time_param
 from app.validate import normalize_commit_hash
 
@@ -159,19 +160,29 @@ def commit_detail(
             localization["level"] = "line"
             localization["files"] = diff_loc["files"]
             localization["truncated"] = diff_loc["truncated"]
-            localization["notice"] = (
-                "按提交级缺陷概率对新增代码行着色（无 per-line 模型，新增行即可疑行）"
-            )
+            localization["notice"] = diff_loc["notice"]
+        features = commit_service.feature_dict(feature)
+        risk_score = float(prediction.risk_score) if prediction else None
+        summary = risk_summary.summary_for(
+            commit_hash=commit.commit_hash,
+            model_name=prediction.model_name if prediction else None,
+            model_line=model_registry.line_of(prediction.model_name) if prediction else None,
+            risk_score=risk_score,
+            features=features,
+            explanation=explanation,
+            localization=localization if diff_loc is not None else None,
+        )
         data = {
             "commit_hash": commit.commit_hash,
             "author_name": commit.author_name,
             "committed_at": iso_z(commit.committed_at),
             "message": commit.message,
-            "risk_score": float(prediction.risk_score) if prediction else None,
+            "risk_score": risk_score,
             "model_name": prediction.model_name if prediction else None,
             "predicted_at": iso_z(prediction.predicted_at) if prediction else None,
-            "features": commit_service.feature_dict(feature),
+            "features": features,
             "explanation": explanation,
+            "summary": summary,
             "is_bug_inducing": _sizzle(feature.is_bug_inducing) if feature is not None else None,
             "localization": localization,
             "fix_references": commit_service.fix_references_for(

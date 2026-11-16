@@ -41,8 +41,14 @@ def feature_dict(feature: CommitFeature | None) -> dict | None:
 
 
 def explanation_for(model_name: str | None, feature: CommitFeature | None) -> list[dict]:
-    """SHAP 解释项（附中文因子名）；模型未注册或缺特征时返回空列表。"""
+    """SHAP 解释项（附中文因子名）；模型未注册、缺特征或非 expert 线时返回空。
+
+    semantic/fused/e2e 的输入不是 14 维特征，强行算 SHAP 会加载错模型/维度不符；
+    与 predict_single 同口径，只对 expert 线提供逐因子解释。
+    """
     if not model_name or feature is None or not model_registry.has(model_name):
+        return []
+    if model_registry.line_of(model_name) != "expert":
         return []
     vector = [float(getattr(feature, name)) for name in config.FEATURE_COLUMNS]
     return with_labels(model_registry.explain(model_registry.get_model(model_name), vector))
@@ -65,13 +71,71 @@ def localization_for(explanation: list[dict], top_k: int = 5) -> dict:
     return {"level": "commit", "notice": notice, "highlights": highlights}
 
 
+_SOURCE_SUFFIXES = (
+    ".java",
+    ".kt",
+    ".py",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".go",
+    ".rs",
+    ".c",
+    ".cc",
+    ".cpp",
+    ".h",
+    ".cs",
+)
+_DOC_SUFFIXES = (".md", ".adoc", ".txt", ".rst", ".json", ".yml", ".yaml", ".xml", ".properties")
+_TEST_MARKERS = ("/test/", "/tests/", "src/test", "test_", "_test.", ".test.", ".spec.")
+_GENERATED_MARKERS = ("/generated/", "/target/", "/dist/", "/build/", "node_modules/")
+
+
+def _file_weight(path: str) -> tuple[float, str]:
+    """启发式文件类型权重：源码 > 普通文件 > 配置/文档 > 测试/生成物。"""
+    low = path.lower()
+    if any(marker in low for marker in _GENERATED_MARKERS):
+        return 0.2, "生成物"
+    if any(marker in low for marker in _TEST_MARKERS):
+        return 0.35, "测试文件"
+    if low.endswith(_SOURCE_SUFFIXES):
+        return 1.0, "源码文件"
+    if low.endswith(_DOC_SUFFIXES):
+        return 0.4, "文档/配置"
+    return 0.6, "普通文件"
+
+
+def _file_raw_score(file: dict) -> tuple[float, list[str]]:
+    added = len(file.get("added_lines") or [])
+    deleted = int(file.get("deleted_count") or 0)
+    hunks = file.get("hunks") or []
+    weight, kind = _file_weight(file["path"])
+    modified = bool(added and deleted)
+    # 修改既有逻辑（有增有删）比纯新增文件更值得先看；hunk 越多说明改动越分散
+    raw = (added + 2 * deleted) * (1.5 if modified else 1.0) * weight
+    raw *= 1 + 0.15 * max(0, min(len(hunks) - 1, 4))
+    reasons = [kind]
+    if modified:
+        reasons.append("修改既有代码")
+    if len(hunks) > 1:
+        reasons.append(f"{len(hunks)} 个 hunk")
+    return raw, reasons
+
+
+def _hunk_raw_score(hunk: dict) -> int:
+    added = len(hunk.get("added_lines") or [])
+    deleted = int(hunk.get("deleted_count") or 0)
+    return added + 2 * deleted + (1 if added and deleted else 0)
+
+
 def diff_localization_for(
     repo: str | Path | None, commit_hash: str, max_files: int = 5, max_lines: int = 30
 ) -> dict | None:
-    """行级缺陷定位（G1-1）：取提交 diff 的新增行，按文件聚合并截断。
+    """启发式行级缺陷定位（G1-1）：按文件/hunk 可疑度排序后展示新增行。
 
-    repo 未配置 / 提交不可达 → None（调用方降级到提交级）。只返回真实 diff 数据，
-    MUST NOT 编造行级概率。
+    repo 未配置 / 提交不可达 → None（调用方降级到提交级）。只返回真实 diff 数据；
+    行内概率仍是提交级概率，不编造独立行级模型输出。
     """
     if repo is None or not (Path(repo) / ".git").exists():
         return None
@@ -82,16 +146,49 @@ def diff_localization_for(
     files = parse_unified_diff(text)
     if not files:
         return None
+
+    scored = [(raw, f, reasons) for f in files for raw, reasons in [_file_raw_score(f)]]
+    max_raw = max((raw for raw, _, _ in scored), default=0.0)
+    for raw, f, reasons in scored:
+        f["score"] = round(raw / max_raw, 3) if max_raw else 0.0
+        f["reasons"] = reasons
+        f["added_count"] = len(f.get("added_lines") or [])
+        f["deleted_count"] = int(f.get("deleted_count") or 0)
+    scored.sort(key=lambda item: (item[1]["score"], item[1]["added_count"]), reverse=True)
+
     truncated = False
-    files.sort(key=lambda f: len(f["added_lines"]), reverse=True)
-    if len(files) > max_files:
-        files = files[:max_files]
+    if len(scored) > max_files:
+        scored = scored[:max_files]
         truncated = True
-    for f in files:
-        if len(f["added_lines"]) > max_lines:
-            f["added_lines"] = f["added_lines"][:max_lines]
-            truncated = True
-    return {"files": files, "truncated": truncated}
+
+    for _, f, _ in scored:
+        hunks = sorted(f.get("hunks") or [], key=_hunk_raw_score, reverse=True)
+        if not hunks:
+            if len(f["added_lines"]) > max_lines:
+                f["added_lines"] = f["added_lines"][:max_lines]
+                truncated = True
+            continue
+        selected: list[dict] = []
+        for hunk in hunks:
+            if len(selected) >= max_lines:
+                truncated = True
+                break
+            take = hunk["added_lines"][: max_lines - len(selected)]
+            if len(take) < len(hunk["added_lines"]):
+                truncated = True
+            selected.extend(take)
+        # 行号回序展示，避免按 hunk 分数跳来跳去
+        f["added_lines"] = sorted(selected, key=lambda line: line["number"])
+        f.pop("hunks", None)
+
+    return {
+        "files": [f for _, f, _ in scored],
+        "truncated": truncated,
+        "notice": (
+            "启发式行级排序：综合改动规模、是否修改既有代码、文件类型与 hunk 分散度；"
+            "行内概率仍为提交级，不是独立行级模型"
+        ),
+    }
 
 
 def fix_references_for(session: Session, repo_name: str, exclude_hash: str, top_k: int = 5) -> dict:

@@ -103,3 +103,29 @@ def test_localization_empty_explanation_gives_empty_highlights():
     assert loc["level"] == "commit"
     assert loc["highlights"] == []
     assert "暂无定位" in loc["notice"]
+
+
+def test_file_score_prefers_modified_source_over_test_or_generated():
+    """启发式排序：修改既有源码 > 纯新增源码 > 测试/生成物。"""
+    from app.services.commits import _file_raw_score
+
+    modified_source = {
+        "path": "core/src/main/java/A.java",
+        "added_lines": [{"number": 1, "content": "x"}],
+        "deleted_count": 5,
+        "hunks": [{"added_lines": [{"number": 1, "content": "x"}], "deleted_count": 5}],
+    }
+    new_source = {
+        "path": "core/src/main/java/B.java",
+        "added_lines": [{"number": 1, "content": "x"}] * 6,
+        "deleted_count": 0,
+        "hunks": [{"added_lines": [{"number": 1, "content": "x"}] * 6, "deleted_count": 0}],
+    }
+    test_file = {
+        "path": "core/src/test/java/ATest.java",
+        "added_lines": [{"number": 1, "content": "x"}],
+        "deleted_count": 5,
+        "hunks": [{"added_lines": [{"number": 1, "content": "x"}], "deleted_count": 5}],
+    }
+    assert _file_raw_score(modified_source)[0] > _file_raw_score(new_source)[0]
+    assert _file_raw_score(modified_source)[0] > _file_raw_score(test_file)[0]

@@ -97,6 +97,12 @@ FEATURE_EXTRACTOR_SCRIPT = os.getenv("FEATURE_EXTRACTOR_SCRIPT", "").strip()
 SYNC_ON_STARTUP = os.getenv("SYNC_ON_STARTUP", "") == "1"
 # 同步前是否 fetch 远端（=0 跳过，直接用本地 HEAD；离线/固定版本演示用）
 SYNC_FETCH = os.getenv("SYNC_FETCH", "1") != "0"
+
+# 风险一句话总结：OpenAI 兼容接口；三项缺一即回退模板句，不阻塞详情/预测
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "").rstrip("/")
+LLM_API_KEY = os.getenv("LLM_API_KEY", "")
+LLM_MODEL = os.getenv("LLM_MODEL", "")
+LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "5"))
 # 启动同步分级：首启（空库）取最新 N 条建基线；日常增量追到 HEAD 的安全上限
 SYNC_INITIAL_LIMIT = int(os.getenv("SYNC_INITIAL_LIMIT", "10"))
 SYNC_CATCHUP_LIMIT = int(os.getenv("SYNC_CATCHUP_LIMIT", "500"))

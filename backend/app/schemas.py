@@ -36,6 +36,10 @@ class LocalizationLine(BaseModel):
 class LocalizationFile(BaseModel):
     path: str
     added_lines: list[LocalizationLine]
+    score: float = 0.0
+    reasons: list[str] = Field(default_factory=list)
+    added_count: int = 0
+    deleted_count: int = 0
 
 
 class Localization(BaseModel):
@@ -101,6 +105,7 @@ class DetailData(BaseModel):
     predicted_at: str | None
     features: dict[str, float | int] | None
     explanation: list[ExplanationItem]
+    summary: str | None = None
     is_bug_inducing: int | None = None
     localization: Localization | None = None
     fix_references: FixReferences | None = None
@@ -138,6 +143,7 @@ class PredictData(BaseModel):
     predicted_at: str
     features: dict[str, float | int]
     explanation: list[ExplanationItem]
+    summary: str | None = None
 
 
 class PredictResponse(BaseModel):

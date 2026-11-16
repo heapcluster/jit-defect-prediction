@@ -133,6 +133,12 @@
       <!-- 风险解释 -->
       <template v-if="!isNotPredicted">
         <h3>风险解释</h3>
+        <p
+          v-if="detail.summary"
+          class="risk-summary"
+        >
+          {{ detail.summary }}
+        </p>
         <div
           v-if="explanation.length"
           class="expl"
@@ -159,7 +165,7 @@
         </div>
         <el-empty
           v-else
-          description="该模型未提供特征解释"
+          :description="detail.summary ? '该模型未提供逐因子解释，以上为结论摘要' : '该模型未提供特征解释'"
         />
       </template>
 
@@ -187,10 +193,19 @@
               {{ f.path }}
             </div>
             <div
+              v-if="f.reasons && f.reasons.length"
+              class="file-meta"
+            >
+              <el-tag size="small">
+                可疑度 {{ Math.round((f.score || 0) * 100) }}%
+              </el-tag>
+              <span class="muted">{{ f.reasons.join(' · ') }}</span>
+            </div>
+            <div
               v-for="l in f.added_lines"
               :key="`${f.path}:${l.number}`"
               class="line"
-              :style="{ borderLeftColor: riskColor(detail.risk_score), background: riskTint(detail.risk_score) }"
+              :style="{ borderLeftColor: riskColor(detail.risk_score), background: fileTint(f) }"
             >
               <span class="line-no mono">{{ l.number }}</span>
               <span class="line-content">{{ l.content }}</span>
@@ -200,7 +215,7 @@
             v-if="localization.truncated"
             class="muted"
           >
-            仅展示改动最多的前若干文件/行，已截断
+            仅展示可疑度最高的前若干文件 / hunk 行，已截断
           </div>
         </div>
         <!-- 提交级特征归因（始终保留） -->
@@ -357,6 +372,12 @@ function riskTint(score) {
   return riskColor(score) + '1a'
 }
 
+// 行背景按“文件可疑度”相对提交风险分加权，高分文件更深
+function fileTint(file) {
+  const score = (detail.value.risk_score || 0) * (0.4 + 0.6 * (file.score || 0))
+  return riskTint(score)
+}
+
 function signed(v) {
   return (v > 0 ? '+' : '') + v.toFixed(2)
 }
@@ -396,6 +417,7 @@ async function predict() {
       model_name: data.model_name,
       predicted_at: data.predicted_at,
       explanation: data.explanation || [],
+      summary: data.summary || null,
       features: data.features || detail.value.features
     }
     ElMessage.success('预测完成')
@@ -467,6 +489,21 @@ watch(
   flex-direction: column;
   gap: 8px;
   margin: 8px 0 16px;
+}
+.risk-summary {
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  border-radius: 4px;
+  line-height: 1.6;
+}
+.file-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 6px;
+  font-size: 12px;
 }
 .e {
   display: flex;
