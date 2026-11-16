@@ -33,7 +33,7 @@ const stubs = {
   'el-option': true,
   'el-tag': { template: '<span><slot/></span>' },
   'el-tooltip': { template: '<span><slot/></span>' },
-  'el-empty': true,
+  'el-empty': { props: ['description'], template: '<div class="empty">{{ description }}</div>' },
   'el-alert': true,
   'el-skeleton': true,
   LineModelCascade: true
@@ -121,6 +121,28 @@ describe('CommitDetail 重新预测与 SZZ 三态', () => {
     await flushPromises()
     expect(wrapper.vm.error).toBe('该提交不存在')
     expect(wrapper.vm.errorCode).toBe(40400)
+  })
+
+  it('解释为空时按模型类型给出明确提示（tabnet / semantic）', async () => {
+    getCommitDetail.mockResolvedValue({
+      commit_hash: HASH,
+      author_name: 'dev',
+      committed_at: '2026-08-01T00:00:00Z',
+      message: 'fix',
+      risk_score: 0.54,
+      model_name: 'tabnet_v1',
+      predicted_at: '2026-08-02T00:00:00Z',
+      features: {},
+      explanation: [],
+      is_bug_inducing: null
+    })
+    const wrapper = mountDetail()
+    await flushPromises()
+    expect(wrapper.text()).toContain('深度 / 核模型')
+
+    wrapper.vm.detail.model_name = 'xgb_semantic_v1'
+    await wrapper.vm.$nextTick()
+    expect(wrapper.text()).toContain('语义 / 融合 / 端到端线')
   })
 
   it('SZZ 三态：1 → 引入缺陷，0 → 非缺陷，null → 无标记', async () => {

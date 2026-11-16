@@ -159,7 +159,7 @@
         </div>
         <el-empty
           v-else
-          description="该模型未提供特征解释"
+          :description="explanationHint"
         />
       </template>
 
@@ -326,6 +326,19 @@ const explanation = computed(() => {
   return [...list]
     .sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution))
     .slice(0, 8)
+})
+
+// 解释为空是预期：只有 expert 线的树/线性模型能算 SHAP；
+// 深度/核模型（tabnet/svm/mlp）与 semantic/fused/e2e 线不提供逐特征归因。
+const explanationHint = computed(() => {
+  const name = detail.value?.model_name || ''
+  if (name.includes('_semantic') || name.includes('_fused') || name.includes('e2e')) {
+    return '该模型属于语义 / 融合 / 端到端线，只提供风险分，不提供逐特征归因。'
+  }
+  if (/^(tabnet|svm|mlp_deep)/.test(name)) {
+    return '该模型为深度 / 核模型，当前不提供逐特征归因；可切换到 lr / rf / xgb / lgbm / et 查看解释。'
+  }
+  return '该模型未提供特征解释'
 })
 
 const maxContribution = computed(() =>
