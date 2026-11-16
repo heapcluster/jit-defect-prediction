@@ -54,7 +54,7 @@
 | `model_name` / `risk_score` | 选中模型（默认模型）的风险分；**只回一个模型** |
 | `predicted_at` | 该模型对该提交的预测时间；无预测行时为 `null` |
 | `features{ns..sexp}` | Kamei 14 维（log 变换值，见 `database/commit_feature.md`） |
-| `explanation[]` | 解释因子：`feature` + `contribution` + `direction` + `label`（中文名；与已下线的人工标签 `label` 对象无关） |
+| `explanation[]` | 解释因子：`feature` + `contribution` + `direction` + `label`（中文名；与已下线的人工标签 `label` 对象无关）。**仅 expert 线中树/线性模型（`lr`/`rf`/`xgb`/`lgbm`/`et`）有值**；`tabnet`/`svm`/`mlp_deep` 与 semantic/fused/e2e 返回空数组 |
 | `is_bug_inducing` | SZZ 真标签：`1` / `0` / `null`（未打标） |
 | `localization` | 缺陷可视化定位（G1-1）：`level`（`"line"`/`"commit"`）+ `notice` + `highlights[]` + `files[]`（`path`+`added_lines[]{number,content}`）+ `truncated`。有历史仓库可解析 diff 时为 `"line"`（新增行按提交级缺陷概率着色），否则降级 `"commit"` 特征归因，不编造行级概率 |
 | `fix_references` | 高质量修复参考（G1-2）：`basis` + `items[]`（`commit_hash`/`message`/`committed_at`）。同仓库 `fix=1` 历史修复提交，按时间倒序；无依据时 `items` 为空 |
