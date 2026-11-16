@@ -56,6 +56,11 @@ def _feature_phrases(features: dict | None, explanation: list[dict] | None) -> l
     return phrases[:3]
 
 
+def feature_phrases(features: dict | None, explanation: list[dict] | None) -> list[str]:
+    """公开入口：供修复建议等模块复用同一套风险因子措辞。"""
+    return _feature_phrases(features, explanation)
+
+
 def template_summary(
     *,
     model_name: str,
