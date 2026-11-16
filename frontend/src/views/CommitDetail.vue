@@ -205,7 +205,7 @@
               v-for="l in f.added_lines"
               :key="`${f.path}:${l.number}`"
               class="line"
-              :style="{ borderLeftColor: riskColor(l.score), background: riskTint(l.score) }"
+              :style="{ borderLeftColor: lineColor(l.score), background: riskTint(l.score) }"
             >
               <span class="line-no mono">{{ l.number }}</span>
               <span class="line-content">{{ l.content }}</span>
@@ -390,8 +390,16 @@ function locBarWidth(contribution) {
 }
 
 // 行背景按逐行可疑度着色（服务端启发式：提交风险 × 文件/hunk 权重 × 行内容）
+// 行级可疑度分档：≥70% 红、40–70% 橙、<40% 绿（与图例一致）
+function lineColor(score) {
+  const value = score || 0
+  if (value >= 0.7) return '#d9484a'
+  if (value >= 0.4) return '#d98a2b'
+  return '#4e9b68'
+}
+
 function riskTint(score) {
-  return riskColor(score) + '1a'
+  return lineColor(score) + '1a'
 }
 
 function signed(v) {

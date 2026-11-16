@@ -127,10 +127,13 @@ def _file_raw_score(file: dict) -> tuple[float, list[str]]:
     return raw, reasons
 
 
-def _hunk_raw_score(hunk: dict) -> int:
-    added = len(hunk.get("added_lines") or [])
+def _hunk_raw_score(hunk: dict) -> float:
+    added = hunk.get("added_lines") or []
     deleted = int(hunk.get("deleted_count") or 0)
-    return added + 2 * deleted + (1 if added and deleted else 0)
+    # 用“代码行权重”而不是纯行数：license/注释 hunk 不应压过真正的逻辑 hunk
+    return sum(_line_content_weight(line) for line in added) + 2 * deleted + (
+        1 if added and deleted else 0
+    )
 
 
 _SUSPICIOUS_KEYWORDS = (
@@ -163,20 +166,24 @@ _SUSPICIOUS_KEYWORDS = (
 )
 
 
+def _line_content_weight(line: dict) -> float:
+    """单行内容信号：空行/注释/import 低，控制流与边界/安全关键词高。"""
+    text = (line.get("content") or "").strip()
+    if not text:
+        return 0.1
+    if text.startswith(("//", "/*", "*", "#", "<!--")):
+        return 0.15
+    if text.startswith(("import ", "package ", "from ", "using ")):
+        return 0.3
+    low = text.lower()
+    return 1.5 if any(keyword in low for keyword in _SUSPICIOUS_KEYWORDS) else 1.0
+
+
 def _line_suspicion(
     line: dict, *, risk_score: float | None, file_score: float, hunk_norm: float, path: str
 ) -> float:
     """启发式逐行可疑度：提交风险 × 文件/hunk 权重 × 行内容信号（不是训练出的行级概率）。"""
-    text = (line.get("content") or "").strip()
-    if not text:
-        factor = 0.35
-    elif text.startswith(("//", "/*", "*", "#", "<!--")):
-        factor = 0.45
-    elif text.startswith(("import ", "package ", "from ", "using ")):
-        factor = 0.55
-    else:
-        low = text.lower()
-        factor = 1.25 if any(keyword in low for keyword in _SUSPICIOUS_KEYWORDS) else 1.0
+    factor = _line_content_weight(line)
     _, kind = _file_weight(path)
     factor *= _LINE_PATH_FACTOR.get(kind, 0.9)
     base = risk_score if risk_score is not None else 0.5
@@ -230,11 +237,10 @@ def diff_localization_for(
         truncated = True
 
     for _, f, _ in scored:
-        hunks = sorted(f.get("hunks") or [], key=_hunk_raw_score, reverse=True)
+        hunks = f.get("hunks") or []
+        max_hunk = max((_hunk_raw_score(hunk) for hunk in hunks), default=1) or 1
+        candidates: list[dict] = []
         if not hunks:
-            if len(f["added_lines"]) > max_lines:
-                f["added_lines"] = f["added_lines"][:max_lines]
-                truncated = True
             for line in f["added_lines"]:
                 line["score"] = _line_suspicion(
                     line,
@@ -243,28 +249,26 @@ def diff_localization_for(
                     hunk_norm=0.5,
                     path=f["path"],
                 )
-            continue
-        max_hunk = max((_hunk_raw_score(hunk) for hunk in hunks), default=1) or 1
-        selected: list[dict] = []
-        for hunk in hunks:
-            if len(selected) >= max_lines:
-                truncated = True
-                break
-            take = hunk["added_lines"][: max_lines - len(selected)]
-            if len(take) < len(hunk["added_lines"]):
-                truncated = True
-            hunk_norm = _hunk_raw_score(hunk) / max_hunk
-            for line in take:
-                line["score"] = _line_suspicion(
-                    line,
-                    risk_score=risk_score,
-                    file_score=f["score"],
-                    hunk_norm=hunk_norm,
-                    path=f["path"],
-                )
-            selected.extend(take)
-        # 行号回序展示，避免按 hunk 分数跳来跳去
-        f["added_lines"] = sorted(selected, key=lambda line: line["number"])
+            candidates = list(f["added_lines"])
+        else:
+            for hunk in hunks:
+                hunk_norm = _hunk_raw_score(hunk) / max_hunk
+                for line in hunk["added_lines"]:
+                    line["score"] = _line_suspicion(
+                        line,
+                        risk_score=risk_score,
+                        file_score=f["score"],
+                        hunk_norm=hunk_norm,
+                        path=f["path"],
+                    )
+                candidates.extend(hunk["added_lines"])
+        # 先挑“行级可疑度最高”的 max_lines 行，再按行号回序展示：
+        # 不能按 diff 顺序截断，否则新文件会只剩 license/import 头。
+        candidates.sort(key=lambda line: (line["score"], line["number"]), reverse=True)
+        if len(candidates) > max_lines:
+            candidates = candidates[:max_lines]
+            truncated = True
+        f["added_lines"] = sorted(candidates, key=lambda line: line["number"])
         f.pop("hunks", None)
 
     return {
