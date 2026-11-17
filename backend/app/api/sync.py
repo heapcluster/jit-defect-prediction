@@ -26,7 +26,7 @@ from app import config, feature_source, model_registry
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import AppError, ok
-from app.models import Model, Prediction
+from app.models import CommitFeature, Model, Prediction
 from app.services import sync_state
 from app.services.git import (
     build_fetch_args,
@@ -129,15 +129,25 @@ def _update_done(results: list, skipped: list) -> None:
 
 
 def _prefetch_features(hashes: list[str], repo) -> int:
-    """批量现算待补提交的 14 维特征并落库。
+    """批量现算缺失的 14 维特征并落库（已有 commit_feature 的提交跳过）。
 
     逐条预测各自调用 extract_single_commit 会各扫一遍全历史；这里一次扫描算完
-    整批，N 条新提交的耗时从 N×110s 降到约 1×110s + 批量打分。
+    整批缺失特征，N 条新提交的耗时从 N×110s 降到约 1×110s + 批量打分。
     """
     if not hashes:
         return 0
+    with SessionLocal() as session:
+        have = {
+            commit_hash
+            for (commit_hash,) in session.query(CommitFeature.commit_hash)
+            .filter(CommitFeature.commit_hash.in_(hashes))
+            .all()
+        }
+    missing = [commit_hash for commit_hash in hashes if commit_hash not in have]
+    if not missing:
+        return 0
     try:
-        items = feature_source.extract_many(hashes, repo)
+        items = feature_source.extract_many(missing, repo)
         return store_extracted_features(items)
     except Exception:  # noqa: BLE001 —— 预取失败退回逐条现算，不阻断同步
         logger.exception("batch feature prefetch failed; fallback to per-commit extraction")

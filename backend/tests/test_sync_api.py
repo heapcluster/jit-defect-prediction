@@ -22,6 +22,12 @@ from app.services.git import pick_hashes_to_predict
 from tests.conftest import C3, HEADERS, UNKNOWN
 
 
+@pytest.fixture(autouse=True)
+def _sync_fetch_enabled(monkeypatch):
+    """测试用假仓库，统一走 fetch 分支（生产离线模式才读本地 HEAD）。"""
+    monkeypatch.setattr(sync_module.config, "SYNC_FETCH", True)
+
+
 def test_pick_hashes_to_predict_skips_already_predicted():
     hashes = [UNKNOWN, C3, "e" * 40]
     predicted = {C3}
@@ -414,9 +420,30 @@ def test_predict_commit_models_routes_by_line(monkeypatch):
     assert calls["single"] == ["xgb_semantic_v1", "codebert_e2e_v1"]
 
 
+class _FakeSession:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def query(self, *args):
+        return self
+
+    def filter(self, *args):
+        return self
+
+    def all(self):
+        return self._rows
+
+
 def test_prefetch_features_uses_batch_extraction(monkeypatch):
     """同步预取应一次调用批量抽取，而不是逐条各扫一遍历史。"""
     calls = []
+    monkeypatch.setattr(sync_module, "SessionLocal", lambda: _FakeSession([]))
     monkeypatch.setattr(
         sync_module.feature_source,
         "extract_many",
@@ -427,3 +454,16 @@ def test_prefetch_features_uses_batch_extraction(monkeypatch):
     )
     assert sync_module._prefetch_features(["a" * 40, "b" * 40], None) == 1
     assert calls == [["a" * 40, "b" * 40]]
+
+
+def test_prefetch_features_skips_when_features_exist(monkeypatch):
+    """只是缺某个模型预测、特征已入库时，不应再扫一遍历史。"""
+    calls = []
+    monkeypatch.setattr(sync_module, "SessionLocal", lambda: _FakeSession([("a" * 40,)]))
+    monkeypatch.setattr(
+        sync_module.feature_source,
+        "extract_many",
+        lambda hashes, repo: calls.append(list(hashes)) or [],
+    )
+    assert sync_module._prefetch_features(["a" * 40], None) == 0
+    assert calls == []
