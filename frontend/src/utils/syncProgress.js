@@ -8,6 +8,7 @@ import { postSync, getSyncStatus } from '../api'
 
 export const syncProgress = reactive({
   running: false,
+  phase: null,
   msg: '',
   lastError: null,
   done: 0,
@@ -24,12 +25,35 @@ function stopTimer() {
   }
 }
 
+function fmtElapsed(seconds) {
+  const total = Math.max(0, Math.floor(seconds))
+  if (total < 60) return `${total} 秒`
+  const minutes = Math.floor(total / 60)
+  const rest = total % 60
+  return rest ? `${minutes} 分 ${rest} 秒` : `${minutes} 分`
+}
+
+export function formatSyncMessage(s) {
+  if (!s.running) return ''
+  const started = s.started_at ? Date.parse(s.started_at) : NaN
+  const elapsed = Number.isFinite(started) ? (Date.now() - started) / 1000 : 0
+  const suffix = elapsed >= 1 ? `（已 ${fmtElapsed(elapsed)}）` : ''
+  if (s.phase === 'fetch') return `正在拉取源仓库…${suffix}`
+  if (s.phase === 'plan') return `正在计算待补提交…${suffix}`
+  if (s.phase === 'extract') {
+    return `正在批量抽取特征${s.total ? `（${s.total} 条）` : ''}…${suffix}`
+  }
+  if (s.phase === 'predict') return `同步中 ${s.done}/${s.total}${suffix}`
+  return s.total ? `同步中 ${s.done}/${s.total}${suffix}` : `同步中…${suffix}`
+}
+
 function applyStatus(s) {
   syncProgress.running = !!s.running
+  syncProgress.phase = s.phase || null
   syncProgress.done = s.done || 0
   syncProgress.total = s.total || 0
   syncProgress.lastError = s.last_error || null
-  syncProgress.msg = s.running ? (s.total ? `同步中 ${s.done}/${s.total}` : '同步中…') : ''
+  syncProgress.msg = formatSyncMessage(s)
 }
 
 function finish() {
@@ -59,7 +83,8 @@ async function poll() {
 export async function startSync(params) {
   if (syncProgress.running) return null
   syncProgress.running = true
-  syncProgress.msg = '同步中…'
+  syncProgress.phase = null
+  syncProgress.msg = '正在提交同步请求…'
   syncProgress.done = 0
   syncProgress.total = 0
   syncProgress.lastError = null

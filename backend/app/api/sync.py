@@ -22,7 +22,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 
-from app import config, model_registry
+from app import config, feature_source, model_registry
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import AppError, ok
@@ -35,8 +35,13 @@ from app.services.git import (
     list_all_hashes,
     list_hashes_in_range,
     list_recent_hashes,
+    run_git,
 )
-from app.services.predict import predict_commit_all_models
+from app.services.predict import (
+    predict_commit_all_models,
+    predict_single,
+    store_extracted_features,
+)
 from app.timeutil import iso_z, parse_time_param
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
@@ -63,22 +68,21 @@ def _loaded_model_names() -> set[str]:
 
 
 def _resolve_scope_models(session, line: str | None, model_name: str | None) -> set[str]:
-    """把 line / model_name 解析成要补齐的模型集合（已加载 ∩ 该架构）。
+    """把 line / model_name 解析成要补齐的模型集合。
 
-    只补「在线」模型：语义/融合/e2e 尚未交付在线权重时不触发计算（docs：某架构尚未
-    交付模型时为空）。
+    显式指定 `line` / `model_name` 时覆盖四线交付模型（semantic/fused/e2e 懒加载）；
+    未指定时只取已加载模型（当前为 expert 批量路径），保持普通「刷新」轻量。
     """
-    loaded = _loaded_model_names()
     if model_name:
-        if model_name not in loaded:
-            raise AppError(40001, "参数非法：model_name 不在已加载模型清单")
+        if not model_registry.has(model_name):
+            raise AppError(40001, "参数非法：model_name 不存在")
         return {model_name}
     if line:
         rows = session.execute(
             select(Model.model_name).where(Model.line == line)
         ).scalars().all()
-        return {name for name in rows if name in loaded}
-    return loaded
+        return {name for name in rows if model_registry.has(name)}
+    return _loaded_model_names()
 
 
 def _unpredicted(
@@ -124,18 +128,49 @@ def _update_done(results: list, skipped: list) -> None:
     sync_state.set_state(done=len(results) + len(skipped))
 
 
+def _prefetch_features(hashes: list[str], repo) -> int:
+    """批量现算待补提交的 14 维特征并落库。
+
+    逐条预测各自调用 extract_single_commit 会各扫一遍全历史；这里一次扫描算完
+    整批，N 条新提交的耗时从 N×110s 降到约 1×110s + 批量打分。
+    """
+    if not hashes:
+        return 0
+    try:
+        items = feature_source.extract_many(hashes, repo)
+        return store_extracted_features(items)
+    except Exception:  # noqa: BLE001 —— 预取失败退回逐条现算，不阻断同步
+        logger.exception("batch feature prefetch failed; fallback to per-commit extraction")
+        return 0
+
+
+def _predict_commit_models(commit_hash: str, repo, model_names: list[str]) -> None:
+    """按模型线分流：expert 走 14 维批量路径，semantic/fused/e2e 走单模型在线路径。
+
+    非 expert 线的输入维度/文本不同，不能复用 14 维批量打分；缺向量或文本时由
+    `predict_single` 的在线补算兜底。
+    """
+    expert = [name for name in model_names if model_registry.line_of(name) == "expert"]
+    others = [name for name in model_names if name not in expert]
+    if expert:
+        predict_commit_all_models(commit_hash, repo=repo, model_names=expert)
+    for name in others:
+        predict_single(commit_hash, name, repo=repo)
+
+
 def _run_batch(
     *,
     mode: str,
     scope: str,
     models: set[str],
-    plan: Callable[[str], tuple[int, list[str], bool | None]],
+    plan: Callable[[str, str], tuple[int, list[str], bool | None]],
 ) -> dict:
-    """取锁 → fetch → 按 plan 算待预测 → 逐条预测入库 → 归还锁。"""
+    """取锁 → （可选 fetch）→ 按 plan 算待预测 → 批量抽特征 → 逐条预测入库 → 归还锁。"""
     if not _sync_lock.acquire(blocking=False):
         raise AppError(40001, SYNC_BUSY_MESSAGE)
     sync_state.set_state(
         running=True,
+        phase="fetch" if config.SYNC_FETCH else "plan",
         mode=mode,
         scope=scope,
         total=0,
@@ -149,19 +184,30 @@ def _run_batch(
         if repo is None or not (repo / ".git").exists():
             raise AppError(40400, "sync source repository unavailable")
 
-        tip = fetch_latest_tip(str(repo))
-        scanned, pending, truncated = plan(str(repo))
-        sync_state.set_state(total=len(pending))
+        tip = (
+            fetch_latest_tip(str(repo))
+            if config.SYNC_FETCH
+            else run_git(str(repo), "rev-parse", "HEAD").strip()
+        )
+        sync_state.set_state(phase="plan")
+        scanned, pending, truncated = plan(str(repo), tip)
+        sync_state.set_state(
+            total=len(pending), phase="extract" if pending else "predict"
+        )
 
         model_names = sorted(models)
         extract_repo, release = ensure_extractable(str(repo), tip)
         try:
+            extracted = _prefetch_features(pending, extract_repo)
+            if pending:
+                logger.info("sync prefetch: pending=%s extracted=%s", len(pending), extracted)
+            sync_state.set_state(phase="predict")
             results: list[dict] = []
             skipped: list[dict] = []
             for commit_hash in pending:
                 sync_state.set_state(current_hash=commit_hash)
                 try:
-                    predict_commit_all_models(commit_hash, repo=extract_repo, model_names=model_names)
+                    _predict_commit_models(commit_hash, extract_repo, model_names)
                     results.append({"commit_hash": commit_hash})
                 except AppError as exc:
                     skipped.append(
@@ -195,7 +241,7 @@ def _run_batch(
         sync_state.set_state(last_error=str(exc)[:200])
         raise
     finally:
-        sync_state.set_state(running=False)
+        sync_state.set_state(running=False, phase=None)
         _sync_lock.release()
 
 
@@ -212,11 +258,11 @@ def sync_manual(
     with SessionLocal() as session:
         models = _resolve_scope_models(session, line, model_name)
 
-    def plan(repo: str) -> tuple[int, list[str], bool | None]:
+    def plan(repo: str, tip: str) -> tuple[int, list[str], bool | None]:
         if start is not None or end is not None:
-            hashes = list_hashes_in_range(repo, start, end)
+            hashes = list_hashes_in_range(repo, start, end, ref=tip)
         else:
-            hashes = list_recent_hashes(repo, config.SYNC_BATCH_LIMIT)
+            hashes = list_recent_hashes(repo, config.SYNC_BATCH_LIMIT, ref=tip)
         pending, _ = _unpredicted(hashes, models)
         return len(hashes), pending, None
 
@@ -230,8 +276,8 @@ def sync_catchup(mode: str = "startup", scope: str = "catchup-to-head") -> dict:
     """
     models = _loaded_model_names()
 
-    def plan(repo: str) -> tuple[int, list[str], bool | None]:
-        hashes = list_all_hashes(repo)
+    def plan(repo: str, tip: str) -> tuple[int, list[str], bool | None]:
+        hashes = list_all_hashes(repo, ref=tip)
         pending, truncated = _unpredicted(hashes, models, config.SYNC_CATCHUP_LIMIT)
         return len(hashes), pending, truncated
 
@@ -243,8 +289,8 @@ def run_startup_sync() -> dict:
     if is_first_run():
         models = _loaded_model_names()
 
-        def plan(repo: str) -> tuple[int, list[str], bool | None]:
-            hashes = list_recent_hashes(repo, config.SYNC_INITIAL_LIMIT)
+        def plan(repo: str, tip: str) -> tuple[int, list[str], bool | None]:
+            hashes = list_recent_hashes(repo, config.SYNC_INITIAL_LIMIT, ref=tip)
             pending, _ = _unpredicted(hashes, models)
             return len(hashes), pending, None
 
@@ -280,7 +326,7 @@ def sync_endpoint(
     if line is not None and line not in VALID_LINES:
         raise AppError(40001, "参数非法：line 取值需为 expert / semantic / fused / e2e")
     if model_name is not None and not model_registry.has(model_name):
-        raise AppError(40001, "参数非法：model_name 不在已加载模型清单")
+        raise AppError(40001, "参数非法：model_name 不存在")
     start = parse_time_param(start_time, "start_time") if start_time else None
     end = parse_time_param(end_time, "end_time", "end") if end_time else None
     # 「检查 running + 置 running=True」必须在锁内原子完成：否则两个并发请求都能通过
@@ -293,6 +339,7 @@ def sync_endpoint(
         # 会读到上一次任务的 running=false 而误判「已完成」。
         sync_state.set_state(
             running=True,
+            phase="fetch" if config.SYNC_FETCH else "plan",
             mode="manual",
             scope="latest",
             total=0,

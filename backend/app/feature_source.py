@@ -11,7 +11,7 @@ from app.services.git import is_ancestor
 
 
 @lru_cache(maxsize=1)
-def _extractor():
+def _extractor_module():
     # 插件化：FEATURE_EXTRACTOR_SCRIPT 覆盖默认抽取器（外部注册特征实现，零核心改动）
     script = (
         Path(config.FEATURE_EXTRACTOR_SCRIPT)
@@ -23,7 +23,15 @@ def _extractor():
         raise RuntimeError("feature extractor unavailable")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.extract_single_commit
+    return module
+
+
+def _extractor():
+    return _extractor_module().extract_single_commit
+
+
+# 兼容既有调用方/测试：清缓存即清模块缓存
+_extractor.cache_clear = _extractor_module.cache_clear
 
 
 def extract(commit_hash: str, repo: Path | str | None = None) -> dict:
@@ -41,3 +49,20 @@ def extract(commit_hash: str, repo: Path | str | None = None) -> dict:
     if not is_ancestor(str(source), commit_hash):
         raise ValueError("目标不是当前 HEAD 可达的非合并提交")
     return _extractor()(source, commit_hash)
+
+
+def extract_many(commit_hashes: list[str], repo: Path | str | None = None) -> list[dict]:
+    """批量现算多条提交的 14 维特征：历史只扫一次（同步 N 条时的主要提速点）。
+
+    自定义抽取器若未实现 `extract_commits`，回退为逐条调用，行为不变。
+    """
+    source: Path | None = Path(repo) if repo is not None else config.SOURCE_REPO
+    if source is None or not (source / ".git").exists():
+        raise RuntimeError("source repository unavailable")
+    if not commit_hashes:
+        return []
+    module = _extractor_module()
+    batch = getattr(module, "extract_commits", None)
+    if batch is not None:
+        return batch(source, list(commit_hashes), skip_missing=True)
+    return [module.extract_single_commit(source, commit_hash) for commit_hash in commit_hashes]

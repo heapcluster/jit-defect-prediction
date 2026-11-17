@@ -22,7 +22,7 @@
 
 ### Requirement: 状态轮询与并发限制
 
-`GET /api/sync/status` SHALL 返回 `running`、`total`、`done`、`current_hash`、`last_error` 等本进程任务快照；同一时刻只允许一个同步任务。状态只在内存中，进程重启后 MUST NOT 冒充历史执行记录。
+`GET /api/sync/status` SHALL 返回 `running`、`phase`、`total`、`done`、`current_hash`、`last_error` 等本进程任务快照；同一时刻只允许一个同步任务。状态只在内存中，进程重启后 MUST NOT 冒充历史执行记录。
 
 #### Scenario: 同步进行中
 

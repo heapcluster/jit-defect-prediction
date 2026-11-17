@@ -166,7 +166,9 @@ def test_sync_predicts_existing_commit_without_prediction(client, monkeypatch, t
 
     hashes = [UNKNOWN, C3, "e" * 40]
     monkeypatch.setattr(sync_module, "fetch_latest_tip", lambda repo_dir: hashes[0])
-    monkeypatch.setattr(sync_module, "list_recent_hashes", lambda repo_dir, limit: hashes[:limit])
+    monkeypatch.setattr(
+        sync_module, "list_recent_hashes", lambda repo_dir, limit, ref=None: hashes[:limit]
+    )
     monkeypatch.setattr(
         sync_module, "ensure_extractable", lambda repo_dir, tip: (repo_dir, lambda: None)
     )
@@ -218,7 +220,9 @@ def test_sync_scopes_to_single_model(client, monkeypatch, tmp_path):
 
     hashes = [C3]
     monkeypatch.setattr(sync_module, "fetch_latest_tip", lambda repo_dir: hashes[0])
-    monkeypatch.setattr(sync_module, "list_recent_hashes", lambda repo_dir, limit: hashes)
+    monkeypatch.setattr(
+        sync_module, "list_recent_hashes", lambda repo_dir, limit, ref=None: hashes
+    )
     monkeypatch.setattr(
         sync_module, "ensure_extractable", lambda repo_dir, tip: (repo_dir, lambda: None)
     )
@@ -256,7 +260,9 @@ def test_sync_endpoint_unreachable_commit_counts_as_skipped(client, monkeypatch,
 
     hashes = [UNKNOWN]
     monkeypatch.setattr(sync_module, "fetch_latest_tip", lambda repo_dir: hashes[0])
-    monkeypatch.setattr(sync_module, "list_recent_hashes", lambda repo_dir, limit: hashes)
+    monkeypatch.setattr(
+        sync_module, "list_recent_hashes", lambda repo_dir, limit, ref=None: hashes
+    )
     monkeypatch.setattr(
         sync_module, "ensure_extractable", lambda repo_dir, tip: (repo_dir, lambda: None)
     )
@@ -310,6 +316,7 @@ def test_sync_status_reports_idle_and_after_catchup(client, monkeypatch, tmp_pat
     idle = client.get("/api/sync/status", headers=HEADERS)
     assert idle.status_code == 200
     assert idle.json()["data"]["running"] is False
+    assert idle.json()["data"]["phase"] is None
 
     repo = tmp_path / "camel5"
     repo.mkdir()
@@ -326,6 +333,7 @@ def test_sync_status_reports_idle_and_after_catchup(client, monkeypatch, tmp_pat
     sync_module.sync_catchup()
     after = client.get("/api/sync/status", headers=HEADERS).json()["data"]
     assert after["running"] is False
+    assert after["phase"] is None
     assert after["mode"] == "startup"
     assert after["scope"] == "catchup-to-head"
     assert after["started_at"].endswith("Z")
@@ -359,3 +367,63 @@ def test_git_failure_without_network_error_is_not_retried(monkeypatch, tmp_path)
         sync_module.fetch_latest_tip(str(tmp_path), retries=3)
     assert exc.value.code == 50000
     assert calls["n"] == 1
+
+
+def test_resolve_scope_accepts_delivered_non_expert_model(monkeypatch):
+    """前端下拉展示 25 个交付模型后，显式指定 semantic/fused/e2e 模型不能再误报 40001。"""
+    monkeypatch.setattr(
+        sync_module.model_registry, "has", lambda name: name == "xgb_semantic_v1"
+    )
+    assert sync_module._resolve_scope_models(None, None, "xgb_semantic_v1") == {
+        "xgb_semantic_v1"
+    }
+
+
+def test_resolve_scope_rejects_unknown_model(monkeypatch):
+    monkeypatch.setattr(sync_module.model_registry, "has", lambda name: False)
+    with pytest.raises(AppError) as exc:
+        sync_module._resolve_scope_models(None, None, "no_such_model")
+    assert exc.value.code == 40001
+    assert "model_name 不存在" in exc.value.message
+
+
+def test_predict_commit_models_routes_by_line(monkeypatch):
+    """expert 走 14 维批量；semantic/fused/e2e 走单模型在线路径，不能拿 14 维硬喂。"""
+    calls = {"batch": [], "single": []}
+    monkeypatch.setattr(
+        sync_module,
+        "predict_commit_all_models",
+        lambda h, repo=None, model_names=None: calls["batch"].append(list(model_names)),
+    )
+    monkeypatch.setattr(
+        sync_module,
+        "predict_single",
+        lambda h, name, repo=None: calls["single"].append(name) or {},
+    )
+    lines = {
+        "xgb_v1": "expert",
+        "xgb_semantic_v1": "semantic",
+        "codebert_e2e_v1": "e2e",
+    }
+    monkeypatch.setattr(sync_module.model_registry, "line_of", lambda name: lines[name])
+
+    sync_module._predict_commit_models(
+        "a" * 40, None, ["xgb_v1", "xgb_semantic_v1", "codebert_e2e_v1"]
+    )
+    assert calls["batch"] == [["xgb_v1"]]
+    assert calls["single"] == ["xgb_semantic_v1", "codebert_e2e_v1"]
+
+
+def test_prefetch_features_uses_batch_extraction(monkeypatch):
+    """同步预取应一次调用批量抽取，而不是逐条各扫一遍历史。"""
+    calls = []
+    monkeypatch.setattr(
+        sync_module.feature_source,
+        "extract_many",
+        lambda hashes, repo: calls.append(list(hashes)) or [{"commit_hash": hashes[0]}],
+    )
+    monkeypatch.setattr(
+        sync_module, "store_extracted_features", lambda items: len(items)
+    )
+    assert sync_module._prefetch_features(["a" * 40, "b" * 40], None) == 1
+    assert calls == [["a" * 40, "b" * 40]]

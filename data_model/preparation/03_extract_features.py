@@ -477,18 +477,13 @@ def compute_raw(
     return rows
 
 
-def extract_single_commit(repo_dir: Path, commit_hash: str) -> dict:
-    """复用批量 v1 口径，抽取 Git 仓库 HEAD 可达的一条非合并提交。
-
-    返回元信息、14 项落库值和有序向量；不依赖预生成 CSV，也不写文件。
-    历史扫描仍为全量，调用方须另行评估在线请求的时延。
-    """
+def _normalize_commit_hash(commit_hash: str) -> str:
     if len(commit_hash) != 40 or any(c not in "0123456789abcdef" for c in commit_hash.lower()):
         raise ValueError("commit_hash 需为 40 位十六进制")
-    commit_hash = commit_hash.lower()
-    commits = scan_history(repo_dir)
-    if commit_hash not in commits:
-        raise ValueError("目标不是当前 HEAD 可达的非合并提交")
+    return commit_hash.lower()
+
+
+def _target_row(repo_dir: Path, commit_hash: str) -> tuple[dict, str, str]:
     meta = (
         run_git(
             repo_dir,
@@ -511,8 +506,37 @@ def extract_single_commit(repo_dir: Path, commit_hash: str) -> dict:
         "message": message.strip(),
         "parent_hash": parents.split(" ")[0] if parents else "",
     }
+    return row, name, email
+
+
+def extract_commits(
+    repo_dir: Path, commit_hashes: list[str], *, skip_missing: bool = False
+) -> list[dict]:
+    """一次历史扫描，批量抽取多条提交的 v1 特征（与 extract_single_commit 同口径）。
+
+    同步 N 条新提交时，逐条调用会各扫一遍 8 万条历史；本函数只扫一次，
+    `compute_raw` 也按批取父提交行数，把 N × 历史扫描降到 1 × 历史扫描。
+    `skip_missing=True` 时跳过合并提交 / 不可达提交（同步批处理用）。
+    """
+    commits = scan_history(repo_dir)
+    normalized: list[str] = []
+    for raw_hash in commit_hashes:
+        commit_hash = _normalize_commit_hash(raw_hash)
+        if commit_hash not in commits:
+            if skip_missing:
+                print(
+                    f"[extract] 跳过不可用提交 {commit_hash}（合并提交或不在 HEAD 历史）",
+                    file=sys.stderr,
+                )
+                continue
+            raise ValueError("目标不是当前 HEAD 可达的非合并提交")
+        normalized.append(commit_hash)
+    if not normalized:
+        return []
+    metas = [_target_row(repo_dir, commit_hash) for commit_hash in normalized]
+    rows = [meta[0] for meta in metas]
     raw = compute_raw(
-        [row],
+        rows,
         commits,
         HistoryIndex(commits),
         load_is_fix_commit(),
@@ -520,19 +544,32 @@ def extract_single_commit(repo_dir: Path, commit_hash: str) -> dict:
         progress_every=0,
         verbose=False,
     )
-    values = apply_contract(raw)[0]
-    return {
-        "repo_name": repo_dir.name,
-        "author_name": name.strip(),
-        "author_email": email.strip().lower(),
-        "message": row["message"],
-        "parent_hash": row["parent_hash"],
-        "commit_hash": commit_hash,
-        "committed_at": row["committed_at"],
-        "feature_version": FEATURE_VERSION,
-        "features": {field: values[field] for field in FEATURE_FIELDS},
-        "vector": [values[field] for field in FEATURE_FIELDS],
-    }
+    values_list = apply_contract(raw)
+    results: list[dict] = []
+    for (row, name, email), values in zip(metas, values_list, strict=True):
+        results.append(
+            {
+                "repo_name": repo_dir.name,
+                "author_name": name.strip(),
+                "author_email": email.strip().lower(),
+                "message": row["message"],
+                "parent_hash": row["parent_hash"],
+                "commit_hash": row["commit_hash"],
+                "committed_at": row["committed_at"],
+                "feature_version": FEATURE_VERSION,
+                "features": {field: values[field] for field in FEATURE_FIELDS},
+                "vector": [values[field] for field in FEATURE_FIELDS],
+            }
+        )
+    return results
+
+
+def extract_single_commit(repo_dir: Path, commit_hash: str) -> dict:
+    """复用批量 v1 口径，抽取 Git 仓库 HEAD 可达的一条非合并提交。
+
+    返回元信息、14 项落库值和有序向量；不依赖预生成 CSV，也不写文件。
+    """
+    return extract_commits(repo_dir, [commit_hash])[0]
 
 
 # ══ 契约口径变换 ══════════════════════════════════════════════════════════
