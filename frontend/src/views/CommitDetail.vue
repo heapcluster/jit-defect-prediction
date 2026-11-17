@@ -173,6 +173,7 @@
       <template v-if="localization">
         <h3>缺陷定位</h3>
         <el-alert
+          v-if="localization.level === 'commit'"
           :title="localization.notice"
           type="info"
           :closable="false"
