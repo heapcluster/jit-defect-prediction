@@ -30,7 +30,7 @@
 | `risk_score` | 风险概率 `[0,1]` |
 | `predicted_at` | 本次现算时间 |
 | `features{ns..sexp}` | 现算的 14 维特征（log 变换值，见 `database/commit_feature.md`） |
-| `explanation[]` | 解释因子（`feature` / `contribution` / `direction` / `label`）；仅 expert 线有 SHAP，其余线为空 |
+| `explanation[]` | 解释因子（`feature` / `contribution` / `direction` / `label`）。仅 expert 线树/线性模型有值；`tabnet`/`svm`/`mlp_deep` 与 semantic/fused/e2e 返回 `[]`（不编造归因） |
 | `summary` | 一句话风险总结；所有架构/模型都有，LLM 可用时生成，否则回退模板句 |
 
 **没有 `predicted` 二值判定字段**（实测响应只有上面 7 个键）：高/中/低判定由调用方按 `.env` 写死阈值算（前端 `utils/risk.js`）。
