@@ -12,6 +12,7 @@ import threading
 # 同步状态快照（实时可见）：前端 SSE 订阅；首启/手动/追到 HEAD 共用
 _sync_state: dict = {
     "running": False,
+    "phase": None,  # fetch | plan | extract | predict；空闲为 None
     "mode": None,  # "startup" | "manual" | "catchup"
     "scope": None,  # "baseline" | "catchup-to-head" | "latest"
     "total": 0,

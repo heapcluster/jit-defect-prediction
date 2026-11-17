@@ -95,6 +95,8 @@ FEATURE_EXTRACTOR_SCRIPT = os.getenv("FEATURE_EXTRACTOR_SCRIPT", "").strip()
 # change realtime-commit-sync：启动时后台预同步一次最新提交（默认关）。
 # 开启后启动会 fetch SOURCE_REPO 并可能建临时 worktree；失败只记日志，不阻塞启动。
 SYNC_ON_STARTUP = os.getenv("SYNC_ON_STARTUP", "") == "1"
+# 同步前是否 fetch 远端（=0 跳过，直接用本地 HEAD；离线/固定版本演示用）
+SYNC_FETCH = os.getenv("SYNC_FETCH", "1") != "0"
 # 启动同步分级：首启（空库）取最新 N 条建基线；日常增量追到 HEAD 的安全上限
 SYNC_INITIAL_LIMIT = int(os.getenv("SYNC_INITIAL_LIMIT", "10"))
 SYNC_CATCHUP_LIMIT = int(os.getenv("SYNC_CATCHUP_LIMIT", "500"))

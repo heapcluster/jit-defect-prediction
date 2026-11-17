@@ -120,6 +120,21 @@ def _upsert_commit_feature(
     return commit, feature
 
 
+def store_extracted_features(items: list[dict]) -> int:
+    """把批量现算的 14 维特征落库（同步预取用），每条独立提交避免整批回滚。"""
+    stored = 0
+    for item in items:
+        commit_hash = item["commit_hash"]
+        try:
+            with SessionLocal() as session:
+                _upsert_commit_feature(session, commit_hash, item)
+                session.commit()
+            stored += 1
+        except Exception:  # noqa: BLE001 —— 单条失败不拖垮整批，逐条预测时还会重试
+            logger.exception("store extracted feature failed: %s", commit_hash)
+    return stored
+
+
 def _write_predictions(
     session,
     commit_hash: str,

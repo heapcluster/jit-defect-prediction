@@ -96,3 +96,20 @@ def test_extractor_uses_custom_script_when_configured(tmp_path, monkeypatch):
     feature_source._extractor.cache_clear()
     fn = feature_source._extractor()
     assert fn(None, "a" * 40) == {"commit_hash": "a" * 40}
+
+
+def test_extract_many_prefers_batch_api(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
+    monkeypatch.setattr(config, "SOURCE_REPO", repo)
+    calls = []
+
+    class _Module:
+        def extract_commits(self, source, hashes, skip_missing=False):
+            calls.append((source, list(hashes), skip_missing))
+            return [{"commit_hash": hashes[0]}]
+
+    monkeypatch.setattr(feature_source, "_extractor_module", lambda: _Module())
+
+    assert feature_source.extract_many(["a" * 40, "b" * 40]) == [{"commit_hash": "a" * 40}]
+    assert calls == [(repo, ["a" * 40, "b" * 40], True)]
