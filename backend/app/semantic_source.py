@@ -57,8 +57,16 @@ def _runtime():
             return None
         try:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            tokenizer = AutoTokenizer.from_pretrained(config.SEMANTIC_TEXT_MODEL)
-            encoder = AutoModel.from_pretrained(config.SEMANTIC_TEXT_MODEL).to(device).eval()
+            # 模型已预下载到本机缓存：只用本地文件，避免每次加载都去 huggingface.co 做 HEAD 检查
+            # （离线/代理不稳时每个文件等 10 秒，批量同步会被拖到分钟级）。
+            tokenizer = AutoTokenizer.from_pretrained(
+                config.SEMANTIC_TEXT_MODEL, local_files_only=True
+            )
+            encoder = (
+                AutoModel.from_pretrained(config.SEMANTIC_TEXT_MODEL, local_files_only=True)
+                .to(device)
+                .eval()
+            )
             for param in encoder.parameters():
                 param.requires_grad_(False)
         except Exception:
