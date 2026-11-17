@@ -18,6 +18,7 @@ from app.db import SessionLocal
 from app.errors import INTERNAL_ERROR_MESSAGE, AppError
 from app.explain import with_labels
 from app.models import Commit, CommitFeature, Model, Prediction
+from app.services import risk_summary
 from app.timeutil import iso_z
 from app.validate import normalize_commit_hash
 
@@ -302,6 +303,15 @@ def predict_single(commit_hash: str, model_name: str, repo=None) -> dict:
             name: (int(getattr(feature, name)) if name == "fix" else float(getattr(feature, name)))
             for name in config.FEATURE_COLUMNS
         }
+        summary = risk_summary.summary_for(
+            commit_hash=commit_hash,
+            model_name=entry_name,
+            model_line=line,
+            risk_score=round(risk, 5),
+            features=features,
+            explanation=explanation,
+            localization=None,
+        )
 
     return {
         "commit_hash": commit_hash,
@@ -310,4 +320,5 @@ def predict_single(commit_hash: str, model_name: str, repo=None) -> dict:
         "predicted_at": iso_z(stored_predicted_at),
         "features": features,
         "explanation": explanation,
+        "summary": summary,
     }

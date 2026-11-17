@@ -113,6 +113,7 @@ def test_detail_response_fields_match_contract(client):
         "predicted_at",
         "features",
         "explanation",
+        "summary",
         "is_bug_inducing",
         "localization",
         "fix_references",
@@ -139,6 +140,7 @@ def test_predict_response_fields_match_contract(client):
         "predicted_at",
         "features",
         "explanation",
+        "summary",
     }
 
 

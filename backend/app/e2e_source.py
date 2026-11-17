@@ -50,9 +50,10 @@ def _runtime():
         logger.error("transformers unavailable; e2e online inference disabled")
         return None
     try:
-        tokenizer = AutoTokenizer.from_pretrained(str(_model_dir()))
+        # 交付模型目录是本地文件：禁止联网检查，离线/代理不稳时直接读盘
+        tokenizer = AutoTokenizer.from_pretrained(str(_model_dir()), local_files_only=True)
         model = AutoModelForSequenceClassification.from_pretrained(
-            str(_model_dir()), num_labels=2
+            str(_model_dir()), num_labels=2, local_files_only=True
         ).eval()
     except Exception:
         logger.exception("e2e model load failed: %s", _model_dir())

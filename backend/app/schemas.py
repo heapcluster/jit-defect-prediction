@@ -27,15 +27,20 @@ class LocalizationHighlight(BaseModel):
 
 
 class LocalizationLine(BaseModel):
-    """新增代码行（可疑行）：行号 + 内容。"""
+    """新增代码行（可疑行）：行号 + 内容 + 启发式可疑度。"""
 
     number: int
     content: str
+    score: float = 0.0
 
 
 class LocalizationFile(BaseModel):
     path: str
     added_lines: list[LocalizationLine]
+    score: float = 0.0
+    reasons: list[str] = Field(default_factory=list)
+    added_count: int = 0
+    deleted_count: int = 0
 
 
 class Localization(BaseModel):
@@ -59,10 +64,11 @@ class FixReferenceItem(BaseModel):
 
 
 class FixReferences(BaseModel):
-    """高质量修复参考（G1-2）：同仓库历史修复提交；无依据时 items 为空。"""
+    """高质量修复参考（G1-2）：历史修复提交 + 针对本次缺陷的可执行建议。"""
 
     basis: str
     items: list[FixReferenceItem]
+    suggestions: list[str] = Field(default_factory=list)
 
 
 class CommitItem(BaseModel):
@@ -101,6 +107,7 @@ class DetailData(BaseModel):
     predicted_at: str | None
     features: dict[str, float | int] | None
     explanation: list[ExplanationItem]
+    summary: str | None = None
     is_bug_inducing: int | None = None
     localization: Localization | None = None
     fix_references: FixReferences | None = None
@@ -138,6 +145,7 @@ class PredictData(BaseModel):
     predicted_at: str
     features: dict[str, float | int]
     explanation: list[ExplanationItem]
+    summary: str | None = None
 
 
 class PredictResponse(BaseModel):
