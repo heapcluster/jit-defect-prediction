@@ -38,7 +38,7 @@
 特征表落 `data_model/data/`（不入库）；统计报告落 `data_model/preparation/reports/feature_stats.md`（可入库），报告 MUST 含 14 项特征的取值外沿与契约缺口登记结论。
 
 #### Scenario: 干净环境复现
-- **WHEN** 在干净 clone 上按 `docs/common/data-pipeline.md` 第 2 节的顺序重跑特征计算
+- **WHEN** 在干净 clone 上按 `docs/database/README.md` 第 2 节的顺序重跑特征计算
 - **THEN** 特征表与既有产物逐值一致（版本已固定，允许 ±0）
 
 #### Scenario: 上游产物缺失（边界场景）

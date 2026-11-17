@@ -1,3 +1,11 @@
+# === AI 辅助说明 ===
+# 本文件共 5 条测试用例
+# [AI生成]：0 条
+# [AI生成-人工修改]：5 条（AI 生成骨架，人工补充核心断言）
+# [手写]：0 条
+# 使用工具：原始生成记录未归档（标注依据代码特征判断，作者于 2026-11-17 确认）
+# 提示词见：docs/test/unit_test/prompts/README.md
+
 """静态比对 `infra/schema.sql` 与 SQLAlchemy `Base.metadata`。
 
 `infra/schema.sql` 是建表唯一真源（docker compose 首次启动与 CI 实际执行它），
@@ -24,9 +32,7 @@ SCHEMA_SQL = Path(__file__).resolve().parents[2] / "infra" / "schema.sql"
 _TABLE_RE = re.compile(r"^CREATE TABLE IF NOT EXISTS `?(\w+)`?\s*\($", re.IGNORECASE)
 _PK_RE = re.compile(r"^PRIMARY KEY\s*\(([^)]+)\)", re.IGNORECASE)
 _COLUMN_RE = re.compile(r"^`?(\w+)`?\s+[A-Za-z]")
-_NON_COLUMN_PREFIX = re.compile(
-    r"^(PRIMARY|UNIQUE|INDEX|KEY|FOREIGN|CONSTRAINT)\b", re.IGNORECASE
-)
+_NON_COLUMN_PREFIX = re.compile(r"^(PRIMARY|UNIQUE|INDEX|KEY|FOREIGN|CONSTRAINT)\b", re.IGNORECASE)
 
 
 def parse_schema(sql: str) -> dict[str, dict[str, list[str]]]:

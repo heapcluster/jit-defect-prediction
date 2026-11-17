@@ -12,9 +12,9 @@ from . import config, export_sql, figures, predict_testset
 
 
 def load_effort(test: pd.DataFrame):
-    raw = pd.read_csv(
-        config.FEATURES_RAW_CSV, usecols=["commit_hash", "la", "ld"]
-    ).set_index("commit_hash")
+    raw = pd.read_csv(config.FEATURES_RAW_CSV, usecols=["commit_hash", "la", "ld"]).set_index(
+        "commit_hash"
+    )
     hashes = test["commit_hash"].tolist()
     miss = [h for h in hashes if h not in raw.index]
     if miss:
@@ -37,9 +37,7 @@ def main() -> int:
     # 评测流程不再导出第二份副本，避免双维护漂移。
     export_sql.write_data_init(config.DATA_INIT_SQL, test, preds, figs)
 
-    print(
-        f"[eval] 完成：{len(metrics)} 个模型 / {len(preds)} 条预测 / {len(figs)} 张图"
-    )
+    print(f"[eval] 完成：{len(metrics)} 个模型 / {len(preds)} 条预测 / {len(figs)} 张图")
     return 0
 
 

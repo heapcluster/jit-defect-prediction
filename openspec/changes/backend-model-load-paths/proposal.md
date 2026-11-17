@@ -26,6 +26,6 @@
 - 代码：`backend/app/model_registry.py`、`backend/.env.example`。
 - 测试：`backend/tests/test_model_registry.py`、`backend/tests/test_integration_api.py`；不改 `backend/tests/conftest.py`（#96 已为其模型目录写好清单），集成夹具自建独立 SQLite engine、临时权重与 `feature_order.txt`，复用已有类型和令牌，不写真实凭据。
 - 依赖：不新增，依赖清单仍以 `data_model/environment.yml` 为准。
-- 规格：只新增 `predict-api` requirement；不修改 `docs/api/README.md`、契约一/二或 `docs/overview.md` 边界。
+- 规格：只新增 `predict-api` requirement；不修改 `docs/api/README.md`、契约一/二或 `docs/README.md` 边界。
 - 交付边界：T9最终目标是指定八模型全部可用、逐个POST返回真实非空解释；本PR先交付用户指定的导入路径与失败汇总小修，不缩减模型数量，也不将失败汇总或SQLite fixture测试等同T9通过。八模型加载、解释器覆盖与MySQL证据仍列未完成。
 - 已核实限制：当前本机 `tabnet_v1.pkl` 引用 `__main__.TabNetWithEarlyStop`。仅设置 `sys.path` 的独立进程仍抛 `AttributeError`；需要模型线重新导出为可导入类路径，或另行明确兼容方案，不能把本 change 描述为已修复该旧权重。

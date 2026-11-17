@@ -107,7 +107,13 @@ def _file_weight(path: str) -> tuple[float, str]:
 
 
 _FILE_TIER = {"源码文件": 3, "普通文件": 2, "文档/配置": 1, "测试文件": 1, "生成物": 0}
-_LINE_PATH_FACTOR = {"源码文件": 1.0, "普通文件": 0.9, "文档/配置": 0.55, "测试文件": 0.6, "生成物": 0.35}
+_LINE_PATH_FACTOR = {
+    "源码文件": 1.0,
+    "普通文件": 0.9,
+    "文档/配置": 0.55,
+    "测试文件": 0.6,
+    "生成物": 0.35,
+}
 
 
 def _file_raw_score(file: dict) -> tuple[float, list[str]]:
@@ -131,8 +137,10 @@ def _hunk_raw_score(hunk: dict) -> float:
     added = hunk.get("added_lines") or []
     deleted = int(hunk.get("deleted_count") or 0)
     # 用“代码行权重”而不是纯行数：license/注释 hunk 不应压过真正的逻辑 hunk
-    return sum(_line_content_weight(line) for line in added) + 2 * deleted + (
-        1 if added and deleted else 0
+    return (
+        sum(_line_content_weight(line) for line in added)
+        + 2 * deleted
+        + (1 if added and deleted else 0)
     )
 
 

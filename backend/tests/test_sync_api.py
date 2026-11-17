@@ -1,3 +1,11 @@
+# === AI 辅助说明 ===
+# 本文件共 23 条测试用例
+# [AI生成]：0 条
+# [AI生成-人工修改]：23 条（AI 生成骨架，人工补充核心断言）
+# [手写]：0 条
+# 使用工具：原始生成记录未归档（标注依据代码特征判断，作者于 2026-11-17 确认）
+# 提示词见：docs/test/unit_test/prompts/README.md
+
 """POST /api/sync 批量同步测试（docs/api/sync.md）。
 
 覆盖：
@@ -226,9 +234,7 @@ def test_sync_scopes_to_single_model(client, monkeypatch, tmp_path):
 
     hashes = [C3]
     monkeypatch.setattr(sync_module, "fetch_latest_tip", lambda repo_dir: hashes[0])
-    monkeypatch.setattr(
-        sync_module, "list_recent_hashes", lambda repo_dir, limit, ref=None: hashes
-    )
+    monkeypatch.setattr(sync_module, "list_recent_hashes", lambda repo_dir, limit, ref=None: hashes)
     monkeypatch.setattr(
         sync_module, "ensure_extractable", lambda repo_dir, tip: (repo_dir, lambda: None)
     )
@@ -266,9 +272,7 @@ def test_sync_endpoint_unreachable_commit_counts_as_skipped(client, monkeypatch,
 
     hashes = [UNKNOWN]
     monkeypatch.setattr(sync_module, "fetch_latest_tip", lambda repo_dir: hashes[0])
-    monkeypatch.setattr(
-        sync_module, "list_recent_hashes", lambda repo_dir, limit, ref=None: hashes
-    )
+    monkeypatch.setattr(sync_module, "list_recent_hashes", lambda repo_dir, limit, ref=None: hashes)
     monkeypatch.setattr(
         sync_module, "ensure_extractable", lambda repo_dir, tip: (repo_dir, lambda: None)
     )
@@ -377,12 +381,8 @@ def test_git_failure_without_network_error_is_not_retried(monkeypatch, tmp_path)
 
 def test_resolve_scope_accepts_delivered_non_expert_model(monkeypatch):
     """前端下拉展示 25 个交付模型后，显式指定 semantic/fused/e2e 模型不能再误报 40001。"""
-    monkeypatch.setattr(
-        sync_module.model_registry, "has", lambda name: name == "xgb_semantic_v1"
-    )
-    assert sync_module._resolve_scope_models(None, None, "xgb_semantic_v1") == {
-        "xgb_semantic_v1"
-    }
+    monkeypatch.setattr(sync_module.model_registry, "has", lambda name: name == "xgb_semantic_v1")
+    assert sync_module._resolve_scope_models(None, None, "xgb_semantic_v1") == {"xgb_semantic_v1"}
 
 
 def test_resolve_scope_rejects_unknown_model(monkeypatch):
@@ -449,9 +449,7 @@ def test_prefetch_features_uses_batch_extraction(monkeypatch):
         "extract_many",
         lambda hashes, repo: calls.append(list(hashes)) or [{"commit_hash": hashes[0]}],
     )
-    monkeypatch.setattr(
-        sync_module, "store_extracted_features", lambda items: len(items)
-    )
+    monkeypatch.setattr(sync_module, "store_extracted_features", lambda items: len(items))
     assert sync_module._prefetch_features(["a" * 40, "b" * 40], None) == 1
     assert calls == [["a" * 40, "b" * 40]]
 

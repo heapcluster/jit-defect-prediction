@@ -1,4 +1,11 @@
-// [AI生成] 本文件用例由 AI 编写，核心断言经人工复核。
+// === AI 辅助说明 ===
+// 本文件共 5 条测试用例
+// [AI生成]：5 条（经人工审核修改后采纳）
+// [AI生成-人工修改]：0 条
+// [手写]：0 条
+// 使用工具：原始生成记录未归档（标注依据代码特征判断，作者于 2026-11-17 确认）
+// 提示词见：docs/test/unit_test/prompts/README.md
+
 import { describe, it, expect } from 'vitest'
 import { formatTime, formatDateTime } from '../src/utils/datetime'
 

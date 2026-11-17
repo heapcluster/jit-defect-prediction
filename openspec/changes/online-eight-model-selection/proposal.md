@@ -30,7 +30,7 @@
 
 涉及 `docs/api/models.md`、`data_model/pipelines/expert/models/feature_order.txt`、后端依赖与模型注册表、`frontend/src/utils/models.js`、三线测试和性能证据。按 owner 分包分别实施；当前仍需补本机可复现的验收证据。
 
-此变更扩展在线可选模型，但不增加接口、库表或特征列，不改变 `docs/overview.md` 的建议性预警系统边界；8 模型切换只在跨线验收后宣布完整交付。
+此变更扩展在线可选模型，但不增加接口、库表或特征列，不改变 `docs/README.md` 的建议性预警系统边界；8 模型切换只在跨线验收后宣布完整交付。
 
 ## 不做什么
 

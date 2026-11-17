@@ -1,3 +1,11 @@
+# === AI 辅助说明 ===
+# 本文件共 11 条测试用例
+# [AI生成]：0 条
+# [AI生成-人工修改]：11 条（AI 生成骨架，人工补充核心断言）
+# [手写]：0 条
+# 使用工具：原始生成记录未归档（标注依据代码特征判断，作者于 2026-11-17 确认）
+# 提示词见：docs/test/unit_test/prompts/README.md
+
 """Regression: expert / semantic / fused must register the SAME classifier set.
 
 The three lines exist so that the only variable is the input feature space

@@ -1,7 +1,7 @@
 # model-training Specification
 
 ## Purpose
-把带标签样本集训练成可用的 JIT 缺陷预测模型：按 `committed_at` 时间序切分，`expert`、`semantic`、`fused` 三条分类器线各按默认集合训练 8 个分类器，产出 Effort-unaware 与 Effort-aware 两类评估指标，全部结果可复现。模型线总览见 `docs/overview.md`。
+把带标签样本集训练成可用的 JIT 缺陷预测模型：按 `committed_at` 时间序切分，`expert`、`semantic`、`fused` 三条分类器线各按默认集合训练 8 个分类器，产出 Effort-unaware 与 Effort-aware 两类评估指标，全部结果可复现。模型线总览见 `docs/README.md`。
 
 ## Requirements
 

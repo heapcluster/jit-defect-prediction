@@ -328,7 +328,9 @@ def build_one(
 def write_report(path: Path, ctx: dict, results: list[dict], labels: list[Path]) -> None:
     L: list[str] = []
     L.append("# 样本集统计（04_build_dataset.py 产出）—— 第 6 项交付物的证据\n")
-    L.append("> 本文件可入库，七项统计的定义见 `docs/common/data-pipeline.md` 第 5 节；验收结论需人工复核\n")
+    L.append(
+        "> 本文件可入库，七项统计的定义见 `docs/common/data-pipeline.md` 第 5 节；验收结论需人工复核\n"
+    )
 
     commits = ctx["commits"]
     times = sorted(r["committed_at"] for r in commits.values())

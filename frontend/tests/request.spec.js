@@ -1,3 +1,11 @@
+// === AI 辅助说明 ===
+// 本文件共 6 条测试用例
+// [AI生成]：0 条
+// [AI生成-人工修改]：0 条
+// [手写]：6 条（核心业务断言由人工编写）
+// 使用工具：原始生成记录未归档（标注依据代码特征判断，作者于 2026-11-17 确认）
+// 提示词见：docs/test/unit_test/prompts/README.md
+
 import { AxiosError } from 'axios'
 import { describe, expect, it } from 'vitest'
 

@@ -1,3 +1,11 @@
+# === AI 辅助说明 ===
+# 本文件共 7 条测试用例
+# [AI生成]：0 条
+# [AI生成-人工修改]：7 条（AI 生成骨架，人工补充核心断言）
+# [手写]：0 条
+# 使用工具：原始生成记录未归档（标注依据代码特征判断，作者于 2026-11-17 确认）
+# 提示词见：docs/test/unit_test/prompts/README.md
+
 """Regression tests for the required CI job's path selection."""
 
 from __future__ import annotations

@@ -1,4 +1,11 @@
-# [AI生成] 本文件用例由 AI 编写，核心断言经人工复核。
+# === AI 辅助说明 ===
+# 本文件共 14 条测试用例
+# [AI生成]：12 条（经人工审核修改后采纳）
+# [AI生成-人工修改]：0 条
+# [手写]：0 条
+# 使用工具：原始生成记录未归档（标注依据代码特征判断，作者于 2026-11-17 确认）
+# 提示词见：docs/test/unit_test/prompts/README.md
+
 """提交组装纯函数的三例单元测试（app/services/commits.py）。
 
 `feature_dict` / `explanation_for` 是详情接口的字段组装入口，此前只在 API 层
@@ -103,6 +110,27 @@ def test_localization_empty_explanation_gives_empty_highlights():
     assert loc["level"] == "commit"
     assert loc["highlights"] == []
     assert "暂无定位" in loc["notice"]
+
+
+def test_localization_top_k_zero_gives_empty_highlights():
+    """边界：top_k=0 时高亮为空，level 与提示仍完整。"""
+    explanation = [
+        {"feature": "a", "label": "A", "contribution": 0.4, "direction": "increase"},
+    ]
+    loc = localization_for(explanation, top_k=0)
+    assert loc["level"] == "commit"
+    assert loc["highlights"] == []
+    assert "暂无定位" in loc["notice"]
+
+
+def test_localization_top_k_exceeds_length_returns_all():
+    """边界：top_k 大于归因条数时返回全部，不补空位。"""
+    explanation = [
+        {"feature": "a", "label": "A", "contribution": 0.2, "direction": "increase"},
+        {"feature": "b", "label": "B", "contribution": -0.6, "direction": "decrease"},
+    ]
+    loc = localization_for(explanation, top_k=10)
+    assert [h["feature"] for h in loc["highlights"]] == ["b", "a"]
 
 
 def test_file_score_prefers_modified_source_over_test_or_generated():

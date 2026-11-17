@@ -39,7 +39,7 @@ DOC_TOKEN = re.compile(r"`(docs/[^`\n]+)`")
 
 def check_headings(text: str, headings: tuple[str, ...], source: Path) -> list[str]:
     positions = [text.find(heading) for heading in headings]
-    missing = [heading for heading, pos in zip(headings, positions) if pos < 0]
+    missing = [heading for heading, pos in zip(headings, positions, strict=True) if pos < 0]
     errors = [f"{source}: missing {heading}" for heading in missing]
     if not missing and positions != sorted(positions):
         errors.append(f"{source}: headings are out of order")
@@ -72,7 +72,7 @@ def check_change(directory: Path) -> list[str]:
     text = tasks.read_text(encoding="utf-8")
     lines = text.splitlines()
     header = [line for line in lines[1:] if line.strip()][:4]
-    for actual, expected in zip(header, TASK_HEADINGS):
+    for actual, expected in zip(header, TASK_HEADINGS, strict=False):
         if not actual.startswith(expected):
             errors.append(f"{tasks}: expected header {expected}")
     errors.extend(check_headings(text, VERIFICATION_HEADINGS, tasks))
