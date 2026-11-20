@@ -645,7 +645,9 @@ def write_report(
     )
     L.append("## 输入\n")
     L.append("| 项 | 值 |\n|---|---|")
-    L.append(f"| 特征表口径版本 | `{FEATURE_VERSION}`（`docs/database/commit_feature.md` 已冻结） |")
+    L.append(
+        f"| 特征表口径版本 | `{FEATURE_VERSION}`（`docs/database/commit_feature.md` 已冻结） |"
+    )
     L.append(f"| 提交清单 | `{len(targets)}` 条 |")
     L.append(f"| 时间窗口 | `{since or '(全量)'}` |")
     if limit:

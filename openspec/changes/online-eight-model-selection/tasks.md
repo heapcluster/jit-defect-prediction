@@ -13,7 +13,7 @@
 ## 2. 模型线交付（蒋励）
 
 - [ ] 2.1 五个新增权重从 `[evaluated]` 移至 `[models]`，保留原三项、14 项列序与依赖说明 —— `data_model/pipelines/expert/models/feature_order.txt`（`[dependencies]` 补 lightgbm/torch/pytorch_tabnet，`[how_to_load]` 补 Pipeline 加载注意）；`data_model/tests/test_feature_contract.py` 的交付边界断言同步改 8 项并通过。权重本体不入库（走包分发）。
-- [ ] 2.2 模型线权威说明标明八项在线 —— `docs/overview.md`；重新归档 8/8 加载、逐模型延迟与归因的当前证据（旧 `backend/scripts/evidence/online-eight-model-selection-2026-10-25.md` 已删除）。
+- [ ] 2.2 模型线权威说明标明八项在线 —— `docs/README.md`；重新归档 8/8 加载、逐模型延迟与归因的当前证据（旧 `backend/scripts/evidence/online-eight-model-selection-2026-10-25.md` 已删除）。
 
 ## 3. 后端八模型加载与预测（吕建江）
 

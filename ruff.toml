@@ -7,6 +7,10 @@
 target-version = "py312"
 line-length = 100
 
+# docs/ 下是文档与提交用测试副本，不参与源码 lint：
+# 副本脱离各端包上下文，`from app...` 会被 isort 误判为 third-party 而报 I001。
+extend-exclude = ["docs"]
+
 [lint]
 select = [
     "E4", # import 相关

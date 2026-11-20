@@ -1,6 +1,6 @@
 """集成测试用例：对**运行中的服务**执行 11 个端点的四类场景，输出逐条结果。
 
-用法（在 backend/ 目录，先起服务）：
+用法（在仓库根目录执行，先起服务；也可 cd backend 后执行 scripts/ 下的同名脚本）：
 
     python scripts/integration_cases.py
     BASE_URL=http://127.0.0.1:8000 python scripts/integration_cases.py --json out.json
@@ -11,7 +11,7 @@
 鉴权失败码、空结果不等于错误）。只断言 HTTP 200 的用例不算通过。
 
 来源标注：`[AI生成]`（DeepSeek-V4.1-Flash，2026-11-12），核心业务断言已按
-`docs/test/integration_test/endpoint_inventory.md` §2 逐条对照代码复核。
+`docs/想到什么取什么/integration_test/endpoint_inventory.md` §2 逐条对照代码复核。
 """
 
 from __future__ import annotations

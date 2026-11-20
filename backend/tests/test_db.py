@@ -1,3 +1,11 @@
+# === AI 辅助说明 ===
+# 本文件共 7 条测试用例
+# [AI生成]：0 条
+# [AI生成-人工修改]：7 条（AI 生成骨架，人工补充核心断言）
+# [手写]：0 条
+# 使用工具：原始生成记录未归档（标注依据代码特征判断，作者于 2026-11-17 确认）
+# 提示词见：docs/test/unit_test/prompts/README.md
+
 """建表索引自检测试（Issue #73 缺口二：`_assert_indexes` 此前零覆盖）。
 
 `_assert_indexes` 是「建表即校验唯一索引」的唯一防线：`prediction(commit_hash,
@@ -62,7 +70,9 @@ def test_index_assertions_pass_on_fresh_schema():
         "commit_hash",
         "model_name",
     )
-    indexes = {tuple(i["column_names"]): bool(i.get("unique")) for i in insp.get_indexes("prediction")}
+    indexes = {
+        tuple(i["column_names"]): bool(i.get("unique")) for i in insp.get_indexes("prediction")
+    }
     assert indexes[("model_name", "risk_score")] is False
 
 

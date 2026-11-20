@@ -8,7 +8,7 @@
 
   前置：后端 uvicorn @127.0.0.1:8000、前端 vite @127.0.0.1:5173、MySQL jit_demo/jit_test 就绪、
         环境变量 API_TOKEN 已设置（不要写进仓库文件）。
-  产物：覆盖率 HTML -> docs/test/unit_test/coverage_report/htmlcov-<sha>/
+  产物：覆盖率 HTML -> docs/想到什么取什么/unit_test/coverage_report/htmlcov-<sha>/
         运行摘要   -> temp/reproduce-<sha>.json（temp 不入库，供人工复核）
 #>
 param(
@@ -55,7 +55,7 @@ try {
         Invoke-Step '单元+覆盖率' { python -m pytest -q --cov=app --cov-branch --cov-report=html:htmlcov --cov-report=term-missing }
         $src = Join-Path $backend 'htmlcov'
         if (Test-Path $src) {
-            $dst = Join-Path $repo "docs/test/unit_test/coverage_report/htmlcov-$Sha"
+            $dst = Join-Path $repo "docs/想到什么取什么/unit_test/coverage_report/htmlcov-$Sha"
             New-Item -ItemType Directory -Force -Path $dst | Out-Null
             Get-ChildItem -File $src | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $dst -Force }
             Write-Host "coverage HTML -> $dst"
@@ -85,7 +85,7 @@ $summary = [pscustomobject]@{
     sha = $Sha
     generated_at = (Get-Date).ToString('o')
     steps = $results
-    note = '自动复跑摘要；不自动修改 docs/test 文档、不自动提交。失败步骤须人工复核。'
+    note = '自动复跑摘要；不自动修改 docs/想到什么取什么 文档、不自动提交。失败步骤须人工复核。'
 }
 $outFile = Join-Path $tempDir "reproduce-$Sha.json"
 $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $outFile -Encoding UTF8
@@ -94,6 +94,6 @@ Write-Host "summary -> $outFile"
 $failed = @($results | Where-Object { $_.exit -ne 0 })
 Write-Host ("=== done: total={0} failed={1} ===" -f $results.Count, $failed.Count)
 if ($failed.Count -gt 0) {
-    Write-Warning '存在失败步骤：请按 docs/test 交付文档如实登记，不得把失败写成通过。'
+    Write-Warning '存在失败步骤：请按 docs/想到什么取什么 交付文档如实登记，不得把失败写成通过。'
     exit 1
 }

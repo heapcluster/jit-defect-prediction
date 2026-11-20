@@ -1,3 +1,11 @@
+# === AI 辅助说明 ===
+# 本文件为测试夹具配置，不产生测试用例
+# [AI生成]：0 条
+# [AI生成-人工修改]：0 条（夹具逻辑由 AI 生成骨架、人工调整）
+# [手写]：0 条
+# 使用工具：原始生成记录未归档（标注依据代码特征判断，作者于 2026-11-17 确认）
+# 提示词见：docs/test/unit_test/prompts/README.md
+
 """测试公共夹具：本机 MySQL 测试库 jit_test + fixture 决策树模型（design D9）。
 
 所有测试依赖本机 MySQL：连接由 `backend/.env` 的分字段（DB_HOST / DB_USER / DB_PASSWORD …）

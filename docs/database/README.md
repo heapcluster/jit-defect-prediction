@@ -1,3 +1,52 @@
-# 数据库契约索引
+# 数据库契约索引与数据链路
 
 五张表分别见 [commit](commit.md)、[commit_feature](commit_feature.md)、[model](model.md)、[prediction](prediction.md) 和 [model_figure](model_figure.md)。建表 SQL 真源为 [`../../infra/schema.sql`](../../infra/schema.sql)。
+
+以下记录当前仓库可核对的数据采集与特征口径；产品范围见 [`../README.md`](../README.md)。
+
+## 1 固定数据源
+
+离线训练样本源为 Apache Camel：`https://github.com/apache/camel.git`，固定 tag `camel-4.23.0`，对应完整 commit `b2329103df8f5d1edfca2ad262be09e3be95ee68`。默认本地副本在 `data_model/data/camel/`，`01_extract_commits.py` 的 `EXPECTED_HEAD` 会校验版本；窗口参数 `--since` 只限制输出提交，不得截断历史类特征所需的前序提交。在线同步的源由后端 `SOURCE_REPO` 显式配置，取实时提交时不能把它误称为固定训练集。
+
+## 2 采集顺序与产物
+
+在 `data_model/` 工作目录、环境与固定 Camel 副本就绪后，按以下顺序运行。`04_build_dataset` 的 `--labels` 是必填项；本例只构建主标签 `szz` 的样本集，`szz_lite` 对照集须另传其标签文件。大规模采集和 SZZ 可能耗时较长。
+
+```powershell
+python -m preparation.01_extract_commits
+python -m preparation.02_szz_labeling --method szz
+python -m preparation.03_extract_features
+python -m preparation.04_build_dataset --labels data/commit_labels_szz.csv
+python -m preparation.05_split_dataset --dataset data/dataset_szz.csv
+```
+
+各脚本的参数以 `--help` 为准；每一步须记录退出码、产物路径、样本数及当前 commit SHA。以上命令已核对参数入口，**不是本次完整采集和训练的通过证据**。
+
+## 3 SZZ 判据与质量自检
+
+`02_szz_labeling.py` 以大小写不敏感的词首边界 `\b(fix|bug|patch)` 识别候选修复提交，并用标准行级 `szz` 与简化版 `szz_lite` 对照。训练主标签为 `szz`；未打标的在线提交在 `commit_feature.is_bug_inducing` 中保持 `NULL`。
+
+当前脚本对正样本比例**落在 40%–60% 区间内**给出异常自检提示（常量 `ABNORMAL_LOW=0.40`、`ABNORMAL_HIGH=0.60`），这只是脚本质量检查，具体比例必须用固定数据源重跑报告核实。
+
+候选修复提交必须同时含 `CAMEL-<数字>` 和上述修复语义词。词首边界允许 `fixes` 等词形变化，同时避免把 `dispatch`、`debug`、`prefix` 中的子串误收为修复语义。回溯未命中的修复提交既不进入样本，也不记作负样本。`szz` 为本仓库脚本实现的行级回溯，`szz_lite` 为文件级对照；两种方法的结果必须分别报告。
+
+上游提交 `866b7dc` 对固定 Camel 版本的报告给出候选命中外沿基准：含缺陷编号 38,716 条，同时命中编号与修复词首语义 7,787 条，同时命中编号与 `fix` 词首语义 6,631 条，完整提交数 84,461。**这些是历史基准，不代表当前机器已重新运行全量采集**。数据源、固定版本或过滤条件改变时，应先重跑并重新登记基准。
+
+## 4 特征与训练边界
+
+`03_extract_features.py` 产出 Kamei 14 维；落库含义和 log 变换见 [commit_feature.md](commit_feature.md)。在线 expert 权重的列序以 `data_model/pipelines/expert/models/feature_order.txt` 为准。训练/检验按 `committed_at` 前 70% / 后 30% 时间序切分，禁止随机切分。`expert`、`semantic`、`fused` 三线默认各 8 个分类器，`e2e` 另 1 个；训练结果与在线交付权重是两种状态，见 [`../README.md`](../README.md)。若 tabnet 权重在 GPU 上训练、CPU 机器加载报 CUDA 反序列化错误，运行 `python data_model/pipelines/reexport_tabnet_cpu.py` 重导出（原文件备份为 `*.bak-cuda`）。
+
+## 5 在线语义 / e2e 输入（增量口径）
+
+semantic 线读 `data_model/pipelines/semantic/data/semantic_embeddings.npz`，e2e 线读 `data_model/pipelines/e2e/data/commit_text.csv`。两者都是训练阶段的预计算产物，体积大且被 `.gitignore` 忽略，不随仓库分发。
+
+- **正常路径**：预计算表覆盖的提交直接查表，在线预测不加载 CodeBERT。
+- **增量兜底**：新同步提交不在表内时，后端用 `SOURCE_REPO` 现场构造 diff 文本（口径与 `pipelines/text_source.py` 一致），semantic/fused 用冻结 CodeBERT mean-pool 编码，e2e 走交付的 CodeBERT 分类头；结果缓存在进程内，不重写大表。
+- **失败语义**：未配置 `SOURCE_REPO`、提交不可读或编码器不可用时，接口返回 `40001` 明确文案，不编造向量 / 文本。
+- 交付清单中的 `commit_text.csv` / `semantic_embeddings.npz` 仍按模型线流程生成；在线兜底保证干净检出 + 已配置源仓库时四线模型都能对新提交预测，但不替代离线重训所需的全量产物。
+
+## 6 统计与证据
+
+采集条数、打标比例、特征缺口、切分边界应由本次运行的输出与 `data_model/preparation/reports/`（生成目录，未随仓库分发）记录。若该目录不存在，应写"尚未在本机生成"，不得引用历史数字冒充当前结果。
+
+`04_build_dataset.py` 的七项统计为：过滤合并提交后的总提交数、UTC 时间跨度、打标成功数、正样本数、负样本数、正样本比例、打标方法。正样本比例是正样本数除以打标成功数。报告还须检查标签与提交清单、特征表能否按 `commit_hash` 对齐，并列出被排除的行数；不能用历史报告数字填当前验收结果。

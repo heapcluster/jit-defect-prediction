@@ -32,7 +32,9 @@ def _feature_phrases(features: dict | None, explanation: list[dict] | None) -> l
             for item in explanation
             if item.get("direction") == "increase"
         ]
-        phrases = positives or [item.get("label") or item.get("feature", "") for item in explanation]
+        phrases = positives or [
+            item.get("label") or item.get("feature", "") for item in explanation
+        ]
         return [p for p in phrases if p][:3]
     if not features:
         return []
@@ -75,12 +77,14 @@ def template_summary(
     factors = _feature_phrases(features, explanation)
     factor_text = "、".join(factors) if factors else "提交级特征未显示突出风险因子"
     files = [
-        item.get("path", "")
-        for item in (localization or {}).get("files", [])
-        if item.get("path")
+        item.get("path", "") for item in (localization or {}).get("files", []) if item.get("path")
     ][:2]
     if level == "高":
-        tail = f"；建议优先审查 {files[0]} 等 {len(files)} 个文件" if files else "；建议优先复核改动文件"
+        tail = (
+            f"；建议优先审查 {files[0]} 等 {len(files)} 个文件"
+            if files
+            else "；建议优先复核改动文件"
+        )
     elif level == "中":
         tail = f"；建议抽查 {files[0]} 等文件" if files else "；建议抽查改动文件"
     else:
@@ -142,9 +146,7 @@ def summary_for(
     """生成一句话风险总结；风险分为空时返回 None。"""
     if risk_score is None or not model_name:
         return None
-    files = tuple(
-        item.get("path", "") for item in (localization or {}).get("files", [])[:3]
-    )
+    files = tuple(item.get("path", "") for item in (localization or {}).get("files", [])[:3])
     key = (commit_hash, model_name, round(float(risk_score), 4), files)
     with _lock:
         cached = _cache.get(key)

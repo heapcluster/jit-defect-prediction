@@ -1,4 +1,4 @@
-﻿"""性能压测：对 `POST /api/predict` 循环 100 次，输出分位数与达标判定。
+"""性能压测：对 `POST /api/predict` 循环 100 次，输出分位数与达标判定。
 
 对应 `openspec/specs/nfr-evidence/spec.md` 的「性能压测脚本」：
 - 必须输出 p50 / p95 / p99 / 最大值，MUST NOT 用平均值代替分位数；

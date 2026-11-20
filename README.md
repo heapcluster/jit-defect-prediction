@@ -79,6 +79,6 @@ python -m pytest -q infra/tests                                # CI 契约与建
 
 - **建表**：唯一真源是 `infra/schema.sql`；`data_model/evaluation/out/schema.sql` 副本已下线，不再生成。
 - **模型性能指标**：`data_model/evaluation/out/model_metrics.csv` 是 25 个模型在测试集上的指标，**必须入库**（前端「模型性能看板」抽屉依赖）。
-- **测试代码**：唯一真源在各端 `tests/` 与 `backend/scripts/`；`docs/test/` 只放文档与证据，不存放代码副本。
+- **测试代码**：唯一真源在各端 `tests/` 与 `backend/scripts/`；`docs/想到什么取什么/` 只放文档与证据，不存放代码副本。
 - **密钥与权重**：`.env`、`*.pkl`、数据集、`data_model/data/camel` 克隆一律不入库；模型清单（`feature_order.txt` / `manifest.txt` / `load_manifest.txt`）必须入库。
 - MySQL 建库授权、真实权重、浏览器截图及运行日志须由实际操作者留证；本文件不宣称这些步骤已在当前机器通过。

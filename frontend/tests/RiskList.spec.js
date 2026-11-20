@@ -1,4 +1,11 @@
-// [AI生成-人工修改] 在原有测试基础上由 AI 补充/修改部分用例，核心断言经人工复核。
+// === AI 辅助说明 ===
+// 本文件共 5 条测试用例
+// [AI生成]：0 条
+// [AI生成-人工修改]：5 条（AI 生成骨架，人工补充核心断言）
+// [手写]：0 条
+// 使用工具：原始生成记录未归档（标注依据代码特征判断，作者于 2026-11-17 确认）
+// 提示词见：docs/test/unit_test/prompts/README.md
+
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'

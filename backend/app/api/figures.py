@@ -67,9 +67,11 @@ def figures(model_name: str = Query(default=...)) -> dict:
         model = session.execute(
             select(Model).where(Model.model_name == model_name)
         ).scalar_one_or_none()
-        rows = session.execute(
-            select(ModelFigure).where(ModelFigure.model_name == model_name)
-        ).scalars().all()
+        rows = (
+            session.execute(select(ModelFigure).where(ModelFigure.model_name == model_name))
+            .scalars()
+            .all()
+        )
     if model is None or not rows:
         raise AppError(40400, "model figures not found")
     by_type = {f.figure_type: f for f in rows}

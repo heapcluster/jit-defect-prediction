@@ -10,14 +10,13 @@
         pip install playwright
         playwright install chrome msedge firefox   # 或 playwright install chromium
 
-运行：
-  cd backend
-  python scripts/browser_walkthrough.py --sha <最终提交SHA>
+运行（仓库根目录，也可 cd backend 后把 backend/scripts/ 换成 scripts/）：
+  python backend/scripts/browser_walkthrough.py --sha <最终提交SHA>
   python scripts/browser_walkthrough.py --browsers chrome,firefox --skip-linkage
 
 输出：
-  - 验收截图 -> docs/test/acceptance_test/execution_records/
-  - 联调截图 -> docs/test/integration_test/screenshots/
+  - 验收截图 -> docs/想到什么取什么/acceptance_test/execution_records/
+  - 联调截图 -> docs/想到什么取什么/integration_test/screenshots/
   - 清单     -> 两个目录下的 walkthrough-manifest.json（含 SHA、浏览器、页面、文件、跳过原因）
 
 注意：脚本**不启动服务、不伪造截图、不修改文档结论**；浏览器不可用时如实记为 skip。
@@ -36,8 +35,8 @@ from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 REPO_DIR = BACKEND_DIR.parent
-DEFAULT_ACCEPTANCE = REPO_DIR / "docs/test/acceptance_test/execution_records"
-DEFAULT_LINKAGE = REPO_DIR / "docs/test/integration_test/screenshots"
+DEFAULT_ACCEPTANCE = REPO_DIR / "docs/想到什么取什么/acceptance_test/execution_records"
+DEFAULT_LINKAGE = REPO_DIR / "docs/想到什么取什么/integration_test/screenshots"
 
 try:
     from playwright.sync_api import sync_playwright
@@ -139,7 +138,9 @@ def main() -> int:
                 browser = engine.launch(**kwargs)
             except Exception as exc:  # noqa: BLE001
                 print(f"[walk] {name} 启动失败，记为 skip：{exc}")
-                manifest["results"].append({"browser": name, "status": "skip", "reason": str(exc)[:200]})
+                manifest["results"].append(
+                    {"browser": name, "status": "skip", "reason": str(exc)[:200]}
+                )
                 continue
 
             try:
@@ -150,18 +151,35 @@ def main() -> int:
                 for case_id, endpoint, path, slug, linkage in pages:
                     fname = f"{case_id}-{name}-{slug}.png"
                     try:
-                        page.goto(args.base_url.rstrip("/") + path, wait_until="networkidle", timeout=30000)
+                        page.goto(
+                            args.base_url.rstrip("/") + path,
+                            wait_until="networkidle",
+                            timeout=30000,
+                        )
                         page.wait_for_timeout(500)
                         page.screenshot(path=str(args.acceptance_dir / fname), full_page=True)
                         if linkage and not args.skip_linkage:
-                            page.screenshot(path=str(args.linkage_dir / f"IN-{name}-{slug}.png"), full_page=True)
+                            page.screenshot(
+                                path=str(args.linkage_dir / f"IN-{name}-{slug}.png"), full_page=True
+                            )
                         manifest["results"].append(
-                            {"browser": name, "case": case_id, "endpoint": endpoint, "file": fname, "status": "ok"}
+                            {
+                                "browser": name,
+                                "case": case_id,
+                                "endpoint": endpoint,
+                                "file": fname,
+                                "status": "ok",
+                            }
                         )
                         print(f"[walk] {name} {case_id} -> {fname}")
                     except Exception as exc:  # noqa: BLE001
                         manifest["results"].append(
-                            {"browser": name, "case": case_id, "status": "skip", "reason": str(exc)[:200]}
+                            {
+                                "browser": name,
+                                "case": case_id,
+                                "status": "skip",
+                                "reason": str(exc)[:200],
+                            }
                         )
                         print(f"[walk] {name} {case_id} 失败：{exc}")
                 context.close()

@@ -22,17 +22,17 @@
 
 **修订记录**：初版曾决定「不写任何可执行用例」，理由是当时本机无可用 Python 运行时、无法收集验证。环境补齐后该前提消失，脚本已实跑（集成 34/35、安全 18/18、性能 p95 68.1ms 达标），原决定随之撤销。保留此条以说明为何前后不一致。
 
-## 3 · 执行记录独立成文，不改 `docs/test/integration_test/report.md` 的结论列
+## 3 · 执行记录独立成文，不改 `docs/想到什么取什么/integration_test/report.md` 的结论列
 
-**决定**：执行边界与环境核查写在 `docs/test/overview.md` 与 `docs/test/human-todo.md`；原始输出放 `docs/test/integration_test/execution_records/`。`docs/test/integration_test/report.md` 只写实测结论并指向记录文件，不把「未执行」写成「通过」。
+**决定**：执行边界与环境核查写在 `docs/想到什么取什么/README.md`；原始输出放 `docs/想到什么取什么/integration_test/execution_records/`。`docs/想到什么取什么/integration_test/report.md` 只写实测结论并指向记录文件，不把「未执行」写成「通过」。
 
-**理由**：`docs/test/integration_test/report.md` 是**证据索引**，其表格列写的是「结果 / 证据链接」，一旦把「环境受限」写进结果列，后续读者容易把索引里的文字当结论。索引保持原样、只补口径说明，能把「未执行」与「已执行」的边界留在独立文档里，便于按提交号追证据。
+**理由**：`docs/想到什么取什么/integration_test/report.md` 是**证据索引**，其表格列写的是「结果 / 证据链接」，一旦把「环境受限」写进结果列，后续读者容易把索引里的文字当结论。索引保持原样、只补口径说明，能把「未执行」与「已执行」的边界留在独立文档里，便于按提交号追证据。
 
 ## 4 · 口径偏差只登记、不改契约
 
 **决定**：6 处文档与代码不一致（D-01~D-06）写入清单 §3 与 `test-evidence` 规格，不直接修改 `docs/api/*.md`。
 
-**理由**：`docs/overview.md` 明确 `docs/` 是权威真源、AI 不得擅自改动；且这 6 处里 D-03（多余字段静默忽略）、D-06（`started_at` 时区）属**代码侧**问题，改文档会把真实缺陷抹平。正确处理是先由 neon 登记 Issue，再由负责人裁定是改代码还是改契约。
+**理由**：`docs/README.md` 明确 `docs/` 是权威真源、AI 不得擅自改动；且这 6 处里 D-03（多余字段静默忽略）、D-06（`started_at` 时区）属**代码侧**问题，改文档会把真实缺陷抹平。正确处理是先由 neon 登记 Issue，再由负责人裁定是改代码还是改契约。
 
 ## 5 · 新增 `test-evidence` 能力而不是复用 `nfr-evidence`
 

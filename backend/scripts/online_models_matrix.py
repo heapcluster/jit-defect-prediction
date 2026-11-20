@@ -2,7 +2,7 @@
 
 用法（先起后端）：
 
-    cd backend && python scripts/online_models_matrix.py
+    python backend/scripts/online_models_matrix.py
     python scripts/online_models_matrix.py --json out.json
     BASE_URL=http://127.0.0.1:8001 python scripts/online_models_matrix.py
 

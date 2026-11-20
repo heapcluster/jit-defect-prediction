@@ -62,7 +62,9 @@ def template_suggestions(facts: dict) -> list[str]:
         where = f"{first.get('path')}" + (f" 第 {line} 行附近" if line else "")
         suggestions.append(f"优先复核 {where}的新增/修改逻辑，确认边界条件与异常路径。")
     if files:
-        suggestions.append(f"为 {files[0].get('path')} 的新增分支补充单元测试，覆盖空值与异常输入。")
+        suggestions.append(
+            f"为 {files[0].get('path')} 的新增分支补充单元测试，覆盖空值与异常输入。"
+        )
     factors = "、".join(facts.get("top_factors") or [])
     if factors:
         suggestions.append(f"结合「{factors}」复核改动范围，必要时拆分提交或缩小影响面。")
@@ -106,7 +108,9 @@ def _llm_suggestions(facts: dict) -> list[str] | None:
         with urllib.request.urlopen(req, timeout=config.LLM_TIMEOUT) as resp:
             data = json.load(resp)
         content = (data.get("choices") or [{}])[0].get("message", {}).get("content", "")
-        content = str(content).strip().removeprefix("```json").removeprefix("```").removesuffix("```")
+        content = (
+            str(content).strip().removeprefix("```json").removeprefix("```").removesuffix("```")
+        )
         parsed = json.loads(content)
         if isinstance(parsed, list):
             items = [" ".join(str(item).split())[:80] for item in parsed if str(item).strip()]

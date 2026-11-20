@@ -6,7 +6,7 @@
 
 ## Why
 
-1. **训练口径与文档脱节（历史背景）**：当时 `docs/overview.md` 及已删除的模型线文档写「2 类 8 种」，但 `expert` / `semantic` / `fused` 的 `config.DEFAULT_MODELS` 曾残留 12 个（多 `nb` `dt` `knn` `mlp`）。队友按 README 直接跑 `python -m pipelines.fused.train`，当时默认训了 12 个模型，报告标题也写「12 分类器」。现行口径见 `docs/overview.md`，旧章节号不再可用。
+1. **训练口径与文档脱节（历史背景）**：当时 `docs/README.md` 及已删除的模型线文档写「2 类 8 种」，但 `expert` / `semantic` / `fused` 的 `config.DEFAULT_MODELS` 曾残留 12 个（多 `nb` `dt` `knn` `mlp`）。队友按 README 直接跑 `python -m pipelines.fused.train`，当时默认训了 12 个模型，报告标题也写「12 分类器」。现行口径见 `docs/README.md`，旧章节号不再可用。
 2. **跨线对比失真**：四线对比的前提是「同切分、同模型集合，只差特征模态」。默认集合不一致时，横向差异里混入了模型集合差异。
 3. **effort-aware 的负 `P_norm` 无法解释**：`risk_score` 与提交规模高度相关（Spearman ρ 中位数 0.862），按 `risk_score` 降序等于先审最大的提交，20% LOC 预算只够 276~1033 条，召回低于随机基线。需要一条「预算感知」对照口径把「排序问题」与「模型问题」分开，但**不改契约三主口径**。
 

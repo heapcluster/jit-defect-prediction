@@ -69,7 +69,9 @@ def _write_inserts(
 
 
 # ── 导出 ────────────────────────────────────────────────────────────────────
-def write_data_init(path: Path, test: pd.DataFrame, preds: pd.DataFrame, figures: list[dict]) -> Path:
+def write_data_init(
+    path: Path, test: pd.DataFrame, preds: pd.DataFrame, figures: list[dict]
+) -> Path:
     test_hashes = test["commit_hash"].tolist()
     predicted_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -89,38 +91,67 @@ def write_data_init(path: Path, test: pd.DataFrame, preds: pd.DataFrame, figures
     with path.open("w", encoding="utf-8", newline="\n") as f:
         f.write("-- JIT 缺陷预测 测试集初始化数据（MySQL 8.0）\n")
         f.write("-- 先执行 schema.sql 建表，再在空表上执行本文件。\n")
-        f.write(f"-- 测试集 {len(test_hashes)} 条；模型 {len(config.MODEL_LIST)} 个；"
-                f"预测 {len(preds)} 行；图元数据 {len(figures)} 行。\n")
+        f.write(
+            f"-- 测试集 {len(test_hashes)} 条；模型 {len(config.MODEL_LIST)} 个；"
+            f"预测 {len(preds)} 行；图元数据 {len(figures)} 行。\n"
+        )
         f.write("SET NAMES utf8mb4;\n\n")
 
         # 1) commit
         rows = [
-            _row([
-                _q(r.repo_name),
-                _q(r.commit_hash),
-                _q(r.author_name),
-                _q_ns(r.author_email),
-                _q(r.committed_at),
-                _q(r.message),
-                _q_ns(r.parent_hash),
-            ])
+            _row(
+                [
+                    _q(r.repo_name),
+                    _q(r.commit_hash),
+                    _q(r.author_name),
+                    _q_ns(r.author_email),
+                    _q(r.committed_at),
+                    _q(r.message),
+                    _q_ns(r.parent_hash),
+                ]
+            )
             for r in commits.itertuples(index=False)
         ]
         f.write("-- 1) commit\n")
-        _write_inserts(f, "commit", ["repo_name", "commit_hash", "author_name",
-                                     "author_email", "committed_at", "message", "parent_hash"], rows)
+        _write_inserts(
+            f,
+            "commit",
+            [
+                "repo_name",
+                "commit_hash",
+                "author_name",
+                "author_email",
+                "committed_at",
+                "message",
+                "parent_hash",
+            ],
+            rows,
+        )
 
         # 2) model
         rows = []
         for line, algo in config.MODEL_LIST:
             name = config.model_name(line, algo)
-            rows.append(_row([
-                _q(name), "''", "NULL", _q(algo),
-                _q(config.FEATURE_VERSION[line]), _q(line),
-            ]))
+            rows.append(
+                _row(
+                    [
+                        _q(name),
+                        "''",
+                        "NULL",
+                        _q(algo),
+                        _q(config.FEATURE_VERSION[line]),
+                        _q(line),
+                    ]
+                )
+            )
         f.write("-- 2) model（25 个；已存在同名模型时跳过，保证幂等）\n")
-        _write_inserts(f, "model", ["model_name", "version_key", "trained_at",
-                                    "algo", "feature_version", "line"], rows, ignore=True)
+        _write_inserts(
+            f,
+            "model",
+            ["model_name", "version_key", "trained_at", "algo", "feature_version", "line"],
+            rows,
+            ignore=True,
+        )
 
         # 3) commit_feature（is_test=1；14 维特征 + SZZ 真标签同表）
         rows = []
@@ -135,31 +166,57 @@ def write_data_init(path: Path, test: pd.DataFrame, preds: pd.DataFrame, figures
             vals.append(_q(lab["labeled_at"]))
             rows.append(_row(vals))
         f.write("-- 3) commit_feature（is_test=1；14 维特征 + SZZ 真标签）\n")
-        _write_inserts(f, "commit_feature",
-                       ["commit_hash", "feature_version",
-                        *config.FEATURE_FIELDS, "is_test", "is_bug_inducing", "labeled_at"], rows)
+        _write_inserts(
+            f,
+            "commit_feature",
+            [
+                "commit_hash",
+                "feature_version",
+                *config.FEATURE_FIELDS,
+                "is_test",
+                "is_bug_inducing",
+                "labeled_at",
+            ],
+            rows,
+        )
 
         # 4) prediction（25 模型 × 测试集；特征版本由 model.feature_version 决定，不落本表）
         rows = [
-            _row([
-                _q(r.commit_hash), _q(r.model_name),
-                _num(r.risk_score, 5), _q(predicted_at),
-            ])
+            _row(
+                [
+                    _q(r.commit_hash),
+                    _q(r.model_name),
+                    _num(r.risk_score, 5),
+                    _q(predicted_at),
+                ]
+            )
             for r in preds.itertuples(index=False)
         ]
         f.write("-- 4) prediction（25 模型 × 测试集）\n")
-        _write_inserts(f, "prediction", ["commit_hash", "model_name", "risk_score",
-                                         "predicted_at"], rows)
+        _write_inserts(
+            f, "prediction", ["commit_hash", "model_name", "risk_score", "predicted_at"], rows
+        )
 
         # 5) model_figure
         rows = [
-            _row([_q(g["model_name"]), _q(g["figure_type"]), _q(g["title"]),
-                  _q(g["file_path"]), _q(g["generated_at"])])
+            _row(
+                [
+                    _q(g["model_name"]),
+                    _q(g["figure_type"]),
+                    _q(g["title"]),
+                    _q(g["file_path"]),
+                    _q(g["generated_at"]),
+                ]
+            )
             for g in figures
         ]
         f.write("-- 5) model_figure\n")
-        _write_inserts(f, "model_figure", ["model_name", "figure_type", "title",
-                                           "file_path", "generated_at"], rows)
+        _write_inserts(
+            f,
+            "model_figure",
+            ["model_name", "figure_type", "title", "file_path", "generated_at"],
+            rows,
+        )
 
     print(f"[eval] 数据初始化脚本：{path}")
     return path

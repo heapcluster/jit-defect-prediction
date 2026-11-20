@@ -3,7 +3,7 @@
 为避免破坏正在运行的 8000 服务，本脚本**自己起/停独立的 uvicorn 子进程**（端口自动选空闲端口），
 只对自己的子进程发信号；不移动、不删除任何权重文件。
 
-    cd backend && python scripts/system_exceptions.py                 # 两个场景都跑
+    python backend/scripts/system_exceptions.py                 # 两个场景都跑
     python scripts/system_exceptions.py --scenario missing-weights
     python scripts/system_exceptions.py --scenario failure-recovery
     python scripts/system_exceptions.py --scenario empty-db

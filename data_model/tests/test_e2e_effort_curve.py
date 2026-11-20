@@ -1,3 +1,11 @@
+# === AI 辅助说明 ===
+# 本文件共 2 条测试用例
+# [AI生成]：0 条
+# [AI生成-人工修改]：2 条（AI 生成骨架，人工补充核心断言）
+# [手写]：0 条
+# 使用工具：原始生成记录未归档（标注依据代码特征判断，作者于 2026-11-17 确认）
+# 提示词见：docs/test/unit_test/prompts/README.md
+
 """e2e 线 effort 曲线：`cumulative_curve` 必须存在且与 fused 线同口径。
 
 背景（#88 复审）：`e2e/report.py` 从 `.metrics` 导入 `cumulative_curve`，但

@@ -1,4 +1,11 @@
-# [AI生成-人工修改] 一句话总结：模板事实句 + LLM 不可用时回退。
+# === AI 辅助说明 ===
+# 本文件共 5 条测试用例
+# [AI生成]：0 条
+# [AI生成-人工修改]：5 条（AI 生成骨架，人工补充核心断言）
+# [手写]：0 条
+# 使用工具：原始生成记录未归档（标注依据代码特征判断，作者于 2026-11-17 确认）
+# 提示词见：docs/test/unit_test/prompts/README.md
+
 from app.services import risk_summary
 
 
@@ -10,8 +17,18 @@ def test_template_uses_top_factors_and_top_file():
         features={"nf": 2.0, "la": 5.0},
         explanation=[
             {"feature": "nf", "label": "改动文件多", "direction": "increase", "contribution": 0.4},
-            {"feature": "la", "label": "代码改动量大", "direction": "increase", "contribution": 0.3},
-            {"feature": "sexp", "label": "作者近期经验低", "direction": "decrease", "contribution": 0.2},
+            {
+                "feature": "la",
+                "label": "代码改动量大",
+                "direction": "increase",
+                "contribution": 0.3,
+            },
+            {
+                "feature": "sexp",
+                "label": "作者近期经验低",
+                "direction": "decrease",
+                "contribution": 0.2,
+            },
         ],
         localization={"files": [{"path": "core/A.java"}]},
     )

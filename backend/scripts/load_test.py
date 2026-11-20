@@ -3,7 +3,7 @@
 本机没有 JMeter/Locust 且按要求不安装，这里用标准库线程池 + httpx 做等价负载，
 输出可直接写进性能测试报告的四个指标；另附 `locustfile.py` 供有 Locust 的环境复跑。
 
-    cd backend && python scripts/load_test.py
+    python backend/scripts/load_test.py
     USERS=20 REQUESTS=10 python scripts/load_test.py
 
 退出码：错误率为 0 且 p95 < 500ms → 0，否则 1。

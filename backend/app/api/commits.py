@@ -113,7 +113,9 @@ def list_commits(
                 "message": commit.message,
                 "risk_score": float(prediction.risk_score),
                 "model_name": prediction.model_name,
-                "is_bug_inducing": _sizzle(feature.is_bug_inducing) if feature is not None else None,
+                "is_bug_inducing": _sizzle(feature.is_bug_inducing)
+                if feature is not None
+                else None,
             }
             if want_features:
                 item["features"] = commit_service.feature_dict(feature)

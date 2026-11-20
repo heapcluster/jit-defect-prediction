@@ -78,9 +78,7 @@ def _resolve_scope_models(session, line: str | None, model_name: str | None) -> 
             raise AppError(40001, "参数非法：model_name 不存在")
         return {model_name}
     if line:
-        rows = session.execute(
-            select(Model.model_name).where(Model.line == line)
-        ).scalars().all()
+        rows = session.execute(select(Model.model_name).where(Model.line == line)).scalars().all()
         return {name for name in rows if model_registry.has(name)}
     return _loaded_model_names()
 
@@ -201,9 +199,7 @@ def _run_batch(
         )
         sync_state.set_state(phase="plan")
         scanned, pending, truncated = plan(str(repo), tip)
-        sync_state.set_state(
-            total=len(pending), phase="extract" if pending else "predict"
-        )
+        sync_state.set_state(total=len(pending), phase="extract" if pending else "predict")
 
         model_names = sorted(models)
         extract_repo, release = ensure_extractable(str(repo), tip)
