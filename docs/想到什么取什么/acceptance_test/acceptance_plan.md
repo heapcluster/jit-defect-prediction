@@ -11,7 +11,7 @@
 | 功能验收 | 同步 → 预测 → 风险列表 / 详情 / 趋势 / 模型性能看板的业务闭环；需求覆盖率；预测准确性 | [`../../README.md`](../README.md)、[`../../common/project-requirements.md`](../../common/project-requirements.md) |
 | 数据验收 | 数据完整性、前后端展示一致性、跨模块链路 | `README.md` §2 在线业务链路、`docs/api/` |
 | 界面验收 | 页面展示完整性、交互流程合理性、错误反馈友好性 | `docs/web_page/` |
-| 文档验收 | 部署 / 启动说明、API 文档、四类测试交付物、缺陷遗留说明 | [`../../common/test-assessment-guide.md`](../../common/test-assessment-guide.md) §8 |
+| 文档验收 | 部署 / 启动说明、API 文档、四类测试交付物、缺陷遗留说明 | [`../../common/test/test-assessment-guide.md`](../../common/test/test-assessment-guide.md) §8 |
 
 课程原文的「用户登录 / 数据上传 / 导出报告」是通用示例，本项目无这些功能，不纳入验收范围。
 

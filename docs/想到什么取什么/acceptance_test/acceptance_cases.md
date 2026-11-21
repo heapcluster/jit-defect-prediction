@@ -1,6 +1,6 @@
 ﻿# 验收测试用例文档
 
-> 依据：[`../../common/test-assessment-guide.md`](../../common/test-assessment-guide.md) §5.1 / §5.3；需求基线为 [`../../common/project-requirements.md`](../../common/project-requirements.md)、[`../../README.md`](../README.md)、`docs/web_page/`、`docs/api/` 与 `openspec/specs/` 活规格。
+> 依据：[`../../common/test/test-assessment-guide.md`](../../common/test/test-assessment-guide.md) §5.1 / §5.3；需求基线为 [`../../common/project-requirements.md`](../../common/project-requirements.md)、[`../../README.md`](../README.md)、`docs/web_page/`、`docs/api/` 与 `openspec/specs/` 活规格。
 >
 > **撰写说明**：20 条用例由 AI 生成（`[AI生成]`）。本轮（2026-11-15）**补做了能自动化的执行**：接口层实测、25 模型矩阵、测试集指标汇总、浏览器逐页截图、「未预测」页态、「筛选条件是否保持」等，实际结果列已按本轮实测重填。**仍未组织真人现场演示**，验收结论按 AI-R5 应由人工做出，见 [`acceptance_report.md`](acceptance_report.md)。
 >
@@ -46,7 +46,7 @@
 | A-16 | 界面 | `README.md` §1 产品目标 | 地址栏输入不存在的路由 | 显示兜底页，不是白屏 | `/no-such-page` 命中「页面不存在 / 回到风险列表」；截图 [`not-found-2026-11-15.png`](../system_test/execution_records/not-found-2026-11-15.png) | 通过 | [AI生成] |  |
 | A-17 | 文档 | 仓库根 `README.md` | 按部署说明从零起一次前后端 | 照文档可复现，每步能看懂 | 照着 README §二 做，第一步就卡住：干净检出缺 `backend/static/` 目录，`uvicorn app.main:app` 抛 `RuntimeError`（BUG-01），文档未提示需要先建目录；另 README 把 `GET /api/health` 写成「公开的」，实际 401（BUG-05） | 不通过 | [AI生成] |  |
 | A-18 | 文档 | `docs/api/` 正文；运行时 `/openapi.json` | 对照 API 文档与实际接口 | 端点、参数、错误码一致，偏差已裁定 | 11/11 路径一致；D-03/D-06 本轮再次实测确认；原 #220 已关闭，剩余偏差由 #228 跟踪，仍未裁定 | 不通过 | [AI生成] |  |
-| A-19 | 文档 | `common/test-assessment-guide.md` §8 | 检查四类交付物与 `prompts/` 归档 | 目录齐全、用例有来源、提示词可追溯 | 覆盖率 HTML 已按本 SHA 归档（`htmlcov-1d6b06c`）、6 个提示词文件齐备；仍缺覆盖率 **PDF 截图**、A-01~A-20 逐条取证、AI 用例人工审核记录 | 不通过 | [AI生成] |  |
+| A-19 | 文档 | `common/test/test-assessment-guide.md` §8 | 检查四类交付物与 `prompts/` 归档 | 目录齐全、用例有来源、提示词可追溯 | 覆盖率 HTML 已按本 SHA 归档（`htmlcov-1d6b06c`）、6 个提示词文件齐备；仍缺覆盖率 **PDF 截图**、A-01~A-20 逐条取证、AI 用例人工审核记录 | 不通过 | [AI生成] |  |
 | A-20 | 文档 | [`defect_residual.md`](defect_residual.md) | 查看遗留缺陷清单与影响评估 | 每条有状态 / 影响 / 修复计划，无致命严重遗留 | 10 条缺陷中严重 3 条（BUG-01、BUG-02、#222）全部未修，仅 BUG-06 闭环；见 [`../system_test/bug_list.md`](../system_test/bug_list.md) | 不通过 | [AI生成] |  |
 
 ## 3 · 验收通过标准对照

@@ -1,6 +1,6 @@
 ﻿# 性能测试报告
 
-> 依据：[`../../../common/test-assessment-guide.md`](../../../common/test-assessment-guide.md) §4.1 / §4.3。状态：**数据为 2026-11-15 真实实跑**；截图（JMeter/Locust 原生结果）待补。
+> 依据：[`../../../common/test/test-assessment-guide.md`](../../../common/test/test-assessment-guide.md) §4.1 / §4.3。状态：**数据为 2026-11-15 真实实跑**；截图（JMeter/Locust 原生结果）待补。
 >
 > 被测：`2734c1b`；环境：Windows 11 本机，conda `jit-defect-prediction`（Python 3.12.14），MySQL 8.0 `jit_demo`，后端 `uvicorn` @127.0.0.1:8000（单进程），同机还跑着 `vite` 开发服务器；模型为交付权重真模型（`xgb_v1` / `et_v1`），非占位。
 

@@ -36,7 +36,7 @@
 
 ## 测试与验证（强制板块）
 
-> 分层口径见 `docs/common/test-assessment-guide.md`：**单元测试**由写代码的人自己做、
+> 分层口径见 `docs/common/test/test-assessment-guide.md`：**单元测试**由写代码的人自己做、
 > **集成测试**在大版本合并后做、**验收测试**在交付时做，非功能验证并行。
 > 铁律：**勾了 tasks ≠ 功能合格，必须有可复现的运行证据。**
 

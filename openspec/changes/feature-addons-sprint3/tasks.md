@@ -31,7 +31,7 @@
 
 ## 测试与验证（强制板块）
 
-> 分层口径见 `docs/common/test-assessment-guide.md`；模板见 `openspec/TASKS_TEMPLATE.md`。
+> 分层口径见 `docs/common/test/test-assessment-guide.md`；模板见 `openspec/TASKS_TEMPLATE.md`。
 > 本 change 的待实施功能仅为 G1-1/G1-2；G1-3/G1-4 的测试与验收分别见 `public-dataset-quality`、`semantic-feature-mainline`。下列结果以当前 change 为范围，未执行项如实保留。
 
 ### 1. 单元测试

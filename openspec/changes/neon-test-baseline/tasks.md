@@ -2,7 +2,7 @@
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/test-evidence/spec.md`
 > 负责人：neon（集成 / 系统 / 验收测试）
-> 关联需求：飞书「想到什么取什么」本周计划 N-2 / N-3 / N-4；四类测试交付要求见 `docs/common/test-assessment-guide.md`
+> 关联需求：飞书「想到什么取什么」本周计划 N-2 / N-3 / N-4；四类测试交付要求见 `docs/common/test/test-assessment-guide.md`
 > 状态：自动化部分已完成并在 `2734c1b` 上实跑（2026-11-15）；现场逐条判定与人工签字仍未完成
 
 ## 1 · 集成测试取证前提

@@ -9,7 +9,7 @@
 - [功能点](function_point/)：业务行为。
 - [页面](web_page/)：四个页面的交互。
 - [测试](想到什么取什么/)：测试计划、交付物与实测证据。
-- [公共文档](common/)：课程要求（`project-requirements.md`）与考核说明（`test-assessment-guide.md`）。
+- [公共文档](common/)：课程要求（`project-requirements.md`）；测试要求与考核说明见 [common/test/](common/test/)。
 
 ## 1 产品目标
 

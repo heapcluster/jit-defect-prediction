@@ -47,7 +47,7 @@
 
 ## 测试与验证（强制板块）
 
-> 分层口径见 `docs/common/test-assessment-guide.md`；模板见 `openspec/TASKS_TEMPLATE.md`。
+> 分层口径见 `docs/common/test/test-assessment-guide.md`；模板见 `openspec/TASKS_TEMPLATE.md`。
 > 铁律：勾了 tasks ≠ 功能合格，必须有可复现命令与证据路径。
 
 ### 1. 单元测试

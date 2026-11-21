@@ -1,6 +1,6 @@
 ﻿# 系统测试用例文档
 
-> 依据：[`../../common/test-assessment-guide.md`](../../common/test-assessment-guide.md) §4.1 / §4.3；被测范围见 [`../../README.md`](../README.md)、`docs/web_page/`、`docs/api/`。
+> 依据：[`../../common/test/test-assessment-guide.md`](../../common/test/test-assessment-guide.md) §4.1 / §4.3；被测范围见 [`../../README.md`](../README.md)、`docs/web_page/`、`docs/api/`。
 >
 > **撰写说明**：用例与执行结果整理由 AI 完成（项目方 2026-11-13 授权代写，须人工复核修订），来源 `[AI生成]`。本轮（2026-11-15）**重新实跑了可自动化的部分**：35 条接口用例、18 条安全用例、13 条异常场景、4 轮负载、25 模型矩阵、5 张页面截图 + 1 张缺陷截图，执行结果列按本轮实测填写；仍需人眼判断的项（易用性、跨浏览器）按实标注。不伪造截图、执行数据或签名。
 >

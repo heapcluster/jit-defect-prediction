@@ -8,7 +8,7 @@
 
 ## 1 · 缺陷台账（含来源与证据）
 
-> 列口径对齐 [`../../common/test-assessment-guide.md`](../../common/test-assessment-guide.md) §4.3：Bug ID、标题、严重级别、复现步骤、预期/实际结果、截图、状态、来源。
+> 列口径对齐 [`../../common/test/test-assessment-guide.md`](../../common/test/test-assessment-guide.md) §4.3：Bug ID、标题、严重级别、复现步骤、预期/实际结果、截图、状态、来源。
 > 来源标签：`[AI生成-人工修改]` = AI 整理台账，测试人员实测复现并确认。
 
 | Bug ID | 标题 | 级别 | 复现步骤（要点） | 预期结果 | 实际结果 | 截图 / 证据 | 状态 | 来源 |

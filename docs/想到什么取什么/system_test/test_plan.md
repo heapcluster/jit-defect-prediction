@@ -8,7 +8,7 @@
 
 以黑盒方式验证 JIT 缺陷预测 Web 系统从前端页面、后端服务到模型推理的端到端全链路，确认用户可见功能可用、异常可收敛、非功能质量可度量，并为验收测试提供缺陷与证据输入。
 
-依据：[`../../common/test-assessment-guide.md`](../../common/test-assessment-guide.md) §4；现行范围以 [`../../README.md`](../README.md)、`docs/web_page/`、`docs/api/` 为准。课程原文的「用户登录 / 数据上传 / 报告导出」是通用示例，本项目无这些功能，不纳入范围。
+依据：[`../../common/test/test-assessment-guide.md`](../../common/test/test-assessment-guide.md) §4；现行范围以 [`../../README.md`](../README.md)、`docs/web_page/`、`docs/api/` 为准。课程原文的「用户登录 / 数据上传 / 报告导出」是通用示例，本项目无这些功能，不纳入范围。
 
 ## 2 · 测试范围
 

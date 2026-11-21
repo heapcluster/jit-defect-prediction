@@ -12,7 +12,7 @@
 ## 提示词原文
 
 ```text
-依据 docs/common/test-assessment-guide.md §4 与 docs/api/*.md，为当前 11 个真实端点各设计
+依据 docs/common/test/test-assessment-guide.md §4 与 docs/api/*.md，为当前 11 个真实端点各设计
 「正常 / 缺参（含缺鉴权）/ 非法参数 / 边界值」四类集成用例：
 - 每类给出具体输入值与预期（状态码、code、message 要点、关键字段断言）；
 - 核心业务断言指向风险概率区间、14 维特征列序、排序口径、鉴权失败码，禁止只断言 HTTP 200 或非空；
