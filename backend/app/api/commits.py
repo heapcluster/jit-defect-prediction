@@ -17,7 +17,7 @@ from app.db import SessionLocal
 from app.errors import AppError, ok
 from app.models import Commit, CommitFeature, Prediction
 from app.services import commits as commit_service
-from app.services import fix_suggestion, risk_summary
+from app.services import config_store, fix_suggestion, risk_summary
 from app.timeutil import iso_z, parse_time_param
 from app.validate import normalize_commit_hash
 
@@ -178,6 +178,8 @@ def commit_detail(
             features=features,
             explanation=explanation,
             localization=localization if diff_loc is not None else None,
+            risk_thresholds={item["config_key"]: item["value"] for item in config_store.read_config(
+                session, ["risk_high_threshold", "risk_mid_threshold"])},
         )
         fix_refs = commit_service.fix_references_for(session, commit.repo_name, commit_hash)
         fix_refs["suggestions"] = fix_suggestion.suggestions_for(

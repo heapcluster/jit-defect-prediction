@@ -62,6 +62,33 @@ def to_utc(ts: int) -> str:
     return datetime.fromtimestamp(ts, tz=UTC).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def extract_commits(repo_dir: Path, *, ref: str = "HEAD", repo_name: str | None = None,
+                    runner=None, progress=None) -> list[dict[str, str]]:
+    """Reusable read-only metadata extraction; legacy CLI remains unchanged.
+
+    The injected runner owns security, cancellation and resource limits. No
+    output range is applied here: SZZ and features need the complete ancestry.
+    """
+    if runner is None:
+        from importlib import import_module
+        runner = import_module("preparation.03_extract_features").run_git
+    text = runner(repo_dir, "log", "--no-merges", "-z",
+                  "--format=%H%x00%an%x00%ae%x00%ct%x00%B%x00%P", ref, "--")
+    fields = text.removesuffix("\x00").split("\x00") if text else []
+    if len(fields) % 6:
+        raise RuntimeError("无法解析提交元信息")
+    rows = []
+    for i in range(0, len(fields), 6):
+        if progress:
+            progress()
+        commit_hash, name, email, ts, message, parents = fields[i:i + 6]
+        rows.append({"repo_name": repo_name or repo_dir.name, "commit_hash": commit_hash,
+                     "author_name": name.strip(), "author_email": email.strip(),
+                     "committed_at": to_utc(int(ts)), "message": message.strip(),
+                     "parent_hash": parents.split(" ")[0] if parents else ""})
+    return sorted(rows, key=lambda row: (row["committed_at"], row["commit_hash"]))
+
+
 def main() -> int:
     args = parse_args()
 

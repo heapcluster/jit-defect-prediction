@@ -28,7 +28,7 @@ describe('14 项特征字段映射（T-FE-02）', () => {
 
   it('featureLabel 已知特征 → 中文名', () => {
     expect(featureLabel('ns')).toBe('变更子系统多')
-    expect(featureLabel('sexp')).toBe('作者近期经验低')
+    expect(featureLabel('sexp')).toBe('作者子系统经验')
   })
 
   it('featureLabel 未知特征 → 回退原名，不报错不返回空', () => {

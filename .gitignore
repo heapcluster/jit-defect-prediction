@@ -92,6 +92,14 @@ Thumbs.db
 *.log
 logs/
 _tmp/
+/backend/var/outputs/
+/backend/var/collect_inputs/
+/backend/var/collect_cache/
+/backend/var/clean_inputs/
+/backend/var/train_inputs/
+/backend/var/predict_inputs/
+/backend/var/evaluate_inputs/
+/backend/var/explain_inputs/
 
 # ===== 二进制包与备份（仓库只留可读的文本/图，不留压缩包）=====
 *.zip

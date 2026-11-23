@@ -1,6 +1,6 @@
 # 即时软件缺陷预测（JIT Defect Prediction）Web 系统
 
-基于提交级特征（Kamei 14 项）预测代码变更引入缺陷的风险，提供风险列表、提交详情、趋势看板与模型表现四个页面。
+基于提交级特征（Kamei 14 项）预测代码变更引入缺陷的风险，顶级导航为数据管理、收集、清洗、训练、预测、评估、解释、定位及修复八个功能 tab。风险列表、趋势和提交详情归入预测，模型性能归入评估；工具间通过文件交换，不要求按顺序运行。
 
 本文件是**仓库唯一入口**：容器怎么起、本机怎么跑、测试怎么执行、文档去哪找，都从这里出发。
 
@@ -46,9 +46,9 @@ curl http://localhost:8000/api/health -H "X-API-Key: dev-token"
 
 1. **准备环境**：`conda env create -f data_model/environment.yml`（已有环境可跳过），再 `conda activate jit-defect-prediction`。前端需符合 `frontend/package.json` 的 Node 版本要求。
 2. **配置后端**：`cp backend/.env.example backend/.env`，填 MySQL `jit_demo` 的账号与密码。要同步实时提交时填 `SOURCE_REPO`（目录须含 `.git`）。`MODEL_DIR` 留空时回落到仓库内 expert 权重目录，但权重本体需另行取得并核对，不在 Git 中。
-3. **起数据库与后端**：确保 MySQL 已建好并授权 `jit_demo`；在 `backend/` 运行 `python -m app.db init` 建立现行五表，再运行
+3. **起数据库与后端**：确保 MySQL 已建好并授权 `jit_demo`；在 `backend/` 运行 `python -m app.db init` 建立现行 12 表（现有 5 + 重构新增 7；新增表 DDL 已入 `infra/schema.sql`，迁移脚本与「空库/旧库/重复执行」三冒烟押代码波次），再运行
    `python -m uvicorn app.main:app --host 127.0.0.1 --port 8000`。
-   旧七表库不会被 `create_all` 自动迁移，应在隔离库重建并验证。建表真源是 `infra/schema.sql`。模型性能图集由后端启动时自动从 `data_model/pipelines/{line}/reports/figs_by_model/` 补齐到 `backend/static/figures/`（该目录不入库），无需手工拷贝。
+   旧七表库不会被 `create_all` 自动迁移，应在隔离库重建并验证。建表真源是 `infra/schema.sql`。模型性能图集由后端启动时自动从 `data_model/pipelines/{line}/reports/figs_by_model/` 补齐到 `backend/static/figures/`（该目录不入库），无需手工拷贝。用户配置落 `user_config` 表，重启后由配置接口恢复；`.env` 阈值仅作出厂默认值（见 `docs/database/user_config.md`）。
 4. **起前端**：`cp frontend/.env.example frontend/.env.local`，确保 `VITE_API_KEY` 与后端 `API_TOKEN` 相同；在 `frontend/` 运行 `npm ci`、`npm run dev -- --host 127.0.0.1`，打开 http://127.0.0.1:5173/ 。
 5. **走通链路**：先带 `X-API-Key: <本机 API_TOKEN>` 查 `GET /api/health`（三条健康探针都要鉴权，不带 token 返回 401），再查 `GET /api/models`；本地 Git 源可用时从页面触发同步，或带同一请求头调用 `POST /api/sync`。该接口异步返回，随后轮询 `GET /api/sync/status`，确认 `running=false`、`last_error` 为空，再查询 `/api/commits`。若已有同步在跑，第二次触发返回 `40001` +「同步进行中，请稍候」，前端会接上轮询而不再报服务异常。**无数据与同步失败要分开记录。**
 
@@ -60,9 +60,9 @@ curl http://localhost:8000/api/health -H "X-API-Key: dev-token"
 | `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | — | MySQL 连接 |
 | `DB_TEST_NAME` | `jit_test` | pytest 专用测试库 |
 | `MODEL_DIR` | `data_model/pipelines/expert/models` | 在线模型目录（含 `feature_order.txt`） |
-| `SOURCE_REPO` | 空 | 历史 git 仓库路径；不配则 `/api/predict` 无法现算新提交特征 |
+| `SOURCE_REPO` | 空 | 历史 git 仓库路径；重构后降级为默认仓库（收集任务可显式指定）；不配且任务未指定则 `/api/predict` 无法现算新提交特征 |
 | `SYNC_ON_STARTUP` | `0` | `1` = 启动时后台同步一次最新提交 |
-| `HIGH_RISK_THRESHOLD` / `MID_RISK_THRESHOLD` | `0.5` / `0.2` | 高/中风险阈值 |
+| `HIGH_RISK_THRESHOLD` / `MID_RISK_THRESHOLD` | `0.5` / `0.2` | 高/中风险阈值**出厂默认值**；运行期权威 = `user_config`（配置 API / 设置页可改，重启恢复） |
 
 ## 四、测试
 

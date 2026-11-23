@@ -1,16 +1,42 @@
 # 数据库契约索引与数据链路
 
-五张表分别见 [commit](commit.md)、[commit_feature](commit_feature.md)、[model](model.md)、[prediction](prediction.md) 和 [model_figure](model_figure.md)。建表 SQL 真源为 [`../../infra/schema.sql`](../../infra/schema.sql)。
+`实现状态：部分　期次：一期`
 
-以下记录当前仓库可核对的数据采集与特征口径；产品范围见 [`../README.md`](../README.md)。
+## 1 文档形态与权威关系
 
-## 1 固定数据源
+- **文档形态**：本目录是 12 张表的目标契约。每篇头部单行标注 `实现状态`（已实现 / 部分 / 未实现）与 `期次`（一期 / 二期）；未实现部分即验收目标，验收以契约为准。
+- **权威关系**：需求权威为 [`../../TODO/00-重构说明与开发执行要求.md`](../../TODO/00-重构说明与开发执行要求.md) 至 `TODO/09`（八功能点各自可独立运行 / 配置 / 验收）；**模块间数据 handoff 的单一权威为 [`../file-contracts.md`](../file-contracts.md)（交换文件 schema / manifest），比本目录表契约更前置**；表结构真源为 [`../../infra/schema.sql`](../../infra/schema.sql)（字段 / 主键 / 索引 / 外键逐字以它为准），ORM 同步于 `backend/app/models.py`。表的角色 = 展示导入 + 配置 + 任务状态 + 资产登记，**不是模块间总线**：模块独立运行不依赖库里有上游数据。结构变更 MUST 同步 schema.sql 与 ORM，缺一即契约不完整。
+- **访问纪律**：其他模块只经仓库接口（`backend/app/services/` + ORM）访问数据，不散写 SQL、不依赖他模块内存状态。
+- **敏感信息**：API Key、口令等 MUST NOT 入库；鉴权沿用 `X-API-Key` 固定令牌（`.env` / 环境变量持有）。
 
-离线训练样本源为 Apache Camel：`https://github.com/apache/camel.git`，固定 tag `camel-4.23.0`，对应完整 commit `b2329103df8f5d1edfca2ad262be09e3be95ee68`。默认本地副本在 `data_model/data/camel/`，`01_extract_commits.py` 的 `EXPECTED_HEAD` 会校验版本；窗口参数 `--since` 只限制输出提交，不得截断历史类特征所需的前序提交。在线同步的源由后端 `SOURCE_REPO` 显式配置，取实时提交时不能把它误称为固定训练集。
+## 2 表清单（12 张）
 
-## 2 采集顺序与产物
+| 表 | 职责 | 实现状态 | 期次 | 契约文档 |
+|---|---|---|---|---|
+| `commit` | 提交元信息，全库锚点 | 已实现 | 一期 | [commit.md](commit.md) |
+| `commit_feature` | Kamei 14 维 + `is_test` + SZZ 真标签 | 已实现 | 一期 | [commit_feature.md](commit_feature.md) |
+| `model` | 模型注册表（线 / 算法 / 版本键），行由工件派生 | 已实现 | 一期 | [model.md](model.md) |
+| `prediction` | 逐提交逐模型概率，联合主键幂等 | 已实现 | 一期 | [prediction.md](prediction.md) |
+| `model_figure` | 逐模型性能图索引 | 已实现 | 一期 | [model_figure.md](model_figure.md) |
+| `user` | 系统用户（非提交作者），预置 `global` 行 | 部分 | 一期 | [user.md](user.md) |
+| `user_config` | 阈值 / 默认模型 / 默认数据集 / 默认 XAI / 指标勾选唯一权威 | 部分 | 一期 | [user_config.md](user_config.md) |
+| `job` | 六类任务五态生命周期 + 进度 + 日志 + 产出引用 | 部分 | 一期 | [job.md](job.md) |
+| `algorithm` | 算法库：线算组合 / 超参 schema / 启用状态 | 未实现 | 一期 | [algorithm.md](algorithm.md) |
+| `model_artifact` | 权重路径 / checksum / 大小 / 训练任务 / 状态 / 特征版本 | 部分 | 一期 | [model_artifact.md](model_artifact.md) |
+| `dataset` | 数据集元数据：来源 / 分支 / HEAD / 时间范围 / 样本数 / 正负比 / 状态 | 部分 | 一期 | [dataset.md](dataset.md) |
+| `dataset_commit` | 数据集与提交关联，联合主键幂等 | 部分 | 一期单版本 / 二期多版本 | [dataset.md](dataset.md) |
 
-在 `data_model/` 工作目录、环境与固定 Camel 副本就绪后，按以下顺序运行。`04_build_dataset` 的 `--labels` 是必填项；本例只构建主标签 `szz` 的样本集，`szz_lite` 对照集须另传其标签文件。大规模采集和 SZZ 可能耗时较长。
+单源约束：`model` 行由 `model_artifact` 登记派生；`model_registry` 读表并校验文件存在与 checksum，MUST NOT 扫目录形成第二本账。
+
+## 3 数据链路口径
+
+`实现状态：部分　期次：一期`
+
+- **默认数据集**：Apache Camel `https://github.com/apache/camel.git`，tag `camel-4.23.0`（HEAD `b2329103df8f5d1edfca2ad262be09e3be95ee68`），本地副本 `data_model/data/camel/`；`01_extract_commits.py` 以 `EXPECTED_HEAD` 校验版本。该快照登记为 `dataset` 表中的默认数据集行，可经配置更换；独立运行路径下它只是 collect 的默认仓库入参，不是其他模块的前置。
+- **仓库可配置**：收集任务的仓库路径 / URL、分支、时间范围、提交范围、增量 / 全量、是否拉取远端来自任务入参（`dataset` 记录仅作便利回显）；`SOURCE_REPO` 环境变量是未显式指定时的默认值。窗口参数只限制输出提交，不得截断历史类特征所需前序提交。
+- **文件 handoff 优先**：collect 产出 `commits.csv/xlsx + manifest`（[`../file-contracts.md`](../file-contracts.md) §3.1）；clean/train/predict/evaluate/explain/localize 独立运行吃文件、产文件；本目录各表只在「可选导入展示」路径被写入（`POST /api/storage/import`）。
+- **安全校验**：仓库路径限定配置允许的根目录内；URL 仅 https / git 协议白名单；MUST NOT 把用户输入拼进 shell 字符串。
+- **采集五脚本与服务化边界**（在 `data_model/` 工作目录执行的默认命令链）：
 
 ```powershell
 python -m preparation.01_extract_commits
@@ -20,33 +46,87 @@ python -m preparation.04_build_dataset --labels data/commit_labels_szz.csv
 python -m preparation.05_split_dataset --dataset data/dataset_szz.csv
 ```
 
-各脚本的参数以 `--help` 为准；每一步须记录退出码、产物路径、样本数及当前 commit SHA。以上命令已核对参数入口，**不是本次完整采集和训练的通过证据**。
+  - `03_extract_features` 已插件化复用（实现锚点：backend/app/feature_source.py:13-26，含批量 `extract_commits`），MUST NOT 另写第二套特征口径。
+  - `01 / 02 / 04 / 05` 待服务化：封装为可复用服务，Web 收集任务与 CLI 调用同一实现。
+  - `04_build_dataset` 的 `--labels` 必填；上例只构建主标签 `szz` 的样本集，`szz_lite` 对照集须另传其标签文件。各脚本参数以 `--help` 为准；每步记录退出码、产物路径、样本数与当前 commit SHA。以上命令是参数入口核对，不是完整采集与训练的通过证据。
+- **任务化**：收集写 `job`（kind=collect），同配置重复运行 MUST NOT 产生重复提交（按 `commit_hash` 幂等）。
+- **导出**：数据集支持 CSV / XLSX（字段含提交元信息、14 维、标签、可选预测结果）；CSV 带 UTF-8 BOM 兼容 Excel 中文；XLSX 依赖 `openpyxl` 须锁版进入 `data_model/environment.yml`；响应带正确 `Content-Disposition`。
 
-## 3 SZZ 判据与质量自检
+## 4 SZZ 判据与历史基准
 
-`02_szz_labeling.py` 以大小写不敏感的词首边界 `\b(fix|bug|patch)` 识别候选修复提交，并用标准行级 `szz` 与简化版 `szz_lite` 对照。训练主标签为 `szz`；未打标的在线提交在 `commit_feature.is_bug_inducing` 中保持 `NULL`。
+`实现状态：已实现　期次：一期`
 
-当前脚本对正样本比例**落在 40%–60% 区间内**给出异常自检提示（常量 `ABNORMAL_LOW=0.40`、`ABNORMAL_HIGH=0.60`），这只是脚本质量检查，具体比例必须用固定数据源重跑报告核实。
+- **判据（D4 双命中）**：候选修复提交须同时含缺陷编号 `CAMEL-<数字>` 与修复语义词；语义词按大小写不敏感**词首边界** `\b(fix|bug|patch)` 匹配——保留 `fixes / fixed / patching` 等词形与拼写错误的真修复，排除 `dispatch / debug / prefix` 这类同词内嵌（实现：`data_model/preparation/02_szz_labeling.py`）。
+- **双方法分别报告**：`szz`（标准行级回溯，自研实现）与 `szz_lite`（文件级回溯简化版）各打一次标，差异量化出示（分歧率 = 不一致数 ÷ 两法正样本并集），不静默取其一；训练主标签为 `szz`。
+- **D5 排除**：回溯未命中的修复提交既不入样本也不记负样本，只在统计中单列数量。
+- **质量自检**：正样本比例落在 40%–60% 为异常区间（`ABNORMAL_LOW=0.40`、`ABNORMAL_HIGH=0.60`），须先复核打标逻辑再进下游。词表、自检区间、D5 规则登记为清洗操作注册表的**默认参数**，可配置但改动须留配置版本与前后统计；MUST NOT 在业务代码里另写一份判据。
+- **未打标语义**：在线新同步提交在 `commit_feature.is_bug_inducing` 保持 `NULL`，MUST NOT 当 0。
+- **历史基准**（上游 `866b7dc` 全量采集与 SZZ 报告，2026-10-14）：含缺陷编号 38,716 条；编号 + 修复词首语义 7,787 条；编号 + `fix` 词首语义 6,631 条；完整提交 84,461。**这些是历史基准，不代表本机已重跑全量采集**；数据源 / 版本 / 过滤条件改变时先重跑并重新登记，子集运行标注「不可比」而非自检通过。
 
-候选修复提交必须同时含 `CAMEL-<数字>` 和上述修复语义词。词首边界允许 `fixes` 等词形变化，同时避免把 `dispatch`、`debug`、`prefix` 中的子串误收为修复语义。回溯未命中的修复提交既不进入样本，也不记作负样本。`szz` 为本仓库脚本实现的行级回溯，`szz_lite` 为文件级对照；两种方法的结果必须分别报告。
+## 5 特征与训练边界
 
-上游提交 `866b7dc` 对固定 Camel 版本的报告给出候选命中外沿基准：含缺陷编号 38,716 条，同时命中编号与修复词首语义 7,787 条，同时命中编号与 `fix` 词首语义 6,631 条，完整提交数 84,461。**这些是历史基准，不代表当前机器已重新运行全量采集**。数据源、固定版本或过滤条件改变时，应先重跑并重新登记基准。
+`实现状态：部分　期次：一期`
 
-## 4 特征与训练边界
+- Kamei 14 维定义、列序与 log 变换（`fix` 除外）见 [commit_feature.md](commit_feature.md)；在线 expert 权重列序以 `data_model/pipelines/expert/models/feature_order.txt` 为准。
+- **切分**：按 `committed_at` 时间序前 70% / 后 30%（默认比例，可配置）；禁止随机切分；MUST 保留「检验集最早时间 > 训练集最晚时间」断言（`05_split_dataset.py`）。
+- **模型线**：expert / semantic / fused 默认各 8 分类器（`lr rf xgb lgbm et svm mlp_deep tabnet`），e2e 另 1 个（`codebert_e2e`），共 25 模型。算法清单与超参 schema 登记进 `algorithm` 表，训练表单从该表读取，前端 MUST NOT 硬编码算法清单；种子 / 阈值 / 早停等训练级参数的出厂默认在 `data_model/pipelines/*/config.py`（如 expert `SEED=42`、`DECISION_THRESHOLD=0.5`），运行时权威在 `user_config` 与训练配置模板。
+- **工件登记**：训练成功写 `model_artifact`（路径 / checksum / 大小 / 训练 job / 状态 / 特征版本）并同事务派生 `model` 行；失败任务 MUST NOT 覆盖已有可用工件。模型状态三态：available / load_failed / retired。
+- **加载**：`model_registry` 读表 + 校验 checksum，不扫目录；新模型经登记即可被选择与加载，无需重启后端。
+- tabnet 权重若 GPU 训练、CPU 加载报 CUDA 反序列化错误，运行 `python data_model/pipelines/reexport_tabnet_cpu.py` 重导出（原文件备份 `*.bak-cuda`）。
 
-`03_extract_features.py` 产出 Kamei 14 维；落库含义和 log 变换见 [commit_feature.md](commit_feature.md)。在线 expert 权重的列序以 `data_model/pipelines/expert/models/feature_order.txt` 为准。训练/检验按 `committed_at` 前 70% / 后 30% 时间序切分，禁止随机切分。`expert`、`semantic`、`fused` 三线默认各 8 个分类器，`e2e` 另 1 个；训练结果与在线交付权重是两种状态，见 [`../README.md`](../README.md)。若 tabnet 权重在 GPU 上训练、CPU 机器加载报 CUDA 反序列化错误，运行 `python data_model/pipelines/reexport_tabnet_cpu.py` 重导出（原文件备份为 `*.bak-cuda`）。
+## 6 语义 / e2e 增量口径
 
-## 5 在线语义 / e2e 输入（增量口径）
+`实现状态：已实现　期次：一期`
 
-semantic 线读 `data_model/pipelines/semantic/data/semantic_embeddings.npz`，e2e 线读 `data_model/pipelines/e2e/data/commit_text.csv`。两者都是训练阶段的预计算产物，体积大且被 `.gitignore` 忽略，不随仓库分发。
+semantic 线读 `data_model/pipelines/semantic/data/semantic_embeddings.npz`，e2e 线读 `data_model/pipelines/e2e/data/commit_text.csv`；两者为训练阶段预计算产物，体积大且被 `.gitignore` 忽略，不随仓库分发。
 
 - **正常路径**：预计算表覆盖的提交直接查表，在线预测不加载 CodeBERT。
-- **增量兜底**：新同步提交不在表内时，后端用 `SOURCE_REPO` 现场构造 diff 文本（口径与 `pipelines/text_source.py` 一致），semantic/fused 用冻结 CodeBERT mean-pool 编码，e2e 走交付的 CodeBERT 分类头；结果缓存在进程内，不重写大表。
-- **失败语义**：未配置 `SOURCE_REPO`、提交不可读或编码器不可用时，接口返回 `40001` 明确文案，不编造向量 / 文本。
-- 交付清单中的 `commit_text.csv` / `semantic_embeddings.npz` 仍按模型线流程生成；在线兜底保证干净检出 + 已配置源仓库时四线模型都能对新提交预测，但不替代离线重训所需的全量产物。
+- **增量兜底**：新同步提交不在表内时，后端用源仓库现场构造 diff 文本（口径与 `data_model/pipelines/text_source.py` 一致）；semantic / fused 用冻结 CodeBERT mean-pool 编码（768 维，fused 拼 14 维成 782 维），e2e 走交付的 CodeBERT 分类头；结果缓存进程内，不重写大表。
+- **失败语义**：源仓库未配置、提交不可读或编码器不可用时返回 `40001` 明确文案，MUST NOT 编造向量 / 文本。
+- 在线兜底保证干净检出 + 已配置源仓库时四线模型都能对新提交预测，但不替代离线重训所需全量产物。
 
-## 6 统计与证据
+## 7 配置持久化与恢复
 
-采集条数、打标比例、特征缺口、切分边界应由本次运行的输出与 `data_model/preparation/reports/`（生成目录，未随仓库分发）记录。若该目录不存在，应写"尚未在本机生成"，不得引用历史数字冒充当前结果。
+`实现状态：部分　期次：一期`
 
-`04_build_dataset.py` 的七项统计为：过滤合并提交后的总提交数、UTC 时间跨度、打标成功数、正样本数、负样本数、正样本比例、打标方法。正样本比例是正样本数除以打标成功数。报告还须检查标签与提交清单、特征表能否按 `commit_hash` 对齐，并列出被排除的行数；不能用历史报告数字填当前验收结果。
+W1 已实现配置服务与 `/api/config` 读写、功能①配置区、默认模型和风险阈值接入；清洗/训练模板和其他业务参数随对应模块波次生效。配置写入前使用数据库当前读进行跨键校验，包含受全局默认变更影响的用户覆盖值；值长度按 UTF-8 字节限制为 65,535。
+
+独立迁移入口：[infra/migrate_mysql.py](../../infra/migrate_mysql.py)。默认只读预检；`--apply` 才执行。已覆盖空库、标准五表、旧四表与重复执行；旧四表删除冗余列和标签表须显式 `--allow-legacy-cleanup --backup-dir <已有目录>`，并先完成 mysqldump。缺少客户端或备份失败时不写库；共享演示库须另行确认，不能因测试通过自动执行。
+
+旧备份未记录训练/测试集划分时，迁移报告明确标注 `is_test=0` 为未恢复的默认值，不冒充历史时间序切分结果；标签为空保持 NULL，未知模型参数与工件信息不编造。
+
+- `user_config` 是阈值、默认模型、默认数据集、默认 XAI 技术、指标勾选与页面偏好的**唯一权威**（键清单与校验见 [user_config.md](user_config.md)）；`.env` 与 `data_model/pipelines/*/config.py` 仅作出厂默认值的来源。
+- 读取顺序：当前用户行 → `global` 行 → 出厂默认常量，只在配置服务内实现；前端读配置接口，MUST NOT 自带第二份默认值。
+- 提供读取 / 单键更新 / 批量更新 / 删除接口与最小设置界面；未知键 / 非法值 / 越权访问返回明确错误码。
+- **恢复语义**：写入立即生效；后端 / 容器 / 进程异常关闭后重启，接口可读取原有配置（TODO/01 验收线）。
+
+## 8 任务持久化
+
+`实现状态：未实现　期次：一期`
+
+- `job` 统一承载六类任务：`collect` / `clean` / `train` / `predict_batch` / `evaluate` / `explain`；五态 `queued / running / success / failed / cancelled`，记录入参快照、进度、起止时间、错误日志、重试次数与产出引用（见 [job.md](job.md)）。
+- 同 kind 同一时刻仅一个 running，互斥以表为准（条件更新），冲突返回可解释错误码。
+- 重启恢复：遗留 `running` 行置 `failed`（中断），保留进度供重试；状态接口读表，前端轮询与 CLI 走同一接口。
+- 日志脱敏：`error_log` / `params_json` MUST NOT 含令牌 / 口令 / LLM Key。
+
+## 9 分期与不变量
+
+`实现状态：部分　期次：一期 / 二期`
+
+- **一期**：12 表结构落地；数据集单版本（`dataset_commit` 联合主键幂等）；一个模型名一份当前工件。
+- **二期**：数据集多版本——`dataset_commit` 增加 `feature_version` 进主键，承载同一提交在不同处理链版本下的特征；动主键前必须备份数据库并留恢复脚本。
+- **不变量清单**（作为可配置默认值存在，改动须留配置版本与前后统计，MUST NOT 改坏口径）：
+  1. Kamei 14 维定义与列序；log 变换口径（`fix` 除外）。
+  2. SZZ 词首边界判据 `\b(fix|bug|patch)`；`szz / szz_lite` 双方法分别报告。
+  3. 时间序前 70% / 后 30% 切分，禁止随机切分，保留切分边界断言。
+  4. 真标签统一 `is_bug_inducing`；未打标 `NULL` MUST NOT 当 0。
+  5. 架构 → 模型两级级联 + 独立时间范围（非三级）。
+  6. `X-API-Key` 统一鉴权；`/static/**` 不免鉴权。
+
+## 10 统计与证据
+
+`实现状态：部分　期次：一期`
+
+- 采集条数、打标比例、特征缺口、切分边界由每次运行输出与 `data_model/preparation/reports/` 记录；该目录**尚未在本机生成**，不得引用历史数字冒充当前结果。
+- `04_build_dataset.py` 七项统计：过滤合并提交后总提交数、UTC 时间跨度、打标成功数、正样本数、负样本数、正样本比例、打标方法（正样本比例 = 正样本数 ÷ 打标成功数）。报告须检查标签与提交清单、特征表按 `commit_hash` 对齐，并列出被排除行数。
+- 模型线评估报告与图集在 `data_model/pipelines/*/reports/`；离线指标汇总产物为 `data_model/evaluation/out/model_metrics.csv`。验收结论以当次运行证据为准。

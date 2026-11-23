@@ -10,13 +10,13 @@ from __future__ import annotations
 
 import sys
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, inspect, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
 
 from app import config
 from app.errors import AppError
-from app.models import Base
+from app.models import Base, ModelArtifact
 
 _engine: Engine | None = None
 SessionLocal = sessionmaker(autocommit=False, autoflush=False)
@@ -76,6 +76,10 @@ def ensure_model_rows(entries: list[dict]) -> None:
     engine = get_engine()
     with engine.begin() as conn:
         for e in entries:
+            registered = conn.execute(select(ModelArtifact.artifact_id).where(
+                ModelArtifact.model_name == e["model_name"]).with_for_update()).first()
+            if registered:
+                continue
             conn.execute(
                 text(
                     """INSERT INTO `model` (`model_name`, `line`, `algo`, `version_key`, `feature_version`, `trained_at`)

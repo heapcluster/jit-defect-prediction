@@ -1,20 +1,24 @@
-"""SQLAlchemy 模型：逐字对齐 docs/database（5 张表）与仓库根 infra/schema.sql。
+"""SQLAlchemy 模型：逐字对齐 docs/database（12 张表）与仓库根 infra/schema.sql。
 
-口径（docs/overview.md「数据库口径（5 张表）」）：
-- `commit_label` 并入 `commit_feature.is_bug_inducing`（可空）+ `labeled_at`（审计，不对外）；
-- `runtime_setting` 删除：阈值写死 `.env`，默认模型统一 `version_key` 最大者；
+口径（docs/database/README.md §0 表清单）：
+- 现有 5 表：`commit_label` 并入 `commit_feature.is_bug_inducing`（可空）+ `labeled_at`（审计，不对外）；
+- 重构新增 7 表：`user` / `user_config` / `job` / `algorithm` / `model_artifact` / `dataset` / `dataset_commit`，
+  契约见 docs/database/ 同名文档；本轮只落表定义，业务服务押代码波次；
+- `runtime_setting` 删除的历史口径由 `user_config` 取代：阈值/默认模型权威落库，`.env` 仅出厂默认；
 - 删除 `commit` / `prediction` / `model_figure` 的自增 `id`，改 `commit_hash` / 联合主键；
-- 各表不再保留 `updated_at` 审计列。
+- 各表不再保留 `updated_at` 审计列（`user_config.updated_at` 为配置语义必需，例外）。
 """
 
 from __future__ import annotations
 
 from sqlalchemy import (
+    BIGINT,
     CHAR,
     DATETIME,
     DECIMAL,
     ForeignKey,
     Index,
+    Integer,
     String,
     Text,
 )
@@ -96,6 +100,8 @@ class Prediction(Base):
     )
     risk_score: Mapped[float] = mapped_column(DECIMAL(6, 5))
     predicted_at: Mapped[object] = mapped_column(DATETIME)
+    model_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    feature_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
 
 class ModelFigure(Base):
@@ -112,6 +118,128 @@ class ModelFigure(Base):
     generated_at: Mapped[object] = mapped_column(DATETIME)
 
 
+class User(Base):
+    """系统用户（非提交作者）；预置 global 行作为无登录上下文的配置归属。"""
+
+    __tablename__ = "user"
+
+    user_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    display_name: Mapped[str] = mapped_column(String(64))
+    role: Mapped[str] = mapped_column(String(16), nullable=False, default="member")
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
+    created_at: Mapped[object] = mapped_column(DATETIME)
+
+
+class UserConfig(Base):
+    """用户级键值配置；阈值/默认模型/默认数据集/默认 XAI/指标勾选的唯一权威来源。"""
+
+    __tablename__ = "user_config"
+
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("user.user_id"), primary_key=True
+    )
+    config_key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value_json: Mapped[str] = mapped_column(Text)
+    value_type: Mapped[str] = mapped_column(String(16))
+    updated_at: Mapped[object] = mapped_column(DATETIME)
+
+
+class Job(Base):
+    """统一任务表：collect/clean/train/predict_batch/evaluate/explain 五态生命周期。"""
+
+    __tablename__ = "job"
+    __table_args__ = (Index("ix_job_kind_status", "kind", "status"),)
+
+    job_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="queued")
+    params_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    done: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    current_item: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    started_at: Mapped[object | None] = mapped_column(DATETIME, nullable=True)
+    finished_at: Mapped[object | None] = mapped_column(DATETIME, nullable=True)
+    error_log: Mapped[str | None] = mapped_column(Text, nullable=True)
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_ref_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[object] = mapped_column(DATETIME)
+
+
+class Algorithm(Base):
+    """算法库：训练表单与超参校验的元数据单源；family 供解释兼容矩阵复用。"""
+
+    __tablename__ = "algorithm"
+
+    line: Mapped[str] = mapped_column(String(16), primary_key=True)
+    algo: Mapped[str] = mapped_column(String(64), primary_key=True)
+    family: Mapped[str] = mapped_column(String(32))
+    hyperparams_json: Mapped[str] = mapped_column(Text)
+    enabled: Mapped[int] = mapped_column(TINYINT1, nullable=False, default=1)
+    description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
+class ModelArtifact(Base):
+    """模型工件登记：模型名单唯一登记源，model 行由其派生；加载前校验 checksum。"""
+
+    __tablename__ = "model_artifact"
+    __table_args__ = (
+        Index("uk_artifact_model", "model_name", unique=True),
+        Index("ix_artifact_line", "line"),
+    )
+
+    artifact_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    model_name: Mapped[str] = mapped_column(String(64), ForeignKey("model.model_name"))
+    line: Mapped[str] = mapped_column(String(16))
+    algo: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    version_key: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    weight_path: Mapped[str] = mapped_column(String(255))
+    checksum_sha256: Mapped[str] = mapped_column(CHAR(64))
+    size_bytes: Mapped[int] = mapped_column(BIGINT, nullable=False, default=0)
+    feature_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    train_job_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("job.job_id"), nullable=True
+    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="available")
+    trained_at: Mapped[object | None] = mapped_column(DATETIME, nullable=True)
+    created_at: Mapped[object] = mapped_column(DATETIME)
+
+
+class Dataset(Base):
+    """数据集元数据：收集/清洗产出的版本化输入；一期单版本，多版本押二期。"""
+
+    __tablename__ = "dataset"
+
+    dataset_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(128))
+    repo_source: Mapped[str] = mapped_column(String(255))
+    branch: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    head_hash: Mapped[str | None] = mapped_column(CHAR(40), nullable=True)
+    time_start: Mapped[object | None] = mapped_column(DATETIME, nullable=True)
+    time_end: Mapped[object | None] = mapped_column(DATETIME, nullable=True)
+    mode: Mapped[str] = mapped_column(String(16), nullable=False, default="full")
+    sample_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    pos_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    neg_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="collecting")
+    job_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("job.job_id"), nullable=True
+    )
+    created_at: Mapped[object] = mapped_column(DATETIME)
+
+
+class DatasetCommit(Base):
+    """数据集与提交关联；联合主键保证重复收集幂等。"""
+
+    __tablename__ = "dataset_commit"
+
+    dataset_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("dataset.dataset_id"), primary_key=True
+    )
+    commit_hash: Mapped[str] = mapped_column(
+        CHAR(40), ForeignKey("commit.commit_hash"), primary_key=True
+    )
+
+
 INDEX_ASSERTIONS = (
     ("commit", ("commit_hash",), True),
     ("commit", ("committed_at",), False),
@@ -122,4 +250,15 @@ INDEX_ASSERTIONS = (
     ("commit_feature", ("is_test",), False),
     ("model", ("line",), False),
     ("model_figure", ("model_name", "figure_type"), True),
+    # 重构新增 7 表（契约见 docs/database/）
+    ("user", ("user_id",), True),
+    ("user_config", ("user_id", "config_key"), True),
+    ("job", ("job_id",), True),
+    ("job", ("kind", "status"), False),
+    ("algorithm", ("line", "algo"), True),
+    ("model_artifact", ("artifact_id",), True),
+    ("model_artifact", ("model_name",), True),
+    ("model_artifact", ("line",), False),
+    ("dataset", ("dataset_id",), True),
+    ("dataset_commit", ("dataset_id", "commit_hash"), True),
 )

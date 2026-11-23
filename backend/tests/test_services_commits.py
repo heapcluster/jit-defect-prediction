@@ -62,12 +62,13 @@ def test_explanation_for_returns_labeled_rows(monkeypatch):
     """正常：已注册模型返回 SHAP 项并补中文因子名。"""
     feat = _feature()
     monkeypatch.setattr(model_registry, "has", lambda name: name == "m_v1")
-    monkeypatch.setattr(model_registry, "get_model", lambda name: object())
-    monkeypatch.setattr(
-        model_registry,
-        "explain",
-        lambda model, vector: [{"feature": "ns", "contribution": 0.5, "direction": "increase"}],
-    )
+    from types import SimpleNamespace
+
+    from app import explain_core
+    monkeypatch.setattr(model_registry, 'get_model', lambda name: SimpleNamespace(model=object()))
+    monkeypatch.setattr(explain_core, 'explain', lambda *args, **kwargs: {
+        'items': [{'feature': 'ns', 'contribution': 0.5, 'direction': 'increase'}], 'reason_code': None
+    })
     assert explanation_for("m_v1", feat) == [
         {"feature": "ns", "contribution": 0.5, "direction": "increase", "label": "变更子系统多"}
     ]
@@ -84,6 +85,17 @@ def test_explanation_for_empty_when_model_or_feature_missing(model_name, has_fea
     """边界：模型名缺失 / 特征缺失 → 空列表，不报错。"""
     feature = _feature() if has_feature else None
     assert explanation_for(model_name, feature) == []
+
+
+def test_neutral_contributions_do_not_create_legacy_localization(monkeypatch):
+    from types import SimpleNamespace
+
+    from app import explain_core
+    monkeypatch.setattr(model_registry, 'has', lambda name: True)
+    monkeypatch.setattr(model_registry, 'get_model', lambda name: SimpleNamespace(model=object()))
+    monkeypatch.setattr(explain_core, 'explain', lambda *a, **kw: {'items': [
+        {'feature': 'ns', 'contribution': 0.0, 'direction': 'neutral'}], 'reason_code': None})
+    assert explanation_for('m_v1', _feature()) == []
 
 
 def test_explanation_for_empty_when_model_not_registered():

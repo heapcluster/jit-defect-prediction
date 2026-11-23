@@ -37,6 +37,7 @@ dependencies:
       - pytorch-tabnet==4.1.0
       - joblib==1.6.0
       - shap==0.52.0
+      - lime==0.2.0.1
       - matplotlib==3.10.1
       - GitPython==3.1.62
 
@@ -54,6 +55,9 @@ dependencies:
       - sqlalchemy==2.0.54
       - pymysql==1.2.3
       - python-dotenv==1.2.3
+      - python-multipart==0.0.20
+      - openpyxl==3.1.5
+      - defusedxml==0.7.1
 
       # ===== 测试与代码风格 =====
       - pytest==9.1.1

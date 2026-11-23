@@ -16,9 +16,8 @@ from sqlalchemy.exc import IntegrityError
 from app import config, e2e_source, feature_source, model_registry, semantic_source
 from app.db import SessionLocal
 from app.errors import INTERNAL_ERROR_MESSAGE, AppError
-from app.explain import with_labels
 from app.models import Commit, CommitFeature, Model, Prediction
-from app.services import risk_summary
+from app.services import config_store, risk_summary
 from app.timeutil import iso_z
 from app.validate import normalize_commit_hash
 
@@ -136,6 +135,13 @@ def store_extracted_features(items: list[dict]) -> int:
     return stored
 
 
+def _model_version(session, name: str) -> str:
+    row = session.get(Model, name)
+    if row is not None and row.version_key:
+        return row.version_key
+    return str(model_registry.version_key(name))
+
+
 def _write_predictions(
     session,
     commit_hash: str,
@@ -156,6 +162,8 @@ def _write_predictions(
             session.add(row)
         row.risk_score = risk
         row.predicted_at = predicted_at
+        row.model_version = _model_version(session, name)
+        row.feature_version = feature.feature_version
 
 
 def _upsert_predictions(
@@ -236,12 +244,10 @@ def _vector_for_line(line: str, commit_hash: str, feature) -> list[float]:
     raise AppError(40001, f"参数非法：{line} 模型暂不支持在线预测")
 
 
-def predict_single(commit_hash: str, model_name: str, repo=None) -> dict:
-    """对单条提交用指定模型打分，返回契约三 1.5 第 4 节的完整响应体。
-
-    错误码：`model_name` 不在已加载清单 → 40001；提交/特征缺失且
-    `SOURCE_REPO` 未配置 → 40400；注册表整体为空 → 50000。
-    """
+def predict_single(commit_hash: str, model_name: str | None, repo=None,
+                   decision_threshold: float | None = None, force_recompute: bool = False) -> dict:
+    """对单条提交用指定模型打分。W6 增量：阈值/重算/stored/computed/stale 与新契约字段；
+    explanation/features/summary 暂留供详情页（W8 接 /api/explain 后移除）。"""
     commit_hash = normalize_commit_hash(commit_hash)
 
     with SessionLocal() as session:
@@ -259,28 +265,13 @@ def predict_single(commit_hash: str, model_name: str, repo=None) -> dict:
             extracted = _extract_feature(commit_hash, repo=repo, missing_message=missing_message)
             commit, feature = _upsert_commit_feature(session, commit_hash, extracted)
 
-        model_name = resolve_model_name(model_name)
+        model_name = resolve_model_name(model_name or config_store.get_value("default_model", session))
         line = model_registry.line_of(model_name)
-        if line == "e2e":
-            # e2e 是完整 CodeBERT 分类头：读提交文本经模型前向，无 pkl/向量组装
-            risk = e2e_source.predict_proba(commit_hash)
-            if risk is None:
-                raise AppError(40001, "参数非法：e2e 模型所需文本或编码器不可用，无法在线预测")
-            explanation: list[dict] = []
-            entry_name = model_name
-        else:
-            try:
-                entry = model_registry.get_model(model_name)
-            except model_registry.ModelUnavailable as exc:
-                raise AppError(40001, f"参数非法：{exc}") from exc
-            vector = _vector_for_line(line, commit_hash, feature)
-            risk = model_registry.predict_proba(entry.model, vector)
-            # SHAP 只对 expert 线算（768/782 维重模型归因慢且无必要）；其余返回空解释
-            explanation = (
-                with_labels(model_registry.explain(entry, vector)) if line == "expert" else []
-            )
-            entry_name = entry.name
-        predicted_at = datetime.now(UTC).replace(tzinfo=None)
+        threshold = decision_threshold if decision_threshold is not None else config_store.get_value("decision_threshold", session)
+        feature_version = feature.feature_version
+        model_version = _model_version(session, model_name)
+        thresholds = {item["config_key"]: item["value"] for item in config_store.read_config(
+            session, ["risk_high_threshold", "risk_mid_threshold"])}
 
         row = session.execute(
             select(Prediction).where(
@@ -288,17 +279,47 @@ def predict_single(commit_hash: str, model_name: str, repo=None) -> dict:
                 Prediction.model_name == model_name,
             )
         ).scalar_one_or_none()
-        if row is None:
-            row = Prediction(commit_hash=commit_hash, model_name=model_name)
-            session.add(row)
-        row.risk_score = risk
-        row.predicted_at = predicted_at
-        session.commit()
+        stored = not force_recompute and row is not None
+        # 版本缺失（历史行）同样视为过期：无法证明与当前模型/特征同版本，不冒充新鲜。
+        stale = stored and (row.model_version != model_version or row.feature_version != feature_version)
 
-        # 读回落库值再进响应：MySQL DATETIME 是秒级精度，in-memory 里的微秒会被截断，
-        # 若直接返回本地值，「重复预测」时响应与库内行会对不上账（集成测试实测过）。
-        stored_predicted_at = row.predicted_at
+        if line == "e2e":
+            risk = e2e_source.predict_proba(commit_hash)
+            if risk is None:
+                raise AppError(40001, "参数非法：e2e 模型所需文本或编码器不可用，无法在线预测")
+            entry_name = model_name
+            vector = None
+            entry = None
+        else:
+            try:
+                entry = model_registry.get_model(model_name)
+            except model_registry.ModelUnavailable as exc:
+                raise AppError(40001, f"参数非法：{exc}") from exc
+            vector = _vector_for_line(line, commit_hash, feature)
+            entry_name = entry.name
 
+        if stored:
+            risk = float(row.risk_score)
+            predicted_at = row.predicted_at
+            result_source = "stored"
+        else:
+            if line != "e2e":
+                risk = model_registry.predict_proba(entry.model, vector)
+            predicted_at = datetime.now(UTC).replace(tzinfo=None)
+            result_source = "computed"
+            if row is None:
+                row = Prediction(commit_hash=commit_hash, model_name=model_name)
+                session.add(row)
+            row.risk_score = risk
+            row.predicted_at = predicted_at
+            row.model_version = model_version
+            row.feature_version = feature_version
+            session.commit()
+            predicted_at = row.predicted_at
+
+        risk_rounded = round(risk, 5)
+        risk_level = "high" if risk_rounded >= thresholds["risk_high_threshold"] else (
+            "mid" if risk_rounded >= thresholds["risk_mid_threshold"] else "low")
         features = {
             name: (int(getattr(feature, name)) if name == "fix" else float(getattr(feature, name)))
             for name in config.FEATURE_COLUMNS
@@ -307,18 +328,25 @@ def predict_single(commit_hash: str, model_name: str, repo=None) -> dict:
             commit_hash=commit_hash,
             model_name=entry_name,
             model_line=line,
-            risk_score=round(risk, 5),
+            risk_score=risk_rounded,
             features=features,
-            explanation=explanation,
+            explanation=[],
             localization=None,
+            risk_thresholds=thresholds,
         )
 
     return {
         "commit_hash": commit_hash,
         "model_name": entry_name,
-        "risk_score": round(risk, 5),
-        "predicted_at": iso_z(stored_predicted_at),
+        "risk_score": risk_rounded,
+        "predicted_label": int(risk_rounded >= threshold),
+        "decision_threshold": threshold,
+        "risk_level": risk_level,
+        "model_version": model_version,
+        "feature_version": feature_version,
+        "result_source": result_source,
+        "stale": bool(stale),
+        "predicted_at": iso_z(predicted_at),
         "features": features,
-        "explanation": explanation,
         "summary": summary,
     }

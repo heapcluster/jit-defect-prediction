@@ -144,8 +144,14 @@ class PredictData(BaseModel):
     risk_score: float
     predicted_at: str
     features: dict[str, float | int]
-    explanation: list[ExplanationItem]
     summary: str | None = None
+    predicted_label: int | None = None
+    decision_threshold: float | None = None
+    risk_level: str | None = None
+    model_version: str | None = None
+    feature_version: str | None = None
+    result_source: str | None = None
+    stale: bool | None = None
 
 
 class PredictResponse(BaseModel):

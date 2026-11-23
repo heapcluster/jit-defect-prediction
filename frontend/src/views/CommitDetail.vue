@@ -105,6 +105,34 @@
         >
           预测
         </el-button>
+        <label class="force-recompute"><input
+          v-model="forceRecompute"
+          type="checkbox"
+          :disabled="forbidden"
+        >立即重算</label>
+      </div>
+      <div
+        v-if="detail.result_source || detail.stale"
+        class="opbar"
+      >
+        <el-tag
+          v-if="detail.result_source"
+          size="small"
+          :type="detail.result_source === 'computed' ? 'success' : 'info'"
+        >
+          {{ detail.result_source === 'computed' ? '本次重新计算' : '沿用库中结果' }}
+        </el-tag>
+        <el-tag
+          v-if="detail.stale"
+          size="small"
+          type="warning"
+        >
+          版本变化，结果可能过期
+        </el-tag>
+        <span
+          v-if="detail.decision_threshold != null"
+          class="muted"
+        >阈值 {{ detail.decision_threshold }} · 标签 {{ detail.predicted_label }}</span>
       </div>
 
       <div class="meta">
@@ -133,6 +161,44 @@
       <!-- 风险解释 -->
       <template v-if="!isNotPredicted">
         <h3>风险解释</h3>
+        <div class="opbar">
+          <label for="detail-technique">解释技术</label>
+          <select
+            id="detail-technique"
+            v-model="explainTechnique"
+            :disabled="explaining || forbidden"
+            @change="loadExplanation"
+          >
+            <option
+              v-for="technique in explainTechniques"
+              :key="technique.key"
+              :value="technique.key"
+            >
+              {{ technique.name }}
+            </option>
+          </select>
+          <el-button
+            size="small"
+            :loading="explaining"
+            :disabled="forbidden"
+            @click="loadExplanation"
+          >
+            刷新解释
+          </el-button>
+        </div>
+        <p
+          v-if="explainError || explainMessage"
+          role="status"
+          class="muted"
+        >
+          {{ explainError || explainMessage }}
+        </p>
+        <p
+          v-if="explainSpace"
+          class="muted"
+        >
+          输出尺度：{{ explainSpace }}；LIME 是局部概率代理系数，不能与 SHAP 数值直接相加。
+        </p>
         <p
           v-if="detail.summary"
           class="risk-summary"
@@ -172,6 +238,13 @@
       <!-- 缺陷定位（G1-1）：无文件/行级数据，降级到提交级特征归因 -->
       <template v-if="localization">
         <h3>缺陷定位</h3>
+        <el-button
+          size="small"
+          data-testid="detail-open-localization"
+          @click="$router.push({ path: '/localization', query: { commit_hash: detail.commit_hash, model_name: detail.model_name } })"
+        >
+          打开定位及源码工具
+        </el-button>
         <el-alert
           v-if="localization.level === 'commit'"
           :title="localization.notice"
@@ -323,9 +396,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { getCommitDetail, postPredict } from '../api'
+import { getCommitDetail, getExplainTechniques, postExplain, postPredict } from '../api'
 import { ElMessage } from 'element-plus'
 import { riskColor } from '../utils/risk'
 import { loadModelLines } from '../utils/models'
@@ -351,7 +424,11 @@ const lines = ref([])
 const predictLine = ref('')
 const predictModel = ref('')
 const predicting = ref(false)
+const forceRecompute = ref(false)
 const forbidden = ref(false)
+const explainTechniques = ref([]), explainTechnique = ref(''), explaining = ref(false)
+const explainError = ref(''), explainMessage = ref(''), explainSpace = ref('')
+let explainEpoch = 0
 
 const featureGroups = FEATURE_GROUPS
 
@@ -435,6 +512,7 @@ async function load() {
   try {
     const model = typeof route.query.model_name === 'string' ? route.query.model_name : undefined
     detail.value = await getCommitDetail(props.hash, model)
+    await loadExplanation()
   } catch (e) {
     detail.value = null
     errorCode.value = e?.code || 0
@@ -444,21 +522,51 @@ async function load() {
   }
 }
 
+async function loadExplanation() {
+  if (!detail.value?.model_name || detail.value.risk_score == null) return
+  const epoch = ++explainEpoch, id = detail.value.commit_hash, model = detail.value.model_name
+  explaining.value = true; explainError.value = ''; explainMessage.value = ''
+  try {
+    const metadata = await getExplainTechniques({ model_name: model })
+    if (epoch !== explainEpoch) return
+    explainTechniques.value = metadata.techniques
+    if (!explainTechnique.value) explainTechnique.value = metadata.default_technique
+    const response = await postExplain(id, model, explainTechnique.value, { top_n: 8 })
+    if (epoch !== explainEpoch || detail.value?.model_name !== model) return
+    detail.value.explanation = response.items
+    explainMessage.value = response.message || response.reason_code || ''
+    explainSpace.value = response.output_space || ''
+  } catch (err) {
+    if (epoch === explainEpoch && detail.value?.model_name === model) {
+      detail.value.explanation = []
+      explainError.value = err.detail || err.message || '解释服务不可用'
+    }
+  } finally { if (epoch === explainEpoch) explaining.value = false }
+}
+
 async function predict() {
   if (!detail.value) return
   predicting.value = true
   try {
-    const data = await postPredict(detail.value.commit_hash, predictModel.value || undefined)
+    const data = await postPredict(detail.value.commit_hash, predictModel.value || undefined, { force_recompute: forceRecompute.value })
     detail.value = {
       ...detail.value,
       risk_score: data.risk_score,
       model_name: data.model_name,
       predicted_at: data.predicted_at,
-      explanation: data.explanation || [],
+      explanation: [],
       summary: data.summary || null,
-      features: data.features || detail.value.features
+      features: data.features || detail.value.features,
+      predicted_label: data.predicted_label,
+      decision_threshold: data.decision_threshold,
+      risk_level: data.risk_level,
+      model_version: data.model_version,
+      feature_version: data.feature_version,
+      result_source: data.result_source,
+      stale: data.stale
     }
     ElMessage.success('预测完成')
+    await loadExplanation()
   } catch (e) {
     // 40100 令牌失效：不给重试，禁用预测按钮
     if (e?.code === 40100) forbidden.value = true
@@ -467,6 +575,8 @@ async function predict() {
     predicting.value = false
   }
 }
+
+onUnmounted(() => { explainEpoch++ })
 
 onMounted(() => {
   load()
@@ -499,6 +609,7 @@ watch(
 }
 .hero {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   margin: 4px 0 14px;
@@ -518,6 +629,7 @@ watch(
 }
 .opbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin-bottom: 16px;

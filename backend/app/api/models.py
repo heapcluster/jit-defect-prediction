@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import select
 
 from app import schemas
@@ -14,6 +14,7 @@ from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import AppError, ok
 from app.models import Model
+from app.services import model_manage
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
 
@@ -41,3 +42,44 @@ def list_models(line: str | None = Query(default=None)) -> dict:
         if line is None or name == line
     ]
     return ok({"lines": lines})
+
+
+@router.get("/api/models/status")
+def models_status(line: str | None = Query(default=None), model_name: str | None = Query(default=None)) -> dict:
+    with SessionLocal() as session:
+        return ok(model_manage.status(session, line=line, model_name=model_name))
+
+
+async def _no_body(request: Request) -> None:
+    if request.query_params or await request.body():
+        raise AppError(40001, "参数非法：此操作不接受请求体或查询参数")
+
+
+@router.post("/api/models/{name}/load")
+async def load_model(name: str, request: Request) -> dict:
+    await _no_body(request)
+    with SessionLocal() as session:
+        return ok(model_manage.load(session, name))
+
+
+@router.post("/api/models/{name}/unload")
+async def unload_model(name: str, request: Request) -> dict:
+    await _no_body(request)
+    with SessionLocal() as session:
+        return ok(model_manage.unload(session, name))
+
+
+@router.post("/api/models/{name}/reload")
+async def reload_model(name: str, request: Request) -> dict:
+    await _no_body(request)
+    with SessionLocal() as session:
+        return ok(model_manage.reload(session, name))
+
+
+@router.put("/api/models/default")
+async def set_default(request: Request) -> dict:
+    body = await request.json()
+    if not isinstance(body, dict) or set(body) != {"model_name"} or not isinstance(body.get("model_name"), str):
+        raise AppError(40001, "参数非法：仅接受 model_name")
+    with SessionLocal() as session:
+        return ok(model_manage.set_default(session, body["model_name"]))

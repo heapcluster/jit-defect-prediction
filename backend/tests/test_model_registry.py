@@ -19,7 +19,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pytest
-from app import config, model_registry
+from app import config, explain_core, model_registry
 from sklearn.tree import DecisionTreeClassifier
 
 
@@ -71,9 +71,10 @@ def _explain_of(tmp_path, monkeypatch, model, name):
     monkeypatch.setattr(config, "MODEL_DIR", tmp_path)
     model_registry.load_models()
     assert model_registry.has(name)
-    rows = model_registry.explain(model_registry.get_model(name), [0.5] * 14)
+    rows = explain_core.explain(model_registry.get_model(name).model, [0.5] * 14,
+                                feature_names=list(config.FEATURE_COLUMNS), top_n=14)['items']
     assert rows, "explanation must not degrade to empty for delivered-model shapes"
-    assert all(set(r) == {"feature", "contribution", "direction"} for r in rows)
+    assert all(set(r) == {"feature", "raw_value", "contribution", "direction", "rank", "output_space"} for r in rows)
     assert all(r["feature"] in config.FEATURE_COLUMNS for r in rows)
 
 
@@ -125,8 +126,9 @@ def test_explain_linear_pipeline_shap_additivity(tmp_path, monkeypatch, restore_
     _manifest(tmp_path, "pipe_v1")
     monkeypatch.setattr(config, "MODEL_DIR", tmp_path)
     model_registry.load_models()
-    rows = model_registry.explain(model_registry.get_model("pipe_v1"), [0.5] * 14)
-    signed = sum(r["contribution"] * (1 if r["direction"] == "increase" else -1) for r in rows)
+    rows = explain_core.explain(model_registry.get_model("pipe_v1").model, [0.5] * 14,
+                                feature_names=list(config.FEATURE_COLUMNS), top_n=14)['items']
+    signed = sum(r["contribution"] for r in rows)
     sc = pipe.named_steps["scaler"]
     lr = pipe.named_steps["lr"]
     expected = float(
@@ -235,7 +237,7 @@ def test_repository_model_module_loads_in_clean_process(tmp_path):
             "-c",
             (
                 "import sys, importlib.util; from pathlib import Path; "
-                "from app import config, model_registry; "
+                "from app import config, explain_core, model_registry; "
                 "assert importlib.util.find_spec('pipelines') is None; "
                 "config.REPO_ROOT = Path(sys.argv[1]); "
                 "config.MODEL_DIR = Path(sys.argv[2]); "
@@ -365,11 +367,11 @@ def test_is_tree_family_covers_lightgbm():
     """#139 实测：LGBMClassifier 模块是 lightgbm.sklearn、类名无 Tree/Forest/Boost，
     不显式识别会掉进 LinearExplainer 报 InvalidModelError 把归因降级为空。"""
     lgbm = type("LGBMClassifier", (), {"__module__": "lightgbm.sklearn"})()
-    assert model_registry._is_tree_family(lgbm)
+    assert explain_core.family(lgbm) == 'tree'
     xgb = type("XGBClassifier", (), {"__module__": "xgboost.sklearn"})()
-    assert model_registry._is_tree_family(xgb)
+    assert explain_core.family(xgb) == 'tree'
     svc = type("SVC", (), {"__module__": "sklearn.svm._classes"})()
-    assert not model_registry._is_tree_family(svc)
+    assert explain_core.family(svc) != 'tree'
 
 
 def test_explain_lightgbm_uses_tree_explainer(tmp_path, monkeypatch, restore_registry):
@@ -411,4 +413,6 @@ def test_explain_kernel_model_degrades_to_empty_without_raising(
     risk = model_registry.predict_proba(pipe, [0.5] * 14)
     assert 0.0 <= risk <= 1.0
     # 归因降级：空数组、不抛异常
-    assert model_registry.explain(model_registry.get_model("svm_v1"), [0.5] * 14) == []
+    result = explain_core.explain(model_registry.get_model('svm_v1').model, [0.5] * 14,
+                                  feature_names=list(config.FEATURE_COLUMNS))
+    assert result['reason_code'] == 'unsupported_model_family' and result['items'] == []

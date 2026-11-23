@@ -22,7 +22,8 @@ def parse_unified_diff(diff_text: str) -> list[dict]:
     hunk: dict | None = None
     new_line = 0
 
-    for raw in diff_text.splitlines():
+    for raw in diff_text.split('\n'):
+        raw = raw.removesuffix('\r')
         if raw.startswith("diff --git "):
             cur = {"path": "", "added_lines": [], "deleted_count": 0, "hunks": []}
             files.append(cur)

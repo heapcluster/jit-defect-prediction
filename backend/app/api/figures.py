@@ -17,6 +17,7 @@ from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import AppError, ok
 from app.models import Model, ModelFigure
+from app.services import output_store
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
 
@@ -50,6 +51,14 @@ def _load_metrics() -> dict[str, dict]:
 
 def _local_file(file_path: str) -> Path | None:
     """把契约里的 `/static/...` URL 还原成磁盘路径；越界路径一律视为不存在。"""
+    if file_path.startswith("backend/var/outputs/"):
+        parts = file_path.split("/")
+        if len(parts) != 5:
+            return None
+        try:
+            return output_store.read_output("storage", parts[3], parts[4])
+        except AppError:
+            return None
     prefix = "/static/"
     if not file_path.startswith(prefix):
         return None
@@ -85,13 +94,17 @@ def figures(model_name: str = Query(default=...)) -> dict:
         if local is None or not local.is_file():
             missing.append(row.file_path)
             continue
+        public_path = row.file_path
+        if row.file_path.startswith("backend/var/outputs/"):
+            parts = row.file_path.split("/")
+            public_path = f"/api/storage/outputs/{parts[3]}/{parts[4]}"
         figures_list.append(
-            {"figure_type": figure_type, "title": row.title, "file_path": row.file_path}
+            {"figure_type": figure_type, "title": row.title, "file_path": public_path}
         )
     data = {
         "model_name": model_name,
         "line": model.line,
-        "metrics": _load_metrics().get(model_name),
+        "metrics": None if any(row.file_path.startswith("backend/var/outputs/") for row in rows) else _load_metrics().get(model_name),
         "figures": figures_list,
         "missing": missing,
     }

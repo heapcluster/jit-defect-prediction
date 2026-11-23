@@ -212,6 +212,23 @@ def parse_old_ranges(diff_text: str) -> dict[str, list[tuple[int, int]]]:
     return {p: v for p, v in files.items() if v}
 
 
+def complete_old_ranges(diff_text: str) -> bool:
+    """Opt-in collect guard: unsupported paths/binary hunks are unresolved.
+
+    A partially parsed repair must not be called complete and justify negatives.
+    The old CLI/parser's baseline behavior is deliberately left unchanged.
+    """
+    if any(line.startswith(("Binary files ", "GIT binary patch")) for line in diff_text.splitlines()):
+        return False
+    expected = 0
+    for line in diff_text.splitlines():
+        match = HUNK_RE.match(line)
+        if match:
+            expected += int(match.group(2)) if match.group(2) is not None else 1
+    actual = sum(count for ranges in parse_old_ranges(diff_text).values() for _, count in ranges)
+    return actual == expected
+
+
 def merge_ranges(ranges: list[tuple[int, int]], gap: int = MERGE_GAP) -> list[tuple[int, int]]:
     """把相邻/接近的行区间并起来，返回 [(起, 止), ...]，减少 blame 调用次数。"""
     out: list[list[int]] = []
@@ -225,12 +242,14 @@ def merge_ranges(ranges: list[tuple[int, int]], gap: int = MERGE_GAP) -> list[tu
 
 
 def blame_lines(
-    repo_dir: Path, rev: str, path: str, ranges: list[tuple[int, int]]
+    repo_dir: Path, rev: str, path: str, ranges: list[tuple[int, int]], *, runner=None, progress=None
 ) -> dict[int, str]:
     """在 rev 上对 path 的指定行区间做 blame，返回 {行号: 提交哈希}。"""
     result: dict[int, str] = {}
     for start, end in merge_ranges(ranges):
-        out = _git(repo_dir, "blame", "--line-porcelain", f"-L{start},{end}", rev, "--", path)
+        if progress:
+            progress()
+        out = (runner or _git)(repo_dir, "blame", "--line-porcelain", f"-L{start},{end}", rev, "--", path)
         cur_sha: str | None = None
         cur_line: int | None = None
         for line in out.split("\n"):
@@ -256,17 +275,29 @@ def backtrack_szz(
     parent_hash: str,
     diff_text: str,
     blame_memo: dict[tuple[str, str], dict[int, str]],
+    *, runner=None, progress=None, strict: bool = False,
 ) -> set[str]:
     """行级回溯：blame 父提交上「被这次修复改动掉的那些行」。"""
     candidates: set[str] = set()
+    if strict and not complete_old_ranges(diff_text):
+        return candidates
     for path, ranges in parse_old_ranges(diff_text).items():
+        if progress:
+            progress()
         merged = tuple(merge_ranges(ranges))
         key = blame_cache_key(parent_hash, path, merged)
         if key not in blame_memo:
-            blame_memo[key] = blame_lines(repo_dir, parent_hash, path, ranges)
+            if runner is None and progress is None:
+                blame_memo[key] = blame_lines(repo_dir, parent_hash, path, ranges)
+            else:
+                blame_memo[key] = blame_lines(repo_dir, parent_hash, path, ranges,
+                                              runner=runner, progress=progress)
         covered = blame_memo[key]
         for ln in _lines_of(ranges):
             sha = covered.get(ln)
+            if strict and not sha:
+                # Incomplete blame is not evidence for a negative label.
+                return set()
             if sha:
                 candidates.add(sha)
     return candidates
@@ -283,16 +314,23 @@ def backtrack_szz_lite(
     parent_hash: str,
     diff_text: str,
     touch_memo: dict[tuple[str, str], str],
+    *, runner=None, progress=None, strict: bool = False,
 ) -> set[str]:
     """文件级回溯：把「被改文件在父提交时的最后一次改动」当引入方候选。"""
     candidates: set[str] = set()
+    if strict and not complete_old_ranges(diff_text):
+        return candidates
     for path in parse_old_ranges(diff_text).items():
         p = path[0]
         key = blame_cache_key(parent_hash, p)
+        if progress:
+            progress()
         if key not in touch_memo:
-            out = _git(repo_dir, "log", "-1", "--format=%H", parent_hash, "--", p).strip()
+            out = (runner or _git)(repo_dir, "log", "-1", "--format=%H", parent_hash, "--", p).strip()
             touch_memo[key] = out.split("\n")[0] if out else ""
         sha = touch_memo[key]
+        if strict and not sha:
+            return set()
         if sha:
             candidates.add(sha)
     return candidates
@@ -304,14 +342,21 @@ def run_method(
     commits: list[dict[str, str]],
     fix_rows: list[dict[str, str]],
     limit: int,
+    *, runner=None, progress=None, nullable: bool = False, verbose: bool = True,
 ) -> dict:
-    """跑一套打标方法，返回结果与统计。"""
+    """跑一套打标方法，返回结果与统计。
+
+    nullable is opt-in for collect: preserve unresolved records and permit no
+    positives. Legacy CLI still excludes unresolved and rejects zero positives.
+    An injected runner's exceptions (including cancellation) always propagate.
+    """
     sample_hashes = {r["commit_hash"] for r in commits}
     blame_memo: dict = {}
     touch_memo: dict = {}
 
     labels: dict[str, str] = {}  # 引入方提交哈希 -> 触发它的修复提交哈希
     unresolved: set[str] = set()  # 回溯未命中的修复提交（不入样本）
+    unresolved_reasons: dict[str, str] = {}
     out_of_window = 0  # 其中「引入方落在窗口/版本之外」的条数
     no_parent = 0  # 其中「根提交无父提交」的条数
     diff_failed = 0
@@ -319,26 +364,33 @@ def run_method(
     todo = fix_rows[:limit] if limit > 0 else fix_rows
     t0 = time.time()
     for i, row in enumerate(todo, 1):
+        if progress:
+            progress()
         fix_hash = row["commit_hash"]
         parent_hash = row["parent_hash"]
         if not parent_hash:
             no_parent += 1
             unresolved.add(fix_hash)
+            unresolved_reasons[fix_hash] = "no_parent"
             continue
-        try:
-            diff_text = _git(
-                repo_dir, "diff", "-U0", "--no-color", "--no-renames", parent_hash, fix_hash
-            )
-        except RuntimeError:
-            # 单个提交的 diff 取不到不该拖停整条流程，计入统计继续
-            diff_failed += 1
-            unresolved.add(fix_hash)
-            continue
-
-        if method == "szz":
-            raw = backtrack_szz(repo_dir, fix_hash, parent_hash, diff_text, blame_memo)
+        diff_args = ("diff", "-U0", "--no-color", "--no-renames", parent_hash, fix_hash)
+        if runner is not None:
+            diff_text = runner(repo_dir, *diff_args)
         else:
-            raw = backtrack_szz_lite(repo_dir, fix_hash, parent_hash, diff_text, touch_memo)
+            try:
+                diff_text = _git(repo_dir, *diff_args)
+            except RuntimeError:
+                # Legacy CLI tolerates a failed diff; collect must fail closed.
+                diff_failed += 1
+                unresolved.add(fix_hash)
+                unresolved_reasons[fix_hash] = "diff_failed"
+                continue
+
+        options = {"runner": runner, "progress": progress, "strict": nullable}
+        if method == "szz":
+            raw = backtrack_szz(repo_dir, fix_hash, parent_hash, diff_text, blame_memo, **options)
+        else:
+            raw = backtrack_szz_lite(repo_dir, fix_hash, parent_hash, diff_text, touch_memo, **options)
 
         raw.discard(fix_hash)  # 自己不能是自己的引入方
         in_sample = sorted(c for c in raw if c in sample_hashes)
@@ -346,11 +398,18 @@ def run_method(
             unresolved.add(fix_hash)
             if raw:
                 out_of_window += 1
+                unresolved_reasons[fix_hash] = "outside_sample"
+            elif nullable and not complete_old_ranges(diff_text):
+                unresolved_reasons[fix_hash] = "incomplete_diff"
+            elif not parse_old_ranges(diff_text):
+                unresolved_reasons[fix_hash] = "no_old_lines"
+            else:
+                unresolved_reasons[fix_hash] = "incomplete_backtracking"
             continue
         for c in in_sample:
             labels.setdefault(c, fix_hash)  # 修复提交按时间序，先到先得 ⇒ 记最早的那次修复
 
-        if i % 100 == 0:
+        if verbose and i % 100 == 0:
             print(
                 f"    [{method}] {i}/{len(todo)} 条修复提交，已用 {time.time() - t0:.0f}s",
                 flush=True,
@@ -363,9 +422,22 @@ def run_method(
     sample = [r for r in commits if r["commit_hash"] not in excluded]
     pos = len(labels)
     neg = len(sample) - pos
+    label_values = None
+    if nullable:
+        sample = list(commits)
+        # A successful complete pass can confirm non-introducers. No fixes or
+        # incomplete backtracking cannot justify negatives. Positives remain
+        # evidence-backed even when another repair is unresolved.
+        complete = (bool(todo) and len(todo) == len(fix_rows) and bool(labels)
+                    and all(reason in ("no_parent", "no_old_lines")
+                            for reason in unresolved_reasons.values()))
+        label_values = {h: (1 if h in labels else
+                            0 if complete and h not in unresolved else None)
+                        for h in sample_hashes}
+        neg = sum(value == 0 for value in label_values.values())
     ratio = pos / len(sample) if sample else 0.0
 
-    if pos == 0:
+    if pos == 0 and not nullable:
         raise RuntimeError(
             f"[{method}] 正样本数为 0，打标逻辑有问题，终止（继续跑只会产出空训练集）"
         )
@@ -385,6 +457,8 @@ def run_method(
         "ratio": ratio,
         "elapsed": elapsed,
         "blame_calls": len(blame_memo) + len(touch_memo),
+        **({"label_values": label_values, "unresolved_hashes": sorted(unresolved),
+            "unresolved_reasons": dict(sorted(unresolved_reasons.items()))} if nullable else {}),
     }
 
 
