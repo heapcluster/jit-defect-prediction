@@ -1,15 +1,27 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import RiskList from '../views/RiskList.vue'
-import CommitDetail from '../views/CommitDetail.vue'
-import TrendBoard from '../views/TrendBoard.vue'
-import ModelPerformance from '../views/ModelPerformance.vue'
+import PredictWorkbench from '../views/PredictWorkbench.vue'
+import EvaluateWorkbench from '../views/EvaluateWorkbench.vue'
+import Storage from '../views/Storage.vue'
+import Collect from '../views/Collect.vue'
+import Clean from '../views/Clean.vue'
+import Train from '../views/Train.vue'
+import Explain from '../views/Explain.vue'
+import Localization from '../views/Localization.vue'
 
 const routes = [
-  { path: '/', name: 'risk-list', component: RiskList },
-  // 详情页带 commit_hash，从风险列表点击跳转
-  { path: '/commit/:hash', name: 'commit-detail', component: CommitDetail, props: true },
-  { path: '/trend', name: 'trend-board', component: TrendBoard },
-  { path: '/model-performance', name: 'model-performance', component: ModelPerformance },
+  { path: '/', name: 'risk-list', redirect: to => ({ path: '/predict', query: { ...to.query, section: 'risks' }, hash: to.hash }) },
+  { path: '/commit/:hash', name: 'commit-detail', component: PredictWorkbench },
+  { path: '/trend', name: 'trend-board', redirect: to => ({ path: '/predict', query: { ...to.query, section: 'trends' }, hash: to.hash }) },
+  { path: '/model-performance', name: 'model-performance', redirect: to => ({ path: '/evaluate', query: { ...to.query, section: 'models' }, hash: to.hash }) },
+  { path: '/storage', name: 'storage', component: Storage },
+  { path: '/collect', name: 'collect', component: Collect },
+  { path: '/clean', name: 'clean', component: Clean },
+  { path: '/train', name: 'train', component: Train },
+  { path: '/predict', name: 'predict', component: PredictWorkbench },
+  { path: '/evaluate', name: 'evaluate', component: EvaluateWorkbench },
+  { path: '/explain', name: 'explain', component: Explain },
+  { path: '/localization', name: 'localization', component: Localization },
+  { path: '/settings', redirect: to => ({ path: '/storage', query: { ...to.query, section: 'config' }, hash: to.hash }) },
   // 兜底路由：没有 catch-all 时，未知路径会渲染空白页（2026-10-25 修复）
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('../views/NotFound.vue') }
 ]

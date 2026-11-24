@@ -10,29 +10,89 @@ from datetime import UTC, datetime
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.datastructures import Headers
 
 from app import config, db, model_registry
-from app.api import commits, figures, health, models, predict, sync, trends
+from app.api import (
+    clean,
+    collect,
+    commits,
+    datasets,
+    evaluate,
+    explain,
+    figures,
+    health,
+    jobs,
+    models,
+    predict,
+    source,
+    storage,
+    storage_catalog,
+    sync,
+    train,
+    trends,
+)
+from app.api import config as config_api
 from app.auth import MISSING_OR_INVALID_TOKEN
-from app.errors import error_payload, register_error_handlers
-from app.services import figure_store
+from app.errors import AppError, error_payload, register_error_handlers
+from app.services import (
+    clean_run,
+    collect_run,
+    evaluate_run,
+    explain_run,
+    figure_store,
+    job_store,
+    model_manage,
+    predict_run,
+    train_run,
+)
 
 logging.basicConfig(level=logging.INFO)
 
 logger = logging.getLogger("backend.main")
 
 
-class _StaticAuthMiddleware(BaseHTTPMiddleware):
-    """`/static/figures` 图集也要求 X-API-Key（docs/api/figures.md：不许为 `<img>` 开免鉴权）。"""
+MAX_IMPORT_BODY_BYTES = 65 * 1024 * 1024
 
-    async def dispatch(self, request, call_next):
-        if request.url.path.startswith("/static/"):
-            if request.headers.get("x-api-key") != config.API_TOKEN:
-                return JSONResponse(
-                    status_code=401, content=error_payload(40100, MISSING_OR_INVALID_TOKEN)
-                )
-        return await call_next(request)
+
+class _ApiAuthMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or not scope["path"].startswith(("/api/", "/static/")):
+            return await self.app(scope, receive, send)
+        headers = Headers(scope=scope)
+        if not config.API_TOKEN or headers.get("x-api-key") != config.API_TOKEN:
+            response = JSONResponse(status_code=401, content=error_payload(40100, MISSING_OR_INVALID_TOKEN))
+            return await response(scope, receive, send)
+        if scope["path"] not in {"/api/storage/import", "/api/collect/run", "/api/clean/run", "/api/train/run", "/api/predict/run", "/api/evaluate/run", "/api/explain/run", "/api/localize/run"} or scope["method"] != "POST":
+            return await self.app(scope, receive, send)
+        chunks, total = [], 0
+        # 在 multipart 解析与临时文件写入前限制整个请求，包括 chunked 上传。
+        while True:
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                return
+            chunk = message.get("body", b"")
+            total += len(chunk)
+            if total > MAX_IMPORT_BODY_BYTES:
+                response = JSONResponse(status_code=400, content=error_payload(40001, "上传请求超过总大小限制"))
+                return await response(scope, receive, send)
+            chunks.append(chunk)
+            if not message.get("more_body", False):
+                break
+        body = b"".join(chunks)
+        delivered = False
+
+        async def replay():
+            nonlocal delivered
+            if not delivered:
+                delivered = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            return await receive()
+
+        await self.app(scope, replay, send)
 
 
 def _startup_sync_if_enabled() -> None:
@@ -64,6 +124,8 @@ def _startup_sync_if_enabled() -> None:
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     db.get_engine()
+    with db.SessionLocal() as session:
+        job_store.recover_running(session)
     model_registry.load_models()
     model_registry.warmup()
     # 启动时把已加载模型元数据 upsert 进 model 表（供 FK 与查询，空库首启也需补齐）。
@@ -85,13 +147,34 @@ async def _lifespan(app: FastAPI):
     except Exception:
         logger.exception("ensure model rows failed")
     _startup_sync_if_enabled()
+    collect_run.dispatch()
+    clean_run.dispatch()
+    with db.SessionLocal() as session:
+        train_run.ensure_algorithms(session)
+    train_run.dispatch()
+    with db.SessionLocal() as session:
+        default, _ = model_manage.resolve_default(session)
+        if default:
+            try:
+                model_manage.load(session, default)
+            except AppError:
+                logger.warning("startup default model load skipped: %s", default)
+    predict_run.dispatch()
+    evaluate_run.dispatch()
+    explain_run.dispatch()
     yield
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="JIT 缺陷预测系统 API", version="0.1.0", lifespan=_lifespan)
     register_error_handlers(app)
-    app.add_middleware(_StaticAuthMiddleware)
+    app.add_middleware(_ApiAuthMiddleware)
+    app.include_router(collect.router)
+    app.include_router(clean.router)
+    app.include_router(train.router)
+    app.include_router(evaluate.router)
+    app.include_router(explain.router)
+    app.include_router(source.router)
     app.include_router(commits.router)
     app.include_router(models.router)
     app.include_router(trends.router)
@@ -99,6 +182,11 @@ def create_app() -> FastAPI:
     app.include_router(sync.router)
     app.include_router(figures.router)
     app.include_router(health.router)
+    app.include_router(config_api.router)
+    app.include_router(jobs.router)
+    app.include_router(storage_catalog.router)
+    app.include_router(storage.router)
+    app.include_router(datasets.router)
     # 模型性能图集：<img> 带不了 X-API-Key，前端 fetch（带鉴权头）取二进制转 ObjectURL 渲染。
     # 目录不入库（干净检出为空），启动时先建目录再把仓库内图集落地，避免 mount 直接 RuntimeError。
     config.FIGURES_DIR.mkdir(parents=True, exist_ok=True)

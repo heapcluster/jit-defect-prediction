@@ -1,88 +1,91 @@
-# commits
+# 提交查询 API（commits）
 
-**一句话**：提交查询接口——风险列表、提交详情、模型性能看板的数据来源，**只读不计算**。
+一句话：只读查询已导入的提交、Kamei 特征、SZZ 标签和所选模型预测，为风险列表与详情提供稳定分页数据，不在查询中执行任何业务计算。
 
-## 被谁调用
-| 调用方 | 场景 |
-|---|---|
-| 前端「风险列表」页 | 打开页面 / 点查询：按架构 → 模型两级级联 + 独立时间范围取提交分页 |
-| 前端「提交详情」页 | 点列表某行进入：取单条提交元信息 + 14 维特征 + 解释因子 + SZZ 真标签 + 选中模型分 |
-| 前端「模型性能看板」 | 多维指标表：`with_features=1&is_test=1` 一次取测试集提交 + 14 维 + SZZ + 所选模型概率 |
+实现状态：部分　期次：一期
 
-## 处理功能
-| 接口 | 方法 | 用途 |
+展示数据来自 [storage.md](storage.md) 的可选导入；特征与标签语义引用 [../file-contracts.md](../file-contracts.md) §3.1，预测语义引用 §3.4。
+
+## 1. 职责与不负责范围
+
+- 负责提交列表、详情、模型/数据集/时间/关键字筛选、稳定排序和可选特征返回。
+- 不负责特征抽取、预测、解释、定位、修复建议或指标计算；详情页需要这些能力时分别调用对应端点。
+- 不把缺少预测或标签转换成 0，不把数据库是否存在作为其他模块 run 的前置。
+
+## 2. 端点契约
+
+### GET /api/commits
+
+| 参数 | 必填 | 契约 |
 |---|---|---|
-| `/api/commits` | GET | 提交列表：按模型 + commit 时间区间筛选，分页；可选返回 14 维特征 |
-| `/api/commits/{commit_hash}` | GET | 单提交详情 |
+| `page` / `size` | 否 | 默认 1/20，1≤size≤100 |
+| `model_name` | 否 | 缺省读 default_model，再按公共模型回退规则 |
+| `dataset_id` | 否 | 仅筛选已导入 dataset_commit 成员 |
+| `start_time` / `end_time` | 否 | committed_at 闭区间，纯日期按公共规则展开 |
+| `q` | 否 | 最长 64，匹配 hash 前缀、作者、message，LIKE 特殊字符转义 |
+| `with_features` | 否 | 0/1，默认 0 |
+| `is_test` | 否 | 0/1，按 commit_feature.is_test 筛选 |
+| `risk_min` / `risk_max` | 否 | [0,1]，且 min≤max |
 
-- **权限**：沿用后端统一鉴权（`X-API-Key`）。
-- **数据来源**：MySQL 的 `commit` / `commit_feature` / `prediction`。测试集由 `data_model/evaluation/out/data_init.sql` 导入；接口不在请求时执行 `data_model` 脚本，也不直接读 `out/`。
+响应 `data:{total,page,size,items[]}`，按 `risk_score DESC,commit_hash ASC` 稳定排序。items 每项：
 
-## 参数（列表）
-| 参数 | 必填 | 含义 |
-|---|---|---|
-| `page` / `size` | 否 | 分页，默认 `1` / `20`（`1 <= size <= 100`） |
-| `model_name` | 否 | 选中模型；省略时取默认模型 = 已加载模型中 `version_key` 最大者 |
-| `start_time` / `end_time` | 否 | commit 时间区间，**两端闭区间**（含首末两天）；`since` / `until` 是同义别名 |
-| `q` | 否 | 关键字，最长 64 字符（匹配 hash / 作者 / message） |
-| `with_features` | 否 | `1` = 返回 `items[].features`；默认 `0`，避免风险列表背 14 列 |
-| `is_test` | 否 | `0` / `1`；`1` = 只返回检验集（`commit_feature.is_test = 1`）。模型性能看板固定传 `1`，风险列表不传 |
-
-**已移除**：`min_risk`（页面不再提供最低风险筛选）、`has_label`（原按人工标签过滤，人工标注下线后无意义）、`scope`（测试集筛选改由 `is_test=1` + `with_features=1` 承接）。
-
-## 参数（详情）
-| 参数 | 必填 | 含义 |
-|---|---|---|
-| `model_name` | 否 | 选中模型；省略时取默认模型 = 已加载模型中 `version_key` 最大者。该提交没有此模型的预测行时，`risk_score` / `predicted_at` 为 `null`（不是 404） |
-
-## 响应
-
-### 列表响应 `data`
 | 字段 | 含义 |
 |---|---|
-| `total` / `page` / `size` | 分页信息（`total` 是**已预测且命中筛选**的行数） |
-| `items[]` | 提交数组，按 `risk_score` 降序、`commit_hash` 升序 |
-| `items[].commit_hash` / `author_name` / `committed_at` / `message` | 提交信息 |
-| `items[].model_name` / `risk_score` | 选中模型与该提交的风险分 |
-| `items[].features{ns..sexp}` | **仅 `with_features=1` 时返回**：Kamei 14 维，log 变换值（可负），见 `database/commit_feature.md` |
-| `items[].is_bug_inducing` | SZZ 真标签：`1` = 引入缺陷 / `0` = 非缺陷 / `null` = 未打标 |
+| `commit_hash` / `repo_name` / `author_name` / `committed_at` / `message` | 提交元信息 |
+| `model_name` / `risk_score` / `predicted_label` / `predicted_at` | 已导入预测；列表只含该模型有预测行的提交 |
+| `features` | with_features=1 时返回 §3.1 的 ns…sexp 14 维 log 值，fix 除外不变换 |
+| `is_bug_inducing` / `labeled_at` / `is_test` / `label_method` | SZZ 标签与划分，未打标为 null |
 
-### 详情响应 `data`
-| 字段 | 含义 |
-|---|---|
-| `commit_hash` / `author_name` / `committed_at` / `message` | 提交元信息 |
-| `model_name` / `risk_score` | 选中模型（默认模型）的风险分；**只回一个模型** |
-| `predicted_at` | 该模型对该提交的预测时间；无预测行时为 `null` |
-| `features{ns..sexp}` | Kamei 14 维（log 变换值，见 `database/commit_feature.md`） |
-| `explanation[]` | 解释因子：`feature` + `contribution` + `direction` + `label`（中文名；与已下线的人工标签 `label` 对象无关）。**仅 expert 线中树/线性模型（`lr`/`rf`/`xgb`/`lgbm`/`et`）有值**；`tabnet`/`svm`/`mlp_deep` 与 semantic/fused/e2e 返回空数组 |
-| `summary` | **一句话风险总结**：所有架构/模型都有；配置 LLM 时由 LLM 基于事实生成，未配置或失败时回退确定性模板句 |
-| `is_bug_inducing` | SZZ 真标签：`1` / `0` / `null`（未打标） |
-| `localization` | 缺陷可视化定位（G1-1）：`level`（`"line"`/`"commit"`）+ `notice` + `highlights[]` + `files[]`（`path`+`added_lines[]{number,content,score}`+`score`+`reasons`+`added_count`+`deleted_count`）+ `truncated`。有历史仓库可解析 diff 时为 `"line"`（按“修改既有代码/源码文件/改动规模/hunk 分散度”给文件和 hunk 打分，展示高分 hunk 的新增行；每行 `score` 为启发式可疑度，用于分档着色），否则降级 `"commit"` 特征归因；行内概率不是训练出的独立行级模型输出 |
-| `fix_references` | 高质量修复参考（G1-2）：`basis` + `items[]`（历史修复提交）+ `suggestions[]`（针对本次缺陷的可执行建议）。建议优先由 LLM 基于定位结果生成，未配置或失败时回退模板；`items` 来自同仓库 `fix=1` 历史修复提交，按时间倒序，无依据为空 |
+### GET /api/commits/{commit_hash}
 
-**详情不返回 `label` 对象**（人工标签已下线），**也不返回 `pr_submitted_at`**（无 commit→PR 持久数据源，见口径）。
+路径 hash 归一小写；可选 `model_name`、`dataset_id`。响应 `data` 含提交元信息、§3.1 features/标签，以及 `prediction` 对象：
 
-## 错误
-| 业务码 | HTTP | 含义 |
+`{model_name,risk_score,predicted_label,decision_threshold,model_version,feature_version,predicted_at,stale}`。
+
+无该模型预测时 prediction=null 并 HTTP 200；提交或特征完全不存在才返回 40400。响应不含 explanation、localization 或 fix_references，详情编排分别请求 `/api/explain` 与 `/api/localize/run`。
+
+### 错误码
+
+| 业务码 | HTTP | 场景 |
 |---|---|---|
-| 40001 | 400 | 参数非法（越界、格式错） |
-| 40100 | 401 | 缺 / 错 token |
-| 40400 | 404 | 提交不存在（详情）；缺特征 / 缺预测不报 404，按 `null` 字段返回 |
+| 40001 | 400 | 分页、时间、风险范围、hash、with_features/is_test 或未知参数非法 |
+| 40100 | 401 | 缺失或错误的 `X-API-Key` |
+| 40400 | 404 | 详情提交不存在，或显式模型/数据集不存在 |
+| 50000 | 500 | 未预期读取错误，不回显 SQL |
 
-## 口径
-- **真标签字段名统一 `is_bug_inducing`**（库内外同名，无映射）：`1` = 引入缺陷，`0` = 非缺陷；未打标返回 `null`，**不是 `0`**（不能把「不知道」当负样本）。
-- **真标签来源**：SZZ 自动标签（`commit_feature.is_bug_inducing`；原 `commit_label` 已并入）。人工标签与 `label` 对象已下线。
-- **`predicted_at`**：来自 `prediction` 表 `(commit_hash, model_name)` 对应行；该提交没有选中模型的预测行时为 `null`。
-- **`pr_submitted_at` 本期不提供**：没有 commit→PR 持久关联；PR 能力已在 #195 下线。一个 PR 可包含多个 commit，PR 时间不是提交自身属性，不放进提交详情。
-- **模型标识统一用 `model_name`**：请求参数与响应字段同名同值，无中间转换。
-- **排序固定**：`risk_score DESC, commit_hash ASC`；同分分页不会重复或漏行。
-- **模型名已隐含架构**：`/api/commits` 不接收 `line`；架构只用于 `GET /api/models` 的级联选择。
-- **只读不计算**：任何筛选（含 `q` / 时间区间）都不得触发特征抽取或预测。
-- **14 维是 log 值**：`with_features=1` 与详情返回的都是对数变换后的值（可负），MUST NOT 当原始行数 / 人数展示。
-- **模型性能看板固定 `is_test=1`**：表格只取测试集，与性能图 / 指标同一口径，不混入训练集；风险列表不传该参数。`total` 即测试集内已预测且命中筛选的行数。
-- 列表是 `prediction` 与 `commit` 的内连接，**只有已预测的提交会出现**；「尚未预测」表现为少一行，而不是 `risk_score = null`。详情里 `risk_score` / `predicted_at` 可为 `null`（该提交没有选中模型的预测行）。
-- 详情不返回「各模型分数列表」：换模型 = 换列表 / 趋势的 `model_name` 参数，或在详情页重新预测；横向比对多模型走模型性能看板。
-- **`localization.level` 两级降级**：`SOURCE_REPO` 可解析出该提交 diff 时为 `"line"`（`files[]` 按启发式可疑度排序，取前 5 个文件；每文件只展示高分 hunk 的前 30 条新增行，`score`/`reasons` 说明排序依据，行级 `score` 由“提交风险 × 文件/hunk 权重 × 行内容信号”合成，用于分档着色，`truncated` 标记截断）；否则降级 `"commit"`（`highlights[]` 按 `|contribution|` 降序前 5）。**这不是独立行级模型**：行级分数是启发式可疑度，MUST NOT 宣称逐行训练出来的准确率。
-- **`fix_references.suggestions`**：针对本次缺陷的 2–3 条可执行建议；LLM 可用时基于风险因子、Top 文件/行、提交信息生成，未配置/失败/超时回退模板。只允许使用接口已给出的事实，MUST NOT 编造文件、行号或 API。
-- **`summary` 的数据来源**：优先使用配置的 OpenAI 兼容 LLM（`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`）基于风险分、Top 因子、改动文件生成；三项缺一或调用失败/超时则回退模板句，保证每个架构/模型都有结论，不因 LLM 不可用而缺失。
-- **`fix_references` 只回真实历史修复提交**：数据源 = `commit_feature.fix=1`（同仓库，排除自身），按 `committed_at` 倒序取前 5；无依据返回 `items=[]`，MUST NOT 编造修复建议。
+## 3. 输入契约
+
+无文件输入。查询仅接受上述参数，未知参数返回 40001。`dataset_id` 只是展示筛选；`model_name` 的默认值来自 user_config，未配置时回退已加载 expert 中 version_key 最大者。
+
+特征 JSON 的语义与 §3.1 相同：Kamei 14 维固定列序，值为 log 变换结果（fix 为 0/1）；`is_bug_inducing` 为 1/0/null，NULL 不得当负样本。预测 JSON 对应 §3.4 的模型、概率、标签、阈值与版本字段，不重算风险。
+
+## 4. 输出契约
+
+仅输出 JSON，不生成 CSV/XLSX、图、报告或 manifest，不创建输出目录。需要 commits/predictions 文件时使用 [datasets.md](datasets.md) 导出；需要新计算时使用相应 run 端点。
+
+列表只包含已有所选模型预测的成员，因此缺预测表现为不出现；详情允许 prediction=null。同分排序固定，空标签保持 null，时间统一 UTC ISO 8601 `Z`。
+
+## 5. 可配置项
+
+- default_model、default_dataset、risk_high_threshold、risk_mid_threshold 和 page_prefs 来自配置中心。
+- 请求可覆盖模型、数据集、时间、关键字、特征开关、is_test、风险区间和分页；展示阈值不改变库中 risk_score。
+- `.env` 仅提供出厂默认；查询不接收清洗步骤、训练超参或解释参数。
+
+## 6. 状态持久化
+
+- 只读 commit、commit_feature、prediction、dataset_commit，不写业务行、不创建 job、不写输出文件。
+- storage 导入完成后新数据可见，服务重启不改变查询结果；预测版本变化只通过已导入元数据反映 stale。
+- 查询缓存若存在必须按数据版本和默认模型失效，缓存不是权威来源。
+
+## 7. 验收
+
+fixtures：`tests/fixtures/files/commits/`，由 §3.1/§3.4 正常、边界、非法样例导入构造，另用非法样例验证导入拒绝后的空态。
+
+- **正常**：模型/数据集/时间/q/风险筛选与分页正确，with_features 返回 14 维，详情版本字段完整，同分跨页不重不漏。
+- **边界**：无预测详情 prediction=null、空标签 null、空数据集、风险范围端点、默认模型回退均符合契约。
+- **非法**：分页越界、非法 hash/时间/风险范围/未知参数返回 40001；不存在详情返回 40400；任何查询均不触发生产计算。
+- 详情解释由独立端点获取，commits 响应无解释/定位字段；storage 未导入时本接口为空不影响 run 独立验收。
+
+## 8. 边界
+
+commits 是展示读模型，不是模块间数据通道。它消费的是已导入表，而业务模块之间只依 §3.x 文件 schema 兼容；数据库为空不阻止任何上传文件运行，dataset_id 也不构成上游服务前置。

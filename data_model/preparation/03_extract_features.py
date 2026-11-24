@@ -154,7 +154,7 @@ def run_git(repo_dir: Path, *args: str) -> str:
     return proc.stdout.decode("utf-8", "replace")
 
 
-def blob_line_counts(repo_dir: Path, specs: list[str]) -> dict[str, int]:
+def blob_line_counts(repo_dir: Path, specs: list[str], *, runner=None, progress=None) -> dict[str, int]:
     """批量取 `<父提交>:<路径>` 的行数，返回 {spec: 行数}。
 
     用常驻 `git cat-file --batch`：入参写一条、结果读一条。写与读必须并行，
@@ -163,6 +163,10 @@ def blob_line_counts(repo_dir: Path, specs: list[str]) -> dict[str, int]:
     """
     if not specs:
         return {}
+    if runner is not None:
+        # The service runner provides bounded, cancellable batches rather than
+        # inheriting legacy Popen configuration or changing process globals.
+        return runner.blob_line_counts(repo_dir, specs, progress=progress)
     proc = subprocess.Popen(
         ["git", "-C", str(repo_dir), "cat-file", "--batch"],
         stdin=subprocess.PIPE,
@@ -215,24 +219,26 @@ def directory_of(path: str) -> str:
     return "/".join(parts[:-1]) if len(parts) > 1 else "(root)"
 
 
-def scan_history(repo_dir: Path) -> dict[str, dict]:
+def scan_history(repo_dir: Path, *, ref: str = "HEAD", runner=None, progress=None) -> dict[str, dict]:
     """一次 `git log --numstat` 取回全部非合并提交的文件级增删行明细。
 
     `--no-renames`：关掉重命名检测，改名会拆成「删旧 + 增新」，不必再解析 `old => new`。
     二进制文件的增删列是 `-`，按 0 计。
     """
-    text = run_git(
+    text = (runner or run_git)(
         repo_dir,
         "log",
         "--no-merges",
         "--no-renames",
         "--numstat",
-        "--format=@@%H|%at|%ae|%an",
-        "HEAD",
+        "--format=@@%H|%ct|%ae|%an",
+        ref,
     )
     commits: dict[str, dict] = {}
     cur: dict | None = None
     for line in text.split("\n"):
+        if progress:
+            progress()
         if line.startswith("@@"):
             h, ts, email, name = line[2:].split("|", 3)
             cur = commits.setdefault(
@@ -264,7 +270,9 @@ class HistoryIndex:
     索引里存的是全部提交（含窗口之前的），这正是契约要的：特征用的是历史。
     """
 
-    def __init__(self, commits: dict[str, dict]) -> None:
+    def __init__(self, commits: dict[str, dict], *, progress=None) -> None:
+        if progress:
+            progress()
         self._by_time = sorted(
             ((c["ts"], h) for h, c in commits.items()),
             key=lambda t: (t[0], t[1]),
@@ -276,6 +284,8 @@ class HistoryIndex:
         author_sub_events: dict[tuple[str, str], list[int]] = defaultdict(list)
 
         for h, c in commits.items():
+            if progress:
+                progress()
             author_events[c["email"]].append(c["ts"])
             subs = {subsystem_of(p) for _, _, p in c["files"]}
             for s in subs:
@@ -284,10 +294,16 @@ class HistoryIndex:
                 file_events[p].append((c["ts"], h, c["email"]))
 
         for lst in author_events.values():
+            if progress:
+                progress()
             lst.sort()
         for lst in author_sub_events.values():
+            if progress:
+                progress()
             lst.sort()
         for lst in file_events.values():
+            if progress:
+                progress()
             lst.sort(key=lambda t: (t[0], t[1]))
 
         self.file_events = dict(file_events)
@@ -330,7 +346,7 @@ class HistoryIndex:
         return total
 
 
-def entropy_series(commits: dict[str, dict], target_ts: list[int]) -> list[float]:
+def entropy_series(commits: dict[str, dict], target_ts: list[int], *, progress=None) -> list[float]:
     """对每条目标提交算两周窗口内的改动信息熵（契约第四节：Kamei 引用 Hassan）。
 
     窗口 `(t - 14 天, t]`；`p_k` = 文件 k 在窗口内的被改次数 ÷ 窗口内全部文件的被改总次数；
@@ -344,12 +360,18 @@ def entropy_series(commits: dict[str, dict], target_ts: list[int]) -> list[float
     total = 0
     left = right = 0
     for ts in target_ts:
+        if progress:
+            progress()
         while right < len(ordered) and ordered[right][0] <= ts:
+            if progress:
+                progress()
             for _, _, p in commits[ordered[right][1]]["files"]:
                 counts[p] += 1
                 total += 1
             right += 1
         while left < right and ordered[left][0] <= ts - ENTROPY_WINDOW_SECONDS:
+            if progress:
+                progress()
             for _, _, p in commits[ordered[left][1]]["files"]:
                 counts[p] -= 1
                 total -= 1
@@ -395,6 +417,7 @@ def compute_raw(
     repo_dir: Path,
     progress_every: int = 500,
     verbose: bool = True,
+    *, runner=None, progress=None,
 ) -> list[dict]:
     """对每条目标提交算出 14 项的**原值**（尚未归一化与取对数）。"""
     # 先把所有「父提交:路径」的 spec 收集齐，一次 batch 取完行数
@@ -402,6 +425,8 @@ def compute_raw(
     seen: set[str] = set()
     plan: list[tuple[dict, int, list[tuple[int, int, str]]]] = []
     for row in targets:
+        if progress:
+            progress()
         h = row["commit_hash"]
         ts = to_epoch(row["committed_at"])
         files = commits.get(h, {}).get("files", [])
@@ -417,13 +442,18 @@ def compute_raw(
 
     if verbose:
         print(f"[进行] 取 {len(specs)} 个父提交时刻的文件行数（lt 用）……", flush=True)
-    line_counts = blob_line_counts(repo_dir, specs)
-
-    entropies = entropy_series(commits, [ts for _, ts, _ in plan])
+    if runner is None and progress is None:
+        line_counts = blob_line_counts(repo_dir, specs)
+        entropies = entropy_series(commits, [ts for _, ts, _ in plan])
+    else:
+        line_counts = blob_line_counts(repo_dir, specs, runner=runner, progress=progress)
+        entropies = entropy_series(commits, [ts for _, ts, _ in plan], progress=progress)
 
     rows: list[dict] = []
     t0 = time.time()
     for i, ((row, ts, files), ent) in enumerate(zip(plan, entropies, strict=True), 1):
+        if progress:
+            progress()
         h = row["commit_hash"]
         email = commits.get(h, {}).get("email", "")
         parent = row.get("parent_hash") or ""
@@ -483,9 +513,9 @@ def _normalize_commit_hash(commit_hash: str) -> str:
     return commit_hash.lower()
 
 
-def _target_row(repo_dir: Path, commit_hash: str) -> tuple[dict, str, str]:
+def _target_row(repo_dir: Path, commit_hash: str, *, runner=None) -> tuple[dict, str, str]:
     meta = (
-        run_git(
+        (runner or run_git)(
             repo_dir,
             "show",
             "-s",
@@ -510,7 +540,8 @@ def _target_row(repo_dir: Path, commit_hash: str) -> tuple[dict, str, str]:
 
 
 def extract_commits(
-    repo_dir: Path, commit_hashes: list[str], *, skip_missing: bool = False
+    repo_dir: Path, commit_hashes: list[str], *, skip_missing: bool = False,
+    ref: str = "HEAD", runner=None, progress=None,
 ) -> list[dict]:
     """一次历史扫描，批量抽取多条提交的 v1 特征（与 extract_single_commit 同口径）。
 
@@ -518,7 +549,7 @@ def extract_commits(
     `compute_raw` 也按批取父提交行数，把 N × 历史扫描降到 1 × 历史扫描。
     `skip_missing=True` 时跳过合并提交 / 不可达提交（同步批处理用）。
     """
-    commits = scan_history(repo_dir)
+    commits = scan_history(repo_dir, ref=ref, runner=runner, progress=progress)
     normalized: list[str] = []
     for raw_hash in commit_hashes:
         commit_hash = _normalize_commit_hash(raw_hash)
@@ -533,20 +564,29 @@ def extract_commits(
         normalized.append(commit_hash)
     if not normalized:
         return []
-    metas = [_target_row(repo_dir, commit_hash) for commit_hash in normalized]
-    rows = [meta[0] for meta in metas]
+    metas = []
+    for commit_hash in normalized:
+        if progress:
+            progress()
+        metas.append(_target_row(repo_dir, commit_hash, runner=runner))
+    # entropy's sliding window requires ascending timestamps, not caller order.
+    ordered = sorted(metas, key=lambda meta: (meta[0]["committed_at"], meta[0]["commit_hash"]))
+    rows = [meta[0] for meta in ordered]
     raw = compute_raw(
         rows,
         commits,
-        HistoryIndex(commits),
+        HistoryIndex(commits, progress=progress),
         load_is_fix_commit(),
         repo_dir,
         progress_every=0,
         verbose=False,
+        runner=runner,
+        progress=progress,
     )
-    values_list = apply_contract(raw)
+    values_by_hash = {r["commit_hash"]: r for r in apply_contract(raw)}
     results: list[dict] = []
-    for (row, name, email), values in zip(metas, values_list, strict=True):
+    for row, name, email in metas:
+        values = values_by_hash[row["commit_hash"]]
         results.append(
             {
                 "repo_name": repo_dir.name,

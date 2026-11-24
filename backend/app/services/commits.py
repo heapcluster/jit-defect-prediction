@@ -11,20 +11,19 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import config, model_registry
+from app import config, explain_core, model_registry
 from app.diff import parse_unified_diff
 from app.explain import with_labels
 from app.models import Commit, CommitFeature
+from app.services.config_store import get_value
 from app.services.git import GitError, show_unified_diff
 from app.timeutil import iso_z
 
 
 def default_model_in_table(session: Session | None = None) -> str | None:
-    """「默认模型」= 已加载模型中 `version_key` 最大者（docs/database/model.md）。
-
-    与列表 / 详情 / 趋势 / predict / sync 共用 `model_registry.default_model()` 一处实现，
-    避免同一提交在多处拿到不同模型的不同分。
-    """
+    configured = get_value("default_model", session) if session is not None else ""
+    if configured:
+        return configured
     entry = model_registry.default_model()
     return entry.name if entry is not None else None
 
@@ -51,7 +50,9 @@ def explanation_for(model_name: str | None, feature: CommitFeature | None) -> li
     if model_registry.line_of(model_name) != "expert":
         return []
     vector = [float(getattr(feature, name)) for name in config.FEATURE_COLUMNS]
-    return with_labels(model_registry.explain(model_registry.get_model(model_name), vector))
+    result = explain_core.explain(model_registry.get_model(model_name).model, vector,
+                                  feature_names=list(config.FEATURE_COLUMNS), top_n=14)
+    return with_labels([item for item in result['items'] if item['contribution'] != 0])
 
 
 def localization_for(explanation: list[dict], top_k: int = 5) -> dict:

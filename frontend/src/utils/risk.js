@@ -1,6 +1,6 @@
 // 风险等级口径（docs 各页面「风险标签」；只定义这一处）。
-// 阈值**是常量**（utils/thresholds.js），与后端 .env 的 HIGH_RISK_THRESHOLD / MID_RISK_THRESHOLD
-// 同值；runtime_setting 与 /api/config 已下线，高/中/低由前端按 score 判定。
+// 阈值来自 utils/thresholds.js 的响应式 /api/config 生效值；首次读取成功后才渲染业务页面。
+// 保存阈值仅重新分档已有 score，不重新预测或改写已存 risk_score。
 
 import { thresholds } from './thresholds'
 

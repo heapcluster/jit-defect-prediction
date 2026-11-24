@@ -1,41 +1,47 @@
-# model（复用表）
+# model
 
-**一句话**：模型注册表，一行对应一个已交付/已评估的模型；是 `prediction` / `model_figure` 的外键目标，也是前端「架构 → 模型」级联选择器的数据源。
+`实现状态：已实现　期次：一期`
 
-## 字段
+**一句话**：模型注册表，一行对应一个可加载模型；是 `prediction` / `model_figure` / `model_artifact` 的外键目标，也是前端「架构 → 模型」级联选择器的数据源。
 
-| 字段 | 类型 | 键 | 含义 |
-|---|---|---|---|
-| model_name | VARCHAR(64) | 主键 | 模型名，全局唯一：`lr_v1` / `lr_semantic_v1` / `lr_fused_v1` / `codebert_e2e_v1` |
-| line | VARCHAR(16) | 索引 | 所属架构：`expert` / `semantic` / `fused` / `e2e` |
-| algo | VARCHAR(64) | — | 算法：`lr` `rf` `xgb` `lgbm` `et` `svm` `mlp_deep` `tabnet` / `codebert_e2e` |
-| version_key | VARCHAR(64) | — | 版本键（同族内排序用） |
-| trained_at | DATETIME | — | 训练完成时间（可空） |
-| feature_version | VARCHAR(32) | — | 该模型训练所用特征版本（可空） |
+实现锚点：backend/app/models.py:36-46
 
-## 主键为什么直接用 `model_name`（BCNF）
-- 函数依赖只有一组：`model_name → line / algo / version_key`（名字的前缀后缀决定这三列），决定因素是主键 → **满足 BCNF**。
-- `model_name` 是**交付契约的一部分**：出现在 `feature_order.txt` 的 `[models]` 段、模型文件名 `.pkl`、图目录名里，全局唯一且稳定，不存在「改名级联」的实际风险——所以不需要自增代理键。
-- 与 `commit` 表同口径：`commit_hash` 是内容寻址的自然主键，`model_name` 是交付清单锁定的自然主键，都直接做主键，不造死 id。
+## 字段（逐字对齐 infra/schema.sql）
 
-## 约束与索引
-- `model_name` 主键唯一；`line` 单列索引（前端 `GROUP BY line` 分组）。
+| 字段 | 类型 | 空值/默认 | 键/索引 | 含义 |
+|---|---|---|---|---|
+| model_name | VARCHAR(64) | NOT NULL | 主键 | 模型名，全局唯一：`lr_v1` / `lr_semantic_v1` / `lr_fused_v1` / `codebert_e2e_v1` 等 |
+| line | VARCHAR(16) | NOT NULL DEFAULT 'expert' | ix_model_line | 所属架构：`expert` / `semantic` / `fused` / `e2e` |
+| algo | VARCHAR(64) | 可空 | — | 算法标识：`lr` `rf` `xgb` `lgbm` `et` `svm` `mlp_deep` `tabnet` / `codebert_e2e` |
+| version_key | VARCHAR(64) | NOT NULL DEFAULT '' | — | 版本键（同族内排序用） |
+| trained_at | DATETIME | 可空 | — | 训练完成时间 |
+| feature_version | VARCHAR(32) | 可空 | — | 训练所用特征版本 |
 
-**模型总量**：expert 8 + semantic 8 + fused 8 + e2e 1 = **25**，`model_name` 全部唯一。
+## 主键与约束理由
+
+- 函数依赖只有一组：`model_name → line / algo / version_key`，决定因素是主键，满足 BCNF；`model_name` 是交付契约锁定的自然主键（权重文件名、图目录名都用它），不造代理 id。
+- `line` 单列索引：级联选择器按 `line` 分组取数。
+- **行由 `model_artifact` 登记派生**（见 [model_artifact.md](model_artifact.md)）：登记 / 更新工件时同事务 upsert 本表行；`model_registry` 只读本表与工件表并校验 checksum，MUST NOT 扫目录形成第二本账。
 
 ## 被谁所用
+
 | 方向 | 谁 | 用途 |
 |---|---|---|
-| 写入 | 后端启动 `ensure_model_rows`、模型线交付导入（`export_sql.py`） | 注册已加载/已交付模型 |
-| 读取 | 后端 `models`（清单）、`figures`（join 取 line）、`predict`（校验存在性）、默认模型解析（`version_key` 最大者） | 级联选择器、图分组、推理定位模型 |
-| 展示 | 前端风险列表、提交详情、趋势看板、模型性能看板的架构 → 模型级联 | 选架构 → 选模型 |
+| 写入 | `model_artifact` 登记派生（训练服务、交付导入） | 注册可加载模型 |
+| 读取 | models（清单）、figures（join 取 line）、predict（存在性校验）、默认模型解析 | 级联选择器、图分组、推理定位 |
+| 展示 | 风险列表、提交详情、趋势看板、模型性能看板的架构 → 模型级联 | 选架构 → 选模型 |
 
-## 架构（line）落库
-`line` 是显式列，由交付时写入（见 `data_model/evaluation/export_sql.py`），不从 `model_name` 后缀现场推导。前端「架构 → 模型」级联直接按 `line` 列 `GROUP BY`；新增架构时必须同步写入 `line`，MUST NOT 靠猜。取值一律小写 `expert` / `semantic` / `fused` / `e2e`（不写成 `SEM` / `EXPERT`）。
-**中文显示名不落库**：`expert→专家特征`、`semantic→语义`、`fused→融合`、`e2e→端到端` 由 `GET /api/models` 在后端常量映射返回，库内只存 `line` 标识。
+## 口径
 
-## 交付元数据
-`algo` / `trained_at` / `feature_version` 是交付元数据，启动注册或导入时写入；`GET /api/models` 不返回，当前后端查询不读取，保留用于追溯。
+- **模型总量**：expert 8 + semantic 8 + fused 8 + e2e 1 = 25，`model_name` 全部唯一。
+- `line` 是显式列，登记时写入，取值一律小写；MUST NOT 从 `model_name` 后缀现场推导。
+- 中文显示名不落库：`expert→专家特征`、`semantic→语义`、`fused→融合`、`e2e→端到端` 由 `GET /api/models` 后端常量映射返回。
+- **默认模型** = `user_config.default_model`（见 [user_config.md](user_config.md)）；未配置时回退默认规则「expert 线中 `version_key` 最大的已加载模型」。
+- 模型加载 / 卸载 / 重载 / 设默认是独立管理能力，不由页面刷新隐式触发；「同步数据」与「刷新模型」是两个操作。
+- `retired` 工件对应的行保留但级联选择器过滤为不可选。
 
-## 默认模型口径（统一）
-`runtime_setting` 已删除、冠军模型热切换已下线。**默认模型 = 已加载模型中 `version_key` 最大者**（确定性规则，见 `model_registry.default_model`）。所有「未指定 `model_name`」的查询/预测统一走这条规则。
+## 验收
+
+- 工件登记成功 → 本表行同事务出现；页面无需重启即可在级联中看到新模型。
+- 级联按 `line` 列分组，四线 25 模型全部可选（retired 除外）。
+- 配置 `default_model` 后默认模型随之变化；清空配置回退版本序规则。

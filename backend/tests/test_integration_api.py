@@ -139,7 +139,9 @@ def test_predict_then_query_and_repeat_keeps_one_row(populated_api):
     predicted = second.json()["data"]
     assert second.json()["code"] == 0
     assert predicted["model_name"] == "integration_v2"
-    assert predicted["explanation"]
+    assert 'explanation' not in predicted
+    explained = client.post('/api/explain', headers=HEADERS, json={'commit_hash': C1, 'model_name': 'integration_v2'})
+    assert explained.status_code == 200 and explained.json()['data']['items']
     assert set(predicted["features"]) == set(FEATURE_VALUES)
     assert predicted["predicted_at"].endswith("Z")
     with sessionmaker(bind=engine)() as session:

@@ -4,6 +4,13 @@
 >
 > 采集：清单按运行时 `/openapi.json` 与代码逐端点核对（详情含 `model_name`、四线 25 模型登记在线、按线取特征与降级语义）。接口覆盖率的分母以本文 11 个路由为准（与 `docs/api/`「七份正文，共十一个路由」、`backend/tests/test_mirror.py` 路径集、运行时 `/openapi.json` 三者一致）。
 
+## 0 · 重构期口径（2026-11-21 增补）
+
+- **冻结**：§2 的 11 端点、§4 的 35 条用例与 34/1 结论、§5 覆盖率分母 11，均冻结于 `2734c1b`；重构后按运行时 `/openapi.json` 重算分母并另起执行记录。
+- **端点增量（待新增，契约见 `docs/api/`）**：配置 `GET/PUT /api/config`、`PUT/DELETE /api/config/{key}`；数据集 `GET /api/datasets`、`/api/datasets/{id}`、`/api/datasets/{id}/commits`、`/api/datasets/{id}/export`；收集 `POST /api/collect`；清洗 `GET /api/clean/operations`、`POST /api/clean/preview`、`POST /api/clean/apply`；训练 `GET /api/algorithms`、`POST /api/train`、`GET /api/train/compare`；模型管理 `GET /api/models/status`、`POST /api/models/{name}/load|unload|reload`、`PUT /api/models/default`；评估 `POST /api/evaluate`、`GET /api/evaluate/metrics`；解释 `GET /api/explain/techniques`、`POST /api/explain`；源码 `GET /api/source/tree`、`GET /api/source/file`；任务 `GET /api/jobs`、`GET /api/jobs/{id}`、`POST /api/jobs/{id}/retry|cancel`。
+- **口径变更**：`POST /api/sync` 降为迁移期兼容入口（内部转 collect + predict_batch 两个 job）；`/api/sync/status` 目标读 job 表（现内存态为差距）；`/api/figures` 保留离线图集+默认阈值缓存，动态指标走 `/api/evaluate`；详情解释不再「仅 expert 有值」绝对化（兼容矩阵+空态原因）。
+- **新增用例面（待设计待执行）**：新端点四类场景（正常/缺参/非法/边界）+ 任务五态流转 + 重启恢复 + 导出格式 + 评估 0.5 一致性 + 解释兼容矩阵 + 源码读取边界（过大/二进制/不存在）。
+
 ## 1 · 公共契约（全部端点共用）
 
 | 项 | 事实 | 证据 |
@@ -69,6 +76,19 @@
 | 容器依赖 | `docker-compose` 用 `backend/Dockerfile` 构建，该文件未装 `transformers`（`environment.yml` 声明 4.46.1） | [#219](https://github.com/heapcluster/jit-defect-prediction/issues/219) |
 
 补充（规格层，未计入上表）：`openspec/specs/` 下 `feedback`、`observability`、`ops`、`quality` 四个能力目录仍为空（无 `spec.md`），会影响「验收逐 Scenario 对照」的取证路径；`nfr-evidence` 要求的两个脚本已补（`backend/scripts/perf_loop.py`、`security_cases.py`）。
+
+## 3.2 · 偏差复核更新（2026-11-21，main `3e72854`）
+
+> 仅更新偏差状态，不改 §3 冻结表与本轮用例结论；重构后复跑须重新实测确认。
+
+| # | 复核结论 | 证据（main 3e72854） |
+|---|---|---|
+| D-03 | **已修**：多余字段不再静默忽略 | `backend/app/api/predict.py:21` `ConfigDict(extra="forbid")` |
+| D-04 | **已修**：缺图进 `missing[]`，不再把不可用路径当可用 | `backend/app/api/figures.py:84-87` 磁盘存在性校验 |
+| D-06 | **已修**：`sync/status.started_at` 出参统一 UTC+Z | `backend/app/api/sync.py:366` `iso_z(...)` |
+| D-02 | 待复核（缺特征/缺预测仍返回 null 的语义是否随新契约调整） | 见 `docs/api/commits.md` 修订 |
+| D-05 | 待复核（git 不可达仍落 `last_error`；重构后错误语义走 job.error_log） | 见 `docs/api/sync.md` 修订 |
+| D-07 | 文档修订中（详情 `model_name` 参数条目补齐） | W-B 修订 `docs/api/commits.md` |
 
 ## 4 · 四类场景用例（已执行，34/35 通过）
 

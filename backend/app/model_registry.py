@@ -5,7 +5,9 @@ from __future__ import annotations
 import logging
 import re
 import sys
+import time
 from dataclasses import dataclass, field
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +34,6 @@ class ModelEntry:
     path: Path
     mtime: float
     model: Any = field(repr=False)
-    explainer: Any = field(default=None, repr=False)
     line: str = "expert"
 
 
@@ -180,6 +181,62 @@ def _feature_count(model: Any) -> int | None:
     return int(n) if n is not None else None
 
 
+def load_trained(name: str, weights: bytes) -> ModelEntry:
+    """热加载本次训练自产的 expert 包权重（字节由本服务 joblib.dump 生成，非任意上传 pickle）。
+
+    校验特征列宽后放入运行时注册表，不重启、不改默认模型配置。通用已登记工件的
+    加载端点属 predict/模型管理（W6）安全面，不在此开放任意 zip 反序列化。
+    """
+    model = joblib.load(BytesIO(weights))
+    width = _feature_count(model)
+    if width is not None and width != len(config.FEATURE_COLUMNS):
+        raise ValueError(f"trained model expects {width} features, contract has {len(config.FEATURE_COLUMNS)}")
+    entry = ModelEntry(name, Path(name), time.time(), model, line="expert")
+    _REGISTRY[name] = entry
+    _LINE_OF[name] = "expert"
+    return entry
+
+
+_RUNTIME: dict[str, dict] = {}
+
+
+def runtime_state(name: str) -> dict:
+    if name in _RUNTIME:
+        return _RUNTIME[name]
+    return {"state": "loaded" if name in _REGISTRY else "unloaded", "error": None}
+
+
+def load_artifact_package(name: str, zip_bytes: bytes, *, line: str) -> ModelEntry:
+    """校验 §3.3 包（checksum/元数据/特征列宽）后再反序列化权重，失败保留旧实例。"""
+    from app.services import file_contracts as fc
+    from app.services import storage
+    try:
+        meta = storage.model_package(f"{name}.zip", zip_bytes)
+        if meta["line"] != line:
+            raise ValueError("model line disagrees with registration")
+        members = fc.read_zip(f"{name}.zip", zip_bytes)
+        weight_name = next(key for key in members if key.endswith(".pkl"))
+        model = joblib.load(BytesIO(members[weight_name]))
+        width = _feature_count(model)
+        expected = _LINE_WIDTH.get(line)
+        if expected is not None and width is not None and width != expected:
+            raise ValueError(f"feature width {width} != contract {expected}")
+        entry = ModelEntry(name, Path(name), time.time(), model, line=line)
+        _REGISTRY[name] = entry
+        _LINE_OF[name] = line
+        _RUNTIME[name] = {"state": "loaded", "error": None}
+        return entry
+    except Exception as exc:
+        state = "loaded" if name in _REGISTRY else "load_failed"
+        _RUNTIME[name] = {"state": state, "error": str(exc)[:200]}
+        raise
+
+
+def unload(name: str) -> None:
+    _REGISTRY.pop(name, None)
+    _RUNTIME[name] = {"state": "unloaded", "error": None}
+
+
 def get_model(name: str) -> ModelEntry:
     entry = _REGISTRY.get(name)
     if entry is not None:
@@ -236,7 +293,6 @@ def warmup() -> None:
     vector = [0.0] * len(config.FEATURE_COLUMNS)
     try:
         predict_proba(entry.model, vector)
-        explain(entry, vector)
     except Exception:
         logger.exception("model warmup failed")
 
@@ -246,101 +302,3 @@ def predict_proba(model: Any, vector: list[float]) -> float:
     classes = list(getattr(model, "classes_", [0, 1]))
     idx = classes.index(1) if 1 in classes else len(classes) - 1
     return float(proba[idx])
-
-
-def get_explainer(entry: ModelEntry):
-    """惰性构造并缓存 SHAP explainer（审 3）；构造失败抛给 explain 降级。
-
-    线性 Pipeline（scaler → 线性模型，交付包 lr_v1 形态）解包为内层估计器构造，
-    shap 0.52 的 LinearExplainer 不接受 Pipeline 本体（Issue #50）。
-    """
-    if entry.explainer is None:
-        import shap
-
-        inner, scaler = _linear_pipeline_parts(entry.model)
-        if _is_tree_family(inner):
-            entry.explainer = shap.TreeExplainer(inner)
-        else:
-            background = _background_for(inner, config.FEATURE_COLUMNS)
-            if scaler is not None:
-                background = scaler.transform(background)
-            entry.explainer = shap.LinearExplainer(inner, background)
-    return entry.explainer
-
-
-def _linear_pipeline_parts(model: Any) -> tuple[Any, Any]:
-    """Pipeline(scaler → 线性模型) → (内层模型, scaler)；其余形态原样返回 (model, None)。"""
-    steps = getattr(model, "steps", None)
-    if steps is not None and len(steps) == 2:
-        scaler, inner = (step for _, step in steps)
-        if hasattr(scaler, "transform") and hasattr(scaler, "scale_") and hasattr(inner, "coef_"):
-            return inner, scaler
-    return model, None
-
-
-def _first_row(values: Any) -> list[float]:
-    """shap_values 输出归一化为单行：list 取正类；3 维数组（shap 0.52 对森林按类返回）取 [:, :, 1]。"""
-    import numpy as np
-
-    if isinstance(values, list):
-        values = values[-1]
-    arr = np.asarray(values)
-    if arr.ndim == 3:
-        arr = arr[:, :, 1] if arr.shape[2] > 1 else arr[:, :, 0]
-    return [float(v) for v in arr[0]]
-
-
-def explain(entry: ModelEntry, vector: list[float]) -> list[dict]:
-    """SHAP 逐特征解释（契约三冻结结论）；解释器不可用返回空数组并记日志。"""
-    try:
-        import numpy as np
-
-        _, scaler = _linear_pipeline_parts(entry.model)
-        X = np.array([vector], dtype=float)
-        if scaler is not None:
-            X = scaler.transform(X)
-        # LinearExplainer 喂 transform 后的 input/background 时，输出已是原始特征量纲的贡献：
-        # phi_i = w'_i·(x_i−E[x_i])/s_i = (w'_i/s_i)·(x_i−E[x_i])，与原值空间系数逐项相等，
-        # 不得再除 scale_（#52 复审 2026-10-06：再除等于把 1/s 乘两遍，SHAP 可加性判据不过）
-        row = _first_row(get_explainer(entry).shap_values(X))
-    except Exception:
-        logger.exception("shap explanation unavailable")
-        return []
-    return [
-        {
-            "feature": name,
-            "contribution": round(abs(value), 6),
-            "direction": "increase" if value > 0 else "decrease",
-        }
-        # strict=False：SHAP 输出行与特征列等长由构造保证；万一不等，按最短截断并降级，
-        # 不让解释路径的边界情况把预测接口打成 50000（契约三：解释失败返回空数组）。
-        for name, value in zip(config.FEATURE_COLUMNS, row, strict=False)
-        if value != 0
-    ]
-
-
-def _is_tree_family(model: Any) -> bool:
-    """树族模型（TreeExplainer 适用）：sklearn 树/森林、xgboost、lightgbm。
-
-    lightgbm 的 LGBMClassifier 模块是 `lightgbm.sklearn`、类名既无 Tree/Forest 也无
-    Boost —— 不显式识别会掉进 LinearExplainer 分支报 InvalidModelError（#139 裁定
-    8 模型上线时实测：lgbm_v1 归因被降级为空）。
-    """
-    module = type(model).__module__ or ""
-    name = type(model).__name__
-    return (
-        module.startswith(("sklearn.tree", "sklearn.ensemble", "xgboost", "lightgbm"))
-        or "Tree" in name
-        or "Forest" in name
-        or "Boost" in name
-        or name.startswith("LGBM")
-    )
-
-
-def _background_for(model: Any, vector: list[float]):
-    import numpy as np
-
-    background = getattr(model, "_jit_background", None)
-    if background is not None:
-        return background
-    return np.zeros((1, len(vector)))

@@ -9,6 +9,7 @@ import urllib.error
 import urllib.request
 
 from app import config
+from app.services.config_store import factory_defaults
 
 logger = logging.getLogger("backend.risk_summary")
 
@@ -17,10 +18,11 @@ _cache: dict[tuple, str] = {}
 _lock = threading.Lock()
 
 
-def _level(score: float) -> str:
-    if score >= config.HIGH_RISK_THRESHOLD:
+def _level(score: float, risk_thresholds: dict | None = None) -> str:
+    values = factory_defaults() if risk_thresholds is None else risk_thresholds
+    if score >= values["risk_high_threshold"]:
         return "高"
-    if score >= config.MID_RISK_THRESHOLD:
+    if score >= values["risk_mid_threshold"]:
         return "中"
     return "低"
 
@@ -71,8 +73,9 @@ def template_summary(
     features: dict | None,
     explanation: list[dict] | None,
     localization: dict | None,
+    risk_thresholds: dict | None = None,
 ) -> str:
-    level = _level(risk_score)
+    level = _level(risk_score, risk_thresholds)
     line_label = _LINE_LABELS.get(model_line, model_line or "模型")
     factors = _feature_phrases(features, explanation)
     factor_text = "、".join(factors) if factors else "提交级特征未显示突出风险因子"
@@ -142,12 +145,15 @@ def summary_for(
     features: dict | None,
     explanation: list[dict] | None,
     localization: dict | None = None,
+    risk_thresholds: dict | None = None,
 ) -> str | None:
     """生成一句话风险总结；风险分为空时返回 None。"""
     if risk_score is None or not model_name:
         return None
     files = tuple(item.get("path", "") for item in (localization or {}).get("files", [])[:3])
-    key = (commit_hash, model_name, round(float(risk_score), 4), files)
+    values = factory_defaults() if risk_thresholds is None else risk_thresholds
+    key = (commit_hash, model_name, round(float(risk_score), 4), files,
+           values["risk_high_threshold"], values["risk_mid_threshold"])
     with _lock:
         cached = _cache.get(key)
     if cached:
@@ -159,12 +165,13 @@ def summary_for(
         features=features,
         explanation=explanation,
         localization=localization,
+        risk_thresholds=values,
     )
     facts = {
         "model_name": model_name,
         "model_line": model_line,
         "risk_score": round(float(risk_score), 4),
-        "risk_level": _level(float(risk_score)),
+        "risk_level": _level(float(risk_score), values),
         "top_factors": _feature_phrases(features, explanation),
         "top_files": list(files),
     }

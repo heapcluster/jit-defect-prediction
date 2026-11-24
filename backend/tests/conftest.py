@@ -34,7 +34,7 @@ os.environ["MODEL_DIR"] = str(MODEL_DIR)
 from app import config, model_registry
 from app.db import Base, configure_engine
 from app.main import create_app
-from app.models import Commit, CommitFeature, Model, ModelFigure, Prediction
+from app.models import Commit, CommitFeature, Model, Prediction
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 
@@ -114,9 +114,8 @@ def client(engine):
     from app.db import SessionLocal
 
     with SessionLocal() as session:
-        # 外键：先删子表（prediction / feature / model_figure）再删父表（commit / model）
-        for table in (Prediction, CommitFeature, ModelFigure, Commit, Model):
-            session.query(table).delete()
+        for table in reversed(Base.metadata.sorted_tables):
+            session.execute(table.delete())
         session.add_all(
             [
                 Model(model_name="fixture_v1", line="expert"),

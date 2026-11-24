@@ -84,9 +84,8 @@ def _text_for(commit_hash: str) -> str | None:
     return text
 
 
-def predict_proba(commit_hash: str) -> float | None:
-    """返回缺陷概率；文本缺预计算时在线构造，仍不可用 → None（不编造）。"""
-    text = _text_for(commit_hash)
+def predict_proba_text(text: str | None) -> float | None:
+    """对给定变更文本直接前向；文本/编码器不可用 → None（不编造）。"""
     if text is None:
         return None
     runtime = _runtime()
@@ -100,3 +99,8 @@ def predict_proba(commit_hash: str) -> float | None:
     with torch.no_grad():
         logits = model(**enc).logits
     return float(functional.softmax(logits, dim=-1)[0, 1])
+
+
+def predict_proba(commit_hash: str) -> float | None:
+    """返回缺陷概率；文本缺预计算时在线构造，仍不可用 → None（不编造）。"""
+    return predict_proba_text(_text_for(commit_hash))

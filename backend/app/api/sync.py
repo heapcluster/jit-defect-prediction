@@ -17,7 +17,6 @@ import logging
 import subprocess  # noqa: F401  # 供测试按 app.api.sync.subprocess 打补丁（与 services.git 同对象）
 import threading
 from collections.abc import Callable
-from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
@@ -152,7 +151,9 @@ def _prefetch_features(hashes: list[str], repo) -> int:
         return 0
 
 
-def _predict_commit_models(commit_hash: str, repo, model_names: list[str]) -> None:
+def _predict_commit_models(
+    commit_hash: str, repo, model_names: list[str], check_active: Callable | None = None
+) -> None:
     """按模型线分流：expert 走 14 维批量路径，semantic/fused/e2e 走单模型在线路径。
 
     非 expert 线的输入维度/文本不同，不能复用 14 维批量打分；缺向量或文本时由
@@ -161,8 +162,12 @@ def _predict_commit_models(commit_hash: str, repo, model_names: list[str]) -> No
     expert = [name for name in model_names if model_registry.line_of(name) == "expert"]
     others = [name for name in model_names if name not in expert]
     if expert:
+        if check_active:
+            check_active()
         predict_commit_all_models(commit_hash, repo=repo, model_names=expert)
     for name in others:
+        if check_active:
+            check_active()
         predict_single(commit_hash, name, repo=repo)
 
 
@@ -172,22 +177,25 @@ def _run_batch(
     scope: str,
     models: set[str],
     plan: Callable[[str, str], tuple[int, list[str], bool | None]],
+    params: dict | None = None,
 ) -> dict:
     """取锁 → （可选 fetch）→ 按 plan 算待预测 → 批量抽特征 → 逐条预测入库 → 归还锁。"""
     if not _sync_lock.acquire(blocking=False):
         raise AppError(40001, SYNC_BUSY_MESSAGE)
-    sync_state.set_state(
-        running=True,
-        phase="fetch" if config.SYNC_FETCH else "plan",
-        mode=mode,
-        scope=scope,
-        total=0,
-        done=0,
-        current_hash=None,
-        started_at=datetime.now(UTC).replace(tzinfo=None),
-        last_error=None,
-    )
+    owns_job = False
     try:
+        sync_state.set_state(
+            running=True,
+            phase="fetch" if config.SYNC_FETCH else "plan",
+            mode=mode,
+            scope=scope,
+            total=0,
+            done=0,
+            current_hash=None,
+            last_error=None,
+            **(params or {}),
+        )
+        owns_job = True
         repo = config.SOURCE_REPO
         if repo is None or not (repo / ".git").exists():
             raise AppError(40400, "sync source repository unavailable")
@@ -204,6 +212,7 @@ def _run_batch(
         model_names = sorted(models)
         extract_repo, release = ensure_extractable(str(repo), tip)
         try:
+            sync_state.check_active()
             extracted = _prefetch_features(pending, extract_repo)
             if pending:
                 logger.info("sync prefetch: pending=%s extracted=%s", len(pending), extracted)
@@ -211,9 +220,10 @@ def _run_batch(
             results: list[dict] = []
             skipped: list[dict] = []
             for commit_hash in pending:
+                sync_state.check_active()
                 sync_state.set_state(current_hash=commit_hash)
                 try:
-                    _predict_commit_models(commit_hash, extract_repo, model_names)
+                    _predict_commit_models(commit_hash, extract_repo, model_names, sync_state.check_active)
                     results.append({"commit_hash": commit_hash})
                 except AppError as exc:
                     skipped.append(
@@ -242,12 +252,17 @@ def _run_batch(
         }
         if truncated is not None:
             data["truncated"] = truncated
+        sync_state.set_state(running=False, phase=None)
         return data
     except Exception as exc:
-        sync_state.set_state(last_error=str(exc)[:200])
+        if owns_job:
+            try:
+                sync_state.set_state(last_error=exc)
+            except AppError as state_error:
+                if state_error.code not in (40001, 40400):
+                    logger.exception("sync failure state could not be persisted")
         raise
     finally:
-        sync_state.set_state(running=False, phase=None)
         _sync_lock.release()
 
 
@@ -261,6 +276,8 @@ def sync_manual(
 
     时间范围为空时按服务端内部默认批次（config.SYNC_BATCH_LIMIT）取最新一批。
     """
+    if config.SOURCE_REPO is None or not (config.SOURCE_REPO / ".git").exists():
+        raise AppError(40400, "sync source repository unavailable")
     with SessionLocal() as session:
         models = _resolve_scope_models(session, line, model_name)
 
@@ -272,7 +289,9 @@ def sync_manual(
         pending, _ = _unpredicted(hashes, models)
         return len(hashes), pending, None
 
-    return _run_batch(mode="manual", scope="latest", models=models, plan=plan)
+    return _run_batch(mode="manual", scope="latest", models=models, plan=plan, params={
+        "line": line, "model_name": model_name, "start_time": iso_z(start), "end_time": iso_z(end),
+    })
 
 
 def sync_catchup(mode: str = "startup", scope: str = "catchup-to-head") -> dict:
@@ -304,15 +323,24 @@ def run_startup_sync() -> dict:
     return sync_catchup(mode="startup", scope="catchup-to-head")
 
 
-def _spawn_sync_worker(fn: Callable[[], dict]) -> None:
-    """后台线程跑同步任务；失败只记日志，并确保状态不卡在 running=True。"""
+def _spawn_sync_worker(fn: Callable[[], dict], *, job_id: str, attempt: int) -> None:
+    """Carry the accepted attempt into the worker; never mutate another job."""
 
     def _run() -> None:
-        try:
-            fn()
-        except Exception as exc:
-            logger.exception("sync worker failed")
-            sync_state.set_state(running=False, last_error=str(exc)[:200])
+        with sync_state.bind_job(job_id, attempt):
+            try:
+                fn()
+                # Also finish no-op adapters used by existing callers/tests.
+                if sync_state.check_active():
+                    sync_state.set_state(running=False, phase=None)
+            except Exception as exc:
+                if isinstance(exc, AppError) and exc.code == 40001:
+                    return
+                logger.exception("sync worker failed")
+                try:
+                    sync_state.set_state(last_error=exc)
+                except AppError:
+                    pass  # A stopped/retried worker must not overwrite the winner.
 
     threading.Thread(target=_run, daemon=True, name="sync-worker").start()
 
@@ -343,18 +371,19 @@ def sync_endpoint(
             raise AppError(40001, SYNC_BUSY_MESSAGE)
         # 在请求内先置 running=True：否则前端提交后立即轮询时，worker 可能还没启动，
         # 会读到上一次任务的 running=false 而误判「已完成」。
-        sync_state.set_state(
-            running=True,
-            phase="fetch" if config.SYNC_FETCH else "plan",
-            mode="manual",
-            scope="latest",
-            total=0,
-            done=0,
-            current_hash=None,
-            started_at=datetime.now(UTC).replace(tzinfo=None),
-            last_error=None,
-        )
-    _spawn_sync_worker(lambda: sync_manual(line=line, model_name=model_name, start=start, end=end))
+        try:
+            job_id, attempt = sync_state.begin_sync({
+                "phase": "fetch" if config.SYNC_FETCH else "plan", "mode": "manual", "scope": "latest",
+                "line": line, "model_name": model_name, "start_time": iso_z(start), "end_time": iso_z(end),
+            })
+        except AppError as exc:
+            if exc.code == 40001:
+                raise AppError(40001, SYNC_BUSY_MESSAGE) from None
+            raise
+    _spawn_sync_worker(
+        lambda: sync_manual(line=line, model_name=model_name, start=start, end=end),
+        job_id=job_id, attempt=attempt,
+    )
     return ok({"accepted": True})
 
 

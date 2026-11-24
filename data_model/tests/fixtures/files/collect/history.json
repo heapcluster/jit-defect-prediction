@@ -1,0 +1,11 @@
+{
+  "provenance": "AI-generated/unreviewed; synthetic input for real git init/commit, not historical evidence",
+  "author_name": "测试作者",
+  "author_email": "collect-fixture@example.org",
+  "commits": [
+    {"when": "2026-01-01T12:00:00+0000", "message": "初始化中文样例", "content": "wrong\nkeep\n"},
+    {"when": "2026-01-02T12:00:00+0000", "message": "CAMEL-101 debug prefix dispatch，不是修复", "content": "wrong\nkeep\nextra\n"},
+    {"when": "2026-01-03T12:00:00+0000", "message": "CAMEL-102 fix 修正首行", "content": "right\nkeep\nextra\n"},
+    {"when": "2026-01-04T12:00:00+0000", "message": "CAMEL-103 patch 仅新增无法回溯", "content": "right\nkeep\nextra\nadded\n"}
+  ]
+}

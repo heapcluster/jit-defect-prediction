@@ -15,11 +15,20 @@ import { ElMessage } from 'element-plus'
 const getCommitDetail = vi.fn()
 const postPredict = vi.fn()
 const getModels = vi.fn()
+const getExplainTechniques = vi.fn()
+const postExplain = vi.fn()
+
+beforeEach(() => {
+  getExplainTechniques.mockResolvedValue({ techniques: [{ key: 'shap', name: 'SHAP' }, { key: 'lime', name: 'LIME' }], default_technique: 'shap', compatibility: [] })
+  postExplain.mockImplementation(async () => ({ items: (await getCommitDetail.mock.results.at(-1)?.value)?.explanation || [], reason_code: null }))
+})
 
 vi.mock('../src/api', () => ({
   getCommitDetail: (...args) => getCommitDetail(...args),
   postPredict: (...args) => postPredict(...args),
-  getModels: (...args) => getModels(...args)
+  getModels: (...args) => getModels(...args),
+  getExplainTechniques: (...args) => getExplainTechniques(...args),
+  postExplain: (...args) => postExplain(...args)
 }))
 
 vi.mock('element-plus', () => ({
@@ -89,10 +98,34 @@ describe('CommitDetail 重新预测与 SZZ 三态', () => {
     await wrapper.vm.predict()
     await flushPromises()
 
-    expect(postPredict).toHaveBeenCalledWith(HASH, undefined)
+    expect(postPredict).toHaveBeenCalledWith(HASH, undefined, { force_recompute: false })
     expect(wrapper.vm.detail.risk_score).toBe(0.54)
     expect(wrapper.vm.detail.model_name).toBe('xgb_v1')
     expect(wrapper.text()).toContain('54.0%')
+  })
+
+  it('gets independent signed explanations and can switch to LIME', async () => {
+    getCommitDetail.mockResolvedValue({ commit_hash: HASH, model_name: 'lr_v1', risk_score: .54, features: {}, explanation: [] })
+    postExplain.mockResolvedValue({ items: [{ feature: 'exp', contribution: -.25, direction: 'decrease', rank: 1 }], reason_code: null })
+    const wrapper = mountDetail()
+    await flushPromises()
+    expect(postExplain).toHaveBeenCalledWith(HASH, 'lr_v1', 'shap', { top_n: 8 })
+    expect(wrapper.text()).toContain('-0.25')
+    await wrapper.get('#detail-technique').setValue('lime')
+    await flushPromises()
+    expect(postExplain).toHaveBeenLastCalledWith(HASH, 'lr_v1', 'lime', { top_n: 8 })
+  })
+
+  it('explain failure does not prevent prediction updates', async () => {
+    getCommitDetail.mockResolvedValue({ commit_hash: HASH, model_name: 'lr_v1', risk_score: .4, features: {}, explanation: [] })
+    postExplain.mockRejectedValue(new Error('独立解释失败'))
+    postPredict.mockResolvedValue({ model_name: 'lr_v1', risk_score: .77, predicted_at: '2026-01-01T00:00:00Z' })
+    const wrapper = mountDetail()
+    await flushPromises()
+    await wrapper.vm.predict()
+    await flushPromises()
+    expect(wrapper.text()).toContain('77.0%')
+    expect(wrapper.text()).toContain('独立解释失败')
   })
 
   it('predict 失败 → 不刷新 detail，按业务错误提示', async () => {

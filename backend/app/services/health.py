@@ -45,19 +45,20 @@ def readiness() -> dict:
 def snapshot() -> dict:
     db_up = True
     commit_count = prediction_count = catalog_count = 0
+    last_sync_at = None
     try:
         with SessionLocal() as session:
             session.execute(text("SELECT 1"))
             commit_count = session.scalar(select(func.count()).select_from(Commit)) or 0
             prediction_count = session.scalar(select(func.count()).select_from(Prediction)) or 0
             catalog_count = session.scalar(select(func.count()).select_from(Model)) or 0
+            from app.services.sync_state import get_sync_state
+
+            last_sync_at = iso_z(get_sync_state(session).get("started_at"))
     except Exception:
         logger.exception("health check: database unreachable")
         db_up = False
     model_names = [entry.name for entry in model_registry.all_models()]
-    # last_sync_at 取同步状态快照（进程重启后为 null）
-    from app.services.sync_state import get_sync_state
-
     return {
         "status": "ok" if (db_up and model_names) else "degraded",
         "db": "up" if db_up else "down",
@@ -67,6 +68,6 @@ def snapshot() -> dict:
         "catalog_count": int(catalog_count),
         "commit_count": int(commit_count),
         "prediction_count": int(prediction_count),
-        "last_sync_at": iso_z(get_sync_state().get("started_at")),
+        "last_sync_at": last_sync_at,
         "server_time": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
     }

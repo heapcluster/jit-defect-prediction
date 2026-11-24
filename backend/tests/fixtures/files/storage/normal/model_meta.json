@@ -1,0 +1,1 @@
+{"model_name":"registered","line":"expert","algo":"rf","version_key":"v2","feature_version":"log-v2","trained_at":"2026-11-21T12:00:00Z","hyperparams_snapshot":{"n_estimators":2},"split":{"method":"time","ratio":0.7},"seed":42,"fixture_source":"AI-generated/unreviewed"}

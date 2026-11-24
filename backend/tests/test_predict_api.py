@@ -29,7 +29,7 @@ def test_predict_success(client):
     assert 0.0 <= data["risk_score"] <= 1.0
     assert data["model_name"] == "fixture_v2"  # mtime 最新者
     assert set(data["features"]) == set(FEATURE_VALUES)
-    assert isinstance(data["explanation"], list)
+    assert "explanation" not in data
     assert data["predicted_at"].endswith("Z")
 
 

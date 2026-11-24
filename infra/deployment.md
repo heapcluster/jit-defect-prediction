@@ -6,7 +6,7 @@
 
 | 文件 | 作用 |
 |---|---|
-| `schema.sql` | 5 张表的建表 DDL，**建表唯一真源**（`docker compose` 首次启动与 CI 实际执行它） |
+| `schema.sql` | 12 张表的建表 DDL（现有 5 + 重构新增 7）+ 预置 global 用户行，**建表唯一真源**（`docker compose` 首次启动与 CI 实际执行它） |
 | `setup_mysql.py` | 一键建 `jit_demo` / `jit_test` 两个库并执行 `schema.sql` |
 | `ci_scope.py` | CI 路径选择器：按改动目录决定跑哪些检查（纯文档改动走 lightweight） |
 | `nginx.conf` | 前端容器的 nginx 配置：SPA 路由回退 + `/api`、`/static` 反代到 `backend:8000`；由 `frontend/Dockerfile` 打进镜像 |
@@ -38,7 +38,8 @@ curl http://localhost:8000/api/health -H "X-API-Key: dev-token"
 # 期望 {"code":0,"message":"ok","data":{"status":"...","db":"up",...}}
 ```
 
-首次启动 MySQL 会用 `infra/schema.sql` 建 5 张表（仅 DDL，不含数据集）。
+首次启动 MySQL 会用 `infra/schema.sql` 建 12 张表（仅 DDL + 预置 global 用户行，不含数据集）。
+旧 5 表库升级到 12 表须走迁移脚本（代码波次交付，含空库/旧库/重复执行三冒烟）；MUST NOT 靠 `create_all` 隐式迁移生产库。
 模型权重、历史 git 仓库、`.env`、密钥一律**不随镜像分发**（见下）。
 
 ## 环境变量清单
@@ -49,10 +50,10 @@ curl http://localhost:8000/api/health -H "X-API-Key: dev-token"
 | `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | — | MySQL 连接（compose 已注入） |
 | `DB_TEST_NAME` | `jit_test` | pytest 专用测试库名 |
 | `MODEL_DIR` | `data_model/pipelines/expert/models` | 在线模型目录（含 `feature_order.txt` 清单） |
-| `SOURCE_REPO` | 空 | 历史 git 仓库路径；不配则 `/api/predict` 无法现算新提交特征 |
+| `SOURCE_REPO` | 空 | 历史 git 仓库路径；重构后降级为默认仓库（收集任务可显式指定）；不配且任务未指定则 `/api/predict` 无法现算新提交特征 |
 | `FEATURE_EXTRACTOR_SCRIPT` | 空 | 覆盖默认特征抽取器（插件化，见下） |
 | `SYNC_ON_STARTUP` | `0` | `1` = 启动时后台同步一次最新提交 |
-| `HIGH_RISK_THRESHOLD` / `MID_RISK_THRESHOLD` | `0.5` / `0.2` | 高/中风险阈值 |
+| `HIGH_RISK_THRESHOLD` / `MID_RISK_THRESHOLD` | `0.5` / `0.2` | 高/中风险阈值**出厂默认值**；运行期权威 = `user_config`（配置 API / 设置页可改，重启恢复） |
 
 ## 插件式扩展
 

@@ -50,7 +50,7 @@ def test_with_labels_appends_label_to_each_item():
         ]
     )
     assert rows[0]["label"] == "变更子系统多"
-    assert rows[1]["label"] == "测试改动少"
+    assert rows[1]["label"] == "变更前文件代码规模"
 
 
 def test_with_labels_empty_list():
