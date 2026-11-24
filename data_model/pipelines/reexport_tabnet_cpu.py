@@ -22,7 +22,6 @@ import joblib
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_WEIGHTS = (
     ROOT / "data_model/pipelines/semantic/models/tabnet_semantic_v1.pkl",
-    ROOT / "data_model/pipelines/fused/models/tabnet_fused_v1.pkl",
     ROOT / "data_model/pipelines/expert/models/tabnet_v1.pkl",
 )
 

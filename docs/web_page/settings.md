@@ -22,7 +22,7 @@ W1 配置区已接线于 `/storage`：元数据驱动表单、批量保存、单
 │ ┌─ 全局 ─────────────────────────────────────────────────────────────┐ │
 │ │ decision_threshold[0.5]  risk_high_threshold[0.5]  risk_mid[0.2]   │ │
 │ │ 校验：0 < risk_mid_threshold < risk_high_threshold < 1              │ │
-│ │ default_model[▾] default_dataset[▾] default_xai[▾]                 │ │
+│ │ default_dataset[▾] default_xai[▾]（模型每次显式选择，不设默认）      │ │
 │ │ metrics_selected[☑auc ☑ap ☑f1 ☑precision ☑recall ☑accuracy …]     │ │
 │ │ primary_metric[▾ auc]  effort_enabled[☑]                           │ │
 │ │ page_prefs：每页条数[20▾] 抽屉展开态[☑记住]（白名单对象）           │ │
@@ -50,7 +50,6 @@ W1 配置区已接线于 `/storage`：元数据驱动表单、批量保存、单
 |---|---|---|
 | 页面加载 | `GET /api/config` | 返回全部生效键、value_type、source=user/global/factory、updated_at |
 | 判定 / 风险阈值 | `PUT /api/config/{key}` 或批量 `PUT /api/config` | `decision_threshold`、`risk_high_threshold`、`risk_mid_threshold`；均为 (0,1)，且 mid < high |
-| 默认模型 | 选项 `GET /api/models`；写 `/api/config` | `default_model`；须为已登记 model_name |
 | 默认数据集 | 选项 `GET /api/datasets`；写 `/api/config` | `default_dataset`；须为已登记 dataset_id |
 | 默认 XAI | 选项 `GET /api/explain/techniques`；写 `/api/config` | `default_xai`；须为注册技术 |
 | 指标多选 / 主排序 | 选项 `GET /api/evaluate/metrics`；写 `/api/config` | `metrics_selected` list；`primary_metric` 必须属于该集合 |
@@ -71,7 +70,7 @@ W1 配置区已接线于 `/storage`：元数据驱动表单、批量保存、单
 
 - 风险高/中阈值保存后，风险列表与详情重新分档，趋势重新查询高风险计数；不改写已存 risk_score。
 - `decision_threshold` 供之后发起的预测与评估运行使用；已交付文件及既有预测记录不被页面批量改写。
-- 默认模型、数据集与 XAI 改变后续页面的缺省选择；用户已显式选择的当前对象不被强制替换。
+- 数据集与 XAI 改变后续页面的缺省选择；模型不设默认值，每次运行必须显式选择，当前选择只用于页面回显。
 - `metrics_selected / primary_metric / effort_enabled` 作为评估工具下一次显式运行的默认值；历史输出仍按各自 manifest 展示。
 - 模块命名空间键在对应工具台 [运行] 时形成配置快照并写入 manifest；页面运行中的任务继续使用原快照。
 
@@ -90,16 +89,16 @@ W1 配置区已接线于 `/storage`：元数据驱动表单、批量保存、单
 
 - 加载中显示分组骨架；无用户配置时显示 factory/global 生效值与来源；读取失败显示错误和 [重试]，不得把空响应当成全默认。
 - 未知键、值类型错误、阈值越界、mid ≥ high、主指标未勾选、非法命名空间对象或敏感键均返回 40001，整批原值不变。
-- default_model/default_dataset 指向不存在登记对象时返回 40400，已登记但不可用或未注册的 default_xai 返回 40001，均保留原配置；选项已下线时显示失效原因，不静默换成别项。
+- default_dataset 指向不存在登记对象时返回 40400，已登记但不可用或未注册的 default_xai 返回 40001，均保留原配置；选项已下线时显示失效原因，不静默换成别项。模型不设默认值，无需校验默认对象。
 - DELETE 用户行不存在的键返回 40400；40100 禁用保存与恢复默认；50000 显示内部错误并保留未提交编辑草稿。
 - 配置写入成功但某展示页刷新失败时，配置仍视为已保存；对应页面独立显示重试，不回滚 user_config。
 
 ## 验收
 
-- 全局十键 decision_threshold/risk_high_threshold/risk_mid_threshold/default_model/default_dataset/default_xai/metrics_selected/primary_metric/effort_enabled/page_prefs 全部可读写并按来源回显。
+- 全局九键 decision_threshold/risk_high_threshold/risk_mid_threshold/default_dataset/default_xai/metrics_selected/primary_metric/effort_enabled/page_prefs 全部可读写并按来源回显；无 default_model 键。
 - 所有指定模块键均可编辑：collect.allow_roots/protocol_whitelist、clean.chain_templates、train.templates、predict.batch_size/cache_ttl/retry_max、explain.cache_ttl/compare_enabled、localization.weights/top_n/file_size_max/suggestion_sources。
 - 阈值跨键约束、指标集合、默认对象存在性和各命名空间值类型均由后端校验；批量中任一非法则整批不写。
 - 风险阈值保存后展示页联动；decision_threshold 与指标设置用于后续显式运行，不改写历史文件或任务快照。
-- 恢复默认通过 DELETE 回退 global/factory，来源标注正确；默认模型、数据集、XAI 与指标选项均来自接口。
+- 恢复默认通过 DELETE 回退 global/factory，来源标注正确；数据集、XAI 与指标选项均来自接口，模型选项仅用于每次显式选择。
 - 保存一组全局键和每个模块至少一个命名空间键，重启后端、容器及异常关闭恢复场景后值均保持。
 - `.env` 不可在本页编辑，页面、接口响应与数据库均不出现 API Key、密码、LLM Key 等敏感信息。

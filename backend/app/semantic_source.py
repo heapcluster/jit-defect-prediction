@@ -1,7 +1,7 @@
 """语义特征来源（在线）：模型线预计算的 CodeBERT mean-pool embedding。
 
-commit_hash → 768 维向量。semantic 模型输入即此向量；fused = Kamei 14 维 ⊕ 此向量。
-懒加载（首次用到才读 npz）；MUST NOT 编造：提交不在表内返回 None。
+commit_hash → 768 维向量，是 semantic 模型的输入。
+懒加载（首次用到才读向量表）；MUST NOT 编造：提交不在表内返回 None。
 """
 
 from __future__ import annotations

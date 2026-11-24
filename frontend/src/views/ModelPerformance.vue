@@ -10,7 +10,7 @@
           v-model:line="selectedLine"
           v-model:model="selectedModel"
           :lines="lines"
-          model-placeholder="默认模型"
+          model-placeholder="选择模型"
         />
       </el-form-item>
       <el-form-item>
@@ -24,7 +24,7 @@
       </el-form-item>
     </el-form>
 
-    <!-- 查询栏：搜索 + 时间范围（表格固定 is_test=1 & with_features=1） -->
+    <!-- 查询栏：搜索 + 时间范围（表格按所选模型与 with_features=1 查询） -->
     <el-form
       :inline="true"
       class="filters"
@@ -318,6 +318,7 @@ function featureValue(value) {
 
 let requestId = 0
 async function load(page = filters.page) {
+  if (!selectedModel.value) return
   const id = ++requestId
   filters.page = page
   loading.value = true
@@ -328,11 +329,10 @@ async function load(page = filters.page) {
       page: filters.page,
       size: filters.size,
       q: filters.q.trim() || undefined,
-      model_name: selectedModel.value || undefined,
+      model_name: selectedModel.value,
       start_time: timeRange.value?.[0] || undefined,
       end_time: timeRange.value?.[1] || undefined,
-      with_features: '1',
-      is_test: '1'
+      with_features: '1'
     })
     if (id !== requestId) return
     items.value = data.items || []
@@ -354,8 +354,8 @@ function reset() {
   load(1)
 }
 
-// 模型切换整列刷新；模型不选 = 后端默认模型
-watch(selectedModel, () => load(1))
+// 模型切换整列刷新；未选模型时 load 直接返回，不依赖默认模型
+watch(selectedModel, () => { if (selectedModel.value) load(1) })
 
 // ── 查看抽屉 ──
 const drawerVisible = ref(false)

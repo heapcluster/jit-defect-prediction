@@ -152,7 +152,7 @@ def test_retry_preserves_snapshot_and_does_not_execute(job_client):
 @pytest.mark.parametrize("operation", ["retry", "cancel"])
 def test_mutation_rejects_override_body_and_query(job_client, operation):
     job = failed() if operation == "retry" else queued()
-    for options in ({"json": {"params_json": {"line": "fused"}}}, {"params": {"line": "fused"}}):
+    for options in ({"json": {"params_json": {"line": "semantic"}}}, {"params": {"line": "semantic"}}):
         response = job_client.post(f"/api/jobs/{job['job_id']}/{operation}", headers=HEADERS, **options)
         assert response.json()["code"] == 40001
 

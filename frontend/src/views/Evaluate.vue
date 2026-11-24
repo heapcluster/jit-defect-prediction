@@ -1,7 +1,7 @@
 <template>
   <section class="evaluate">
     <p class="hint">
-      上传 predictions（§3.4）、可选 labels（§3.5）与可选 effort 来源（§3.1 commits / §3.2 cleaned，按 la/ld 还原真实 LOC），按阈值与指标配置独立评估，交付指标长表、混淆矩阵、两类 effort 图与报告。不训练、不改概率；缺 effort 来源时 effort-aware 指标标注不可用。
+      上传 predictions（§3.4，含透传真标签）与可选 effort 来源（§3.1 collected_commits / §3.2 clean_dataset，按 la/ld 还原真实 LOC），按阈值与指标配置独立评估，交付指标长表、混淆矩阵、两类 effort 图与报告。不训练、不改概率；缺 effort 来源时 effort-aware 指标标注不可用。
     </p>
     <el-alert
       v-if="error"
@@ -17,7 +17,7 @@
       <h2 id="eval-input-title">
         输入与配置
       </h2>
-      <label for="eval-files">predictions + 可选 labels + 可选 effort 来源 commits/cleaned（CSV/XLSX）
+      <label for="eval-files">predictions + 可选 effort 来源 collected_commits/clean_dataset（CSV/XLSX）
         <input
           id="eval-files"
           type="file"

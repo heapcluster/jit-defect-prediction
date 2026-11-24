@@ -4,11 +4,12 @@
 
 ## 一句话
 
-独立解释工具：上传或从产物库选择 `model_package.zip` + 特征文件 `commits.csv`/`cleaned.csv`（CSV/XLSX）；可选 predictions 只用于核对，已登记模型与已导入数据集仅作额外便利选择。选 XAI 技术（SHAP/LIME）与参数、展示条数、对比开关后运行 job，产出 `explanations.csv`（§3.7）+ manifest，可下载；提交详情页经 `/api/explain` 与 predict 并行编排获取解释，不依赖本页输出入库（explanations 无 12 表映射，不提供导入库）；预测模块不在场也能跑。
+独立解释工具：上传或从产物库选择 `model_package.zip` + 特征文件 `clean_dataset.csv` / `train_testset`（CSV/XLSX）；可选 predictions 只用于核对，已登记模型与已导入数据集仅作额外便利选择。选 XAI 技术（SHAP/LIME）与参数、展示条数、对比开关后运行 job，产出 `explanations.csv`（§3.7）+ manifest，可下载；本页作为⑤预测的子页，可从预测结果/提交详情带入 commit/model，也可独立访问 `/explain`；不依赖本页输出入库（explanations 无 12 表映射，不提供导入库）；预测模块不在场也能跑。
 
 ## 入口与导航
 
-- 本页为功能⑦（预测结果解释）tab「解释」，路由 `/explain`；页内为解释工具台，解释结果在输出区展示，导航见 [README.md](README.md)。
+- 本页为功能⑦（预测结果解释），作为⑤模型预测的页内子页（子签），保留独立路由 `/explain`；页内为解释工具台，解释结果在输出区展示，导航见 [README.md](README.md)。
+- 从⑤风险列表/提交详情进入时携带 `commit_hash`、`model_name` 预填；独立访问时自行上传模型包与特征文件。两种入口调用同一解释服务。
 - CLI 与本页调用同一解释服务；页面不承载解释计算，切换技术走同一运行入口。
 - 输出文件契约：[../file-contracts.md](../file-contracts.md) §3.3（模型工件输入校验）、§3.7（explanations.csv）、§3.9（manifest）。
 
@@ -25,7 +26,7 @@
 │          │ 已登记模型 [▾]（额外便利选择）              │                │
 │          └────────────────────────────────────────────┘                │
 │ 特征文件 ┌────────────────────────────────────────────┐                │
-│          │ 拖拽上传 CSV/XLSX（commits/cleaned.csv）    │                │
+│          │ 拖拽上传 CSV/XLSX（commits/clean_dataset.csv）    │                │
 │          │ 或选产物库文件 [▾ collect / clean]          │                │
 │          └────────────────────────────────────────────┘                │
 │ 提交范围（可选） [hash 清单____ 或 全文件]                               │
@@ -99,3 +100,4 @@
 - SHAP 与 LIME 在同一提交上均可生成解释，结果结构一致、可排序；对比开关开启时并排展示。
 - 不支持组合产 reason_code 行并明确提示，不静默缺行；解释输出不改预测概率或标签。
 - Top-N 生效；默认技术与展示偏好重启后保持；提交详情页经 `/api/explain` 获取解释，不依赖本页输出入库。
+- 从⑤带 `commit_hash/model_name` 进入时自动预填对象；未运行预测也可独立上传模型与特征文件完成解释。

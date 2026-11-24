@@ -21,7 +21,7 @@ def settings(**extra):
 
 def post(client, config=None, files=None):
     return client.post('/api/train/run', data={'config': json.dumps(config if config is not None else settings())},
-        files=files if files is not None else [('files[]', ('commits.csv', fc.encode_table(fc.COMMITS_COLUMNS, source_rows(), 'csv')))], headers=HEADERS)
+        files=files if files is not None else [('files[]', ('collected_commits.csv', fc.encode_table(fc.COLLECTED_COMMITS_COLUMNS, source_rows(), 'csv')))], headers=HEADERS)
 
 
 @pytest.fixture

@@ -23,7 +23,7 @@ def _rows_for(hash_, model):
 
 
 def test_predict_success(client):
-    body = client.post("/api/predict", json={"commit_hash": C1}, headers=HEADERS).json()
+    body = client.post("/api/predict", json={"commit_hash": C1, "model_name": "fixture_v2"}, headers=HEADERS).json()
     data = body["data"]
     assert body["code"] == 0
     assert 0.0 <= data["risk_score"] <= 1.0
@@ -42,7 +42,7 @@ def test_predict_missing_hash(client):
 def test_predict_rejects_extra_fields(client):
     """契约只收 commit_hash / model_name：多余字段必须 40001，不能静默忽略后 200。"""
     resp = client.post(
-        "/api/predict", json={"commit_hash": C1, "repo_name": "camel"}, headers=HEADERS
+        "/api/predict", json={"commit_hash": C1, "repo_name": "camel", "model_name": "fixture_v2"}, headers=HEADERS
     )
     assert resp.status_code == 400
     assert resp.json()["code"] == 40001
@@ -50,31 +50,40 @@ def test_predict_rejects_extra_fields(client):
 
 
 def test_predict_bad_hash_format(client):
-    resp = client.post("/api/predict", json={"commit_hash": "z" * 40}, headers=HEADERS)
+    resp = client.post("/api/predict", json={"commit_hash": "z" * 40, "model_name": "fixture_v2"}, headers=HEADERS)
     assert resp.status_code == 400
     assert resp.json()["code"] == 40001
 
 
-def test_predict_unknown_commit(client):
-    resp = client.post("/api/predict", json={"commit_hash": UNKNOWN}, headers=HEADERS)
+def _extract_raises(monkeypatch, error):
+    from app import feature_source
+    def boom(*args, **kwargs):
+        raise error
+    monkeypatch.setattr(feature_source, "extract", boom)
+
+
+def test_predict_unknown_commit(client, monkeypatch):
+    _extract_raises(monkeypatch, ValueError("not found"))
+    resp = client.post("/api/predict", json={"commit_hash": UNKNOWN, "model_name": "fixture_v2"}, headers=HEADERS)
     assert resp.status_code == 404
     assert resp.json()["message"] == "commit not found"
 
 
-def test_predict_missing_features(client):
-    resp = client.post("/api/predict", json={"commit_hash": C3}, headers=HEADERS)
+def test_predict_missing_features(client, monkeypatch):
+    _extract_raises(monkeypatch, ValueError("not found"))
+    resp = client.post("/api/predict", json={"commit_hash": C3, "model_name": "fixture_v2"}, headers=HEADERS)
     assert resp.status_code == 404
     assert resp.json()["message"] == "features not found for this commit"
 
 
 def test_predict_idempotent_single_row(client):
-    client.post("/api/predict", json={"commit_hash": C1}, headers=HEADERS)
-    client.post("/api/predict", json={"commit_hash": C1}, headers=HEADERS)
+    client.post("/api/predict", json={"commit_hash": C1, "model_name": "fixture_v2"}, headers=HEADERS)
+    client.post("/api/predict", json={"commit_hash": C1, "model_name": "fixture_v2"}, headers=HEADERS)
     assert _rows_for(C1, "fixture_v2") == 1
 
 
 def test_predict_second_model_new_row(client):
-    client.post("/api/predict", json={"commit_hash": C1}, headers=HEADERS)
+    client.post("/api/predict", json={"commit_hash": C1, "model_name": "fixture_v2"}, headers=HEADERS)
     client.post(
         "/api/predict", json={"commit_hash": C1, "model_name": "fixture_v1"}, headers=HEADERS
     )
@@ -106,13 +115,12 @@ def test_predict_delivered_but_offline_model_is_40001(client):
     assert body["message"] == "参数非法：该模型暂无在线权重，仅离线评估，无法在线预测"
 
 
-def test_predict_without_models_is_50000_without_path(client, monkeypatch):
+def test_predict_without_models_is_40001_without_path(client, monkeypatch):
     monkeypatch.setattr(model_registry, "_REGISTRY", {})
-    resp = client.post("/api/predict", json={"commit_hash": C1}, headers=HEADERS)
-    assert resp.status_code == 500
+    resp = client.post("/api/predict", json={"commit_hash": C1, "model_name": "fixture_v2"}, headers=HEADERS)
+    assert resp.status_code == 400
     body = resp.json()
-    assert body["code"] == 50000
-    assert body["message"] == "internal error"
+    assert body["code"] == 40001
     assert ".pkl" not in body["message"]
 
 
@@ -153,17 +161,17 @@ def test_predict_new_git_commit_extracts_and_persists_features(client, tmp_path,
     ).stdout.strip()
     monkeypatch.setattr(config, "SOURCE_REPO", repo)
 
-    first = client.post("/api/predict", json={"commit_hash": commit_hash}, headers=HEADERS)
+    first = client.post("/api/predict", json={"commit_hash": commit_hash, "model_name": "fixture_v2"}, headers=HEADERS)
     assert first.status_code == 200
     assert first.json()["data"]["features"]["fix"] == 1
     assert set(first.json()["data"]["features"]) == set(FEATURE_VALUES)
-    second = client.post("/api/predict", json={"commit_hash": commit_hash}, headers=HEADERS)
+    second = client.post("/api/predict", json={"commit_hash": commit_hash, "model_name": "fixture_v2"}, headers=HEADERS)
     assert second.status_code == 200
     assert _rows_for(commit_hash, "fixture_v2") == 1
     with SessionLocal() as session:
         assert session.query(Commit).filter_by(commit_hash=commit_hash).count() == 1
         assert session.query(CommitFeature).filter_by(commit_hash=commit_hash).count() == 1
-    detail = client.get(f"/api/commits/{commit_hash}", headers=HEADERS)
+    detail = client.get(f"/api/commits/{commit_hash}", params={"model_name": "fixture_v2"}, headers=HEADERS)
     assert detail.status_code == 200
     assert detail.json()["data"]["risk_score"] is not None
     listed = client.get("/api/commits", params={"model_name": "fixture_v2"}, headers=HEADERS).json()
@@ -171,22 +179,22 @@ def test_predict_new_git_commit_extracts_and_persists_features(client, tmp_path,
 
 
 def test_predict_source_unavailable_is_sanitized_50000(client, tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "SOURCE_REPO", tmp_path / "missing")
-    resp = client.post("/api/predict", json={"commit_hash": C3}, headers=HEADERS)
+    _extract_raises(monkeypatch, RuntimeError(f"cannot open {tmp_path}"))
+    resp = client.post("/api/predict", json={"commit_hash": C3, "model_name": "fixture_v2"}, headers=HEADERS)
     assert resp.status_code == 500
     assert resp.json()["code"] == 50000
     assert str(tmp_path) not in resp.json()["message"]
 
 
 def test_predict_uppercase_hash_uses_normalized_key(client):
-    resp = client.post("/api/predict", json={"commit_hash": C1.upper()}, headers=HEADERS)
+    resp = client.post("/api/predict", json={"commit_hash": C1.upper(), "model_name": "fixture_v2"}, headers=HEADERS)
     assert resp.status_code == 200
     assert resp.json()["data"]["commit_hash"] == C1
     # 大写与小写必须落在同一个 (commit_hash, model_name) 键上：库里只留一行、且是小写哈希。
     # 注意：MySQL 默认 utf8mb4_0900_ai_ci 排序规则下 `=` 比较大小写不敏感，
     # 「按大写查得 0 行」这种大小写敏感断言在 MySQL 上永远不成立，
     # 故用 BINARY 比较单独验大写不落行、再验落库值全为小写。
-    client.post("/api/predict", json={"commit_hash": C1}, headers=HEADERS)
+    client.post("/api/predict", json={"commit_hash": C1, "model_name": "fixture_v2"}, headers=HEADERS)
     assert _rows_for(C1, "fixture_v2") == 1
     with SessionLocal() as session:
         upper_rows = session.execute(

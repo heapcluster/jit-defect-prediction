@@ -4,11 +4,12 @@
 
 ## 一句话
 
-默认只读导入库中的单条提交、风险与 SZZ 标签，并提供「沿用库中结果 / 立即重新计算」两种明确选择；重新计算时页面并行编排单条 predict 与 explain，另设 localization 工具台入口，页面自身不实现任何算法。
+默认只读导入库中的单条提交、风险与 SZZ 标签，并提供「沿用库中结果 / 立即重新计算」两种明确选择；重新计算时页面并行编排单条 predict 与 explain，并设⑦解释、⑧定位及修复两个工具台入口（均归⑤子页），页面自身不实现任何算法。
 
 ## 入口与导航
 
 - 功能⑤（模型预测）tab 内提交详情子视图（子签）；路由 `/commit/:hash` 保留并在该 tab 内展示，由 [风险列表](risk_list.md) 行点击或 [详情] 进入，携带列表所选 `model_name` 与返回筛选态。
+- [打开解释工具台] 进入 `/explain?commit_hash=&model_name=`，完整技术选择、贡献排序与技术对比契约见 [explain.md](explain.md)。
 - [打开定位工具台] 进入 `/localization?commit_hash=&model_name=`，完整源码、行级证据、建议与补丁预览契约见 [localization.md](localization.md)。
 - 库空或缺少展示数据时可去 [数据管理](storage.md) 导入；顶部 [← 返回] 恢复风险列表状态。
 - SZZ 来自自动标签，只读；本页没有人工标记入口。
@@ -32,6 +33,7 @@
 │ │ 变更子系统多  ████████░░ +0.21  increase  rank 1                   │ │
 │ │ 代码改动量    ██████░░░░ +0.15  increase  rank 2                   │ │
 │ │ 不支持组合：reason_code + 可读原因（不显示空白区）                  │ │
+│ │ [打开解释工具台]（完整技术选择、参数与对比）                        │ │
 │ └──────────────────────────────────────────────────────────────────┘ │
 │ ┌─ 缺陷定位摘要（库中详情编排结果）─────────────────────────────────┐ │
 │ │ level[line]  core/A.java:120 suspicion 0.81  [证据摘要]             │ │
@@ -68,7 +70,8 @@
 | [对比解释] | 并行两次 `POST /api/explain`（不同 technique） | 至少两种技术并排，独立错误与版本元信息 |
 | 风险等级 | `GET /api/config`（risk_high_threshold / risk_mid_threshold） | 展示分档不改 risk_score；decision_threshold 由预测服务使用 |
 | SZZ / 14 项特征 / 定位摘要 | `GET /api/commits/{commit_hash}` | is_bug_inducing 三态；特征为 log 值；定位摘要含 level/notice/truncated |
-| [打开定位工具台] | 路由 `/localization?commit_hash=&model_name=` | 在独立工具台运行定位；详情页不新增定位计算按钮 |
+| [打开解释工具台] | 路由 `/explain?commit_hash=&model_name=` | 在⑦解释子页运行完整技术选择与对比；详情页解释摘要不替代工具台 |
+| [打开定位工具台] | 路由 `/localization?commit_hash=&model_name=` | 在⑧定位子页运行定位；详情页不新增定位计算按钮 |
 | 修复建议摘要 | `GET /api/commits/{commit_hash}`（fix_references） | 仅展示真实参考与来源；完整四段式及补丁预览在定位工具台 |
 | [去数据管理导入] | 路由 `/storage`；导入 `POST /api/storage/import` | 空库引导，不在详情页内嵌导入 |
 
@@ -103,5 +106,5 @@
 - 两结果版本不一致时分别标注；任一请求失败不清空另一请求成功结果。
 - XAI 技术切换和至少两技术对比生效，统一结构含 technique/model_version/feature_version；不支持组合给 reason_code，默认技术重启后保持。
 - 贡献按 |contribution| 降序，summary 与失败原因可见；风险展示阈值来自配置且不改概率。
-- 页面含明确 [打开定位工具台] 入口并携带 hash/model；定位摘要区分行级可疑度与提交级风险，无自动改码入口。
+- 页面含明确 [打开解释工具台] 与 [打开定位工具台] 入口并携带 hash/model；⑦⑧可独立访问；定位摘要区分行级可疑度与提交级风险，无自动改码入口。
 - 库空有去数据管理导入引导；返回列表恢复筛选；图片若存在均鉴权 fetch 并释放 ObjectURL。

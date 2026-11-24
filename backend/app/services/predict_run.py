@@ -74,18 +74,12 @@ def _resolve_model(session, settings, zips):
     if zips:
         name, raw = zips[0]
         meta = storage.model_package(name, raw)
-        if meta['line'] == 'e2e':
-            fc.invalid('e2e 批量暂不支持上传模型包，请使用已登记 codebert_e2e 模型与文本输入')
         model_registry.load_artifact_package(meta['model_name'], raw, line=meta['line'])
         return meta['model_name'], meta['line'], meta.get('feature_version'), meta.get('version_key')
     model_name = settings.get('model_name')
     if not model_name:
-        model_name, _ = model_manage.resolve_default(session)
-    if not model_name:
-        raise AppError(40001, '无可用模型：请上传模型包、指定 model_name 或配置默认模型')
+        raise AppError(40001, '参数非法：必须上传模型包或显式指定 model_name，不设默认模型')
     model_row = session.get(Model, model_name)
-    if model_registry.line_of(model_name) == 'e2e':
-        return model_name, 'e2e', (model_row.feature_version if model_row else None), (model_row.version_key if model_row else None)
     if not model_registry.has(model_name):
         model_manage.load(session, model_name)
     try:
@@ -102,10 +96,10 @@ def _dataset_input(session, dataset_id):
     storage.snapshot(session)
     storage.require_dataset(session, dataset_id)
     members, _ = storage.bounded_rows(session, storage.member_query(dataset_id))
-    if not members or any(feature is None for _, feature in members):
-        fc.invalid('所选数据集没有完整提交特征')
-    records = [dict.fromkeys(fc.COMMITS_COLUMNS, '') | storage.member_record(commit, feature) for commit, feature in members]
-    content = fc.encode_table(fc.COMMITS_COLUMNS, records, 'csv')
+    if not members:
+        fc.invalid('所选数据集没有提交成员')
+    records = [storage.member_record(member) for member in members]
+    content = fc.encode_table(fc.COLLECTED_COMMITS_COLUMNS, records, 'csv')
     rows, metadata = _parse_table('dataset_commits.csv', content)
     return rows, metadata, [{'name': 'dataset_commits.csv', 'sha256': fc.sha256(content), 'rows': len(rows)}]
 
@@ -141,24 +135,17 @@ def submit(session, raw_config, files):
             tables.append((name, content))
         else:
             fc.invalid('预测文件格式非法')
-    if len(zips) > 1 or len(tables) > 2:
-        fc.invalid('预测最多一个模型包、一个特征表与一个可选文本表')
-    feature_name = feature_content = text_name = None
-    text_rows = None
+    if len(zips) > 1 or len(tables) > 1:
+        fc.invalid('预测最多一个模型包与一个 collected_commits/clean_dataset 表')
+    feature_name = feature_content = None
     for name, content in tables:
         columns, _ = fc.read_table(name, content)
-        if columns == list(fc.COMMITS_COLUMNS):
+        if tuple(columns) in (tuple(fc.COLLECTED_COMMITS_COLUMNS), tuple(fc.CLEAN_DATASET_COLUMNS)):
             if feature_name is not None:
-                fc.invalid('只能上传一个特征表')
+                fc.invalid('只能上传一个输入表')
             feature_name, feature_content = name, content
-        elif columns == ['commit_hash', 'text']:
-            if text_rows is not None:
-                fc.invalid('只能上传一个 commit_hash,text 文本表')
-            text_name = name
-            _, raw_text = fc.read_table(name, content)
-            text_rows = {row['commit_hash']: row['text'] for row in raw_text}
         else:
-            fc.invalid('预测表格须为 §3.1/§3.2 特征表或 commit_hash,text 文本表')
+            fc.invalid('预测表格须为 collected_commits / clean_dataset 契约表')
     if manifests and (feature_name is None or len(manifests) > 1 or manifests[0][0] != feature_name.rsplit('.', 1)[0] + '.manifest.json'):
         fc.invalid('manifest 必须与特征文件同名且唯一')
     if feature_content is not None:
@@ -169,31 +156,21 @@ def submit(session, raw_config, files):
         rows, metadata, inputs = _dataset_input(session, dataset_id)
     else:
         rows, metadata, inputs = [], {}, []
-    if text_name is not None:
-        inputs.append({'name': text_name, 'sha256': fc.sha256(dict(tables)[text_name])})
     model_name, line, feature_version, model_version = _resolve_model(session, settings, zips)
-    if line == 'e2e' and zips:
-        fc.invalid('e2e 批量暂不支持上传模型包，请使用已登记 codebert_e2e 模型与文本输入')
     if line == 'expert':
-        if text_rows is not None:
-            fc.invalid('expert 线不接受文本表')
         if not rows:
             fc.invalid('预测输入为空')
-    elif line in ('semantic', 'fused'):
+    elif line == 'semantic':
         if not rows:
-            fc.invalid(f'{line} 线需要特征表提供提交哈希与 Kamei 特征（语义向量按哈希取预计算或在线编码）')
-    elif line == 'e2e':
-        if not rows and not text_rows:
-            fc.invalid('e2e 线需要特征表或 commit_hash,text 文本表')
-        if not rows:
-            rows = [{'commit_hash': commit_hash, 'is_bug_inducing': None} for commit_hash in text_rows]
+            fc.invalid('semantic 线需要特征表提供提交哈希（语义向量按哈希取预计算或在线编码）')
     if zips:
         inputs.append({'name': zips[0][0], 'sha256': fc.sha256(zips[0][1])})
     feature_version = feature_version or metadata.get('feature_version')
     config_snapshot = {'model_name': model_name, 'line': line, 'decision_threshold': threshold,
                        'batch_size': batch_size, 'force_recompute': force, 'format': fmt,
-                       'feature_version': feature_version, 'model_version': model_version or model_name}
-    reference, digest = _save_request({'rows': rows, 'text': text_rows, 'config': config_snapshot, 'inputs': inputs})
+                       'feature_version': feature_version, 'model_version': model_version or model_name,
+                       'external': bool(metadata.get('external'))}
+    reference, digest = _save_request({'rows': rows, 'config': config_snapshot, 'inputs': inputs})
     try:
         job = job_store.create(session, 'predict_batch', params={'module': 'predict', 'input_ref': reference,
             'input_sha256': digest, 'config': config_snapshot}, total=len(rows) + 1)
@@ -211,38 +188,38 @@ def submit(session, raw_config, files):
     return {'job_id': job['job_id'], 'status': job['status']}
 
 
-def _predict_rows(rows, cfg, progress, job_id, attempt, total, text_map=None):
+def _predict_rows(rows, cfg, progress, job_id, attempt, total):
     line = cfg.get('line', 'expert')
-    text_map = text_map or {}
-    entry = None if line == 'e2e' else model_registry.get_model(cfg['model_name'])
+    entry = model_registry.get_model(cfg['model_name'])
     threshold = cfg['decision_threshold']
     predicted_at = datetime.now(UTC).replace(tzinfo=None, microsecond=0)
     out, failed = [], []
+    external = bool(cfg.get('external')) or (bool(rows) and not all(field in rows[0] for field in config.FEATURE_COLUMNS))
+    computed = {}
+    if external and line == 'expert':
+        from app import feature_source
+        try:
+            computed = {item['commit_hash']: item for item in
+                        feature_source.extract_many([row['commit_hash'] for row in rows])}
+        except Exception as error:
+            raise AppError(40001, f'特征现算失败：{error}') from error
     for index, row in enumerate(rows):
         if progress:
             progress(row['commit_hash'], index, total)
         try:
             commit_hash = row['commit_hash']
-            if line == 'e2e':
-                from app import e2e_source
-                text = text_map.get(commit_hash)
-                raw_risk = e2e_source.predict_proba_text(text) if text is not None else e2e_source.predict_proba(commit_hash)
-                if raw_risk is None:
-                    raise ValueError('e2e 文本或编码器不可用，无法在线预测')
-            else:
-                expert = [float(row[field]) for field in config.FEATURE_COLUMNS]
-                if line == 'expert':
-                    vector = expert
+            if line == 'expert':
+                if external and commit_hash in computed:
+                    vector = [float(computed[commit_hash][field]) for field in config.FEATURE_COLUMNS]
                 else:
-                    from app import semantic_source
-                    embedding = semantic_source.embedding_for(commit_hash)
-                    if embedding is None and commit_hash in text_map:
-                        embedding = semantic_source._encode_text(text_map[commit_hash])
-                    if embedding is None:
-                        raise ValueError(f'{line} 语义向量不可用（缺预计算且无法在线编码）')
-                    embedding = embedding.tolist()
-                    vector = embedding if line == 'semantic' else expert + embedding
-                raw_risk = model_registry.predict_proba(entry.model, vector)
+                    vector = [float(row[field]) for field in config.FEATURE_COLUMNS]
+            else:
+                from app import semantic_source
+                embedding = semantic_source.embedding_for(commit_hash)
+                if embedding is None:
+                    raise ValueError(f'{line} 语义向量不可用（缺预计算且无法在线编码）')
+                vector = embedding.tolist()
+            raw_risk = model_registry.predict_proba(entry.model, vector)
             risk = round(raw_risk, 5)
             label = row.get('is_bug_inducing')
             out.append({'commit_hash': commit_hash, 'model_name': cfg['model_name'], 'risk_score': risk,
@@ -281,7 +258,7 @@ def _execute(job_id, attempt):
                 job_store.update_progress(session, job_id, attempt=attempt, total=max(total + 1, job['total']),
                                           done=max(done, job['done']), current_item=phase)
 
-        out, failed, _ = _predict_rows(request['rows'], cfg, progress, job_id, attempt, job['total'], text_map=request.get('text'))
+        out, failed, _ = _predict_rows(request['rows'], cfg, progress, job_id, attempt, job['total'])
         summary = {'input_rows': len(request['rows']), 'success_count': len(out), 'failed_count': len(failed),
                    'model_name': cfg['model_name'], 'model_version': cfg['model_version'],
                    'feature_version': cfg['feature_version'], 'decision_threshold': cfg['decision_threshold'],

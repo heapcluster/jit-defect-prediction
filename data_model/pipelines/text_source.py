@@ -1,9 +1,9 @@
-"""三线共用的「提交变更文本」口径：占位串、来源分类、行装配与登记统计。
+"""共用的「提交变更文本」口径：占位串、来源分类、行装配与登记统计。
 
-放在 `pipelines/` 顶层（与 `verify_all_weights.py` 同级）供 semantic 与 e2e 共同 import。
+放在 `pipelines/` 顶层（与 `verify_all_weights.py` 同级）供 semantic 线 import。
 **为什么不做成各包一份**：同一口径出现两份实现必然分叉 —— 交付包里的 `tabnet_v1.pkl`
-就是因为两处导出上下文不同而分叉（#88 / Issue #103），`e2e/metrics.py` 缺
-`cumulative_curve` 也是同一类问题。文本口径直接决定样本集合，分叉会让三线对比失效。
+就是因为两处导出上下文不同而分叉（#88 / Issue #103）。文本口径直接决定样本集合，
+分叉会让跨线对比失效。
 
 三类来源（`text_source` 列的取值，只做统计与登记，**不进特征、不进模型输入**）：
 
@@ -127,7 +127,7 @@ def stats_of(sources, labels=None) -> tuple[dict, dict | None]:
 def as_str_array(values) -> np.ndarray:
     """定宽 Unicode 数组，而不是 object 数组。
 
-    ``np.savez`` 把 object 数组存成 pickle，而 semantic 与 fused 两个 loader 都用
+    ``np.savez`` 把 object 数组存成 pickle，而 semantic loader 用
     ``allow_pickle=False`` 读 —— 存成 object 就等于让缓存对消费方不可读。
     """
     arr = np.asarray([str(v) for v in values], dtype=object)
@@ -223,7 +223,7 @@ def registration(
 
 
 def registration_from_cache(npz_path, test_hashes, y_test, probas: dict, metric_fn) -> dict | None:
-    """从编码缓存（semantic 产出、fused 消费）取来源并登记；旧缓存无该键 → None。
+    """从本线编码缓存取来源并登记；旧缓存无该键 → None。
 
     检验侧哈希在缓存里查不到时按 `diff` 计入（保守：不让敏感性检查静默少算行）；
     全量登记段仍以缓存实有行为准，两处口径在报告里各自成表，不互相顶替。
@@ -245,7 +245,7 @@ def registration_from_cache(npz_path, test_hashes, y_test, probas: dict, metric_
 def registration_from_frame(
     df: pd.DataFrame, test_hashes, y_test, probas: dict, metric_fn
 ) -> dict | None:
-    """从文本数据集（e2e 直接吃 CSV）取来源并登记；没有 `text_source` 列 → None。
+    """从文本数据集取来源并登记；没有 `text_source` 列 → None。
 
     检验侧哈希在 CSV 里查不到时按 `diff` 计入，口径同 `registration_from_cache`。
     """

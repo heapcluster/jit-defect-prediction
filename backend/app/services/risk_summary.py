@@ -13,7 +13,7 @@ from app.services.config_store import factory_defaults
 
 logger = logging.getLogger("backend.risk_summary")
 
-_LINE_LABELS = {"expert": "专家特征", "semantic": "语义", "fused": "融合", "e2e": "端到端"}
+_LINE_LABELS = {"expert": "专家特征", "semantic": "语义"}
 _cache: dict[tuple, str] = {}
 _lock = threading.Lock()
 

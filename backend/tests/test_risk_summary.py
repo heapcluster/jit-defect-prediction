@@ -69,13 +69,13 @@ def test_summary_falls_back_to_template_without_llm_config(monkeypatch):
     risk_summary._cache.clear()
     text = risk_summary.summary_for(
         commit_hash="b" * 40,
-        model_name="codebert_e2e_v1",
-        model_line="e2e",
+        model_name="xgb_semantic_v1",
+        model_line="semantic",
         risk_score=0.12,
         features={"nf": 1.0},
         explanation=[],
     )
-    assert "端到端模型判为低风险" in text
+    assert "语义模型判为低风险" in text
 
 
 def test_llm_result_is_used_when_available(monkeypatch):
@@ -83,8 +83,8 @@ def test_llm_result_is_used_when_available(monkeypatch):
     monkeypatch.setattr(risk_summary, "_llm_summary", lambda facts: "LLM 生成的一句话。")
     text = risk_summary.summary_for(
         commit_hash="c" * 40,
-        model_name="xgb_fused_v1",
-        model_line="fused",
+        model_name="xgb_semantic_v1",
+        model_line="semantic",
         risk_score=0.6,
         features={},
         explanation=[],

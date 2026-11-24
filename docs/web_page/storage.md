@@ -55,24 +55,24 @@ W2 已接通 `/storage` 的数据导入导出、数据集列表/成员与 W1 用
 | 选择本机文件 | `POST /api/storage/import`（multipart files[] + config JSON part） | W2 校验文件与 companion manifest；已有任务产物选择待生产模块提供标准输出引用后接入 |
 | 自动识别目标表 | `POST /api/storage/import`（不接受 target_table 覆盖） | 列 schema 与已验证工件决定目标表；未知或歧义输入明确拒绝，不猜测写入 |
 | 冲突策略 [幂等 upsert] | `POST /api/storage/import` | 策略固定；按目标表自然键更新或插入，重复导入不产生重复行 |
-| 数据集名（可选） | `POST /api/storage/import` | commits/cleaned 等数据集文件使用；新建登记行，不覆盖原始数据集 |
+| 数据集名（可选） | `POST /api/storage/import` | collected_commits / clean_dataset 等数据集文件使用；新建登记行，不覆盖原始数据集 |
 | [导入] / 执行状态 | `POST /api/storage/import` | 同步返回识别结果与逐表计数；不新增 job kind |
 | 逐文件 upsert 反馈 | 同上（items：target_tables/status/inserted/updated/unchanged/rejected/errors） | 计数按源文件逻辑行，不冒充每张表物理写入数；单文件多表同事务，失败整体回滚 |
 | 表 [▾] / 数据集 / 模型 / 时间 | `GET /api/storage/export?table=&dataset_id=&model_name=&start_time=&end_time=` | 表选项限 12 表白名单；筛选只读 |
 | [预览前20行] | `GET /api/storage/export?table=&format=csv&limit=20&…` | 以同一导出查询生成预览，不另造数据口径 |
 | [CSV][XLSX][manifest] | `GET /api/storage/export?table=&format=csv\|xlsx&…` 后按 `GET /api/storage/outputs/{job_id}/{name}` 下载 | manifest 使用同批次返回文件名，不作为 format 参数；CSV 带 BOM，XLSX 单 sheet |
 | 数据集版本列表 | `GET /api/datasets?page=&size=&status=&q=` | 名称、dataset_id、仓库、HEAD、样本统计、状态、创建时间 |
-| [查看成员] | `GET /api/datasets/{id}/commits?page=&size=&with_features=1` | 只读成员、14 维 log 值、标签与 is_test |
+| [查看成员] | `GET /api/datasets/{id}/commits?page=&size=&with_features=1` | 只读 §3.1 成员列；`with_features=1` 时从 `commit_feature` 取 14 维，不返回 `is_test` |
 | [导出该数据集] | `GET /api/storage/export?table=commit&dataset_id=&format=csv\|xlsx` | 与成员筛选口径一致；缺预测和未打标留空 |
 
 ## 自动识别与幂等口径
 
 | 输入示例 | 可识别目标 | 关键校验 / 自然键示例 |
 |---|---|---|
-| commits.csv / cleaned.csv（§3.1/§3.2） | `dataset`、`dataset_commit`、`commit`、`commit_feature` | commit_hash；成员键 (dataset_id, commit_hash)；未打标保持 NULL |
+| collected_commits.csv / clean_dataset.csv（§3.1/§3.2） | `dataset`、`dataset_commit`、`commit` | commit_hash；成员键 (dataset_id, commit_hash)；未打标保持 NULL；不写 `commit_feature` |
 | model_package.zip（§3.3） | `model_artifact` → 派生 `model` | model_name、checksum_sha256、feature_version；先验 checksum |
 | predictions.csv（§3.4） | `prediction` | (commit_hash, model_name)；risk_score 范围与版本字段 |
-| labels.csv（§3.5） | `commit_feature` | commit_hash；is_bug_inducing 仅 1/0/空，空不得写 0 |
+| train_testset（§3.3） | `dataset_commit` | 测试集提交与透传真标签，commit_hash 唯一定位 |
 | evaluate 图 PNG（§3.6） | `model_figure` | (model_name, figure_type)；图类型与文件路径白名单 |
 | 其他契约文件 | 由识别结果明确给出 | 无法安全映射到 12 表时拒绝或列 unchanged，不写入语义不符的表 |
 
@@ -88,7 +88,7 @@ W2 已接通 `/storage` 的数据导入导出、数据集列表/成员与 W1 用
 4. [导入] 后显示同步请求的校验中、导入中、成功或失败状态，不显示六类 job 进度。成功后逐表展示 inserted/updated/unchanged/rejected 与自然键冲突原因。
 5. 对同一文件重复导入，第二次应主要计为 updated 或 unchanged，总行数不重复增长；checksum 相同且完全无变化时标记 unchanged。
 6. 切换到按表导出，选择 12 表之一及可用筛选，先预览前 20 行，再下载 CSV/XLSX/manifest。导出仅读当前库，不触发任何模块运行。
-7. 数据集版本列表从 `GET /api/datasets` 刷新；可查看成员或直接导出某个 dataset_id。列表为空时提示「暂无已导入数据集，可从上方上传 commits.csv」。
+7. 数据集版本列表从 `GET /api/datasets` 刷新；可查看成员或直接导出某个 dataset_id。列表为空时提示「暂无已导入数据集，可从上方上传 collected_commits.csv」。
 8. 导入成功后提供 [查看风险列表] / [查看趋势] 等只读导航；若导入的是模型工件，则提示模型选项已更新，不自动加载或预测。
 
 ## 空态与错误
@@ -101,7 +101,7 @@ W2 已接通 `/storage` 的数据导入导出、数据集列表/成员与 W1 用
 
 ## 验收
 
-- 在空库仅上传合法 commits.csv + manifest，即可自动识别目标表并完成事务导入；重复导入不产生重复 commit 或成员。
+- 在空库仅上传合法 collected_commits.csv + manifest，即可自动识别目标表并完成事务导入；重复导入不产生重复 commit 或成员。
 - predictions.csv 按 (commit_hash, model_name) 幂等 upsert，逐表 inserted/updated/unchanged/rejected 反馈准确；模型 zip 先验 checksum 再登记。
 - 非法文件、目标歧义、checksum 错误和敏感键输入均被 40001 拒绝；多表写入失败整体回滚。
 - 12 表均在导出白名单内，CSV/XLSX/manifest 可下载；CSV 带 BOM、XLSX 单 sheet、manifest 行数与 checksum 正确。

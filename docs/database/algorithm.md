@@ -8,7 +8,7 @@
 
 | 字段 | 类型 | 空值/默认 | 键/索引 | 含义 |
 |---|---|---|---|---|
-| line | VARCHAR(16) | NOT NULL | 联合主键 | 所属模型线：`expert` / `semantic` / `fused` / `e2e` |
+| line | VARCHAR(16) | NOT NULL | 联合主键 | 所属模型线：`expert`（Kamei 14 维）/ `semantic`（冻结头 CodeBERT 768 维）；`fused` / `e2e` 已砍掉 |
 | algo | VARCHAR(64) | NOT NULL | 联合主键 | 算法标识 |
 | family | VARCHAR(32) | NOT NULL | — | 族：`linear` / `tree` / `boost` / `svm` / `mlp` / `tabnet` / `kernel` / `bayes` / `transformer` |
 | hyperparams_json | TEXT | NOT NULL | — | 超参数 schema：`[{name, type, default, min, max, choices, desc}]` |
@@ -24,13 +24,11 @@
 
 | line | algo | enabled | 说明 |
 |---|---|---|---|
-| expert | lr / rf / xgb / lgbm / et / svm / mlp_deep / tabnet | 1 | 默认 8 分类器（14 维输入） |
+| expert | lr / rf / xgb / lgbm / et / svm / mlp_deep / tabnet | 1 | 默认 8 分类器（Kamei 14 维输入） |
 | expert | nb / dt / knn / mlp | 0 | 实现已存在，默认不训练 |
-| semantic | lr / rf / xgb / lgbm / et / svm / mlp_deep / tabnet | 1 | 768 维输入 |
-| fused | lr / rf / xgb / lgbm / et / svm / mlp_deep / tabnet | 1 | 782 维输入 |
-| e2e | codebert_e2e | 1 | CodeBERT 分类头，超参数为学习率 / epoch / max_len |
+| semantic | lr / rf / xgb / lgbm / et / svm / mlp_deep / tabnet | 1 | 冻结头 CodeBERT 768 维输入 |
 
-清单与 `data_model/pipelines/*/config.py` 的实现一致（expert 见 `DEFAULT_MODELS`）。
+清单与 `data_model/pipelines/*/config.py` 的实现一致（expert 见 `DEFAULT_MODELS`）。`fused`（782 维）与 `e2e`（`codebert_e2e` 微调分类头）两线及其算法登记已删除，不再是有效 `line` 取值。
 
 ## 被谁所用
 
@@ -44,7 +42,7 @@
 
 - 超参数 schema 是表单与校验的共同来源：类型 / 默认值 / 范围 / 枚举一处维护；训练服务按 schema 校验入参，越界返回 40001。
 - `family` 供解释器兼容矩阵与 SHAP 解释器选择复用，MUST NOT 在解释服务里再写一份族判定。
-- **课程类别硬要求**：`family` 中 `mlp` / `tabnet` / `transformer` 属深度学习族，其余属经典机器学习族；登记清单 MUST 保证两类合计不少于 8 种启用模型（现 25 模型满足，对照见 [`../function_point/train.md`](../function_point/train.md) §3）。
+- **课程类别硬要求**：`family` 中 `mlp` / `tabnet` / `transformer` 属深度学习族，其余属经典机器学习族；登记清单 MUST 保证两类合计不少于 8 种启用模型（现两线 16 模型 = 6 经典 + 2 深度 × 2 线，满足要求，对照见 [`../function_point/train.md`](../function_point/train.md) §3）。
 - 种子、早停、决策阈值等**训练级**参数属于训练配置模板（TODO/04），不在本表；本表只放算法专属超参数。
 - 新增算法 = 插一行 + 实现注册，不改前端代码。
 

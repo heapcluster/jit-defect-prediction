@@ -129,7 +129,7 @@ async def _lifespan(app: FastAPI):
     model_registry.load_models()
     model_registry.warmup()
     # 启动时把已加载模型元数据 upsert 进 model 表（供 FK 与查询，空库首启也需补齐）。
-    # 在线权重仅 expert 线交付，故 line 恒为 expert（语义/融合/e2e 由 data_init.sql 导入）。
+    # 在线权重仅 expert 线交付，故 line 恒为 expert（semantic 由数据登记导入）。
     entries = []
     for entry in model_registry.all_models():
         entries.append(
@@ -153,12 +153,12 @@ async def _lifespan(app: FastAPI):
         train_run.ensure_algorithms(session)
     train_run.dispatch()
     with db.SessionLocal() as session:
-        default, _ = model_manage.resolve_default(session)
-        if default:
+        choice = model_manage.selected(session)
+        if choice:
             try:
-                model_manage.load(session, default)
+                model_manage.load(session, choice)
             except AppError:
-                logger.warning("startup default model load skipped: %s", default)
+                logger.warning("startup selected model load skipped: %s", choice)
     predict_run.dispatch()
     evaluate_run.dispatch()
     explain_run.dispatch()

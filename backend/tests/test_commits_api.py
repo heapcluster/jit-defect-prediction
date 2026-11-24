@@ -13,7 +13,7 @@ from tests.conftest import C1, C2, C3, FEATURE_VALUES, HEADERS, UNKNOWN
 
 
 def test_list_sorted_and_paged(client):
-    body = client.get("/api/commits", headers=HEADERS).json()
+    body = client.get("/api/commits", params={"model_name": "fixture_v2"}, headers=HEADERS).json()
     items = body["data"]["items"]
     assert [item["risk_score"] for item in items] == sorted(
         (item["risk_score"] for item in items), reverse=True
@@ -23,7 +23,7 @@ def test_list_sorted_and_paged(client):
 
 
 def test_size_over_limit(client):
-    resp = client.get("/api/commits", params={"size": 101}, headers=HEADERS)
+    resp = client.get("/api/commits", params={"model_name": "fixture_v2", "size": 101}, headers=HEADERS)
     assert resp.status_code == 400
     body = resp.json()
     assert body["code"] == 40001
@@ -31,13 +31,13 @@ def test_size_over_limit(client):
 
 
 def test_size_at_limit(client):
-    resp = client.get("/api/commits", params={"size": 100}, headers=HEADERS)
+    resp = client.get("/api/commits", params={"model_name": "fixture_v2", "size": 100}, headers=HEADERS)
     assert resp.status_code == 200
 
 
 def test_list_returns_is_bug_inducing_and_features_only_on_demand(client):
     """默认不带 14 维数据（features 为 null）；with_features=1 才回填；is_bug_inducing 恒在（1/0/null）。"""
-    body = client.get("/api/commits", headers=HEADERS).json()
+    body = client.get("/api/commits", params={"model_name": "fixture_v2"}, headers=HEADERS).json()
     items = body["data"]["items"]
     assert all(item.get("features") is None for item in items)
     by_hash = {item["commit_hash"]: item for item in items}
@@ -45,28 +45,28 @@ def test_list_returns_is_bug_inducing_and_features_only_on_demand(client):
     assert by_hash[C2]["is_bug_inducing"] == 0
 
     with_features = client.get(
-        "/api/commits", params={"with_features": "1"}, headers=HEADERS
+        "/api/commits", params={"with_features": "1", "model_name": "fixture_v2"}, headers=HEADERS
     ).json()
     assert set(with_features["data"]["items"][0]["features"]) == set(FEATURE_VALUES)
 
 
 def test_list_is_test_filter(client):
     """is_test=1 只返回检验集提交（commit_feature.is_test=1）；is_test=0 不筛检验集。"""
-    body = client.get("/api/commits", params={"is_test": "1"}, headers=HEADERS).json()
+    body = client.get("/api/commits", params={"model_name": "fixture_v2", "is_test": "1"}, headers=HEADERS).json()
     assert body["code"] == 0
     assert {item["commit_hash"] for item in body["data"]["items"]} == {C1, C2}
-    empty = client.get("/api/commits", params={"is_test": "0"}, headers=HEADERS).json()
+    empty = client.get("/api/commits", params={"model_name": "fixture_v2", "is_test": "0"}, headers=HEADERS).json()
     assert empty["data"]["total"] == 2
 
 
 def test_invalid_with_features_rejected(client):
-    resp = client.get("/api/commits", params={"with_features": "2"}, headers=HEADERS)
+    resp = client.get("/api/commits", params={"model_name": "fixture_v2", "with_features": "2"}, headers=HEADERS)
     assert resp.status_code == 400
     assert resp.json()["code"] == 40001
 
 
 def test_detail_features_and_explanation(client):
-    body = client.get(f"/api/commits/{C1}", headers=HEADERS).json()
+    body = client.get(f"/api/commits/{C1}", params={"model_name": "fixture_v2"}, headers=HEADERS).json()
     data = body["data"]
     assert set(data["features"]) == set(FEATURE_VALUES)
     assert data["risk_score"] == 0.8732
@@ -75,7 +75,7 @@ def test_detail_features_and_explanation(client):
 
 def test_detail_localization_degrades_to_commit_level(client):
     """G1-1：无文件/行级数据 → localization 降级到提交级特征归因，高亮按 |归因| 降序。"""
-    body = client.get(f"/api/commits/{C1}", headers=HEADERS).json()
+    body = client.get(f"/api/commits/{C1}", params={"model_name": "fixture_v2"}, headers=HEADERS).json()
     loc = body["data"]["localization"]
     assert loc["level"] == "commit"
     assert "降级到提交级" in loc["notice"]
@@ -147,7 +147,7 @@ def test_detail_line_level_localization_when_diff_available(client, tmp_path, mo
         )
         session.commit()
 
-    body = client.get(f"/api/commits/{hash_}", headers=HEADERS).json()
+    body = client.get(f"/api/commits/{hash_}", params={"model_name": "fixture_v2"}, headers=HEADERS).json()
     loc = body["data"]["localization"]
     assert loc["level"] == "line"
     assert loc["files"], "应有文件级新增行数据"
@@ -178,14 +178,14 @@ def test_detail_model_name_matches_list_selection(client):
     assert body["data"]["model_name"] == "fixture_v1"
     assert body["data"]["risk_score"] == 0.33
     # 不指定 → 默认模型 fixture_v2
-    default = client.get(f"/api/commits/{C1}", headers=HEADERS).json()
+    default = client.get(f"/api/commits/{C1}", params={"model_name": "fixture_v2"}, headers=HEADERS).json()
     assert default["data"]["model_name"] == "fixture_v2"
     assert default["data"]["risk_score"] == 0.8732
 
 
 def test_detail_fix_references_excludes_self_and_uses_fix_flag(client):
     """G1-2：同仓库 fix=1 的历史修复提交作参考；排除自身；无依据时空态。"""
-    body = client.get(f"/api/commits/{C1}", headers=HEADERS).json()
+    body = client.get(f"/api/commits/{C1}", params={"model_name": "fixture_v2"}, headers=HEADERS).json()
     refs = body["data"]["fix_references"]
     assert refs["basis"]
     hashes = [item["commit_hash"] for item in refs["items"]]
@@ -209,14 +209,14 @@ def test_detail_fix_references_excludes_self_and_uses_fix_flag(client):
             )
         )
         session.commit()
-    empty = client.get(f"/api/commits/{empty_hash}", headers=HEADERS).json()
+    empty = client.get(f"/api/commits/{empty_hash}", params={"model_name": "fixture_v2"}, headers=HEADERS).json()
     assert empty["code"] == 0
     assert empty["data"]["fix_references"]["items"] == []
     assert empty["data"]["localization"]["highlights"] == []
 
 
 def test_detail_without_prediction_returns_nulls(client):
-    body = client.get(f"/api/commits/{C3}", headers=HEADERS).json()
+    body = client.get(f"/api/commits/{C3}", params={"model_name": "fixture_v2"}, headers=HEADERS).json()
     data = body["data"]
     assert body["code"] == 0
     assert data["risk_score"] is None
@@ -226,18 +226,18 @@ def test_detail_without_prediction_returns_nulls(client):
 
 
 def test_detail_unknown_hash(client):
-    resp = client.get(f"/api/commits/{UNKNOWN}", headers=HEADERS)
+    resp = client.get(f"/api/commits/{UNKNOWN}", params={"model_name": "fixture_v2"}, headers=HEADERS)
     assert resp.status_code == 404
     assert resp.json()["message"] == "commit not found"
 
 
 def test_detail_bad_hash_format(client):
-    resp = client.get(f"/api/commits/{'a' * 39}", headers=HEADERS)
+    resp = client.get(f"/api/commits/{'a' * 39}", params={"model_name": "fixture_v2"}, headers=HEADERS)
     assert resp.status_code == 400
     assert resp.json()["code"] == 40001
 
 
-def test_default_model_is_version_order_not_recency(client, monkeypatch):
+def test_explicit_model_selection(client, monkeypatch):
     from dataclasses import replace
     from datetime import datetime
 
@@ -258,10 +258,10 @@ def test_default_model_is_version_order_not_recency(client, monkeypatch):
             )
         )
         session.commit()
-    body = client.get("/api/commits", headers=HEADERS).json()
+    body = client.get("/api/commits", params={"model_name": "xgb_v9"}, headers=HEADERS).json()
     assert body["data"]["total"] == 1
     assert body["data"]["items"][0]["model_name"] == "xgb_v9"
-    detail = client.get(f"/api/commits/{C1}", headers=HEADERS).json()
+    detail = client.get(f"/api/commits/{C1}", params={"model_name": "xgb_v9"}, headers=HEADERS).json()
     assert detail["data"]["model_name"] == "xgb_v9"
     assert detail["data"]["risk_score"] == 0.55
 
@@ -270,7 +270,7 @@ def test_end_pure_date_includes_whole_end_day(client):
     """契约三 1.5：end 纯日期串含结束日全天（#61：此前丢当天数据）。"""
     body = client.get(
         "/api/commits",
-        params={"start_time": "2026-08-03", "end_time": "2026-08-03"},
+        params={"start_time": "2026-08-03", "end_time": "2026-08-03", "model_name": "fixture_v2"},
         headers=HEADERS,
     ).json()
     assert body["code"] == 0
@@ -281,10 +281,10 @@ def test_end_pure_date_includes_whole_end_day(client):
 def test_end_with_time_component_unchanged(client):
     """带时间分量按原样解析：08-03T08:59:59 不含 C2，09:00:00 含。"""
     early = client.get(
-        "/api/commits", params={"end_time": "2026-08-03T08:59:59"}, headers=HEADERS
+        "/api/commits", params={"end_time": "2026-08-03T08:59:59", "model_name": "fixture_v2"}, headers=HEADERS
     ).json()
     late = client.get(
-        "/api/commits", params={"end_time": "2026-08-03T09:00:00"}, headers=HEADERS
+        "/api/commits", params={"end_time": "2026-08-03T09:00:00", "model_name": "fixture_v2"}, headers=HEADERS
     ).json()
     assert early["data"]["total"] == 1
     assert late["data"]["total"] == 2
@@ -292,7 +292,7 @@ def test_end_with_time_component_unchanged(client):
 
 def test_start_pure_date_still_midnight(client):
     """start 纯日期串仍是当天 00:00:00，不随 end 规则变（#61 评审：不能一刀切）。"""
-    body = client.get("/api/commits", params={"start_time": "2026-08-03"}, headers=HEADERS).json()
+    body = client.get("/api/commits", params={"model_name": "fixture_v2", "start_time": "2026-08-03"}, headers=HEADERS).json()
     assert body["data"]["total"] == 1
     assert body["data"]["items"][0]["commit_hash"] == C2
 
@@ -305,7 +305,7 @@ def test_compact_basic_format_rejected(client):
         ("end_time", "20260803T090000Z"),
         ("end_time", "20260803T090000+08:00"),
     ):
-        resp = client.get("/api/commits", params={param: value}, headers=HEADERS)
+        resp = client.get("/api/commits", params={"model_name": "fixture_v2", param: value}, headers=HEADERS)
         assert resp.status_code == 400
         body = resp.json()
         assert body["code"] == 40001
@@ -321,7 +321,7 @@ def test_commits_view_filter_does_not_trigger_prediction(client):
         before = session.query(Prediction).count()
     body = client.get(
         "/api/commits",
-        params={"since": "2026-07-01", "until": "2026-07-31"},
+        params={"since": "2026-07-01", "until": "2026-07-31", "model_name": "fixture_v2"},
         headers=HEADERS,
     ).json()
     assert body["code"] == 0
@@ -334,18 +334,18 @@ def test_commits_view_filter_does_not_trigger_prediction(client):
 
 def test_search_by_message_and_by_hash_prefix(client):
     """q 支持提交信息片段与哈希前缀，且只做查看过滤。"""
-    by_message = client.get("/api/commits", params={"q": "CAMEL-2"}, headers=HEADERS).json()["data"]
+    by_message = client.get("/api/commits", params={"model_name": "fixture_v2", "q": "CAMEL-2"}, headers=HEADERS).json()["data"]
     assert [item["commit_hash"] for item in by_message["items"]] == [C2]
 
-    by_hash = client.get("/api/commits", params={"q": C1[:8]}, headers=HEADERS).json()["data"]
+    by_hash = client.get("/api/commits", params={"model_name": "fixture_v2", "q": C1[:8]}, headers=HEADERS).json()["data"]
     assert [item["commit_hash"] for item in by_hash["items"]] == [C1]
 
 
 def test_search_treats_like_wildcards_literally(client):
     """`_` / `%` 必须按字面匹配（LIKE 需显式 escape），不能退化成通配符扫全表。"""
     for keyword in ("jd_e", "jd%", "_", "%"):
-        data = client.get("/api/commits", params={"q": keyword}, headers=HEADERS).json()["data"]
+        data = client.get("/api/commits", params={"model_name": "fixture_v2", "q": keyword}, headers=HEADERS).json()["data"]
         assert data["items"] == [], f"{keyword!r} 被当成了通配符"
     # 作者 jdoe 字面命中不受影响（C3 无 prediction，列表只展示已预测的 C1/C2）
-    hit = client.get("/api/commits", params={"q": "jdoe"}, headers=HEADERS).json()["data"]
+    hit = client.get("/api/commits", params={"model_name": "fixture_v2", "q": "jdoe"}, headers=HEADERS).json()["data"]
     assert hit["total"] == 2

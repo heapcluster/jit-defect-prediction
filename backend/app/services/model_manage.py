@@ -11,20 +11,11 @@ from app.services import config_store, job_store, output_store
 from app.services import file_contracts as fc
 
 logger = logging.getLogger('backend.models')
-LINE_ORDER = ('expert', 'semantic', 'fused', 'e2e')
+LINE_ORDER = ('expert', 'semantic')
 
 
-def resolve_default(session):
-    configured = config_store.get_value('default_model', session)
-    if configured:
-        artifact = session.scalar(select(ModelArtifact).where(ModelArtifact.model_name == configured))
-        if artifact is None or artifact.status != 'available':
-            return configured, '配置的默认模型不可用，需重新加载或更换默认'
-        return configured, None
-    entry = model_registry.default_model()
-    if entry is None:
-        return None, '未配置默认模型且无已加载 expert 模型'
-    return entry.name, '未配置默认模型，回退已加载 expert 中 version_key 最大者'
+def selected(session):
+    return config_store.get_value('selected_model', session) or None
 
 
 def _artifact(session, name):
@@ -47,7 +38,6 @@ def _read_package(artifact):
 def status(session, line=None, model_name=None):
     if line is not None and line not in LINE_ORDER:
         raise AppError(40001, '参数非法：line')
-    default, reason = resolve_default(session)
     query = select(ModelArtifact, Model).join(Model, Model.model_name == ModelArtifact.model_name)
     if line:
         query = query.where(ModelArtifact.line == line)
@@ -62,7 +52,7 @@ def status(session, line=None, model_name=None):
                       'feature_version': artifact.feature_version,
                       'trained_at': artifact.trained_at.isoformat() + 'Z' if artifact.trained_at else None,
                       'checksum_sha256': artifact.checksum_sha256})
-    return {'default_model': default, 'fallback_reason': reason, 'items': items}
+    return {'selected_model': selected(session), 'items': items}
 
 
 def _load(session, name):
@@ -93,17 +83,12 @@ def reload(session, name):
 
 def unload(session, name):
     _artifact(session, name)
-    default, _ = resolve_default(session)
-    if name == default:
-        raise AppError(40001, '默认模型不可直接卸载，请先更换默认模型')
     model_registry.unload(name)
     runtime = model_registry.runtime_state(name)
     return {'model_name': name, 'runtime_state': runtime['state'], 'load_error': runtime['error']}
 
 
-def set_default(session, name):
+def set_selection(session, name):
     artifact = _artifact(session, name)
-    if artifact.status != 'available':
-        raise AppError(40001, '仅可用工件可设为默认模型')
-    config_store.write_config(session, [{'config_key': 'default_model', 'value': name}])
-    return {'default_model': name}
+    config_store.write_config(session, [{'config_key': 'selected_model', 'value': name}])
+    return {'selected_model': name}

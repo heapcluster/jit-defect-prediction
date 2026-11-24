@@ -63,7 +63,7 @@ def test_batch_write_is_persisted_and_read_by_new_session(config_client):
     ("decision_threshold", True), ("decision_threshold", "0.4"),
     ("predict.batch_size", 0), ("predict.batch_size", 1.5),
     ("predict.cache_ttl", -1), ("effort_enabled", "true"),
-    ("default_model", "missing_model"), ("default_dataset", "missing_dataset"),
+    ("selected_model", 123), ("default_dataset", "missing_dataset"),
     ("default_xai", "unregistered"), ("metrics_selected", ["auc", "auc"]),
     ("metrics_selected", ["unknown_metric"]), ("page_prefs", {"API_TOKEN": "secret"}),
     ("localization.top_n", {"files": 0, "lines": 30}),
@@ -189,31 +189,27 @@ def test_user_layer_resolves_and_deletes_to_global(config_client):
         assert result["value"] == 0.4
 
 
-def test_default_model_setting_changes_list_default(config_client):
-    response = config_client.put("/api/config/default_model", headers=HEADERS, json={"value": "fixture_v1"})
-    assert response.status_code == 200
+def test_commits_requires_explicit_model(config_client):
     response = config_client.get("/api/commits", headers=HEADERS)
-    assert response.status_code == 200
-    assert all(item["risk_score"] is None for item in response.json()["data"]["items"])
+    assert response.status_code == 400
+    assert response.json()["code"] == 40001
 
 
-def test_default_model_setting_changes_single_prediction(config_client):
-    response = config_client.put("/api/config/default_model", headers=HEADERS, json={"value": "fixture_v1"})
-    assert response.status_code == 200
+def test_single_prediction_requires_explicit_model(config_client):
     prediction = config_client.post("/api/predict", headers=HEADERS, json={"commit_hash": "a" * 40})
-    assert prediction.status_code == 200
-    assert prediction.json()["data"]["model_name"] == "fixture_v1"
+    assert prediction.status_code == 400
+    assert prediction.json()["code"] == 40001
 
 
 def test_risk_threshold_change_updates_trend_and_detail(config_client):
-    first = config_client.get("/api/commits/" + "a" * 40, headers=HEADERS).json()["data"]
+    first = config_client.get("/api/commits/" + "a" * 40, params={"model_name": "fixture_v2"}, headers=HEADERS).json()["data"]
     assert "高风险" in first["summary"]
     saved = config_client.put("/api/config/risk_high_threshold", headers=HEADERS, json={"value": 0.9})
     assert saved.status_code == 200
-    response = config_client.get("/api/trends", headers=HEADERS)
+    response = config_client.get("/api/trends", params={"model_name": "fixture_v2"}, headers=HEADERS)
     assert response.status_code == 200
     assert sum(item["high_risk_count"] for item in response.json()["data"]["series"]) == 0
-    second = config_client.get("/api/commits/" + "a" * 40, headers=HEADERS).json()["data"]
+    second = config_client.get("/api/commits/" + "a" * 40, params={"model_name": "fixture_v2"}, headers=HEADERS).json()["data"]
     assert "中风险" in second["summary"]
 
 
@@ -253,14 +249,15 @@ def test_global_default_change_cannot_invalidate_user_override(config_client, op
         assert json.loads(session.get(UserConfig, ("global", "risk_high_threshold")).value_json) == 0.8
 
 
-def test_registry_default_resolution_does_not_open_database(config_client, monkeypatch):
-    from app.services import commits, predict
+def test_missing_model_rejected_without_database(config_client, monkeypatch):
+    from app.errors import AppError
+    from app.services import predict
     def no_database(*args, **kwargs):
-        pytest.fail("Registry-only resolution must not open a database")
+        pytest.fail("Missing model must be rejected without opening a database")
     monkeypatch.setattr("app.services.config_store.get_value", no_database)
-    monkeypatch.setattr(commits, "get_value", no_database)
-    assert commits.default_model_in_table() == "fixture_v2"
-    assert predict.resolve_model_name(None) == "fixture_v2"
+    with pytest.raises(AppError) as error:
+        predict.resolve_model_name(None)
+    assert error.value.code == 40001
 
 
 def test_reused_session_validates_latest_concurrent_value(config_client):

@@ -1,4 +1,4 @@
-"""W7 独立评估核心：predictions(+可选 labels) → §3.6 指标/混淆/比较/两类 effort 图/报告。
+"""W7 独立评估核心：predictions（真标签随行透传）→ §3.6 指标/混淆/比较/两类 effort 图/报告。
 
 公式单源 evaluation/metrics.py；不训练、不改概率、不依赖业务库或上游服务。
 effort-aware 需 LOC 工作量输入（可选 §3.1 commits / §3.2 cleaned，按 la/ld 反变换还原），缺省时披露 missing_effort，但两类 effort 图仍作为课程硬产物交付。
@@ -32,7 +32,6 @@ def _services():
 
 
 fc, output_store, metrics = _services()
-LABEL_COLUMNS = ["commit_hash", "is_bug_inducing", "labeled_at"]
 METRIC_COLUMNS = [
     "model_name",
     "line",
@@ -147,47 +146,19 @@ def parse_predictions(name, content):
     return out
 
 
-def parse_labels(name, content):
-    columns, rows = fc.read_table(name, content)
-    if columns != LABEL_COLUMNS:
-        _invalid("labels 列必须为 commit_hash,is_bug_inducing,labeled_at")
-    out = {}
-    for row in rows:
-        label = row["is_bug_inducing"]
-        out[row["commit_hash"]] = None if label in (None, "") else int(label)
-    return out
-
-
 def parse_effort(name, content):
-    """从 §3.1 commits / §3.2 cleaned 的 log1p 特征还原真实 LOC 工作量（la+ld 反变换）。"""
-    columns, rows = fc.read_table(name, content)
-    if columns != list(fc.COMMITS_COLUMNS):
-        _invalid("effort 输入须为 §3.1 commits 或 §3.2 cleaned 表格")
-    out = {}
-    for row in rows:
-        try:
-            la, ld = float(row["la"]), float(row["ld"])
-        except (TypeError, ValueError):
-            _invalid("effort 输入 la/ld 必须为数值")
-        if not (math.isfinite(la) and math.isfinite(ld)) or la < 0 or ld < 0:
-            _invalid("effort 输入 la/ld 必须为非负有限 log1p 值")
-        out[row["commit_hash"]] = max(round(math.expm1(la) + math.expm1(ld)), 0)
-    return out
+    """新契约 §3.2/§3.3 不含 la/ld 模型特征，无法还原 LOC；返回空表触发 missing_effort。"""
+    columns, _rows = fc.read_table(name, content)
+    if not (set(columns) <= set(fc.CLEAN_DATASET_COLUMNS) and set(fc.COLLECTED_COMMITS_REQUIRED) <= set(columns)):
+        _invalid("effort 输入须为 §3.3 train_testset（clean_dataset schema）")
+    return {}
 
 
-def join_labels(pred_rows, label_map):
-    conflicts = 0
-    merged = []
-    for row in pred_rows:
-        truth = row["is_bug_inducing"]
-        if label_map and row["commit_hash"] in label_map:
-            external = label_map[row["commit_hash"]]
-            if truth is not None and external is not None and truth != external:
-                conflicts += 1
-            truth = external
-        merged.append({**row, "is_bug_inducing": truth})
+def join_labels(pred_rows):
+    """新契约：真标签只在 predictions 行内，不再与独立标签文件合并。"""
+    merged = [{**row, "is_bug_inducing": row["is_bug_inducing"]} for row in pred_rows]
     unlabeled = sum(1 for r in merged if r["is_bug_inducing"] is None)
-    return merged, {"conflicts": conflicts, "unlabeled": unlabeled, "joined": len(label_map or {})}
+    return merged, {"unlabeled": unlabeled}
 
 
 def _figure():
@@ -213,12 +184,12 @@ def _annotate(figure, text):
     return _save(figure)
 
 
-def run(pred_rows, config, *, label_map=None, effort=None, explanations=None, progress=None):
+def run(pred_rows, config, *, effort=None, explanations=None, progress=None):
     import numpy as np
     from sklearn.metrics import confusion_matrix, precision_recall_curve, roc_curve
 
     cfg = validate_config(config)
-    merged, label_stats = join_labels(pred_rows, label_map)
+    merged, label_stats = join_labels(pred_rows)
     models = {}
     for row in merged:
         models.setdefault(row["model_name"], []).append(row)
@@ -578,7 +549,6 @@ def main(argv=None):
     sub.add_parser("metrics")
     command = sub.add_parser("run")
     command.add_argument("--predictions", required=True)
-    command.add_argument("--labels")
     command.add_argument("--effort")
     command.add_argument("--threshold", type=float, default=0.5)
     command.add_argument("--metrics")
@@ -604,17 +574,12 @@ def main(argv=None):
         cfg = validate_config(config)
         pred_path = Path(args.predictions).resolve(strict=True)
         pred_rows = parse_predictions(pred_path.name, _bounded(pred_path))
-        label_map = (
-            parse_labels(Path(args.labels).name, _bounded(Path(args.labels)))
-            if args.labels
-            else None
-        )
         effort_map = (
             parse_effort(Path(args.effort).name, _bounded(Path(args.effort)))
             if args.effort
             else None
         )
-        result = run(pred_rows, cfg, label_map=label_map, effort=effort_map)
+        result = run(pred_rows, cfg, effort=effort_map)
         job_id = str(uuid4())
         data = artifacts(result, job_id)
         output_store.OUTPUT_ROOT = Path(args.out).resolve()
@@ -625,10 +590,6 @@ def main(argv=None):
                 "rows": len(pred_rows),
             }
         ]
-        if args.labels:
-            inputs.append(
-                {"name": Path(args.labels).name, "sha256": fc.sha256(_bounded(Path(args.labels)))}
-            )
         if args.effort:
             inputs.append(
                 {"name": Path(args.effort).name, "sha256": fc.sha256(_bounded(Path(args.effort)))}

@@ -10,7 +10,6 @@ from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import AppError, ok
 from app.models import Commit, Prediction
-from app.services.commits import default_model_in_table
 from app.services.config_store import get_value
 from app.timeutil import parse_time_param
 
@@ -57,11 +56,13 @@ def trends(
 ) -> dict:
     if granularity not in ("week", "month"):
         raise AppError(40001, "参数非法：granularity 取值需为 week 或 month")
+    if not model_name:
+        raise AppError(40001, "参数非法：model_name 必填，不设默认模型")
     start = parse_time_param(start_time, "start_time") if start_time else None
     end = parse_time_param(end_time, "end_time", "end") if end_time else None
     with SessionLocal() as session:
         high = get_value("risk_high_threshold", session)
-        model = model_name or default_model_in_table(session)
+        model = model_name
         is_mysql = session.bind is not None and session.bind.dialect.name == "mysql"
 
         base = select(Prediction.risk_score, Commit.committed_at).join(

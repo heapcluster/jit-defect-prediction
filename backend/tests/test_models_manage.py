@@ -5,14 +5,14 @@ from app.models import Base, ModelArtifact
 from app.services import output_store, storage, train_run
 from sqlalchemy import select
 
-from tests.conftest import HEADERS
+from tests.conftest import HEADERS, TEST_REPO
 from tests.test_train_real import train_rows
 
 
 def lr_package(seed=42):
     core = train_run._core()
     cfg = core.validate_config({'line': 'expert', 'algos': ['lr'], 'split': {'ratio': 0.7}, 'seed': seed, 'decision_threshold': 0.5})
-    result = core.run(train_rows(), cfg)
+    result = core.run(train_rows(), cfg, metadata={'repo': str(TEST_REPO)})
     name = result['models'][0]['model_name']
     return name, result['models'][0]['feature_version'], core.artifacts(result, 'pkg')['train_lr_model_package_pkg.zip']
 
@@ -48,25 +48,26 @@ def test_status_load_unload_reload_default(manage):
     assert model_registry.has(name)
     reloaded = client.post(f'/api/models/{name}/reload', headers=HEADERS).json()['data']
     assert reloaded['runtime_state'] == 'loaded'
-    assert client.put('/api/models/default', json={'model_name': name}, headers=HEADERS).json()['data']['default_model'] == name
-    assert client.get('/api/models/status', headers=HEADERS).json()['data']['default_model'] == name
+    assert client.put('/api/models/selection', json={'model_name': name}, headers=HEADERS).json()['data']['selected_model'] == name
+    assert client.get('/api/models/status', headers=HEADERS).json()['data']['selected_model'] == name
 
 
-def test_unload_non_default(manage):
+def test_unload_non_selected(manage):
     client, name, _, _ = manage
     other, _, raw2 = lr_package(seed=7)
     model_registry.unload(other)
     with db.SessionLocal() as session:
         storage.import_files(session, [('model_package2.zip', raw2)])
-    client.put('/api/models/default', json={'model_name': name}, headers=HEADERS)
+    client.put('/api/models/selection', json={'model_name': name}, headers=HEADERS)
     unloaded = client.post(f'/api/models/{other}/unload', headers=HEADERS).json()['data']
     assert unloaded['runtime_state'] == 'unloaded'
 
 
-def test_unload_default_rejected(manage):
+def test_unload_selected_model_allowed(manage):
     client, name, _, _ = manage
-    client.put('/api/models/default', json={'model_name': name}, headers=HEADERS)
-    assert client.post(f'/api/models/{name}/unload', headers=HEADERS).status_code == 400
+    client.put('/api/models/selection', json={'model_name': name}, headers=HEADERS)
+    unloaded = client.post(f'/api/models/{name}/unload', headers=HEADERS).json()['data']
+    assert unloaded['runtime_state'] == 'unloaded'
 
 
 def test_checksum_mismatch_load_failed_preserves(manage):

@@ -46,12 +46,10 @@ import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-# 各线的权重目录与期望特征宽度（e2e 是端到端微调，不吃表格特征 → 0 = 不校验）
+# 各线的权重目录与期望特征宽度（仅 expert / semantic 两线）
 LINES: dict[str, tuple[str, int]] = {
     "expert": ("pipelines/expert/models", 14),
     "semantic": ("pipelines/semantic/models", 768),
-    "fused": ("pipelines/fused/models", 782),
-    "e2e": ("pipelines/e2e/models", 0),
 }
 
 # 只有 `__main__` 是真问题：类定义在训练脚本里，干净进程 import 不到它。
@@ -296,7 +294,7 @@ def main(argv: list[str] | None = None) -> int:
         "--expect-width",
         type=int,
         default=None,
-        help="期望特征宽度；默认按线取（expert 14 / semantic 768 / fused 782 / e2e 0）",
+        help="期望特征宽度；默认按线取（expert 14 / semantic 768）",
     )
     parser.add_argument("--write-manifest", action="store_true", help="生成 models/manifest.txt")
     parser.add_argument(
@@ -325,18 +323,7 @@ def main(argv: list[str] | None = None) -> int:
     started = time.time()
     records = scan(models_dir, with_load=not args.no_load)
     if not records:
-        if args.line == "e2e":
-            # e2e 是 HF safetensors 权重（models/codebert_e2e_v1/），本脚本只扫 *.pkl。
-            # 已裁定不是缺陷（e2e 的可加载取证走 safetensors_integrity.log），
-            # 但 CLI 要一句话说清，别让人以为目录坏了。
-            print(
-                f"[verify] e2e 线的权重是 safetensors（{models_dir}/codebert_e2e_v1/），"
-                "本脚本只校验 *.pkl，对该线不适用；可加载性取证见该线 evidence/ 下的"
-                "safetensors_integrity.log",
-                file=sys.stderr,
-            )
-        else:
-            print(f"[verify] 目录里没有 *.pkl：{models_dir}", file=sys.stderr)
+        print(f"[verify] 目录里没有 *.pkl：{models_dir}", file=sys.stderr)
         return 2
 
     if args.json:

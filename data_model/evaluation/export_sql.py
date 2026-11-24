@@ -144,7 +144,7 @@ def write_data_init(
                     ]
                 )
             )
-        f.write("-- 2) model（25 个；已存在同名模型时跳过，保证幂等）\n")
+        f.write("-- 2) model（16 个；已存在同名模型时跳过，保证幂等）\n")
         _write_inserts(
             f,
             "model",
@@ -180,7 +180,7 @@ def write_data_init(
             rows,
         )
 
-        # 4) prediction（25 模型 × 测试集；特征版本由 model.feature_version 决定，不落本表）
+        # 4) prediction（16 模型 × 测试集；特征版本由 model.feature_version 决定，不落本表）
         rows = [
             _row(
                 [
@@ -192,7 +192,7 @@ def write_data_init(
             )
             for r in preds.itertuples(index=False)
         ]
-        f.write("-- 4) prediction（25 模型 × 测试集）\n")
+        f.write("-- 4) prediction（16 模型 × 测试集）\n")
         _write_inserts(
             f, "prediction", ["commit_hash", "model_name", "risk_score", "predicted_at"], rows
         )

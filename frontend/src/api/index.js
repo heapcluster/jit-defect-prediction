@@ -1,6 +1,6 @@
 import request, { SYNC_TIMEOUT } from './request'
 
-// 风险列表：GET /api/commits（with_features / is_test 可选）
+// 风险列表：GET /api/commits（with_features 可选；model_name 必填）
 export function getCommits(params) {
   return request.get('/commits', { params })
 }
@@ -48,8 +48,8 @@ export function reloadModel(name) {
   return request.post(`/models/${encodeURIComponent(name)}/reload`)
 }
 
-export function setDefaultModel(name) {
-  return request.put('/models/default', { model_name: name })
+export function setSelectedModel(name) {
+  return request.put('/models/selection', { model_name: name })
 }
 
 export function runPredict(config, files = []) {

@@ -10,9 +10,7 @@
 - [API](api/)：17 组端点（八模块文件运行 + 存储导入导出 + 读/管理/配置/任务）。
 - [数据库](database/)：12 张表的字段与约束；表是展示与持久化层，不是模块间总线。
 - [功能点](function_point/)：八个独立工具模块 + 拓展的职责、文件输入输出与验收。
-- [页面](web_page/)：8 个功能 tab（与原图功能①~⑧一一对应，展示与配置收进对应 tab 内子视图）的交互契约与 ASCII 线框。
-- [模型卡片](model/)：25 个模型的训练配置与工件登记契约。
-- [测试](想到什么取什么/)：冻结轮次的测试计划、交付物与实测证据（历史证据，不随契约改写）。
+- [页面](web_page/)：6 个顶级 tab（功能①~⑥）+ ⑦解释/⑧定位及修复作为⑤的子页（保留独立路由），展示与配置收进对应 tab 内子视图的交互契约与 ASCII 线框。
 - [公共文档](common/)：课程要求与考核说明、测试口径。
 
 ## 1 产品目标
@@ -26,9 +24,9 @@
 | 功能 | 模块 | 契约 | 独立运行端点（文件进→文件出） | 实现状态 |
 |---|---|---|---|---|
 | 1 | 数据库存储与配置中心 | [storage](function_point/storage.md) | `POST /api/storage/import`、`GET /api/storage/export`、`/api/config` 族 | 部分 |
-| 2 | 缺陷数据收集 | [collect](function_point/collect.md) | `POST /api/collect/run` | 已实现 |
-| 3 | 数据清洗与预处理 | [clean](function_point/clean.md) | `POST /api/clean/run`、`GET /api/clean/operations` | 已实现 |
-| 4 | 模型训练 | [train](function_point/train.md) | `POST /api/train/run`、`GET /api/algorithms` | 已实现 |
+| 2 | 缺陷数据收集 | [collect](function_point/collect.md) | `POST /api/collect/run`（Git 仓库 / 公开数据集） | 目标契约（旧实现待改造） |
+| 3 | 数据清洗与预处理 | [clean](function_point/clean.md) | `POST /api/clean/run`、`GET /api/clean/operations` | 目标契约（旧实现待改造） |
+| 4 | 模型训练 | [train](function_point/train.md) | `POST /api/train/run`、`GET /api/algorithms` | 目标契约（旧实现待改造） |
 | 5 | 模型预测 | [predict](function_point/predict.md) | `POST /api/predict/run`、`POST /api/predict`（单条）、`/api/models` 族 | 已实现 |
 | 6 | 预测性能评估 | [evaluate](function_point/evaluate.md) | `POST /api/evaluate/run`、`GET /api/evaluate/metrics` | 已实现 |
 | 7 | 预测结果解释 | [explain](function_point/explain.md) | `POST /api/explain/run`、`POST /api/explain`、`GET /api/explain/techniques` | 已实现 |
@@ -39,17 +37,17 @@
 
 ## 3 数据边界
 
-**模块间数据 handoff = 交换文件**（commits / cleaned / model_package / predictions / labels / metrics / explanations / localization + manifest），schema 单一权威见 [file-contracts.md](file-contracts.md)。关系库 12 表：`commit / commit_feature / model / prediction / model_figure / user / user_config / job / algorithm / model_artifact / dataset / dataset_commit`，角色 = 展示导入 + 配置 + 任务状态 + 资产登记；建表真源 [`../infra/schema.sql`](../infra/schema.sql)（DDL 与 ORM 已同步），逐表见 [`database/`](database/)。一期不动现有主键；数据集多版本属二期。公开 JIT 缺陷数据集（课程附加 3）落盘独立文件 + 元数据，不入库，契约见 [function_point/collect.md](function_point/collect.md) §9。
+**模块间数据 handoff = 交换文件**（collected_commits / clean_dataset / model_package / train_testset / predictions / metrics / explanations / localization + manifest），schema 单一权威见 [file-contracts.md](file-contracts.md)。关系库 12 表：`commit / commit_feature / model / prediction / model_figure / user / user_config / job / algorithm / model_artifact / dataset / dataset_commit`，角色 = 展示导入 + 配置 + 任务状态 + 资产登记；建表真源 [`../infra/schema.sql`](../infra/schema.sql)，逐表见 [`database/`](database/)。一期不动现有主键；数据集多版本属二期。板块 2 的新契约默认把 Git 采集或公开数据集导入后的已打标二维表保存到 `dataset` + `dataset_commit`，同时保留落盘文件与 manifest；DDL/ORM 待按新契约同步。公开数据集不执行 SZZ，必须记录来源、许可证与 `label_source=public_dataset`，契约见 [function_point/collect.md](function_point/collect.md)。
 
 ## 4 模型边界
 
-四条模型线 expert / semantic / fused / e2e，报告口径 25 个模型，满足课程「至少 2 类（经典机器学习 + 深度学习）、不少于 8 种预测模型」硬要求（类别对照见 [function_point/train.md](function_point/train.md) §3）。**模型名单唯一登记源 = `model_artifact`**，`model` 行由其派生；独立运行路径下模型以 `model_package.zip` 文件交付与加载（checksum 校验），登记入库为可选展示路径。默认模型 = `user_config.default_model`，未配置时回退「已加载 expert 中 version_key 最大者」。算法与超参数 schema 登记于 `algorithm` 表，训练表单不硬编码。
+两条模型线 expert（`kamei14` Kamei 14 维）/ semantic（`codebert768` 冻结头 CodeBERT 768 维），各 8 分类器，报告口径 16 个模型，满足课程「至少 2 类（经典机器学习 + 深度学习）、不少于 8 种预测模型」硬要求（类别对照见 [function_point/train.md](function_point/train.md) §3）；`fused` / `e2e` 两线已砍掉。模型包权重统一为 `.pkl`。**模型名单唯一登记源 = `model_artifact`**，`model` 行由其派生；独立运行路径下模型以 `model_package.zip` 文件交付与加载（checksum 校验），登记入库为可选展示路径。模型由用户在运行入口显式选择（或上传 `model_package.zip`），不设默认模型，也不做隐式回退；未指定模型返回 40001。算法与超参数 schema 登记于 `algorithm` 表，训练表单不硬编码。
 
-指标公式单源 = 新增 `data_model/evaluation/metrics.py`（收敛现 `evaluation/figures.py:46-57` 与四线 `pipelines/*/metrics.py`）；评估是独立工具：输入 predictions + 标签文件 + 阈值/指标配置，产出 metrics / 混淆 / 图 / 报告文件；默认 0.5 下与历史 `model_metrics.csv` 逐值一致作为口径一致性验收线。评估只有单一文件化运行口径，结果永远对应某次显式运行，配置变更不产生隐式自动重算。
+指标公式单源 = 新增 `data_model/evaluation/metrics.py`（收敛现 `evaluation/figures.py:46-57` 与两线 `pipelines/*/metrics.py`）；评估是独立工具：输入已透传真标签的 predictions + 可选 effort 来源（train_testset）+ 阈值/指标配置，产出 metrics / 混淆 / 图 / 报告文件；默认 0.5 下与历史 `model_metrics.csv` 逐值一致作为口径一致性验收线。评估只有单一文件化运行口径，结果永远对应某次显式运行，配置变更不产生隐式自动重算。
 
 ## 5 页面与交付
 
-8 个功能 tab 与原图功能①~⑧一一对应，展示页与设置收进对应 tab 内子视图（风险列表/趋势/详情→⑤，模型性能→⑥，设置→①）；旧链接保留并归入对应功能，交互契约与 ASCII 线框见 [`web_page/`](web_page/)。工具台 = 上传输入文件 → 配置 → 运行 → 输出预览 + 下载；支持展示映射的产物可选导入库，定位只交付文件。展示子视图不承载业务计算、不作为模块运行前置。图片一律带 `X-API-Key` fetch 转 ObjectURL。部署、密钥和权重投放见 [`../README.md`](../README.md) 与 [`../infra/deployment.md`](../infra/deployment.md)。
+6 个顶级 tab 对应原图功能①~⑥；⑦预测结果解释与⑧缺陷定位及修复作为⑤预测的页内子视图并保留独立路由。展示页与设置收进对应 tab 内子视图（风险列表/趋势/详情/解释/定位→⑤，模型性能→⑥，设置→①）；旧链接保留并归入对应功能，交互契约与 ASCII 线框见 [`web_page/`](web_page/)。工具台 = 上传输入文件 → 配置 → 运行 → 输出预览 + 下载；板块 2 的 Git 仓库采集与公开数据集导入默认保存二维表到数据集库，其他模块按各自契约交付文件，定位只交付文件。展示子视图不承载业务计算、不作为模块运行前置；⑦⑧归入⑤仅为页面入口，不要求⑤先运行。图片一律带 `X-API-Key` fetch 转 ObjectURL。部署、密钥和权重投放见 [`../README.md`](../README.md) 与 [`../infra/deployment.md`](../infra/deployment.md)。
 
 ## 6 本机运行提示
 

@@ -66,7 +66,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
-DEFAULT_REPO = BASE.parent / "data" / "camel"
 DEFAULT_COMMITS = BASE.parent / "data" / "commits.csv"
 DEFAULT_OUT = BASE.parent / "data" / "commit_features.csv"
 DEFAULT_RAW = BASE.parent / "data" / "commit_features_raw.csv"
@@ -96,7 +95,6 @@ FEATURE_FIELDS = [
 ]
 
 FEATURE_VERSION = "v1"
-REPO_NAME = "camel"
 
 # 契约第四节：entropy 采用两周（14 天）滚动窗口（Kamei 引用 Hassan 的定义）
 ENTROPY_WINDOW_SECONDS = 14 * 24 * 3600
@@ -108,9 +106,7 @@ def parse_args() -> argparse.Namespace:
         description="按 docs/database/commit_feature.md 抽取 Kamei 14 项特征",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument(
-        "--repo", type=Path, default=DEFAULT_REPO, help=f"仓库副本路径（默认 {DEFAULT_REPO}）"
-    )
+    p.add_argument("--repo", type=Path, required=True, help="仓库副本路径")
     p.add_argument(
         "--commits",
         type=Path,

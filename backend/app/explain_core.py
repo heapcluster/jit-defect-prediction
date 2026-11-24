@@ -345,6 +345,66 @@ def explain(
         return _empty("explainer_failed", "解释生成失败，请检查模型与输入是否兼容。", output_space)
 
 
+def _restricted_worker(payload: dict) -> None:
+    """在反序列化上传权重之前收紧子进程。
+
+    macOS 先启用系统 sandbox-exec，再用审计钩子兜底；Windows 与其它平台没有
+    sandbox-exec，审计钩子是统一的强制边界：限制文件读写白名单、禁止网络与新建
+    进程、限制动态库加载。钩子不可卸载，子进程 -I -B 启动，父进程另加墙钟/CPU/输出上限。
+    """
+    import ctypes
+    import os
+    import sys
+    from pathlib import Path
+
+    if sys.platform == "darwin" and payload.get("sandbox_profile"):
+        library = ctypes.CDLL("/usr/lib/libsandbox.dylib")
+        error = ctypes.c_char_p()
+        if (
+            library.sandbox_init(payload["sandbox_profile"].encode(), 0, ctypes.byref(error))
+            != 0
+        ):
+            raise ValueError("OS sandbox initialization failed")
+
+    writable = Path(payload["writable_root"]).resolve()
+    readable = [Path(item).resolve() for item in payload["allowed_read_roots"]] + [writable]
+
+    def within(path, candidates):
+        if isinstance(path, int):
+            return True
+        if isinstance(path, bytes):
+            path = os.fsdecode(path)
+        try:
+            resolved = Path(path).resolve()
+        except (TypeError, ValueError, OSError):
+            return False
+        return any(resolved == item or item in resolved.parents for item in candidates)
+
+    def audit(event, args):
+        if event == "open":
+            target, mode = args[0], args[1]
+            writing = any(flag in str(mode) for flag in ("w", "a", "x", "+"))
+            allowed = [writable] if writing else readable
+            if not within(target, allowed):
+                raise PermissionError("explain worker: access denied")
+        elif event.startswith("socket.") or event == "socket.__new__":
+            raise PermissionError("explain worker: network denied")
+        elif event in {
+            "subprocess.Popen",
+            "os.system",
+            "os.exec",
+            "os.spawn",
+            "os.fork",
+            "os.forkpty",
+            "os.posix_spawn",
+        }:
+            raise PermissionError("explain worker: process creation denied")
+        elif event == "ctypes.dlopen" and not within(args[0], readable):
+            raise PermissionError("explain worker: library load denied")
+
+    sys.addaudithook(audit)
+
+
 def _worker_main() -> None:
     import base64
     import io
@@ -370,25 +430,18 @@ def _worker_main() -> None:
         sys.path.insert(0, str(backend_root))
         sys.path.insert(0, str(backend_root.parent / "data_model"))
         payload = json.load(sys.stdin)
-        # Deserialization is confined to the worker; the parent must apply its OS sandbox first.
+        # 可信依赖先加载完，再收紧子进程，最后才反序列化上传权重。
         with redirect_stdout(sys.stderr):
-            import ctypes
             import importlib
 
             import joblib
 
             importlib.import_module("shap")
-            importlib.import_module("lime.lime_tabular")
-
-            if sys.platform != "darwin" or not payload.get("sandbox_profile"):
-                raise ValueError("OS sandbox required")
-            library = ctypes.CDLL("/usr/lib/libsandbox.dylib")
-            error = ctypes.c_char_p()
-            if (
-                library.sandbox_init(payload["sandbox_profile"].encode(), 0, ctypes.byref(error))
-                != 0
-            ):
-                raise ValueError("OS sandbox initialization failed")
+            try:
+                importlib.import_module("lime.lime_tabular")
+            except ImportError:
+                pass
+            _restricted_worker(payload)
             model = joblib.load(io.BytesIO(base64.b64decode(payload["weights"], validate=True)))
             results = [
                 {
@@ -406,7 +459,8 @@ def _worker_main() -> None:
                 for row in payload["rows"]
                 for technique in payload["techniques"]
             ]
-        sys.stdout.write(json.dumps(results, ensure_ascii=False, allow_nan=False) + "\n")
+        # -I 隔离模式忽略 PYTHONIOENCODING；输出纯 ASCII JSON 规避 Windows GBK stdout。
+        sys.stdout.write(json.dumps(results, ensure_ascii=True, allow_nan=False) + "\n")
     except Exception:
         sys.stderr.write("解释任务执行失败。\n")
         raise SystemExit(1) from None

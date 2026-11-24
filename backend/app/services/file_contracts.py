@@ -27,13 +27,24 @@ MAX_ROWS = 100000
 MAX_COLUMNS = 100
 MAX_ZIP_FILES = 1000
 
+# 外部交换文件（collect/clean/train 之间）：已打标二维表，不含 Kamei 14 维与 is_test。
+COLLECTED_COMMITS_COLUMNS = (
+    "commit_hash", "repo_name", "repo_url", "author_name", "author_email", "committed_at",
+    "message", "parent_hash", "is_bug_inducing", "label_method", "label_source", "labeled_at",
+    "fix_commit_hash", "source_type",
+)
+COLLECTED_COMMITS_REQUIRED = {"commit_hash", "repo_name", "label_source", "source_type"}
+CLEAN_DATASET_COLUMNS = (*COLLECTED_COMMITS_COLUMNS, "message_length", "parent_count", "commit_hour")
+CLEAN_DATASET_REQUIRED = COLLECTED_COMMITS_REQUIRED
+
+# 内部特征表（训练/预测/解释内核之间）：含 Kamei 14 维与 is_test，不对外 handoff。
 COMMITS_COLUMNS = ("commit_hash", "repo_name", "author_name", "author_email", "committed_at", "message",
                    "parent_hash", *FEATURE_COLUMNS, "is_bug_inducing", "labeled_at", "is_test", "label_method")
 COMMITS_REQUIRED = {"commit_hash", "repo_name", "author_name", "committed_at", "message", "is_test", *FEATURE_COLUMNS}
+
 PREDICTIONS_COLUMNS = ("commit_hash", "model_name", "risk_score", "predicted_label", "decision_threshold",
                        "model_version", "feature_version", "predicted_at", "is_bug_inducing")
 PREDICTIONS_REQUIRED = set(PREDICTIONS_COLUMNS) - {"is_bug_inducing"}
-LABELS_COLUMNS = ("commit_hash", "is_bug_inducing", "labeled_at")
 
 
 def invalid(message: str) -> None:

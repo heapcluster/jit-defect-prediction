@@ -4,9 +4,8 @@
 「表格型中等样本量二分类」—— 所以分类器族与 expert 完全一致（同 12 种、同超参），
 唯一变量是输入特征，这样跨线对比才归因于「特征模态」而不是「分类器族」。
 
-⚠️ 三线分类器注册必须一致：expert / semantic / fused 的 MODEL_NAMES 与
-build_model 超参应逐字相同，由 data_model/tests/test_model_registry_parity.py
-强制。四线分包迁移时曾因此丢失 lgbm/et/svm/tabnet —— 不要单独改一处。
+⚠️ 两线分类器注册必须一致：expert / semantic 的 MODEL_NAMES 与
+build_model 超参应逐字相同。分包迁移时曾因此丢失 lgbm/et/svm/tabnet —— 不要单独改一处。
 """
 
 from __future__ import annotations

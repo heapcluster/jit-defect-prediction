@@ -182,7 +182,7 @@ def _execute(job_id, attempt):
             inputs=inputs + request['inputs'], config=settings, job_id=job_id, code_version=_code_version())
         published = True
         reference['summary'] = result['summary']
-        reference['columns'] = list(fc.COMMITS_COLUMNS)
+        reference['columns'] = list(fc.COLLECTED_COMMITS_COLUMNS)
         with db.SessionLocal() as session:
             job_store.finish(session, job_id, attempt=attempt, output_ref=reference)
         return True

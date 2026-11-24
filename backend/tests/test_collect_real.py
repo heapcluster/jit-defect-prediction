@@ -4,12 +4,13 @@ import io
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 from app import config, db
 from app.models import Commit, Dataset
-from app.services import collect_run, output_store
+from app.services import collect_run, file_contracts as fc, output_store
 from sqlalchemy import func, select
 
 from tests.conftest import HEADERS
@@ -56,18 +57,18 @@ def run(client, repo, **settings):
     return job_id, result, list(csv.DictReader(io.StringIO(raw.decode('utf-8-sig')))), raw
 
 
-@pytest.mark.parametrize('method', ['szz', 'szz_lite'])
+@pytest.mark.parametrize('method', ['szz_v1', 'szz_lite'])
 def test_real_git_szz_range_and_feature_history(real_collect, method):
     client, repo, hashes = real_collect
     job_id, result, rows, raw = run(client, repo, szz_method=method)
     assert len(rows) == len({row['commit_hash'] for row in rows}) == 4
     assert next(row for row in rows if row['commit_hash'] == hashes[1])['is_bug_inducing'] == '1'
-    assert next(row for row in rows if row['commit_hash'] == hashes[2])['fix'] in ('1', '1.0')
-    assert [row['is_test'] for row in rows] == ['0', '0', '1', '1']
+    assert all(row['label_source'] == 'git_szz' and row['source_type'] == 'git_repo' for row in rows)
+    assert 'is_test' not in rows[0] and 'fix' not in rows[0]
     _, _, window, _ = run(client, repo, szz_method=method, start_time='2026-01-02T00:00:00Z')
     full = {row['commit_hash']: row for row in rows}
     for row in window:
-        assert all(row[field] == full[row['commit_hash']][field] for field in config.FEATURE_COLUMNS)
+        assert all(row[field] == full[row['commit_hash']][field] for field in fc.COLLECTED_COMMITS_COLUMNS)
     _, _, again, repeat_raw = run(client, repo, szz_method=method)
     assert rows == again and raw == repeat_raw
 
@@ -81,7 +82,8 @@ def test_real_collected_output_can_be_explicitly_imported(real_collect):
     manifest = client.get(f'/api/collect/outputs/{job_id}/' + result['manifest_name'], headers=HEADERS).content
     name = next(item['name'] for item in result['outputs'] if item['name'].endswith('.csv'))
     response = client.post('/api/storage/import', data={'config': json.dumps({'create_dataset': {
-        'name': 'AI unreviewed collected dataset', 'repo_source': str(repo), 'head_hash': result['summary']['head_hash']}})},
+        'name': 'AI unreviewed collected dataset', 'source_type': 'git_repo',
+        'source_url': str(repo), 'head_hash': result['summary']['head_hash']}})},
         files=[('files[]', (name, raw)), ('files[]', (result['manifest_name'], manifest))], headers=HEADERS)
     assert response.status_code == 200, response.text
     assert response.json()['data']['summary']['inserted'] == len(rows)
@@ -91,7 +93,7 @@ def test_cli_and_api_files_are_identical_for_the_same_real_repository(real_colle
     client, repo, _ = real_collect
     _, _, rows, _ = run(client, repo)
     root = Path(config.REPO_ROOT)
-    process = subprocess.run([str(root / ('.venv/Scripts/python.exe' if os.name == 'nt' else '.venv/bin/python')), '-m', 'preparation.collect', 'run',
+    process = subprocess.run([sys.executable, '-m', 'preparation.collect', 'run',
         '--repo', str(repo), '--name', 'AI real Git fixture', '--fetch-remote', 'false',
         '--allow-root', str(repo.parent), '--out', str(tmp_path / 'cli')],
         cwd=root, env={**os.environ, 'PYTHONPATH': str(root / 'data_model')}, text=True, capture_output=True)
@@ -126,7 +128,7 @@ def test_production_import_path_does_not_depend_on_pytest(real_collect):
         'assert result["summary"]["rows"] == 4'
     )
     settings = {'repo_source': str(repo), 'dataset_name': 'isolated runtime', 'fetch_remote': False}
-    result = subprocess.run([str(root / ('.venv/Scripts/python.exe' if os.name == 'nt' else '.venv/bin/python')), '-I', '-c', code,
+    result = subprocess.run([sys.executable, '-I', '-c', code,
                              str(root / 'backend'), json.dumps(settings), str(repo.parent)],
                             capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
@@ -139,7 +141,7 @@ def test_real_xlsx_output_keeps_trailing_null_cells(real_collect):
     name = next(item['name'] for item in result['outputs'] if item['name'].endswith('.xlsx'))
     response = client.get(f'/api/collect/outputs/{job_id}/{name}', headers=HEADERS)
     columns, rows = fc.read_table(name, response.content)
-    assert columns == list(fc.COMMITS_COLUMNS)
+    assert columns == list(fc.COLLECTED_COMMITS_COLUMNS)
     assert rows[0]['is_bug_inducing'] == rows[0]['labeled_at'] == rows[0]['label_method'] == ''
 
 

@@ -66,7 +66,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
-DEFAULT_REPO = BASE.parent / "data" / "camel"
 DEFAULT_COMMITS = BASE.parent / "data" / "commits.csv"
 DATA_DIR = BASE.parent / "data"
 REPORTS_DIR = BASE / "reports"
@@ -114,9 +113,7 @@ def parse_args() -> argparse.Namespace:
         description="SZZ 打标：识别修缺陷提交并回溯引入缺陷的提交",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument(
-        "--repo", type=Path, default=DEFAULT_REPO, help=f"仓库副本路径（默认 {DEFAULT_REPO}）"
-    )
+    p.add_argument("--repo", type=Path, required=True, help="仓库副本路径")
     p.add_argument(
         "--commits",
         type=Path,

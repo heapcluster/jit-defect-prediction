@@ -117,7 +117,7 @@ def expect(status: int, code: int | None = None) -> Callable[[httpx.Response], d
 
 # ---------------------------------------------------------------- 公共取样
 def sample_commit() -> str:
-    r = get("/api/commits", params={"size": 1})
+    r = get("/api/commits", params={"size": 1, "model_name": sample_model()})
     body = r.json()
     check(r.status_code == 200 and body["code"] == 0, "取样例提交失败")
     items = body["data"]["items"]
@@ -136,7 +136,7 @@ def sample_model(line: str = "expert") -> str:
 # ---------------------------------------------------------------- GET /api/commits
 @case("T-IN-01", "GET /api/commits", "正常")
 def commits_normal() -> str:
-    r = get("/api/commits", params={"size": 5})
+    r = get("/api/commits", params={"size": 5, "model_name": sample_model()})
     body = expect(200)(r)
     data = body["data"]
     items = data["items"]
@@ -167,15 +167,16 @@ def commits_bad_params() -> str:
 
 @case("T-IN-04", "GET /api/commits", "边界值")
 def commits_boundary() -> str:
-    d1 = expect(200)(get("/api/commits", params={"size": 1}))["data"]
+    m = sample_model()
+    d1 = expect(200)(get("/api/commits", params={"size": 1, "model_name": m}))["data"]
     check(len(d1["items"]) == 1, "size=1 未生效")
-    d100 = expect(200)(get("/api/commits", params={"size": 100}))["data"]
+    d100 = expect(200)(get("/api/commits", params={"size": 100, "model_name": m}))["data"]
     check(len(d100["items"]) <= 100, "size=100 越界")
-    expect(400)(get("/api/commits", params={"size": 101}))
-    expect(400)(get("/api/commits", params={"page": 0}))
-    ok64 = len(get("/api/commits", params={"q": "x" * 64}).content)
-    expect(400)(get("/api/commits", params={"q": "x" * 65}))
-    far = expect(200)(get("/api/commits", params={"page": 9999}))["data"]
+    expect(400)(get("/api/commits", params={"size": 101, "model_name": m}))
+    expect(400)(get("/api/commits", params={"page": 0, "model_name": m}))
+    ok64 = len(get("/api/commits", params={"q": "x" * 64, "model_name": m}).content)
+    expect(400)(get("/api/commits", params={"q": "x" * 65, "model_name": m}))
+    far = expect(200)(get("/api/commits", params={"page": 9999, "model_name": m}))["data"]
     check(far["items"] == [] and far["total"] == d1["total"], "超末页应为空且 total 不变")
     return f"size 1/100/101、page 0、q 64({ok64}B)/65、超末页 OK"
 
@@ -184,7 +185,7 @@ def commits_boundary() -> str:
 @case("T-IN-05", "GET /api/commits/{commit_hash}", "正常")
 def detail_normal() -> str:
     h = sample_commit()
-    body = expect(200)(get(f"/api/commits/{h}"))
+    body = expect(200)(get(f"/api/commits/{h}", params={"model_name": sample_model()}))
     d = body["data"]
     check(d["commit_hash"] == h, "回显 hash 不一致")
     check(d["risk_score"] is None or 0.0 <= d["risk_score"] <= 1.0, "风险值越界")
@@ -211,8 +212,9 @@ def detail_bad_hash() -> str:
 @case("T-IN-08", "GET /api/commits/{commit_hash}", "边界值")
 def detail_boundary() -> str:
     h = sample_commit()
-    upper = expect(200)(get(f"/api/commits/{h.upper()}"))["data"]
-    lower = expect(200)(get(f"/api/commits/{h}"))["data"]
+    dm = sample_model()
+    upper = expect(200)(get(f"/api/commits/{h.upper()}", params={"model_name": dm}))["data"]
+    lower = expect(200)(get(f"/api/commits/{h}", params={"model_name": dm}))["data"]
     check(upper["risk_score"] == lower["risk_score"], "大小写 hash 结果不一致")
     # 列表选了非默认模型时，详情带 model_name 应与列表同模型一致
     m = sample_model()
@@ -235,9 +237,9 @@ def detail_boundary() -> str:
 def models_normal() -> str:
     d = expect(200)(get("/api/models"))["data"]
     lines = [x["line"] for x in d["lines"]]
-    check(lines == ["expert", "semantic", "fused", "e2e"], f"线顺序 {lines}")
+    check(lines == ["expert", "semantic"], f"线顺序 {lines}")
     total = sum(len(x["models"]) for x in d["lines"])
-    check(total >= 25, f"模型总数 {total} < 25")
+    check(total >= 16, f"模型总数 {total} < 16")
     return f"线={lines} 模型={total}"
 
 
@@ -257,11 +259,11 @@ def models_bad_line() -> str:
 
 @case("T-IN-12", "GET /api/models", "边界值")
 def models_boundary() -> str:
-    e2e = expect(200)(get("/api/models", params={"line": "e2e"}))["data"]["lines"]
-    check(len(e2e) == 1 and e2e[0]["line"] == "e2e", "line 过滤未生效")
+    semantic = expect(200)(get("/api/models", params={"line": "semantic"}))["data"]["lines"]
+    check(len(semantic) == 1 and semantic[0]["line"] == "semantic", "line 过滤未生效")
     expert = expect(200)(get("/api/models", params={"line": "expert"}))["data"]["lines"]
     check(len(expert[0]["models"]) == 8, "expert 应为 8 个模型")
-    return f"e2e={len(e2e[0]['models'])} expert=8 且过滤生效"
+    return f"semantic={len(semantic[0]['models'])} expert=8 且过滤生效"
 
 
 # ---------------------------------------------------------------- POST /api/predict

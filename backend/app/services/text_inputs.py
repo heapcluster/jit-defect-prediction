@@ -1,4 +1,4 @@
-"""在线构造提交 diff 文本：semantic / e2e 缺预计算输入时的兜底。
+"""在线构造提交 diff 文本：semantic 缺预计算输入时的兜底。
 
 口径与模型线共用 `data_model/pipelines/text_source.py`（同截断、同占位串），不另写一份。
 只在提交不在预计算表内时调用；构造失败返回 None，由调用方给明确提示，不编造文本。

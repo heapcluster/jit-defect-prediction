@@ -1,7 +1,7 @@
 <template>
   <section class="predict">
     <p class="hint">
-      上传模型包与待预测特征文件，或选择已登记模型 / 已导入数据集。批量预测交付 predictions.csv，不写入展示库；导入为可选动作。模型加载/卸载/重载/设默认是独立管理操作。
+      上传模型包与待预测特征文件，或选择已登记模型 / 已导入数据集。批量预测交付 predictions.csv，不写入展示库；导入为可选动作。模型由每次运行显式选择，不设默认模型；加载/卸载/重载/选择为独立管理操作。
     </p>
     <el-alert
       v-if="error"
@@ -18,7 +18,7 @@
         模型管理
       </h2>
       <p class="hint">
-        默认模型：{{ status.default_model || '—' }}<span v-if="status.fallback_reason"> · 回退原因：{{ status.fallback_reason }}</span>
+        当前选择：{{ status.selected_model || '—' }}（仅用于回显，运行需显式指定模型）
       </p>
       <el-alert
         v-if="modelsError"
@@ -62,9 +62,9 @@
                 </el-button><el-button
                   size="small"
                   :disabled="auth || modelsBusy || m.artifact_status !== 'available'"
-                  @click="setDefault(m.model_name)"
+                  @click="selectModel(m.model_name)"
                 >
-                  设默认
+                  选择
                 </el-button>
               </td>
             </tr>
@@ -87,7 +87,7 @@
         批量预测输入
       </h2>
       <div class="fields">
-        <label for="predict-files">模型包 + 待预测文件（model_package.zip + 特征表 CSV/XLSX；e2e 可另传 commit_hash,text 文本表）
+        <label for="predict-files">模型包 + 待预测文件（model_package.zip + collected_commits / clean_dataset CSV/XLSX）
           <input
             id="predict-files"
             type="file"
@@ -98,7 +98,7 @@
           >
         </label>
         <p class="hint span-all">
-          expert 用特征表；semantic/fused 用特征表提供哈希与 Kamei 特征，语义向量按哈希取预计算或在线编码（缺编码器时该行明确失败）；e2e 用已登记 codebert_e2e 模型，接收特征表或 commit_hash,text 文本表，不接受上传模型包。
+          上传模型包与 collected_commits/clean_dataset 二维表；expert 的 14 维特征由内核从绑定仓库现算（无需表内预置），semantic 使用预计算向量。模型必须显式选择。
         </p>
         <label for="predict-registered">已登记模型（便利，未上传模型包时使用）
           <select
@@ -340,12 +340,12 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
-import { cancelJob, fetchPredictOutput, fetchTrainOutput, fetchCollectOutput, fetchCleanOutput, getDatasets, getJob, getJobs, getModels, getModelsStatus, importStorageFiles, loadModel, reloadModel, retryJob, runPredict, setDefaultModel, unloadModel } from '../api'
+import { cancelJob, fetchPredictOutput, fetchTrainOutput, fetchCollectOutput, fetchCleanOutput, getDatasets, getJob, getJobs, getModels, getModelsStatus, importStorageFiles, loadModel, reloadModel, retryJob, runPredict, setSelectedModel, unloadModel } from '../api'
 import { predicting } from '../utils/predict'
 import { configuration } from '../utils/thresholds'
 
 defineOptions({ name: 'PredictTool' })
-const status = reactive({ default_model: '', fallback_reason: null, items: [] })
+const status = reactive({ selected_model: '', items: [] })
 const modelsError = ref(''), modelsBusy = ref(false), registered = ref([]), datasets = ref([])
 const modelSources = ref([]), tableSources = ref([]), modelArtifact = ref(''), tableArtifact = ref('')
 const draft = reactive({ model_name: '', dataset_id: '', threshold: 0.5, force: false })
@@ -378,9 +378,9 @@ async function modelAction(name, action) {
   } catch (err) { modelsError.value = message(err) }
   finally { modelsBusy.value = false }
 }
-async function setDefault(name) {
+async function selectModel(name) {
   modelsBusy.value = true
-  try { await setDefaultModel(name); await loadStatus() }
+  try { await setSelectedModel(name); await loadStatus() }
   catch (err) { modelsError.value = message(err) }
   finally { modelsBusy.value = false }
 }

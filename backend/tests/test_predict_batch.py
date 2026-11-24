@@ -9,7 +9,7 @@ from app.models import Base
 from app.services import file_contracts as fc
 from app.services import output_store, predict_run, storage, train_run
 
-from tests.conftest import HEADERS
+from tests.conftest import FAKE_EXTRACTOR, HEADERS
 from tests.test_models_manage import lr_package
 from tests.test_train_real import PYTHON, ROOT, train_rows
 
@@ -34,7 +34,7 @@ def batch(engine, tmp_path, monkeypatch):
 
 
 def table_file():
-    return ('files[]', ('cleaned.csv', fc.encode_table(fc.COMMITS_COLUMNS, train_rows(), 'csv')))
+    return ('files[]', ('collected_commits.csv', fc.encode_table(fc.COLLECTED_COMMITS_COLUMNS, train_rows(), 'csv')))
 
 
 def post(client, raw, config=None, with_zip=True):
@@ -109,9 +109,9 @@ def test_batch_cli_api_parity(batch, tmp_path):
     pkg = tmp_path / 'model_package.zip'
     pkg.write_bytes(raw)
     src = tmp_path / 'cleaned.csv'
-    src.write_bytes(fc.encode_table(fc.COMMITS_COLUMNS, train_rows(), 'csv'))
+    src.write_bytes(fc.encode_table(fc.COLLECTED_COMMITS_COLUMNS, train_rows(), 'csv'))
     out = tmp_path / 'cli'
-    env = {**os.environ, 'PYTHONPATH': str(ROOT / 'backend'), 'DATABASE_URL': '', 'DB_HOST': '', 'MPLCONFIGDIR': str(tmp_path / 'mpl')}
+    env = {**os.environ, 'PYTHONPATH': str(ROOT / 'backend'), 'DATABASE_URL': '', 'DB_HOST': '', 'MPLCONFIGDIR': str(tmp_path / 'mpl'), 'FEATURE_EXTRACTOR_SCRIPT': str(FAKE_EXTRACTOR)}
     proc = subprocess.run([PYTHON, '-B', '-m', 'app.cli', 'predict', 'run', '--model-package', str(pkg),
         '--input', str(src), '--threshold', '0.5', '--out', str(out)], env=env, capture_output=True, text=True, cwd=str(ROOT / 'backend'))
     assert proc.returncode == 0, proc.stderr

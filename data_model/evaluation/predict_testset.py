@@ -1,9 +1,7 @@
-"""对测试集跑 25 个模型，返回 (样本表, 预测长表, 各模型概率, 模型对象, 14 维矩阵)。
+"""对测试集跑 16 个模型，返回 (样本表, 预测长表, 各模型概率, 模型对象, 14 维矩阵)。
 
 - expert  : 14 维 → 8 个 joblib pkl
 - semantic: npz 的 768 维 → 8 个 joblib pkl
-- fused   : 14 ⊕ 768 = 782 维 → 8 个 joblib pkl
-- e2e     : 直接读现成 prediction_result.csv（全量含检验集）
 """
 
 from __future__ import annotations
@@ -103,9 +101,8 @@ def predict_all() -> tuple[pd.DataFrame, pd.DataFrame, dict[str, np.ndarray], di
 
     X14 = test[config.FEATURE_FIELDS].to_numpy(dtype=float)
     Xsem = emb[[emb_index[h] for h in hashes]]
-    Xfused = np.concatenate([X14, Xsem], axis=1)
 
-    X_by_line = {"expert": X14, "semantic": Xsem, "fused": Xfused}
+    X_by_line = {"expert": X14, "semantic": Xsem}
 
     probas: dict[str, np.ndarray] = {}
     models: dict[str, object] = {}
@@ -126,25 +123,6 @@ def predict_all() -> tuple[pd.DataFrame, pd.DataFrame, dict[str, np.ndarray], di
             for h, s in zip(hashes, proba, strict=True):
                 rows.append((line, name, h, float(s), fv))
             print(f"[eval] {name:<22} AUC={_auc(y, proba):.4f}")
-
-    # e2e：读现成全量预测
-    pred = pd.read_csv(config.E2E_PRED_CSV)
-    pred = pred[pred["model_name"] == config.E2E_MODEL_NAME]
-    m = dict(
-        zip(
-            pred["commit_hash"].astype(str),
-            pred["risk_score"].astype(float),
-            strict=True,
-        )
-    )
-    missing = [h for h in hashes if h not in m]
-    if missing:
-        raise SystemExit(f"[eval] e2e 预测缺 {len(missing)} 条测试集提交（例：{missing[0]}）")
-    proba = np.array([m[h] for h in hashes], dtype=float)
-    probas[config.E2E_MODEL_NAME] = proba
-    for h, s in zip(hashes, proba, strict=True):
-        rows.append(("e2e", config.E2E_MODEL_NAME, h, float(s), "codebert"))
-    print(f"[eval] {config.E2E_MODEL_NAME:<22} AUC={_auc(y, proba):.4f}")
 
     preds = pd.DataFrame(
         rows,

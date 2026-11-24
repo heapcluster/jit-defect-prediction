@@ -10,7 +10,7 @@ from tests.conftest import HEADERS
 
 
 def test_week_aggregation(client):
-    body = client.get("/api/trends", headers=HEADERS).json()
+    body = client.get("/api/trends", params={"model_name": "fixture_v2"}, headers=HEADERS).json()
     series = body["data"]["series"]
     assert body["data"]["granularity"] == "week"
     assert len(series) == 2
@@ -21,7 +21,7 @@ def test_week_aggregation(client):
 
 
 def test_invalid_granularity(client):
-    resp = client.get("/api/trends", params={"granularity": "day"}, headers=HEADERS)
+    resp = client.get("/api/trends", params={"model_name": "fixture_v2", "granularity": "day"}, headers=HEADERS)
     assert resp.status_code == 400
     body = resp.json()
     assert body["code"] == 40001
@@ -30,7 +30,7 @@ def test_invalid_granularity(client):
 
 def test_month_aggregation_buckets_by_calendar_month(client):
     """月粒度走 `_period()` 的 YYYY-MM 分支（Issue #73 缺口一：此前零覆盖）。"""
-    body = client.get("/api/trends", params={"granularity": "month"}, headers=HEADERS).json()
+    body = client.get("/api/trends", params={"model_name": "fixture_v2", "granularity": "month"}, headers=HEADERS).json()
     assert body["code"] == 0
     assert body["data"]["granularity"] == "month"
     series = body["data"]["series"]
@@ -47,7 +47,7 @@ def test_month_granularity_pure_date_end_includes_whole_end_day(client):
     """月粒度同样适用契约 1.5 区间语义：end 纯日期串含结束日全天。"""
     body = client.get(
         "/api/trends",
-        params={"granularity": "month", "start_time": "2026-08-01", "end_time": "2026-08-03"},
+        params={"granularity": "month", "start_time": "2026-08-01", "end_time": "2026-08-03", "model_name": "fixture_v2"},
         headers=HEADERS,
     ).json()
     series = body["data"]["series"]
@@ -59,7 +59,7 @@ def test_month_granularity_pure_date_end_includes_whole_end_day(client):
 def test_month_granularity_empty_range_is_not_error(client):
     body = client.get(
         "/api/trends",
-        params={"granularity": "month", "start_time": "2030-01-01", "end_time": "2030-12-31"},
+        params={"granularity": "month", "start_time": "2030-01-01", "end_time": "2030-12-31", "model_name": "fixture_v2"},
         headers=HEADERS,
     ).json()
     assert body["code"] == 0
@@ -72,6 +72,7 @@ def test_empty_range_is_not_error(client):
         params={
             "start_time": "2030-01-01T00:00:00Z",
             "end_time": "2030-12-31T00:00:00Z",
+            "model_name": "fixture_v2",
         },
         headers=HEADERS,
     ).json()
@@ -83,7 +84,7 @@ def test_end_pure_date_includes_whole_end_day(client):
     """趋势接口同口径：end 纯日期串含结束日全天（#61）。"""
     body = client.get(
         "/api/trends",
-        params={"start_time": "2026-08-03", "end_time": "2026-08-03"},
+        params={"start_time": "2026-08-03", "end_time": "2026-08-03", "model_name": "fixture_v2"},
         headers=HEADERS,
     ).json()
     assert body["code"] == 0
@@ -95,7 +96,7 @@ def test_end_pure_date_includes_whole_end_day(client):
 
 def test_compact_basic_format_rejected(client):
     for value in ("20260803", "20260803T090000Z", "20260803T090000+08:00"):
-        resp = client.get("/api/trends", params={"end_time": value}, headers=HEADERS)
+        resp = client.get("/api/trends", params={"model_name": "fixture_v2", "end_time": value}, headers=HEADERS)
         assert resp.status_code == 400
         assert resp.json()["code"] == 40001
 
@@ -143,7 +144,7 @@ def test_week_drilldown_monday_to_sunday_keeps_sunday(client):
         session.commit()
     body = client.get(
         "/api/trends",
-        params={"granularity": "week", "start_time": "2026-07-27", "end_time": "2026-08-02"},
+        params={"granularity": "week", "start_time": "2026-07-27", "end_time": "2026-08-02", "model_name": "fixture_v2"},
         headers=HEADERS,
     ).json()
     series = body["data"]["series"]

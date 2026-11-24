@@ -33,7 +33,7 @@
 
 ### PUT /api/config/{key}
 
-请求 `{value}`，响应 `{items:[...]}`。路径 key 必须在白名单内；`models/default` 只是 default_model 的管理入口，最终写同一配置键。
+请求 `{value}`，响应 `{items:[...]}`。路径 key 必须在白名单内；不设 `default_model`，旧 `models/default` 写入口已废止（40001）。
 
 ### DELETE /api/config/{key}
 
@@ -57,7 +57,6 @@
 | `decision_threshold` | float | 0.5 | (0,1)，预测标签与评估默认阈值 |
 | `risk_high_threshold` | float | 0.5 | (0,1)，且大于 risk_mid_threshold |
 | `risk_mid_threshold` | float | 0.2 | (0,1)，且小于 risk_high_threshold |
-| `default_model` | string | 空 | 已登记且可用模型；空时启用公共回退规则 |
 | `default_dataset` | string | 空 | 已登记 dataset_id；只作便利选择 |
 | `default_xai` | string | `shap` | 已注册解释技术 |
 | `metrics_selected` | list | 六项基础指标 | 元素属于 evaluate/metrics 注册表且去重 |
@@ -89,10 +88,10 @@
 本篇即配置权威。读取顺序固定为当前用户 → global → 出厂默认，解析只存在于配置服务；前端和各模块不得各维护一套优先级。
 
 - decision_threshold 与 risk_high/risk_mid 是不同语义，不得互相替代。
-- default_model 为空时，回退已加载 expert 中 version_key 最大者；default_dataset 为空不阻止文件上传运行。
+- default_dataset 为空不阻止文件上传运行；模型不设默认值，运行入口必须显式指定。
 - 恢复默认通过 DELETE 完成，而不是把出厂值复制到用户行。
 - 所有模块命名空间键遵循相同校验、原子写入与重启恢复规则。
-- W1 已提供 23 键配置读写、类型校验、风险阈值与默认模型接入。`page_prefs` 子键为 `page_size/remember_drawer/explain_top_n/collect_branch/collect_mode`；后两项为 W3 收集页面的默认分支与模式，显式保存后持久化，不覆盖已创建任务的入参，定位 Top-N 对象为 `{files,lines}`。
+- W1 已提供配置读写、类型校验与风险阈值接入；默认模型接入已移除。`page_prefs` 子键为 `page_size/remember_drawer/explain_top_n/collect_branch/collect_mode`；后两项为 W3 收集页面的默认分支与模式，显式保存后持久化，不覆盖已创建任务的入参，定位 Top-N 对象为 `{files,lines}`。
 - W4 clean.chain_templates 由九操作注册表校验，可保存最多 30 个命名配置对象；步骤省略 enabled/params 分别使用 true/默认参数。模板按原子配置写入持久化，单次运行固化快照。W5 train.templates 由算法注册表校验（line/algos/超参/划分/种子），最多 30 个命名模板，非 expert 线模板因输入契约不支持而拒绝；W8 已注册 SHAP/LIME，default_xai 可选 shap/lime；explain.compare_enabled 控制 HTTP 多技术比较，默认 false，显式开启才生效。
 - 删除当前归属行前也校验回退后的跨键约束，失败时不删除；无登录上下文删除 global 行回退出厂默认。
 
@@ -108,9 +107,9 @@
 fixtures：`tests/fixtures/files/config/`，以 JSON 正常、边界、非法配置样例驱动接口测试。
 
 - **正常**：批量/单键读写所有全局键与命名空间键，source 正确；重启后值、模板和页面偏好完整恢复。
-- **边界**：删除用户键回退 global/factory，default_model/default_dataset 为空，缓存 TTL 为 0，阈值跨键联动均按契约执行。
+- **边界**：删除用户键回退 global/factory，default_dataset 为空，缓存 TTL 为 0，阈值跨键联动均按契约执行。
 - **非法**：未知键、1.5 阈值、mid≥high、primary_metric 未选、敏感键、错误对象结构、批量一个坏值均返回 40001 且原值不变；删除不存在键返回 40400。
-- 修改默认模型/阈值/XAI 后相关模块使用新配置，历史 manifest 不变；接口与设置页读写一致且无密钥泄漏。
+- 修改阈值/XAI 后相关模块使用新配置，历史 manifest 不变；模型由每次运行显式选择，接口与设置页读写一致且无密钥泄漏。
 
 ## 8. 边界
 

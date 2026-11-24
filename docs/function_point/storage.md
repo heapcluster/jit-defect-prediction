@@ -27,7 +27,7 @@
 ```bash
 python infra/setup_mysql.py
 python infra/migrate.py --database jit_demo
-python -m app.cli storage import --file cleaned.csv
+python -m app.cli storage import --file clean_dataset.csv
 python -m app.cli storage export --table prediction --format csv --out ./out
 python -m app.cli config get
 python -m app.cli config put decision_threshold 0.3
@@ -46,7 +46,7 @@ python -m app.cli config put decision_threshold 0.3
 
 ## 3 输入契约
 
-- 跨模块文件只接受 [`../file-contracts.md`](../file-contracts.md) §3.1–3.8 已定义的 schema：§3.1 `commits.csv`、§3.2 `cleaned.csv`、§3.3 `model_package.zip`、§3.4 `predictions.csv`、§3.5 `labels.csv`、§3.6 指标/混淆/报告与图、§3.7 `explanations.csv`、§3.8 定位/建议/补丁预览；manifest 遵循 §3.9。CSV/XLSX 的编码、空值和安全规则遵循 §1，不另设列名。
+- 跨模块文件只接受 [`../file-contracts.md`](../file-contracts.md) §3.1–3.8 已定义的 schema：§3.1 `collected_commits.csv`、§3.2 `clean_dataset.csv`、§3.3 `model_package.zip` 与 `train_testset.csv`、§3.4 `predictions.csv`、§3.6 指标/混淆/报告与图、§3.7 `explanations.csv`、§3.8 定位/建议/补丁预览；manifest 遵循 §3.9。旧 §3.5 `labels.csv` 已废止，不再作为导入类型。CSV/XLSX 的编码、空值和安全规则遵循 §1，不另设列名。
 - 导入器依据列集合、工件内容与 manifest 识别类型和目标表；无法识别、schema 缺列、类型错误、checksum 不符或引用对象缺失时明确拒绝，不猜测映射、不产半批写入。
 - 有表语义的文件按下列规则导入；没有对应表语义的解释、定位、建议和报告文件仍以原文件交付，不强行塞入其他表。
 
@@ -54,11 +54,12 @@ python -m app.cli config put decision_threshold 0.3
 |---|---|
 | §3.1 / §3.2 表格 | `commit`、`commit_feature` 按提交自然键 upsert；提供数据集元数据时同时登记 `dataset`、`dataset_commit` |
 | §3.3 模型包 | 校验后登记 `model_artifact`，并派生 upsert `model` |
-| §3.4 / §3.5 表格 | `prediction` 按提交与模型自然键 upsert；标签冲突按 §3.5 记录，未打标保持 NULL |
+| §3.3 测试集 | `train_testset` 按提交自然键登记 `dataset_commit`，每行带真标签 |
+| §3.4 表格 | `prediction` 按提交与模型自然键 upsert；标签透传自 §3.3 测试集，未打标保持 NULL |
 | §3.6 图形与报告索引 | `model_figure` 按模型与图类型 upsert；数值文件本身保留为交付文件 |
 | 配置与资产元数据 | `user`、`user_config`、`algorithm`、`dataset`、`model_artifact` 的显式管理输入，按各表契约校验 |
 
-- `labels.csv` 不独立创造提交或预测；只更新已存在样本的真标签。外键或登记引用不满足时返回可诊断错误。
+- 旧 `labels.csv` 已废止：标签随 predictions 透传，不独立上传标签文件。外键或登记引用不满足时返回可诊断错误。
 - 导出输入是 12 表之一的表名、格式与筛选条件；禁止任意 SQL、任意表名和跨表拼接导出。
 
 ## 4 输出契约
@@ -82,7 +83,7 @@ python -m app.cli config put decision_threshold 0.3
 |---|---|
 | `decision_threshold` | 0.5，开区间 (0,1) |
 | `risk_high_threshold` / `risk_mid_threshold` | 0.5 / 0.2，均在 (0,1)，且 mid < high |
-| `default_model` / `default_dataset` | 可为空；非空时须指向已登记资产 |
+| `default_dataset` | 可为空；非空时须指向已登记数据集；不设 `default_model` |
 | `default_xai` | `shap`，须属于解释器注册表 |
 | `metrics_selected` / `primary_metric` / `effort_enabled` | 六项基础指标 / `auc` / `true`；主指标须属于已选指标 |
 | `page_prefs` | 白名单对象 |
@@ -103,7 +104,7 @@ python -m app.cli config put decision_threshold 0.3
 - 其他模块的独立运行只要求交换文件 schema 兼容，不要求本模块已有数据；需要库中便利输入时，由各模块 run 端点显式接收可选 `dataset_id`。
 - 展示页读取导入后的表；业务模块不得通过读取展示表来代替自己的文件输入，也不得把其他模块的内存或服务存活当作前提。
 - 原由集中数据同步页面承担的“导入库展示”职责归本模块；模型性能数值、图与报告的计算职责归 evaluate，本模块只保存展示索引。
-- 公开 JIT 缺陷数据集按 collect §9 独立落盘，不进入 12 表。
+- 公开 JIT 缺陷数据集与 Git 采集结果同口径：默认落盘并保存 `dataset` + `dataset_commit`，MUST NOT 仅入库不落盘；口径见 [collect.md](collect.md) §3.2 与 §6。
 
 ## 8 验收标准
 

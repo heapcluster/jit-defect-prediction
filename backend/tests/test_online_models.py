@@ -69,10 +69,6 @@ def test_vector_semantic_is_768(tiny_npz):
     assert len(_vector_for_line("semantic", HIT, _Feature())) == DIM
 
 
-def test_vector_fused_is_14_plus_768(tiny_npz):
-    assert len(_vector_for_line("fused", HIT, _Feature())) == 14 + DIM
-
-
 def test_vector_semantic_missing_embedding_raises_40001(tiny_npz):
     with pytest.raises(AppError) as exc:
         _vector_for_line("semantic", MISS, _Feature())
@@ -110,39 +106,4 @@ def test_catalog_scans_semantic_line_and_lazy_loads(tmp_path, monkeypatch):
         model_registry._LINE_OF.update(saved_line)
 
 
-def test_e2e_text_lookup_and_missing(tmp_path, monkeypatch):
-    """e2e 读提交文本：命中返回文本，未命中 predict 返回 None（不编造）。"""
-    from app import e2e_source
 
-    data = tmp_path / "e2e" / "data"
-    data.mkdir(parents=True)
-    (data / "commit_text.csv").write_text(
-        "commit_hash,text,label,feature_version,text_source\n"
-        f"{HIT},diff --git a/x b/x +1,0,v1,diff\n",
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(config, "PIPELINES_DIR", tmp_path)
-    e2e_source._texts.cache_clear()
-    e2e_source._runtime.cache_clear()
-    try:
-        assert e2e_source._texts()[HIT] == "diff --git a/x b/x +1"
-        # 文本未命中 → None（不进入模型）
-        assert e2e_source.predict_proba(MISS) is None
-    finally:
-        e2e_source._texts.cache_clear()
-        e2e_source._runtime.cache_clear()
-
-
-def test_e2e_unavailable_returns_none(tmp_path, monkeypatch):
-    """无文本表 / 无编码器 → predict 返回 None，由上层给明确提示。"""
-    from app import e2e_source
-
-    monkeypatch.setattr(config, "PIPELINES_DIR", tmp_path)
-    e2e_source._texts.cache_clear()
-    e2e_source._runtime.cache_clear()
-    try:
-        assert e2e_source.predict_proba(HIT) is None
-        assert e2e_source.available() is False
-    finally:
-        e2e_source._texts.cache_clear()
-        e2e_source._runtime.cache_clear()

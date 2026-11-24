@@ -280,7 +280,7 @@ def test_empty_commit_preserves_prediction_risk_and_multiple_models(core, reposi
 def test_git_lf_positions_preserve_unicode_separators(core, repository):
     repo = repository[0]
     path = 'src/代码 space.java'
-    (repo/path).write_text('class Example {\nString text = "a\u2028b";\nif (value == null) throw new RuntimeException();\n}\n')
+    (repo/path).write_text('class Example {\nString text = "a\u2028b";\nif (value == null) throw new RuntimeException();\n}\n', encoding='utf-8')
     git(repo, 'add', path)
     git(repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '-qm', 'LF positions')
     commit = git(repo, 'rev-parse', 'HEAD')

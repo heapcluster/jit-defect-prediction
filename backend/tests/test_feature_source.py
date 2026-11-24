@@ -20,6 +20,8 @@ import importlib.util
 import pytest
 from app import config, feature_source
 
+pytestmark = pytest.mark.no_feature_mock
+
 
 @pytest.fixture(autouse=True)
 def _clear_extractor_cache():

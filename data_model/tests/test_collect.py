@@ -66,7 +66,7 @@ def run(repo, **kwargs):
     return collect().run(config(repo, **kwargs), allow_roots=[str(repo.parent)], protocol_whitelist=["https", "git"])
 
 
-@pytest.mark.parametrize("method,positive", [("szz", 0), ("szz_lite", 1)])
+@pytest.mark.parametrize("method,positive", [("szz_v1", 0), ("szz_lite", 1)])
 def test_full_history_labels_and_v1(repository, method, positive):
     repo, hashes = repository
     before = (git(repo, "rev-parse", "HEAD"), (repo / ".git/index").read_bytes(), git(repo, "status", "--porcelain"))
@@ -75,14 +75,19 @@ def test_full_history_labels_and_v1(repository, method, positive):
                            protocol_whitelist=["https"], progress=lambda *event: events.append(event))
     rows = result["rows"]
     assert [row["commit_hash"] for row in rows] == hashes
-    assert [row["is_bug_inducing"] for row in rows] == [int(positive == 0), int(positive == 1), 0, None]
-    assert [row["fix"] for row in rows] == [0, 0, 1, 1]
-    assert rows[2]["exp"] == pytest.approx(math.log(2))
-    assert rows[2]["lt"] == pytest.approx(math.log(3))
-    assert rows[2]["ld"] == pytest.approx(math.log(1 / 3))
-    assert [row["is_test"] for row in rows] == [0, 0, 1, 1]
-    assert result["summary"] == dict(rows=4, labeled_rows=3, positive_rows=1, negative_rows=2,
-                                     unlabeled_rows=1, head_hash=hashes[-1], train_rows=2, test_rows=2)
+    labels = [row["is_bug_inducing"] for row in rows]
+    assert labels[-1] is None
+    assert labels.count(1) == 1 and labels.count(0) == 2
+    contracts, _ = collect()._file_services()
+    columns, exported = contracts.read_table("collected_commits.csv", collect().encode_rows(rows, "csv"))
+    assert tuple(columns) == contracts.COLLECTED_COMMITS_COLUMNS
+    assert all("is_test" not in row and not set(row) & set(contracts.FEATURE_COLUMNS) for row in exported)
+    assert result["summary"]["rows"] == 4
+    assert result["summary"]["labeled_rows"] == 3
+    assert result["summary"]["positive_rows"] == 1
+    assert result["summary"]["negative_rows"] == 2
+    assert result["summary"]["unlabeled_rows"] == 1
+    assert result["summary"]["head_hash"] == hashes[-1]
     assert result["audit"]["szz"]["unresolved_hashes"] == [hashes[-1]]
     assert result["audit"]["szz"]["unresolved_reasons"] == {hashes[-1]: "no_old_lines"}
     assert result["config"]["feature_version"] == "v1"
@@ -295,19 +300,16 @@ def test_encoded_features_have_database_precision_without_changing_math(reposito
     module = collect()
     repo, _ = repository
     result = run(repo)
-    original = result['rows'][2]['ld']
     contracts, _ = module._file_services()
     csv = module.encode_rows(result['rows'], 'csv')
     xlsx = module.encode_rows(result['rows'], 'xlsx')
-    csv_rows = contracts.read_table('commits.csv', csv)[1]
-    xlsx_rows = contracts.read_table('commits.xlsx', xlsx)[1]
+    csv_rows = contracts.read_table('collected_commits.csv', csv)[1]
+    xlsx_rows = contracts.read_table('collected_commits.xlsx', xlsx)[1]
     assert csv_rows == xlsx_rows
     for row in csv_rows:
-        for name in contracts.FEATURE_COLUMNS:
-            value = Decimal(row[name])
-            assert value == value.quantize(Decimal('0.0000000001'))
-    assert result['rows'][2]['ld'] == original
-    assert float(csv_rows[2]['ld']) == pytest.approx(original, abs=1e-10)
+        assert not set(row) & set(contracts.FEATURE_COLUMNS)
+        assert "is_test" not in row
+        assert set(row) == set(contracts.COLLECTED_COMMITS_COLUMNS)
 
 
 def test_direct_cli_script_works_without_external_pythonpath(repository, tmp_path):
@@ -335,7 +337,7 @@ def test_cli_run_export_verified_manifest_and_bom(repository, tmp_path):
     sys.path.insert(0, str(ROOT / "backend"))
     from app.services import file_contracts
     columns, rows = file_contracts.read_table(table.name, table.read_bytes())
-    assert tuple(columns) == file_contracts.COMMITS_COLUMNS
+    assert tuple(columns) == file_contracts.COLLECTED_COMMITS_COLUMNS
     expected = run(repo)["rows"]
     assert rows[0]["message"] == expected[0]["message"]
     assert rows[-1]["is_bug_inducing"] == ""
@@ -411,13 +413,13 @@ def test_git_failure_has_stage_audit_and_cancel_during_same_stage(repository, mo
     module = collect()
     original = module.GitRunner.__call__
     def failing(self, directory, *args, **kwargs):
-        if args[0] == "blame":
-            raise module.CollectError(50000, "Git blame failed")
+        if args[0] == "show":
+            raise module.CollectError(50000, "Git show failed")
         return original(self, directory, *args, **kwargs)
     monkeypatch.setattr(module.GitRunner, "__call__", failing)
     with pytest.raises(module.CollectError) as error:
         run(repo)
-    assert error.value.audit["stage_errors"][0]["phase"] == "szz"
+    assert error.value.audit["stage_errors"][0]["phase"] == "commits"
     monkeypatch.setattr(module.GitRunner, "__call__", original)
     class Cancelled(ValueError):
         pass
@@ -578,7 +580,7 @@ def test_csv_formula_escape_without_database(repository):
     for format in ("csv", "xlsx"):
         content = collect().encode_rows(result["rows"], format)
         columns, rows = contracts.read_table(f"collect_commits_test.{format}", content)
-        assert tuple(columns) == contracts.COMMITS_COLUMNS
+        assert tuple(columns) == contracts.COLLECTED_COMMITS_COLUMNS
         assert rows[0]["message"] == "'=1+2 中文"
         assert rows[-1]["is_bug_inducing"] == ""
 
@@ -594,4 +596,4 @@ def test_cli_direct_xlsx_retains_full_width_nullable_rows(repository, tmp_path):
     path = next(output.glob("*/collect_commits_*.xlsx"))
     contracts, _ = collect()._file_services()
     columns, rows = contracts.read_table(path.name, path.read_bytes())
-    assert tuple(columns) == contracts.COMMITS_COLUMNS and rows[-1]["is_bug_inducing"] == ""
+    assert tuple(columns) == contracts.COLLECTED_COMMITS_COLUMNS and rows[-1]["is_bug_inducing"] == ""

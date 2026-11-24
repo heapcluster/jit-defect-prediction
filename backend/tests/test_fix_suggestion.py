@@ -51,7 +51,7 @@ def test_llm_suggestions_take_precedence(monkeypatch):
     assert fix_suggestion.suggestions_for(
         commit_message="x",
         risk_score=0.5,
-        model_line="fused",
+        model_line="semantic",
         features={},
         explanation=[],
         localization=None,

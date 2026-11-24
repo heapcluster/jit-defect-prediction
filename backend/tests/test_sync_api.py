@@ -380,7 +380,7 @@ def test_git_failure_without_network_error_is_not_retried(monkeypatch, tmp_path)
 
 
 def test_resolve_scope_accepts_delivered_non_expert_model(monkeypatch):
-    """前端下拉展示 25 个交付模型后，显式指定 semantic/fused/e2e 模型不能再误报 40001。"""
+    """前端下拉展示交付模型后，显式指定 semantic 模型不能再误报 40001。"""
     monkeypatch.setattr(sync_module.model_registry, "has", lambda name: name == "xgb_semantic_v1")
     assert sync_module._resolve_scope_models(None, None, "xgb_semantic_v1") == {"xgb_semantic_v1"}
 
@@ -394,7 +394,7 @@ def test_resolve_scope_rejects_unknown_model(monkeypatch):
 
 
 def test_predict_commit_models_routes_by_line(monkeypatch):
-    """expert 走 14 维批量；semantic/fused/e2e 走单模型在线路径，不能拿 14 维硬喂。"""
+    """expert 走 14 维批量；semantic 走单模型在线路径，不能拿 14 维硬喂。"""
     calls = {"batch": [], "single": []}
     monkeypatch.setattr(
         sync_module,
@@ -409,15 +409,14 @@ def test_predict_commit_models_routes_by_line(monkeypatch):
     lines = {
         "xgb_v1": "expert",
         "xgb_semantic_v1": "semantic",
-        "codebert_e2e_v1": "e2e",
     }
     monkeypatch.setattr(sync_module.model_registry, "line_of", lambda name: lines[name])
 
     sync_module._predict_commit_models(
-        "a" * 40, None, ["xgb_v1", "xgb_semantic_v1", "codebert_e2e_v1"]
+        "a" * 40, None, ["xgb_v1", "xgb_semantic_v1"]
     )
     assert calls["batch"] == [["xgb_v1"]]
-    assert calls["single"] == ["xgb_semantic_v1", "codebert_e2e_v1"]
+    assert calls["single"] == ["xgb_semantic_v1"]
 
 
 class _FakeSession:

@@ -27,7 +27,7 @@ def test_invalid_token(client):
 
 
 def test_envelope_on_success(client):
-    resp = client.get("/api/commits", headers={"X-API-Key": "test-token"})
+    resp = client.get("/api/commits", headers={"X-API-Key": "test-token"}, params={"model_name": "fixture_v2"})
     body = resp.json()
     assert body["code"] == 0
     assert body["message"] == "ok"

@@ -6,7 +6,7 @@
 
 关键点：
   · **同一切分**：训练/检验行来自 data/split_szz_{train,test}.csv 的 commit_hash，
-    编码缓存按 hash 索引 —— 与 expert/e2e 严格同切分，跨线可比。
+    编码缓存按 hash 索引 —— 与 expert 严格同切分，跨线可比。
   · **编码只前向**：冻结 CodeBERT 无梯度；缓存 npz 后二次运行秒级。
   · 分类器族与 expert 完全一致 —— 跨线差异只归因于「特征模态」。
 """
@@ -38,7 +38,7 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="semantic 线（冻结 CodeBERT）训练与验证")
     p.add_argument("--text-csv", type=Path, default=config.TEXT_CSV)
     p.add_argument(
-        "--repo", type=Path, default=None, help="文本缺失时自动建；指向克隆仓库（data/camel）"
+        "--repo", type=Path, default=None, help="文本缺失时自动建；指向本地 Git 仓库根目录"
     )
     p.add_argument("--embeddings", type=Path, default=config.EMBEDDINGS_NPZ)
     p.add_argument("--force-encode", action="store_true", help="忽略缓存重新编码")

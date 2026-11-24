@@ -1,6 +1,6 @@
 # 模型清单与生命周期 API（models）
 
-一句话：提供架构到模型的只读级联清单，以及模型状态、加载、卸载、重载和默认模型管理，所有加载都以模型包校验为前提。
+一句话：提供架构到模型的只读级联清单，以及模型状态、加载、卸载和重载，所有加载都以模型包校验为前提；不管理默认模型。
 
 实现状态：已实现　期次：一期
 
@@ -8,7 +8,7 @@
 
 ## 1. 职责与不负责范围
 
-- 负责可用模型清单、工件状态与运行时状态、显式加载/卸载/重载、默认模型设置与加载失败原因。
+- 负责可用模型清单、工件状态与运行时状态、显式加载/卸载/重载与加载失败原因。
 - 模型名单的登记源为 model_artifact，model 行由工件派生；独立文件运行可直接上传模型包，不要求先登记。
 - 不负责训练、预测计算、解释或评估；GET 清单不触发加载，页面刷新不隐式重载模型。
 - 不通过扫描未知目录建立第二份模型名单，不加载 checksum 或特征元数据不符的包。
@@ -17,7 +17,7 @@
 
 ### GET /api/models
 
-可选 `line=expert|semantic|fused|e2e`。响应 `data.lines[]` 按 expert/semantic/fused/e2e 排列，每项 `{line,label,models[]}`；models 为可用 model_name 字符串数组，空线返回空数组。
+可选 `line=expert|semantic`。响应 `data.lines[]` 按 expert/semantic 排列，每项 `{line,label,models[]}`；models 为可用 model_name 字符串数组，空线返回空数组。`fused` / `e2e` 已砍掉，传入这两个值返回 40001。
 
 ### GET /api/models/status
 
@@ -25,7 +25,7 @@
 
 | 字段 | 含义 |
 |---|---|
-| `default_model` | 实际默认模型；未配置时按回退规则解析 |
+| `selected_model` | 用户当前选择的模型，仅用于页面回显，不参与任何运行入口的自动填充 |
 | `items[]` | 逐模型状态 |
 | `items[].model_name` / `line` / `algo` | 标识与算法 |
 | `items[].artifact_status` | `available` / `load_failed` / `retired` |
@@ -40,21 +40,21 @@
 
 ### POST /api/models/{name}/unload
 
-无请求体；响应同上。默认模型不可直接卸载，须先更换默认；登记资产不删除。
+无请求体；响应同上。已加载模型可直接卸载；登记资产不删除。
 
 ### POST /api/models/{name}/reload
 
 无请求体；重新读取登记包并复验 checksum、内部元数据和特征列宽后替换运行时实例。失败保留旧实例并返回 load_failed 原因。
 
-### PUT /api/models/default
+### PUT /api/models/selection
 
-请求 `{model_name}`，仅接受 available 模型；写入 user_config.default_model，响应 `{default_model}`。
+请求 `{model_name}`，仅接受 available 模型；只记录当前页面选择用于回显，不影响任何运行入口。旧 `PUT /api/models/default` 已废止，调用返回 40001。
 
 ### 错误码
 
 | 业务码 | HTTP | 场景 |
 |---|---|---|
-| 40001 | 400 | line/操作非法、模型不可用、卸载默认模型、重复非法状态流转、包校验失败 |
+| 40001 | 400 | line/操作非法、模型不可用、重复非法状态流转、包校验失败、调用已废止的 default 端点 |
 | 40100 | 401 | 缺失或错误的 `X-API-Key` |
 | 40400 | 404 | model_name 或登记工件不存在 |
 | 50000 | 500 | 未预期内部错误；可预期加载失败以 runtime_state/load_error 表达 |
@@ -63,7 +63,7 @@
 
 管理输入为模型标识和登记工件；独立预测/解释运行则可直接上传 §3.3 模型包。§3.3 逐字规定：
 
-> zip 内含：权重文件（expert/semantic/fused 为 `.pkl`；e2e 为 safetensors 目录）、`feature_order.txt`、`model_meta.json`（model_name/line/algo/version_key/feature_version/trained_at/超参快照/划分/种子）、`checksum.sha256`。predict/explain MUST 校验 checksum 与特征列宽后再加载。
+> zip 内含：权重文件均为 `.pkl`（`expert`=Kamei 14 维、`semantic`=冻结头 CodeBERT 768 维）、`feature_order.txt`、`model_meta.json`（model_name/line/algo/feature_set/version_key/feature_version/trained_at/超参快照/划分 mode/种子）、`checksum.sha256`。`fused` / `e2e` 及其 safetensors 产物已取消。predict/explain MUST 校验 checksum 与特征列宽后再加载。
 
 models 加载执行相同校验，并限制 ZIP 路径穿越、文件数量、解压大小和反序列化资源。登记路径必须位于允许资产根内，文件名不拼接 shell。模型版本、line、algo 和 feature_version 必须与登记一致。
 
@@ -75,15 +75,15 @@ GET /api/models 只返回选择器所需字段；版本、状态和 checksum 经
 
 ## 5. 可配置项
 
-- `default_model` 是唯一默认模型配置；PUT models/default 与 PUT config/default_model 写同一行。
-- 未配置时回退已加载 expert 中 version_key 最大者；显式配置失效时返回明确状态，不静默改选其他线模型。
-- 自动加载由 train 的 auto_load 或显式 load 控制；auto_load 不改默认模型。
-- `.env` 仅提供出厂默认；运行时加载态不必写 user_config，资产与默认配置必须持久化。
+- 不设默认模型；PUT models/selection 只记录当前页面选择用于回显，不参与任何运行入口的自动填充。
+- 未选择模型时各运行入口返回 40001；选择失效时返回明确状态，不静默改选其他线模型。
+- 自动加载由 train 的 auto_load 或显式 load 控制；auto_load 不改变当前选择。
+- `.env` 仅提供出厂默认；运行时加载态不必写 user_config，资产登记必须持久化。
 
 ## 6. 状态持久化
 
 - model_artifact 持久保存路径、checksum、版本和工件状态，model 行由其派生；runtime_state 反映进程实际加载情况。
-- 重启后按 default_model 恢复加载；加载失败保留原因并回退上一个可用模型，ready 探针据实降级。
+- 重启后运行态加载清空，由用户显式选择或 train auto_load 触发加载；加载失败保留原因并维持上一个可用模型，ready 探针据实降级。
 - 不创建 job，不在 models 端点下写业务输出；加载日志脱敏，可用于排障。
 - 训练登记的新工件无需重启即可出现在清单；retired 不可选但保留追溯记录。
 
@@ -91,7 +91,7 @@ GET /api/models 只返回选择器所需字段；版本、状态和 checksum 经
 
 fixtures：`tests/fixtures/files/models/`，包含合法模型包、损坏包、checksum 不符包和元数据不匹配包。
 
-- **正常**：四线清单、状态查询、load/unload/reload/default 全路径通过；设置默认后重启仍生效，predict/commits/trends 缺省模型一致。
+- **正常**：两线清单、状态查询、load/unload/reload/default 全路径通过；设置默认后重启仍生效，predict/commits/trends 缺省模型一致。
 - **边界**：空模型线、懒加载、默认模型回退、加载失败保留旧实例、retired 资产追溯均符合状态语义。
 - **非法**：路径穿越、checksum 不符、列宽/版本不符、未登记模型、卸载默认模型、非法 line 均返回 40001/40400，旧模型不受影响。
 - 只写文件未登记不出现在管理清单，但可作为 predict/explain run 的显式上传输入；任何 GET 不触发计算或加载。

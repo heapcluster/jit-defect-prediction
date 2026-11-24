@@ -61,7 +61,7 @@ def _run_probe(code: str, timeout: int = 300) -> subprocess.CompletedProcess:
     )
 
 
-@pytest.mark.parametrize("line", ["semantic", "fused"])
+@pytest.mark.parametrize("line", ["semantic"])
 def test_tabnet_imports_under_official_namespace(line):
     r = _run_probe(PROBE.format(line=line))
     assert r.returncode == 0, (
@@ -70,7 +70,7 @@ def test_tabnet_imports_under_official_namespace(line):
     assert "TabNet" in r.stdout, r.stdout
 
 
-@pytest.mark.parametrize("line", ["semantic", "fused"])
+@pytest.mark.parametrize("line", ["semantic"])
 def test_all_registered_names_build_under_official_namespace(line):
     """Every advertised name must build via the documented entry, not just tabnet."""
     probe = (

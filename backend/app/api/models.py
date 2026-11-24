@@ -19,14 +19,14 @@ from app.services import model_manage
 router = APIRouter(dependencies=[Depends(require_api_key)])
 
 # 架构中文显示名：后端常量映射，不落库（docs/database/model.md）
-LINE_LABELS = {"expert": "专家特征", "semantic": "语义", "fused": "融合", "e2e": "端到端"}
-LINE_ORDER = ("expert", "semantic", "fused", "e2e")
+LINE_LABELS = {"expert": "专家特征", "semantic": "语义"}
+LINE_ORDER = ("expert", "semantic")
 
 
 @router.get("/api/models", response_model=schemas.ModelsResponse)
 def list_models(line: str | None = Query(default=None)) -> dict:
     if line is not None and line not in LINE_ORDER:
-        raise AppError(40001, "参数非法：line 取值需为 expert / semantic / fused / e2e")
+        raise AppError(40001, "参数非法：line 取值需为 expert / semantic")
     with SessionLocal() as session:
         stmt = select(Model.model_name, Model.line)
         if line is not None:
@@ -76,10 +76,15 @@ async def reload_model(name: str, request: Request) -> dict:
         return ok(model_manage.reload(session, name))
 
 
-@router.put("/api/models/default")
-async def set_default(request: Request) -> dict:
+@router.put("/api/models/selection")
+async def set_selection(request: Request) -> dict:
     body = await request.json()
     if not isinstance(body, dict) or set(body) != {"model_name"} or not isinstance(body.get("model_name"), str):
         raise AppError(40001, "参数非法：仅接受 model_name")
     with SessionLocal() as session:
-        return ok(model_manage.set_default(session, body["model_name"]))
+        return ok(model_manage.set_selection(session, body["model_name"]))
+
+
+@router.put("/api/models/default")
+async def set_default_deprecated(request: Request) -> dict:
+    raise AppError(40001, "default 端点已废止，请显式选择模型")

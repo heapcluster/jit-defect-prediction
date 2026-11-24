@@ -91,7 +91,7 @@ def test_worker_publishes_checked_outputs_without_business_import(collect_client
     result = data['output_ref_json']
     preview = client.get('/api/collect/preview/' + job_id, headers=HEADERS).json()['data']
     assert preview['preview'][0]['is_bug_inducing'] is None
-    assert result['columns'] == list(fc.COMMITS_COLUMNS)
+    assert result['columns'] == list(fc.COLLECTED_COMMITS_COLUMNS)
     manifest = client.get(f'/api/collect/outputs/{job_id}/' + result['manifest_name'], headers=HEADERS).json()
     assert manifest['config']['feature_version'] == 'v1'
     assert '+collect.' in manifest['code_version']
@@ -257,4 +257,4 @@ def test_preview_is_not_stored_in_text_sized_job_snapshot(collect_client):
     assert 'preview' not in result['output_ref_json']
     preview = client.get('/api/collect/preview/' + job_id, headers=HEADERS).json()['data']
     assert preview['preview'][0]['message'] == '长' * 30000
-    assert preview['columns'] == list(fc.COMMITS_COLUMNS)
+    assert preview['columns'] == list(fc.COLLECTED_COMMITS_COLUMNS)

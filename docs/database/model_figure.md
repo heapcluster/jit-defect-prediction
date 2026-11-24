@@ -32,7 +32,7 @@
 ## 口径
 
 - 只登记逐模型图集；`figure_type` 取值 `roc` / `pr` / `confusion` / `calibration` / `effort` / `feat_importance`。
-- `feat_importance` 仅 expert 线产出（Kamei 14 维可读）；semantic / fused 的 768 维与 e2e 文本不产出该图——e2e 每模型 5 张。
+- `feat_importance` 仅 expert 线产出（Kamei 14 维可读）；semantic 的 768 维语义向量不直接映射可读特征名，不产出该图。两线均为 `.pkl` 权重模型包，无 safetensors 目录形态。
 - `title` 由 `(model_name, figure_type)` 决定，每模型每图一个标题。
 - `generated_at` 只写不读，用于追溯图生成批次。
 - 图文件经 `/static/**` 提供，MUST 带 `X-API-Key` 鉴权，不为 `<img>` 开免鉴权例外。

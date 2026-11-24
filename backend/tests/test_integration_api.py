@@ -133,15 +133,17 @@ def populated_api(integration_db):
 
 def test_predict_then_query_and_repeat_keeps_one_row(populated_api):
     client, engine = populated_api
-    first = client.post("/api/predict", headers=HEADERS, json={"commit_hash": C1})
-    second = client.post("/api/predict", headers=HEADERS, json={"commit_hash": C1})
+    first = client.post("/api/predict", headers=HEADERS, json={"commit_hash": C1, "model_name": "integration_v2"})
+    second = client.post("/api/predict", headers=HEADERS, json={"commit_hash": C1, "model_name": "integration_v2"})
     assert first.status_code == second.status_code == 200
     predicted = second.json()["data"]
     assert second.json()["code"] == 0
     assert predicted["model_name"] == "integration_v2"
     assert 'explanation' not in predicted
     explained = client.post('/api/explain', headers=HEADERS, json={'commit_hash': C1, 'model_name': 'integration_v2'})
-    assert explained.status_code == 200 and explained.json()['data']['items']
+    # 跨平台受限子进程：macOS 系统沙箱 + 全平台审计钩子，Windows 同样产出真实解释。
+    assert explained.status_code == 200, explained.text
+    assert explained.json()["data"]["items"]
     assert set(predicted["features"]) == set(FEATURE_VALUES)
     assert predicted["predicted_at"].endswith("Z")
     with sessionmaker(bind=engine)() as session:
@@ -155,11 +157,10 @@ def test_predict_then_query_and_repeat_keeps_one_row(populated_api):
         assert saved[0].predicted_at == datetime.fromisoformat(
             predicted["predicted_at"].removesuffix("Z")
         )
-    detail = client.get(f"/api/commits/{C1}", headers=HEADERS)
+    detail = client.get(f"/api/commits/{C1}", params={"model_name": "integration_v2"}, headers=HEADERS)
     assert detail.status_code == 200
     assert detail.json()["data"]["risk_score"] == predicted["risk_score"]
-    assert detail.json()["data"]["explanation"]
-    listing = client.get("/api/commits", headers=HEADERS).json()["data"]
+    listing = client.get("/api/commits", params={"model_name": "integration_v2"}, headers=HEADERS).json()["data"]
     assert listing["total"] == 2
     match = next(row for row in listing["items"] if row["commit_hash"] == C1)
     assert match["risk_score"] == predicted["risk_score"]
@@ -167,8 +168,8 @@ def test_predict_then_query_and_repeat_keeps_one_row(populated_api):
 
 def test_week_month_and_closed_range_match_imported_data(populated_api):
     client, _ = populated_api
-    weekly = client.get("/api/trends?granularity=week", headers=HEADERS)
-    monthly = client.get("/api/trends?granularity=month", headers=HEADERS)
+    weekly = client.get("/api/trends?granularity=week&model_name=integration_v2", headers=HEADERS)
+    monthly = client.get("/api/trends?granularity=month&model_name=integration_v2", headers=HEADERS)
     assert weekly.status_code == monthly.status_code == 200
     assert weekly.json()["data"]["series"] == [
         {"period": "2026-W31", "commit_count": 2, "avg_risk": 0.5, "high_risk_count": 1}
@@ -178,25 +179,26 @@ def test_week_month_and_closed_range_match_imported_data(populated_api):
         {"period": "2026-08", "commit_count": 1, "avg_risk": 0.2, "high_risk_count": 0},
     ]
     selected = client.get(
-        "/api/commits?start_time=2026-07-27&end_time=2026-08-02", headers=HEADERS
+        "/api/commits?start_time=2026-07-27&end_time=2026-08-02&model_name=integration_v2", headers=HEADERS
     ).json()["data"]
     assert selected["total"] == 2
     assert [row["commit_hash"] for row in selected["items"]] == [C1, C2]
 
 
-def test_missing_prediction_and_feature_keep_contract_shapes(populated_api):
+def test_missing_prediction_and_feature_keep_contract_shapes(populated_api, monkeypatch):
     client, _ = populated_api
-    unpredicted = client.get(f"/api/commits/{C4}", headers=HEADERS)
+    from app import feature_source
+    monkeypatch.setattr(feature_source, "extract", lambda *a, **k: (_ for _ in ()).throw(ValueError("not found")))
+    unpredicted = client.get(f"/api/commits/{C4}", params={"model_name": "integration_v2"}, headers=HEADERS)
     assert unpredicted.status_code == 200
     body = unpredicted.json()["data"]
     assert body["risk_score"] is None
     assert body["model_name"] is None
-    assert body["explanation"] == []
     assert set(body["features"]) == set(FEATURE_VALUES)
-    missing = client.get(f"/api/commits/{C3}", headers=HEADERS)
+    missing = client.get(f"/api/commits/{C3}", params={"model_name": "integration_v2"}, headers=HEADERS)
     assert missing.status_code == 200
     assert missing.json()["data"]["features"] is None
-    response = client.post("/api/predict", headers=HEADERS, json={"commit_hash": C3})
+    response = client.post("/api/predict", headers=HEADERS, json={"commit_hash": C3, "model_name": "integration_v2"})
     assert response.status_code == 404
     assert response.json()["code"] == 40400
     assert response.json()["message"] == "features not found for this commit"
@@ -204,8 +206,8 @@ def test_missing_prediction_and_feature_keep_contract_shapes(populated_api):
 
 def test_empty_database_queries_are_not_errors(integration_db):
     with TestClient(create_app()) as client:
-        listing = client.get("/api/commits", headers=HEADERS)
-        trends = client.get("/api/trends", headers=HEADERS)
+        listing = client.get("/api/commits", params={"model_name": "integration_v2"}, headers=HEADERS)
+        trends = client.get("/api/trends", params={"model_name": "integration_v2"}, headers=HEADERS)
         assert listing.status_code == trends.status_code == 200
         assert listing.json()["data"]["items"] == []
         assert listing.json()["data"]["total"] == 0
@@ -234,9 +236,10 @@ def test_auth_validation_and_failed_load_do_not_leak(populated_api, caplog):
     for model in config.MODEL_DIR.glob("*.pkl"):
         model.write_bytes(b"broken fixture")
     model_registry.load_models()
-    response = client.post("/api/predict", headers=HEADERS, json={"commit_hash": C1})
-    assert response.status_code == 500
-    assert response.json() == {"code": 50000, "message": "internal error", "data": None}
+    response = client.post("/api/predict", headers=HEADERS, json={"commit_hash": C1, "model_name": "integration_v2"})
+    assert response.status_code == 400
+    assert response.json()["code"] == 40001
+    assert response.json()["data"] is None
     assert "failed models: ['integration_v1', 'integration_v2']" in caplog.text
     for forbidden in (str(config.MODEL_DIR), ".pkl", "Traceback", "SELECT", "failed models"):
         assert forbidden not in response.text

@@ -19,9 +19,9 @@
 |---|---|---|---|---|
 | 1 | [README.md](README.md) | 公共契约 | 鉴权、包络、错误码、run/job/输出公共规则 | 部分 |
 | 2 | [storage.md](storage.md) | 工具 1：存储 | `POST /api/storage/import`；`GET /api/storage/export?table=&format=`；`GET /api/storage/outputs/{job_id}/{name}` | 部分 |
-| 3 | [collect.md](collect.md) | 工具 2：收集 | `POST /api/collect/run`；`GET /api/collect/preview/{job_id}`；`GET /api/collect/outputs/{job_id}/{name}` | 已实现 |
-| 4 | [clean.md](clean.md) | 工具 3：清洗 | `POST /api/clean/run`；`GET /api/clean/operations`；`GET /api/clean/preview/{job_id}`；`GET /api/clean/outputs/{job_id}/{name}` | 已实现 |
-| 5 | [train.md](train.md) | 工具 4：训练 | `POST /api/train/run`；`GET /api/algorithms`；`GET /api/train/compare`；`GET /api/train/outputs/{job_id}/{name}` | 已实现 |
+| 3 | [collect.md](collect.md) | 工具 2：收集 | `POST /api/collect/run`（Git 仓库 / 公开数据集）；`GET /api/collect/preview/{job_id}`；`GET /api/collect/outputs/{job_id}/{name}`；`POST /api/collect/resave/{job_id}` | 目标契约（旧实现待改造） |
+| 4 | [clean.md](clean.md) | 工具 3：清洗 | `POST /api/clean/run`；`GET /api/clean/operations`；`GET /api/clean/preview/{job_id}`；`GET /api/clean/outputs/{job_id}/{name}` | 目标契约（旧实现待改造） |
+| 5 | [train.md](train.md) | 工具 4：训练 | `POST /api/train/run`；`GET /api/algorithms`；`GET /api/train/outputs/{job_id}/{name}`（模型包与 train_testset） | 目标契约（旧实现待改造） |
 | 6 | [predict.md](predict.md) | 工具 5：预测 | `POST /api/predict/run`；`POST /api/predict`；`GET /api/predict/outputs/{job_id}/{name}` | 已实现 |
 | 7 | [models.md](models.md) | 模型管理 | `GET /api/models`；`GET /api/models/status`；`POST /api/models/{name}/load`、`unload`、`reload`；`PUT /api/models/default` | 已实现 |
 | 8 | [evaluate.md](evaluate.md) | 工具 6：评估 | `POST /api/evaluate/run`；`GET /api/evaluate/metrics`；`GET /api/evaluate/outputs/{job_id}/{name}` | 已实现 |
@@ -41,13 +41,13 @@
 - **JSON 包络**：成功 `{code:0,message:"ok",data:{...}}`；失败 `{code,message,data:null}`。文件流不走 JSON 包络，但流开始前的校验错误仍走包络。
 - **业务码**：仅 `40001`（HTTP 400）、`40100`（401）、`40400`（404）、`50000`（500）；成功 code=0。50000 message 固定 `internal error`，不回显堆栈、SQL、连接串或绝对路径。
 - **时间**：响应 UTC ISO 8601 `Z`；时间范围两端闭区间，start 纯日期为当天起点，end 纯日期扩展至当天终点。
-- **默认模型**：user_config.default_model；未配置时回退已加载 expert 中 version_key 最大者。模型包加载前必须校验 checksum 与特征列宽。
+- **模型选择**：所有需要模型的 run / 查询入口必须显式传 `model_name` 或上传 `model_package.zip`，未指定返回 40001；不设默认模型，也不做版本序隐式回退。模型包加载前必须校验 checksum 与特征列宽。
 
 ### 统一 run 与下载
 
 七个计算型 run 均为 `POST /api/{collect,clean,train,predict,evaluate,explain,localize}/run`：
 
-- 请求 `multipart/form-data`，文件字段 `files[]`，配置字段 `config`（JSON part）；collect 可只传仓库配置。
+- 请求 `multipart/form-data`，文件字段 `files[]`，配置字段 `config`（JSON part）；collect 的 `config.source_type` 必须是 `git_repo` 或 `public_dataset`，不传仓库环境变量。
 - 表格接受 CSV/XLSX；上传校验大小、扩展名与魔数、列 schema、CSV 公式注入，ZIP 还校验路径穿越与解压大小。路径限定允许根目录，文件名不得拼接 shell。
 - 小文件同步执行并返回 `{job_id,status:"success",outputs[],...}`；大文件返回 `{job_id,status:"queued"}`。除 localize 外，同步也落 job 终态，异步落五态。
 - 输出统一下载 `GET /api/{module}/outputs/{job_id}/{name}`；name 只能是 manifest 登记的基础文件名，禁止路径穿越。
@@ -65,20 +65,20 @@
 
 | 待选输入 | 来源 job kind | 下载端点的 module |
 |---|---|---|
-| commits | `collect` | `collect` |
-| cleaned | `clean` | `clean` |
+| collected_commits | `collect` | `collect` |
+| clean_dataset | `clean` | `clean` |
 | model_package | `train` | `train` |
 | predictions | `predict_batch` | `predict` |
 | explanations | `explain` | `explain` |
 
-`kind=predict` 不合法，预测任务使用 `predict_batch`。外部 labels 或没有对应历史产物的文件可直接上传。`dataset_id` 和已登记 `model_name` 保留为独立便利选项：前者选择已导入数据，后者选择登记模型；它们不是产物文件引用，走 `files[]` 的产物选择路径不同时提交 `dataset_id`。
+`kind=predict` 不合法，预测任务使用 `predict_batch`。没有对应历史产物的文件可直接上传；真标签来自测试集并经 predict 透传，不再有独立 labels 上传。`dataset_id` 和已登记 `model_name` 保留为独立便利选项：前者选择已导入数据，后者选择登记模型；它们不是产物文件引用，走 `files[]` 的产物选择路径不同时提交 `dataset_id`。
 
 ## 3. 输入契约
 
 - 模块主输入是文件和显式 config；`dataset_id` 只用于选择已导入文件的便利输入，显式上传优先。
 - 文件 schema 必须逐篇引用 file-contracts §3.1–§3.8，不在 API 文档另造列名、别名或私有宽表。
 - 所有表格解析后归一记录结构；缺列、错类型、非法 hash/时间/概率、公式注入、超限或伪造格式返回 40001，不产半成品。
-- `is_bug_inducing` 未打标保持空值；Kamei 14 维列序与 log 变换（fix 除外）、SZZ 词首边界 `\b(fix|bug|patch)` 和 szz/szz_lite、时间序 70/30 禁随机均为不变量。
+- `is_bug_inducing` 未打标保持空值；板块 2 不产出 Kamei 14 维和 `is_test`。SZZ 词首边界 `\b(fix|bug|patch)` 与 `szz_v1/szz_lite` 仅约束 collect 的 Git 仓库模式；公开数据集不执行 SZZ。Kamei 14 维与 70/30 切分由后续板块重新定义。
 
 ## 4. 输出契约
 
@@ -91,8 +91,8 @@
   "schema_version": "1.0",
   "module": "train",
   "job_id": "j-8f21",
-  "inputs": [{"name": "cleaned.csv", "sha256": "…", "rows": 25183}],
-  "config": {"algos": ["rf", "xgb"], "seed": 42, "split_ratio": 0.7},
+  "inputs": [{"name": "clean_dataset_j-a1b2.csv", "sha256": "…", "rows": 25183}],
+  "config": {"algos": ["rf", "xgb"], "seed": 42, "split": {"mode": "random", "ratio": 0.7}},
   "outputs": [{"name": "model_package.zip", "sha256": "…"}],
   "code_version": "3e72854",
   "created_at": "2026-11-21T12:00:00Z"
@@ -103,7 +103,7 @@
 
 ## 5. 可配置项
 
-- 全局单源 user_config：`decision_threshold / risk_high_threshold / risk_mid_threshold / default_model / default_dataset / default_xai / metrics_selected / primary_metric / effort_enabled / page_prefs`。
+- 全局单源 user_config：`decision_threshold / risk_high_threshold / risk_mid_threshold / default_dataset / default_xai / metrics_selected / primary_metric / effort_enabled / page_prefs`；不设 `default_model`，模型每次显式选择。
 - 模块命名空间：`collect.allow_roots`、`collect.protocol_whitelist`、`clean.chain_templates`、`train.templates`、`predict.batch_size/cache_ttl/retry_max`、`explain.cache_ttl/compare_enabled`、`localization.weights/top_n/file_size_max/suggestion_sources`。
 - `.env` 仅提供出厂默认和部署敏感项；密钥不入库。用户配置写入立即生效，进程或容器重启后恢复。
 - 12 表为 `commit / commit_feature / model / prediction / model_figure / user / user_config / job / algorithm / model_artifact / dataset / dataset_commit`，职责是展示导入、配置、任务状态与资产登记。

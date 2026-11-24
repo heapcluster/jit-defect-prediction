@@ -20,7 +20,7 @@
 |---|---|---|
 | `granularity` | 否 | `week`（默认）/ `month` |
 | `start_time` / `end_time` | 否 | committed_at 闭区间，纯日期按公共规则展开 |
-| `model_name` | 否 | 缺省读 default_model，再按公共回退规则 |
+| `model_name` | 是 | 必须显式指定；不设默认值或回退规则 |
 | `dataset_id` | 否 | 只统计已导入数据集成员 |
 
 响应 `data`：
@@ -48,7 +48,7 @@
 
 无文件输入。只接受上述筛选；时间范围两端闭区间，周使用 ISO 周，月使用 UTC 日历年月。model_name 已隐含模型线，不另收 line。
 
-默认模型来自 user_config.default_model，未配置回退已加载 expert 中 version_key 最大者；默认数据集仅为便利筛选。数据库没有数据时返回空 series，不调用 predict 补齐。
+model_name 必须显式指定；默认数据集仅为便利筛选。数据库没有数据时返回空 series，不调用 predict 补齐。
 
 ## 4. 输出契约
 
@@ -59,7 +59,7 @@
 ## 5. 可配置项
 
 - risk_high_threshold 控制 high_risk_count；修改后新查询使用新值，历史 predictions 文件不变。
-- default_model、default_dataset 提供缺省筛选；granularity、时间、模型和数据集可由请求覆盖。
+- default_dataset 提供缺省筛选；granularity、时间与数据集可由请求覆盖，模型每次必须显式指定。
 - 周/月口径固定，page_prefs 仅保存展示偏好；`.env` 仅提供出厂默认。
 
 ## 6. 状态持久化

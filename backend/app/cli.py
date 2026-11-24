@@ -1,4 +1,4 @@
-"""独立 CLI：python -m app.cli predict run/one、models load/unload/reload/set-default/status。
+"""独立 CLI：python -m app.cli predict run/one、models load/unload/reload/set-selection/status。
 
 predict run 仅凭模型包 + 特征文件即可批量产出 §3.4 predictions（不依赖业务库/在线服务）；
 predict one 与 models 管理命令使用配置/任务库。与 API 共用同一预测/加载实现。
@@ -27,18 +27,10 @@ def _predict_run(args) -> int:
     from app.services import predict_run, storage
     if not args.model_package and not args.model:
         raise AppError(40001, "需要 --model-package 或 --model")
-    text_rows = None
-    if args.text:
-        columns, raw_text = fc.read_table(Path(args.text).name, _bounded(Path(args.text)))
-        if columns != ["commit_hash", "text"]:
-            raise AppError(40001, "--text 须为 commit_hash,text 表格")
-        text_rows = {row["commit_hash"]: row["text"] for row in raw_text}
     if args.model_package:
         raw = _bounded(Path(args.model_package))
         meta = storage.model_package(Path(args.model_package).name, raw)
         line = meta["line"]
-        if line == "e2e":
-            raise AppError(40001, "e2e 批量暂不支持上传模型包，请使用 --model codebert_e2e_v1 与文本输入")
         model_registry.load_artifact_package(meta["model_name"], raw, line=line)
         model_name = meta["model_name"]
         feature_version = meta.get("feature_version")
@@ -46,8 +38,7 @@ def _predict_run(args) -> int:
     else:
         model_name = args.model
         line = model_registry.line_of(model_name)
-        if line != "e2e":
-            model_registry.get_model(model_name)
+        model_registry.get_model(model_name)
         feature_version = None
         model_version = model_name
     rows, metadata = [], {}
@@ -56,23 +47,16 @@ def _predict_run(args) -> int:
         manifest = Path(args.manifest).read_bytes() if args.manifest else None
         rows, metadata = predict_run._parse_table(Path(args.input).name, table, manifest)
     if line == "expert":
-        if text_rows is not None:
-            raise AppError(40001, "expert 线不接受文本表")
         if not rows:
             raise AppError(40001, "预测输入为空")
-    elif line in ("semantic", "fused"):
+    elif line == "semantic":
         if not rows:
-            raise AppError(40001, f"{line} 线需要 --input 特征表提供提交哈希与 Kamei 特征")
-    elif line == "e2e":
-        if not rows and not text_rows:
-            raise AppError(40001, "e2e 线需要 --input 特征表或 --text 文本表")
-        if not rows:
-            rows = [{"commit_hash": commit_hash, "is_bug_inducing": None} for commit_hash in text_rows]
+            raise AppError(40001, "semantic 线需要 --input 表提供提交哈希")
     feature_version = feature_version or metadata.get("feature_version")
     job_id = str(uuid4())
     cfg = {"model_name": model_name, "line": line, "decision_threshold": args.threshold,
            "model_version": model_version, "feature_version": feature_version}
-    out, failed, _ = predict_run._predict_rows(rows, cfg, None, job_id, 0, len(rows), text_map=text_rows)
+    out, failed, _ = predict_run._predict_rows(rows, cfg, None, job_id, 0, len(rows))
     summary = {"input_rows": len(rows), "success_count": len(out), "failed_count": len(failed),
                "model_name": model_name, "model_version": model_version, "feature_version": feature_version,
                "decision_threshold": args.threshold, "failed_samples": failed[:100]}
@@ -86,8 +70,6 @@ def _predict_run(args) -> int:
         inputs.append({"name": Path(args.input).name, "sha256": fc.sha256(table), "rows": len(rows)})
     if args.model_package:
         inputs.append({"name": Path(args.model_package).name, "sha256": fc.sha256(raw)})
-    if args.text:
-        inputs.append({"name": Path(args.text).name, "sha256": fc.sha256(_bounded(Path(args.text)))})
     published = output_store.publish_output("predict", artifacts, inputs=inputs,
         config={"model_name": model_name, "line": line, "decision_threshold": args.threshold,
                 "model_version": model_version, "feature_version": feature_version},
@@ -108,8 +90,8 @@ def _models(args) -> int:
     with SessionLocal() as session:
         if args.action == "status":
             result = model_manage.status(session, line=args.line)
-        elif args.action == "set-default":
-            result = model_manage.set_default(session, args.name)
+        elif args.action == "set-selection":
+            result = model_manage.set_selection(session, args.name)
         elif args.action == "load":
             result = model_manage.load(session, args.name)
         elif args.action == "unload":
@@ -196,17 +178,16 @@ def main(argv=None) -> int:
     run.add_argument("--model-package")
     run.add_argument("--model")
     run.add_argument("--input")
-    run.add_argument("--text")
     run.add_argument("--threshold", type=float, default=0.5)
     run.add_argument("--format", choices=("csv", "xlsx"), default="csv")
     run.add_argument("--manifest")
     run.add_argument("--out", required=True)
     one = predict.add_parser("one")
     one.add_argument("--commit", required=True)
-    one.add_argument("--model")
+    one.add_argument("--model", required=True)
     one.add_argument("--force", action="store_true")
     models = sub.add_parser("models").add_subparsers(dest="action", required=True)
-    for action in ("load", "unload", "reload", "set-default"):
+    for action in ("load", "unload", "reload", "set-selection"):
         models.add_parser(action).add_argument("--name", required=True)
     status = models.add_parser("status")
     status.add_argument("--line")

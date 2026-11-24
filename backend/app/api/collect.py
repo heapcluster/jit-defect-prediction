@@ -42,7 +42,7 @@ def preview_collect(request: Request, job_id: str):
         with path.open(encoding='utf-8-sig', newline='') as source:
             reader = csv.DictReader(source)
             columns = reader.fieldnames
-            if columns != list(fc.COMMITS_COLUMNS):
+            if tuple(columns) != tuple(fc.COLLECTED_COMMITS_COLUMNS):
                 fc.invalid('输出预览列与契约不一致')
             rows = [{key: (value if value != '' else None) for key, value in row.items()}
                     for row in islice(reader, 20)]

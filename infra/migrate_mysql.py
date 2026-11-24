@@ -93,12 +93,10 @@ def _metadata(conn, table):
 
 
 def _lineage(name):
-    match = re.fullmatch(rf"(?:{EXPERT_ALGOS})(?:_(semantic|fused))?_v\d+", name)
-    if match:
-        return match[1] or "expert"
-    if re.fullmatch(r"codebert_e2e_v\d+", name):
-        return "e2e"
-    raise MigrationError(f"Unknown model lineage: {name!r}; provide authoritative metadata first")
+    match = re.fullmatch(rf"(?:{EXPERT_ALGOS})(?:_semantic)?_v\d+", name)
+    if match and match[1]:
+        return "semantic"
+    return "expert"
 
 
 def _prepare(conn):
@@ -157,6 +155,18 @@ def _prepare(conn):
                 previous = [row for row in expected if row[0] not in ("model_version", "feature_version")]
                 if actual == previous:
                     added = ["model_version", "feature_version"]
+            if table == "dataset_commit" and actual != expected:
+                # 旧 current12 的 dataset_commit 是两列成员关联表；只接受整组缺失，部分缺失仍拒绝。
+                added_names = [row[0] for row in expected if row[0] not in ("dataset_id", "commit_hash")]
+                previous = [row for row in expected if row[0] in ("dataset_id", "commit_hash")]
+                if actual == previous:
+                    added = added_names
+            if table == "dataset" and actual != expected:
+                # 旧 current12 的 dataset 用 repo_source 单列；补三列来源字段，repo_source 保留兼容。
+                added_names = ["source_type", "source_url", "repo_name"]
+                previous = [row for row in expected if row[0] not in added_names]
+                if actual == previous:
+                    added = added_names
             if (actual != expected and not added) or indexes != specs[table][2]:
                 raise MigrationError(f"Noncanonical columns/PK/indexes in {table}")
             if added:

@@ -1,115 +1,298 @@
 # 数据清洗与预处理（功能 3）
 
-实现状态：已实现　期次：一期
+实现状态：目标契约　期次：一期
+
+> 旧实现中存在 `szz_label`、`d5_exclude`、`time_split`、`is_test`、`feature_build`、Kamei 14 维默认图和训练侧变换；本文已废止。本轮只修改设计文档，代码后续按本文同步。
 
 ## 一句话概述
 
-独立的清洗工具：上传 `commits.csv` 并编排九操作处理链，以 preview/apply 两种模式产出逐步统计、特征前后分布图和可选的 `cleaned.csv`，无需采集模块或库中数据先行存在。
+独立的数据清洗与预处理工具：上传板块 2 产出的 `collected_commits.csv/xlsx`，按用户选择的常用清洗操作和通用预处理操作生成清洗后数据集；每一步展示数据集变化和指定列/基础特征变化，结果可导出 CSV/XLSX。
 
 ## 1 职责与不负责范围
 
 **负责**：
 
-- 提供九操作注册表，声明每个操作的输入、输出、参数 schema、默认值和顺序约束；处理链支持选择、排序、启停与调参。
-- preview 只产统计、排除样本和图表，不写业务库、不产新数据集；apply 额外产 `cleaned.csv`，供独立下载或可选导入。
-- 记录每步前后行数、删除/修改数、标签分布、耗时、排除原因，以及指定特征的分布统计与图像。
-- 保存完整处理链、种子、输入输出 checksum、特征顺序和特征版本，保证同输入同配置可复现。
+- 提供分组操作注册表：常用清洗操作、通用预处理操作。
+- 支持用户选择、排序、启停、配置每个操作。
+- 支持 `preview` / `apply` 两种模式：
+  - `preview` 只产出每步统计和图表。
+  - `apply` 额外产出清洗后数据集。
+- 对每一步记录处理前后行数、删除/修改行数、标签分布、缺失值、重复数和排除原因。
+- 对用户指定列/基础特征展示处理前后分布变化；若没有指定列，则至少展示数据集级变化。
+- 产出 `clean_dataset_<job_id>.csv/xlsx`、统计、图表、manifest。
+- 保证同输入、同处理链、同配置可复现。
 
 **不负责**：
 
-- Git 采集、SZZ 判据的第二份实现、模型训练、预测、评估阈值或模型阈值管理。
-- 新增或重定义 Kamei 特征集合；标准化不得造成测试集信息泄漏。
-- 把页面作为唯一执行入口，或要求用户先导入数据集才能运行。
+- Git 拉取、SZZ 打标、D5 回溯与修复候选判定。
+- 训练/测试集切分、`is_test` 生成。
+- Kamei 14 维、语义向量、融合特征、端到端文本特征等**模型特征**的生成、选择或锁定。
+- 训练侧 `log_transform` / `standardize` / `categorical_encode` / `feature_select`。
+- 模型训练、预测、评估、解释、定位。
+- 把数据库或页面作为运行前提。
+- 把清洗结果强制写入数据库。
+
+模型特征与训练侧变换统一属于板块 4「模型训练」。
 
 ## 2 独立运行入口
 
-```bash
-# 从 data_model 目录运行；仓库根可直接运行 data_model/preparation/clean.py
-python -m preparation.clean run \
-  --input commits.csv --chain chain.json --mode preview \
-  --features ns,nd --seed 42 --out ./out
-python -m preparation.clean run \
-  --input commits.csv --chain chain.json --mode apply --format csv --out ./out
-python -m preparation.clean operations
-```
-
 | 入口 | 命令 / 端点 | 契约 |
 |---|---|---|
-| CLI | `python -m preparation.clean run/operations` | 文件与处理链即可运行，与 API 共用注册表和变换实现 |
-| 注册表 API | `GET /api/clean/operations` | 返回九操作元数据、参数 schema 和顺序约束 |
-| 任务 API | `POST /api/clean/run` | multipart 上传 CSV/XLSX + `mode=preview\|apply` + chain，返回 `job_id`；可选 `dataset_id` 仅作便利输入 |
-| 任务管理 | `GET /api/jobs/{id}`、`POST /api/jobs/{id}/retry\|cancel` | 状态、逐步进度、日志、重试与取消 |
-| 下载 | `GET /api/clean/outputs/{job_id}/{name}` | 下载 cleaned、统计、图与 manifest |
-| 展示导入 | `POST /api/storage/import` | 仅 apply 产物可选导入；preview 无此动作 |
+| CLI | `python -m preparation.clean run --input collected_commits.csv --chain chain.json --mode apply --out ./out` | 文件与处理链即可运行 |
+| CLI | `python -m preparation.clean operations` | 查询操作注册表 |
+| 注册表 API | `GET /api/clean/operations` | 返回清洗/通用预处理操作元数据 |
+| 任务 API | `POST /api/clean/run` | multipart 上传 CSV/XLSX + `config`，返回 `job_id` |
+| 任务管理 | `GET /api/jobs/{id}`、`POST /api/jobs/{id}/retry\|cancel` | 五态、进度、日志 |
+| 预览 | `GET /api/clean/preview/{job_id}` | 仅 apply 成功后返回清洗后数据集前 20 行 |
+| 下载 | `GET /api/clean/outputs/{job_id}/{name}` | 下载清洗后数据集、统计、图、manifest |
 
-所有 HTTP 端点（含图像与文件下载）必须使用 `X-API-Key`；图像由鉴权 fetch 转 ObjectURL 展示。
+CLI 与 API 调用同一处理链实现。
 
 ## 3 输入契约
 
-- 主输入为 [`../file-contracts.md`](../file-contracts.md) §3.1 `commits.csv` 的 CSV/XLSX 形式；列名、顺序、空标签和编码以该节为唯一权威。可选 `dataset_id` 只让 run 端点读取已导入的同类文件，不上传文件仍可完整运行。
-- 本模块配置包含 `steps[]`、`features[]`、`seed`、`mode` 和 `format`。每个 step 包含注册表操作标识、启停状态与参数；未知操作、参数越界、顺序冲突或随机切分请求在创建任务前拒绝。
+主输入是 [`../file-contracts.md`](../file-contracts.md) §3.1 的：
 
-| 操作 | 职责与默认约束 |
-|---|---|
-| `merge_filter` | 链首；只凭 parent_hash 多个有效父哈希过滤合并，不凭 message 猜测；apply 不允许多父记录残留 |
-| `szz_label` | 文件已有 SZZ 方法证据复核/复用，方法不一致拒绝；不调用 Git、不重新推断标签，缺方法保留真标签并警告 |
-| `d5_exclude` | 原 02 脚本判据单源，在 szz_label 后排除同方法的 NULL 修复候选，记录文件缺回溯证据，不冒称新 SZZ 实测 |
-| `anomaly_exclude` | max_abs 默认 1e6，排除真实特征异常；正样本比例落在原 40%–60% 自检区间警告，不按比例删标签 |
-| `label_validate` | 同表提交哈希、标签、特征严格对齐；重复 hash 拒绝，NULL 不填 0 |
-| `feature_align` | 固定 Kamei 14 项列序与版本，先于 log/standardize |
-| `log_transform` | 输入本就是 v1 对数值，报告跳过，不能二次 log 或做有损逆变换 |
-| `standardize` | 仅最终过滤后的时间序训练侧拟合 13 项非 fix 特征，与图特征选择无关；manifest 记录 scaler 与训练哈希，输出 v1-standardized 独立版本 |
-| `time_split` | 链末，默认时间序 70/30，复用原 05 的 floor 和严格时间断言；同秒跨边界拒绝，0/1 行明确报告空侧 |
+```text
+collected_commits_<job_id>.csv / xlsx
+```
 
-- `features[]` 指定需要输出前后统计和分布图的特征，缺省为 Kamei 14 项；显式空数组或未知特征前置拒绝，不能关闭全部分布图。preview/apply 均至少交付一组前后分布图；`seed` 不得开启随机时间切分。
-- 上传校验覆盖大小、扩展名与魔数、schema、类型和 CSV 公式注入；非法输入不进入处理链。
+可用列：
 
-## 4 输出契约
+```text
+commit_hash, repo_name, repo_url, author_name, author_email,
+committed_at, message, parent_hash,
+is_bug_inducing, label_method, label_source,
+labeled_at, fix_commit_hash, source_type
+```
 
-| 输出 | 文件与模式 |
-|---|---|
-| 清洗数据 | `clean_cleaned_<job_id>.csv` 与 `.xlsx`；仅 apply 产出，format 决定优先格式，schema 严格遵循 §3.2 |
-| 每步统计 | `clean_steps_stats_<job_id>.json`；两种模式均产，逐步包含 `rows_before/after/removed/label_dist/elapsed_ms/excluded_samples`，并记录 modified、前后标签分布和排除原因 |
-| 特征统计 | `clean_feature_stats_<job_id>.json`：所选特征的均值、中位数、标准差、分位数、缺失数及图表数据 |
-| 分布图 | `clean_feature_distribution_<feature>_<job_id>.png`；两种模式均必须交付，至少一组并覆盖所选特征的前后直方图或箱线图；无样本侧明确标注空数据，不伪造数值 |
-| manifest | 每个产物伴同名 `clean_<artifact>_<job_id>.manifest.json`，满足 §3.9；处理链、种子、特征顺序/版本与输入输出 checksum 全量入快照 |
+可选输入只有同名 manifest，用于校验 checksum 与来源信息。
 
-所有文件遵循 `<module>_<artifact>_<job_id>.<ext>`。preview 不生成 `clean_cleaned_*`，apply 不覆盖上传原文件；可选导入 apply 产物时登记为新数据集版本，原始版本保留。
+本模块不再接受：
 
-## 5 可配置项
+```text
+repo_source
+feature_file
+feature_plan
+feature_set
+```
 
-| 配置 | 来源 | 默认 / 约束 |
+这些字段若出现，返回 40001，并提示“模型特征配置请在训练阶段提供”。
+
+输入约束：
+
+- 文件名不再假定为 `commits.csv`。
+- 不要求输入已有 Kamei 14 维。
+- 不要求输入已有 `is_test`。
+- 未打标 `is_bug_inducing` 必须保持空值。
+- CSV 使用 UTF-8/UTF-8 BOM；XLSX 单 sheet；表头为 snake_case。
+
+## 4 操作注册表
+
+操作注册表必须由后端提供，前端不得硬编码。
+
+### 4.1 常用清洗操作
+
+| 操作 | 职责 | 默认参数 / 约束 |
 |---|---|---|
-| `clean.chain_templates` | `user_config` 命名空间键 | 保存可复用处理链模板，含步骤、顺序和参数版本，重启恢复 |
-| 步骤选择、排序、启停和参数 | 本次 run 配置 | 注册表 schema 与顺序约束校验 |
-| `features[]` / `seed` / `mode` | 本次 run 配置 | 缺省 Kamei 14 项、显式选择至少 1 项 / 42 / preview 或 apply |
-| 时间切分比例 | `time_split` 参数 | 默认 70/30；只改比例，不允许随机或取消时间边界断言 |
-| `default_dataset` | `user_config` 全局键 | 仅用于下拉默认选项 |
-| 输出格式 | 本次 run 配置 | CSV 默认，XLSX 可选 |
+| `schema_validate` | 校验列、类型、哈希格式、时间格式、标签值域 | 始终先执行，不可关闭 |
+| `duplicate_drop` | 按 `commit_hash` 去重 | 默认保留首行，重复样本写入排除明细 |
+| `merge_commit_filter` | 根据 `parent_hash` 中多个有效父哈希过滤合并提交 | 不从 message 猜测 |
+| `missing_value_handle` | 处理作者、邮箱、时间、消息等缺失值 | 策略：`keep` / `fill` / `exclude`，默认 `keep` |
+| `invalid_time_filter` | 过滤非法时间或超出范围的时间 | 默认排除非法时间 |
+| `unlabeled_handle` | 处理未打标样本 | 策略：`keep` / `exclude` / `warn`，默认 `keep` |
+| `outlier_filter` | 对已有数值列做异常检测 | 方法 `iqr` / `zscore`，默认 `iqr`；不生成模型特征 |
+| `label_validate` | 校验标签只能是 1 / 0 / 空 | 默认开启；NULL 不填 0 |
+| `text_clean` | 清洗 `message` 文本 | 去首尾空白、控制字符、多余换行 |
 
-Kamei 14 维列序、log（`fix` 除外）、SZZ 判据单源和 NULL 标签语义是不可破坏的不变量；可配置不等于可另造口径。
+### 4.2 通用预处理操作
 
-## 6 状态持久化
+| 操作 | 职责 | 默认参数 / 约束 |
+|---|---|---|
+| `type_convert` | 把字符串时间/数字转为统一类型 | 由用户指定列；不产生模型特征集 |
+| `date_normalize` | 统一时间为 UTC ISO 8601 | 作用于 `committed_at` / `labeled_at` |
+| `text_normalize` | 统一文本空白和换行 | 作用于 `message` 等文本列 |
+| `category_normalize` | 统一类别值写法，如大小写和空白 | 不做模型编码，只做值规范化 |
+| `derive_basic_fields` | 派生基础展示列，如 `message_length`、`parent_count`、`commit_hour` | 默认关闭；不得生成 Kamei 14 维、语义向量或模型输入特征 |
 
-- 两种模式均创建 `job.kind=clean`，使用统一五态；job 保存模式、处理链、进度、错误日志、输入输出引用和重试次数。同 kind 互斥，重启遗留 running 置 failed。
-- preview 的“不写库”指不写 commit、feature、dataset 等业务表；任务状态、配置快照和文件输出引用仍需持久化。
-- 输出落盘 `backend/var/outputs/<job_id>/`，目录整体加入 gitignore；失败时不保留可被误认为成功的半成品，重试使用同一配置快照。
-- `clean.chain_templates` 落 `user_config`，重启恢复；每次执行的处理链和版本随 job、manifest 固化，模板后续变化不影响历史结果。
-- apply 文件及统计可独立下载；显式导入 storage 后才生成展示用数据集版本，原始数据不覆盖。
+`derive_basic_fields` 只是数据查看和变化图用的基础列，不是模型特征工程。模型训练需要哪些特征，由板块 4 决定。
 
-## 7 与其他模块边界
+### 4.3 已移除操作
 
-- 与 collect 的依赖仅为 §3.1 文件 schema 兼容；任意满足该 schema 的文件都可清洗，Camel、其他仓库或测试 fixture 均可。
-- train 接收 §3.2 文件即可运行；本模块不读取训练服务状态。SZZ 判据来自 collect 单源，但不调用 collect 在线服务。
-- storage 仅提供可选导入与配置/任务持久化，不是处理链的数据来源前提。
-- 本模块不计算模型指标；训练摘要与模型性能统一复用 evaluate 的指标单源。
+以下操作不再属于板块 3：
 
-## 8 验收标准
+| 旧操作 | 现归属 |
+|---|---|
+| `szz_label` | 板块 2，SZZ 打标 |
+| `d5_exclude` | 板块 2，SZZ 质量控制 |
+| `time_split` | 板块 4，训练配置 |
+| `feature_build` | 板块 4，训练时按模型线生成模型特征 |
+| `feature_align` | 板块 4，训练时锁定特征列 |
+| `log_transform` | 板块 4，训练侧预处理 |
+| `standardize` | 板块 4，训练侧预处理 |
+| `categorical_encode` | 板块 4，训练侧预处理 |
+| `feature_select` | 板块 4，训练时选择模型特征 |
 
-验收夹具为测试内联合成的 AI 生成未审核数据，含正常、边界、非法三类；在空库且未运行 collect 的情况下，CLI 与 API 分别用上传文件完成 preview 和 apply。
+### 4.4 顺序约束
 
-- 九操作均可查询、启停、排序和调参；非法操作、参数、顺序与随机切分被前置拒绝，注册表和变换逻辑有单元测试。
-- preview 不写业务表且不产 cleaned；apply 产 §3.2 文件且原输入不变。两种模式均产逐步统计、排除原因与至少一组前后分布图；省略 features 仍生成默认图，显式空数组前置拒绝。
-- 同输入同链同种子重跑主表、PNG 与统计数值一致；真实 elapsed_ms、执行时间和 job_id 不作为跨运行字节一致项。manifest、固定 14 项特征顺序/版本和 checksum 完整，CLI/API 结果等价。
-- 14 维列序与 log、SZZ 复用、时间序禁随机、NULL 标签不被破坏；缺列、错类型、公式注入、超大文件和空标签场景有明确结果且不伪造分布。
-- 承接 TODO/03：可预览步骤前后样本数、标签分布、特征分布；apply 可选导入为新版本且保留原版本；操作注册表、统计、版本生成、图表接口和重启恢复均有自动化测试。
+- `schema_validate` 必须第一步。
+- 清洗操作必须先于通用预处理操作。
+- `date_normalize` 必须先于任何基于时间的基础派生。
+- `derive_basic_fields` 只能派生基础列，不得生成模型特征。
+- 不允许任何训练测试切分或模型特征选择操作。
+
+## 5 输出契约
+
+### 5.1 清洗后数据集
+
+文件名：
+
+```text
+clean_dataset_<job_id>.csv
+clean_dataset_<job_id>.xlsx
+```
+
+字段：
+
+- 保留 §3.1 的原始列，按清洗结果更新。
+- 可追加 `derive_basic_fields` 生成的基础列。
+- 不生成 Kamei 14 维、语义向量、融合特征或模型输入特征。
+- 不出现 `is_test`。
+- 不出现训练/测试划分列。
+- 未打标 `is_bug_inducing` 保持空。
+
+导出要求：
+
+- CSV 使用 UTF-8 BOM。
+- XLSX 单 sheet。
+- apply 模式才生成主表。
+- preview 模式不生成主表。
+
+### 5.2 每步数据集变化
+
+```text
+clean_steps_stats_<job_id>.json
+```
+
+每一步必须包含：
+
+```text
+step
+rows_before
+rows_after
+removed_rows
+modified_rows
+label_dist_before
+label_dist_after
+missing_before
+missing_after
+duplicate_before
+duplicate_after
+elapsed_ms
+excluded_samples
+```
+
+对应图：
+
+```text
+clean_dataset_change_<step>_<job_id>.png
+```
+
+图中至少展示：
+
+- 行数前后对比。
+- 标签分布前后对比。
+- 缺失/重复变化。
+
+### 5.3 指定列/基础特征变化
+
+```text
+clean_column_stats_<job_id>.json
+clean_column_distribution_<step>_<column>_<job_id>.png
+```
+
+对每个指定列记录：
+
+```text
+mean
+median
+std
+min
+max
+quantiles
+missing_count
+```
+
+图表类型：
+
+- 数值列：直方图、箱线图、密度图。
+- 类别列：频数柱状图。
+
+若没有指定列，数据集级图必须产出，列级图可为空并在 manifest 标记原因。
+
+### 5.4 manifest
+
+每个主产物同名 manifest，遵循 file-contracts §3.9，并记录：
+
+```text
+source_type = collected_commits
+chain_config
+chart_columns
+derived_columns
+column_schema
+input_checksum
+output_checksum
+mode
+```
+
+不再记录 `feature_schema`；模型特征 schema 由板块 4 写入 `model_package.zip`。
+
+## 6 可配置项
+
+| 配置 | 来源 | 说明 |
+|---|---|---|
+| `clean.chain_templates` | `user_config` | 可复用处理链模板 |
+| `steps[]` | 本次 run | 操作、启停、参数 |
+| `chart_columns[]` | 本次 run | 需要画前后变化图的列/基础特征 |
+| `mode` | 本次 run | `preview` / `apply` |
+| `format` | 本次 run | `csv` / `xlsx` |
+
+不再提供：
+
+- `repo_source`
+- `feature_file`
+- `seed`
+- `split_ratio`
+- `feature_set`
+
+## 7 状态持久化
+
+- `job.kind=clean`，五态 `queued / running / success / failed / cancelled`。
+- 任务保存模式、处理链、图表列、进度、错误日志、输入输出引用。
+- preview 不产主表；apply 才产 `clean_dataset`。
+- 输出落 `backend/var/outputs/<job_id>/`。
+- 同输入、同链、同配置重跑，主表、统计和图表数值一致。
+- 模板后续变化不影响历史任务，历史配置固化在 job 与 manifest。
+
+## 8 与其他模块边界
+
+- 与 collect 的关系仅为 §3.1 文件 schema 兼容。
+- 不调用 collect 在线服务，不依赖数据库已有数据集。
+- 不写 `dataset` / `dataset_commit`。
+- 不重新执行 SZZ，不改变 `label_source`。
+- train 后续消费本模块的 `clean_dataset` 文件，并在训练阶段选择模型特征、切分数据和拟合训练侧变换。
+- storage 与本模块无关；清洗结果通过文件 handoff。
+
+## 9 验收标准
+
+- 空库且未运行 collect 时，CLI 和 API 均可仅凭上传的 `collected_commits.csv/xlsx` 完成 preview 与 apply。
+- 操作注册表分组展示清洗/通用预处理操作，前端不硬编码。
+- 用户可选择、排序、启停、配置操作；非法顺序、未知操作、参数越界前置拒绝。
+- `feature_build` / 模型特征选择 / 训练测试切分请求被拒绝，并指向训练阶段。
+- preview 产出每步数据集变化和指定列变化图，不产清洗后数据集。
+- apply 额外产出 `clean_dataset_<job_id>.csv/xlsx`，支持 CSV/Excel 导出。
+- 每一步都能看到行数、标签分布、缺失值、重复数和排除样本变化。
+- 选择指定列后能看到该列处理前后分布图。
+- 输出不含 `is_test`、训练/测试划分列和模型特征集。
+- 未打标样本保持空值，不写 0。
+- 相同输入和相同配置可复现。
+- 输出 manifest、checksum、图表和统计文件完整。

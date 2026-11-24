@@ -49,16 +49,16 @@ def preview_clean(request: Request, job_id: str):
         job = clean_run.job_store.get(session, job_id)
     if job['kind'] != 'clean' or (job['output_ref_json'] or {}).get('mode') != 'apply':
         fc.invalid('仅成功 apply 任务提供 cleaned 主表预览')
-    path = clean_run.output_store.read_output('clean', job_id, f'clean_cleaned_{job_id}.csv')
+    path = clean_run.output_store.read_output('clean', job_id, f'clean_dataset_{job_id}.csv')
     try:
         with path.open(encoding='utf-8-sig', newline='') as source:
             reader = csv.DictReader(source)
-            if reader.fieldnames != list(fc.COMMITS_COLUMNS):
+            if tuple(reader.fieldnames or ()) != tuple(fc.CLEAN_DATASET_COLUMNS):
                 fc.invalid('输出预览列与契约不一致')
             rows = [{key: value if value != '' else None for key, value in row.items()} for row in islice(reader, 20)]
     except csv.Error as error:
         raise AppError(40001, '输出表格无法预览') from error
-    return ok({'columns': list(fc.COMMITS_COLUMNS), 'preview': rows})
+    return ok({'columns': list(fc.CLEAN_DATASET_COLUMNS), 'preview': rows})
 
 
 @router.get('/outputs/{job_id}/{name}')

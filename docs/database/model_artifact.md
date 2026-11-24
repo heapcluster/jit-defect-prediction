@@ -12,7 +12,7 @@ W2 已实现模型包结构/checksum 校验、不透明 ZIP 路径登记与同�
 |---|---|---|---|---|
 | artifact_id | VARCHAR(36) | NOT NULL | 主键 | 工件标识 |
 | model_name | VARCHAR(64) | NOT NULL | uk_artifact_model（唯一）+ 外键 → `model.model_name` | 派生出的模型名（全局唯一） |
-| line | VARCHAR(16) | NOT NULL | ix_artifact_line | `expert` / `semantic` / `fused` / `e2e` |
+| line | VARCHAR(16) | NOT NULL | ix_artifact_line | `expert`（Kamei 14 维）/ `semantic`（冻结头 CodeBERT 768 维）；`fused` / `e2e` 已砍掉 |
 | algo | VARCHAR(64) | 可空 | — | 算法标识（与 `algorithm` 表对应） |
 | version_key | VARCHAR(64) | NOT NULL DEFAULT '' | — | 版本键 |
 | weight_path | VARCHAR(255) | NOT NULL | — | 权重文件 / 目录路径（相对仓库根） |

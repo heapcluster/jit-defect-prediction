@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from app import config, e2e_source, feature_source, model_registry, semantic_source
+from app import config, feature_source, model_registry, semantic_source
 from app.db import SessionLocal
 from app.errors import INTERNAL_ERROR_MESSAGE, AppError
 from app.models import Commit, CommitFeature, Model, Prediction
@@ -25,28 +25,22 @@ logger = logging.getLogger("backend.predict.service")
 
 
 def resolve_model_name(model_name: str | None) -> str:
-    """确定本次打分使用的模型名：显式给定时校验存在，否则取默认模型。
+    """确定本次打分使用的模型名：必须显式指定；未指定返回 40001（不设默认模型）。
 
-    默认模型 = 已加载模型中 `version_key` 最大者（docs/database/model.md，`runtime_setting`
-    与冠军模型热切换已下线），与列表 / 详情 / 趋势共用 `model_registry.default_model()`。
-
-    显式指定的模型区分两档错误（docs/todo「在线能力对齐」）：已在交付清单（`model` 表）
-    但无在线权重 → 明确提示「仅离线评估」；完全不存在 → 「model_name 不存在」。
+    显式指定的模型区分两档错误：已在交付清单（`model` 表）但无在线权重 → 明确提示
+    「仅离线评估」；完全不存在 → 「model_name 不存在」。
     """
-    if model_name:
-        if model_registry.has(model_name):
-            return model_name
-        with SessionLocal() as session:
-            delivered = session.execute(
-                select(Model.model_name).where(Model.model_name == model_name)
-            ).scalar_one_or_none()
-        if delivered is not None:
-            raise AppError(40001, "参数非法：该模型暂无在线权重，仅离线评估，无法在线预测")
-        raise AppError(40001, "参数非法：model_name 不存在")
-    entry = model_registry.default_model()
-    if entry is None:
-        raise AppError(50000, INTERNAL_ERROR_MESSAGE)
-    return entry.name
+    if not model_name:
+        raise AppError(40001, "参数非法：model_name 必填，不设默认模型")
+    if model_registry.has(model_name):
+        return model_name
+    with SessionLocal() as session:
+        delivered = session.execute(
+            select(Model.model_name).where(Model.model_name == model_name)
+        ).scalar_one_or_none()
+    if delivered is not None:
+        raise AppError(40001, "参数非法：该模型暂无在线权重，仅离线评估，无法在线预测")
+    raise AppError(40001, "参数非法：model_name 不存在")
 
 
 def _missing_message(commit: Commit | None) -> str:
@@ -224,24 +218,19 @@ def predict_commit_all_models(
 
 
 def _vector_for_line(line: str, commit_hash: str, feature) -> list[float]:
-    """按模型线的输入口径组装特征向量：expert 14 / semantic 768 / fused 782。
+    """按模型线的输入口径组装特征向量：expert 14 / semantic 768。
 
-    semantic/fused 用模型线预计算的语义 embedding（commit 不在表内 → 明确 40001，不编造）。
+    semantic 用预计算语义 embedding（commit 不在表内 → 明确 40001，不编造）。
     """
-    expert = [float(getattr(feature, name)) for name in config.FEATURE_COLUMNS]
     if line == "expert":
-        return expert
+        return [float(getattr(feature, name)) for name in config.FEATURE_COLUMNS]
     embedding = semantic_source.embedding_for(commit_hash)
     if embedding is None:
         raise AppError(
             40001,
             f"参数非法：该提交语义向量不可用（缺预计算且无法在线补算），{line} 模型无法在线预测",
         )
-    if line == "semantic":
-        return embedding.tolist()
-    if line == "fused":
-        return expert + embedding.tolist()
-    raise AppError(40001, f"参数非法：{line} 模型暂不支持在线预测")
+    return embedding.tolist()
 
 
 def predict_single(commit_hash: str, model_name: str | None, repo=None,
@@ -265,7 +254,7 @@ def predict_single(commit_hash: str, model_name: str | None, repo=None,
             extracted = _extract_feature(commit_hash, repo=repo, missing_message=missing_message)
             commit, feature = _upsert_commit_feature(session, commit_hash, extracted)
 
-        model_name = resolve_model_name(model_name or config_store.get_value("default_model", session))
+        model_name = resolve_model_name(model_name)
         line = model_registry.line_of(model_name)
         threshold = decision_threshold if decision_threshold is not None else config_store.get_value("decision_threshold", session)
         feature_version = feature.feature_version
@@ -283,28 +272,19 @@ def predict_single(commit_hash: str, model_name: str | None, repo=None,
         # 版本缺失（历史行）同样视为过期：无法证明与当前模型/特征同版本，不冒充新鲜。
         stale = stored and (row.model_version != model_version or row.feature_version != feature_version)
 
-        if line == "e2e":
-            risk = e2e_source.predict_proba(commit_hash)
-            if risk is None:
-                raise AppError(40001, "参数非法：e2e 模型所需文本或编码器不可用，无法在线预测")
-            entry_name = model_name
-            vector = None
-            entry = None
-        else:
-            try:
-                entry = model_registry.get_model(model_name)
-            except model_registry.ModelUnavailable as exc:
-                raise AppError(40001, f"参数非法：{exc}") from exc
-            vector = _vector_for_line(line, commit_hash, feature)
-            entry_name = entry.name
+        try:
+            entry = model_registry.get_model(model_name)
+        except model_registry.ModelUnavailable as exc:
+            raise AppError(40001, f"参数非法：{exc}") from exc
+        vector = _vector_for_line(line, commit_hash, feature)
+        entry_name = entry.name
 
         if stored:
             risk = float(row.risk_score)
             predicted_at = row.predicted_at
             result_source = "stored"
         else:
-            if line != "e2e":
-                risk = model_registry.predict_proba(entry.model, vector)
+            risk = model_registry.predict_proba(entry.model, vector)
             predicted_at = datetime.now(UTC).replace(tzinfo=None)
             result_source = "computed"
             if row is None:

@@ -68,13 +68,9 @@ def test_collection_and_both_szz_methods_on_local_git(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(extract, "REPORTS_DIR", tmp_path / "reports")
 
-    # 生产固定提交不匹配：必须在写 CSV 前拦截。
-    assert extract.main() == 3
-    assert not out.exists()
-
-    # 仅在本测试中把基准设为合成仓库，实测采集 → 两套 git 回溯。
-    monkeypatch.setattr(extract, "EXPECTED_HEAD", fixing.hexsha)
+    # 新契约按 source_url / repo_name 采集，不再校验固定仓库 HEAD；本地合成仓库可直接采集。
     assert extract.main() == 0
+    assert out.exists()
     with out.open(encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
     assert [r["repo_name"] for r in rows] == ["camel", "camel"]

@@ -2,6 +2,7 @@
 import json
 import os
 import subprocess
+import sys
 
 import pytest
 from app import db
@@ -10,21 +11,24 @@ from app.services import file_contracts as fc
 from app.services import output_store
 from sqlalchemy import select
 
-from tests.conftest import HEADERS
+from tests.conftest import FAKE_EXTRACTOR, HEADERS
 
 ROOT = db.config.REPO_ROOT
-PYTHON = str(ROOT / ('.venv/Scripts/python.exe' if os.name == 'nt' else '.venv/bin/python'))
+PYTHON = sys.executable
 
 
 def train_rows(n=12):
+    """新契约：训练输入为 collected_commits 二维表（不含 Kamei14/is_test）。"""
     rows = []
     for i in range(n):
-        row = dict.fromkeys(fc.COMMITS_COLUMNS, '')
-        row.update({f: float((i + 1) * (j + 1) % 7) for j, f in enumerate(fc.FEATURE_COLUMNS) if f != 'fix'})
-        row.update(fix=i % 2, commit_hash=f'{i + 1:040x}', repo_name='AI unreviewed', author_name='测试',
-                   message=f'fixture {i}', committed_at=f'2026-01-{i + 1:02d}T00:00:00Z',
-                   is_bug_inducing=i % 2, is_test=int(i >= 8))
-        rows.append(row)
+        rows.append({
+            'commit_hash': f'{i + 1:040x}', 'repo_name': 'AI fixture',
+            'repo_url': 'https://example.org/repo.git', 'author_name': '测试', 'author_email': '',
+            'committed_at': f'2026-01-{i + 1:02d}T00:00:00Z', 'message': f'fixture {i}',
+            'parent_hash': '', 'is_bug_inducing': i % 2, 'label_method': 'szz_v1',
+            'label_source': 'git_szz', 'labeled_at': f'2026-01-{i + 1:02d}T01:00:00Z',
+            'fix_commit_hash': '', 'source_type': 'git_repo',
+        })
     return rows
 
 
@@ -34,7 +38,7 @@ def settings(**extra):
 
 def post(client, config=None, rows=None):
     return client.post('/api/train/run', data={'config': json.dumps(config if config is not None else settings())},
-        files=[('files[]', ('cleaned.csv', fc.encode_table(fc.COMMITS_COLUMNS, rows if rows is not None else train_rows(), 'csv')))], headers=HEADERS)
+        files=[('files[]', ('cleaned.csv', fc.encode_table(fc.COLLECTED_COMMITS_COLUMNS, rows if rows is not None else train_rows(), 'csv')))], headers=HEADERS)
 
 
 @pytest.fixture
@@ -56,11 +60,11 @@ def real_train(engine, tmp_path, monkeypatch):
         yield client, train_run, tmp_path
 
 
-def test_algorithms_seeded_25_enabled(real_train):
+def test_algorithms_seeded_16_enabled(real_train):
     client, _, _ = real_train
     data = client.get('/api/algorithms?enabled_only=1', headers=HEADERS).json()['data']['algorithms']
-    assert len(data) == 25
-    assert {a['line'] for a in data} == {'expert', 'semantic', 'fused', 'e2e'}
+    assert len(data) == 16
+    assert {a['line'] for a in data} == {'expert', 'semantic'}
     assert len({a['family'] for a in data}) >= 2
     expert = client.get('/api/algorithms?line=expert', headers=HEADERS).json()['data']['algorithms']
     assert len(expert) == 12 and sum(a['enabled'] for a in expert) == 8
@@ -100,9 +104,9 @@ def test_real_cli_api_parity(real_train, tmp_path):
     assert response.status_code == 200 and response.json()['data']['status'] == 'success', response.text
     api_sub = response.json()['data']['models'][0]
     source = tmp_path / 'cleaned.csv'
-    source.write_bytes(fc.encode_table(fc.COMMITS_COLUMNS, train_rows(), 'csv'))
+    source.write_bytes(fc.encode_table(fc.COLLECTED_COMMITS_COLUMNS, train_rows(), 'csv'))
     out = tmp_path / 'cli'
-    env = {**os.environ, 'PYTHONPATH': str(ROOT / 'data_model'), 'DATABASE_URL': '', 'DB_HOST': '', 'MPLCONFIGDIR': str(tmp_path / 'mpl')}
+    env = {**os.environ, 'PYTHONPATH': str(ROOT / 'data_model'), 'DATABASE_URL': '', 'DB_HOST': '', 'MPLCONFIGDIR': str(tmp_path / 'mpl'), 'FEATURE_EXTRACTOR_SCRIPT': str(FAKE_EXTRACTOR)}
     proc = subprocess.run([PYTHON, '-B', '-m', 'pipelines.train', 'run', '--input', str(source), '--line', 'expert',
         '--algos', 'lr', '--split-ratio', '0.7', '--seed', '42', '--threshold', '0.5', '--out', str(out)],
         env=env, capture_output=True, text=True, cwd=str(ROOT / 'data_model'))
@@ -115,12 +119,13 @@ def test_real_cli_api_parity(real_train, tmp_path):
         assert cli_sub['metrics'][metric] == pytest.approx(api_sub['metrics'][metric], abs=1e-9)
 
 
-@pytest.mark.parametrize('line', ['semantic', 'fused', 'e2e'])
-def test_non_expert_rejected_before_job(real_train, line):
+def test_semantic_without_embedding_job_fails_without_outputs(real_train, monkeypatch):
+    """semantic 线缺语义向量时任务失败且不落产物。"""
     client, _, path = real_train
-    response = post(client, settings(line=line, algos=['lr']))
-    assert response.status_code == 400, response.text
-    assert client.get('/api/jobs?kind=train', headers=HEADERS).json()['data']['total'] == 0
+    monkeypatch.setattr('app.semantic_source.embedding_for', lambda h: None)
+    response = post(client, settings(line='semantic', algos=['lr']))
+    assert response.status_code == 200, response.text
+    assert response.json()['data']['status'] == 'failed'
     assert not (path / 'outputs').exists()
 
 

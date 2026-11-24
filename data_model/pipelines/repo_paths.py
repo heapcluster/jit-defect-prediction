@@ -1,7 +1,6 @@
 """报告与证据里的路径渲染：**只写仓内相对路径**。
 
-背景（2026-10-25 缺陷修复）：`fused/reports/model_metrics.md` 与
-`e2e/reports/prediction_stats.md` 曾把 `config.EMBEDDINGS_NPZ` / `args.out`
+背景（2026-10-25 缺陷修复）：历史报告曾把 `config.EMBEDDINGS_NPZ` / `args.out`
 的**绝对路径**原样写进报告 —— 那些路径经 `Path.resolve()` 必然带本机盘符，
 而 `reports/` 是可入库证据：任何机器上重跑都会把该机器的盘符写进仓库，
 且已入库的两份报告要靠手工清洗（治标不治本）。

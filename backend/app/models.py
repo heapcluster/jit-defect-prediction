@@ -11,6 +11,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy import (
     BIGINT,
     CHAR,
@@ -211,7 +213,10 @@ class Dataset(Base):
 
     dataset_id: Mapped[str] = mapped_column(String(36), primary_key=True)
     name: Mapped[str] = mapped_column(String(128))
-    repo_source: Mapped[str] = mapped_column(String(255))
+    source_type: Mapped[str] = mapped_column(String(16), nullable=False, default="git_repo")
+    source_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    repo_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    repo_source: Mapped[str] = mapped_column(String(255), default="")
     branch: Mapped[str | None] = mapped_column(String(128), nullable=True)
     head_hash: Mapped[str | None] = mapped_column(CHAR(40), nullable=True)
     time_start: Mapped[object | None] = mapped_column(DATETIME, nullable=True)
@@ -228,7 +233,7 @@ class Dataset(Base):
 
 
 class DatasetCommit(Base):
-    """数据集与提交关联；联合主键保证重复收集幂等。"""
+    """数据集的已打标二维表成员行；联合主键保证同一数据集内按提交幂等。"""
 
     __tablename__ = "dataset_commit"
 
@@ -238,6 +243,21 @@ class DatasetCommit(Base):
     commit_hash: Mapped[str] = mapped_column(
         CHAR(40), ForeignKey("commit.commit_hash"), primary_key=True
     )
+    repo_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    repo_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    author_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    author_email: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    committed_at: Mapped[object | None] = mapped_column(DATETIME, nullable=True)
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    parent_hash: Mapped[str | None] = mapped_column(CHAR(40), nullable=True)
+    is_bug_inducing: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    label_method: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    label_source: Mapped[str] = mapped_column(String(32), nullable=False, default="git_szz")
+    labeled_at: Mapped[object | None] = mapped_column(DATETIME, nullable=True)
+    fix_commit_hash: Mapped[str | None] = mapped_column(CHAR(40), nullable=True)
+    source_type: Mapped[str] = mapped_column(String(16), nullable=False, default="git_repo")
+    row_no: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[object] = mapped_column(DATETIME, default=datetime.utcnow)
 
 
 INDEX_ASSERTIONS = (

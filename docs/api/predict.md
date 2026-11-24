@@ -13,7 +13,7 @@
 - 不负责训练、性能评估、XAI 或行级定位。响应不包含 `explanation`，预测服务禁止调用解释或定位服务；详情页可并行编排 `/api/explain` 与 `/api/localize/run`。
 - 不隐式把批量文件结果导入展示表；需要时由调用方另调 storage。
 
-> W8 已移除单条预测的 explanation 和预测内部的 SHAP 调用，详情页经 `/api/explain` 单独读取解释；features/summary 仍为现有详情展示字段。prediction 已落 `model_version / feature_version` 两可空列：单条沿用库中结果时按行内版本与当前模型/特征版本对比返回真实 `stale`，历史 NULL 版本行视为过期，`force_recompute` 重算并刷新版本。批量 run 已交付 §3.4 文件 + summary + manifest，并支持 semantic/fused/e2e 线（见 §3）；模型管理 status/load/unload/reload/default 见 [models.md](models.md)。
+> W8 已移除单条预测的 explanation 和预测内部的 SHAP 调用，详情页经 `/api/explain` 单独读取解释；features/summary 仍为现有详情展示字段。prediction 已落 `model_version / feature_version` 两可空列：单条沿用库中结果时按行内版本与当前模型/特征版本对比返回真实 `stale`，历史 NULL 版本行视为过期，`force_recompute` 重算并刷新版本。批量 run 已交付 §3.4 文件 + summary + manifest，支持 expert / semantic 两线（见 §3）；模型管理 status/load/unload/reload/default 见 [models.md](models.md)。
 
 ## 2. 端点契约
 
@@ -24,7 +24,7 @@
 | 字段 | 必填 | 契约 |
 |---|---|---|
 | `commit_hash` | 是 | 40 位 hex，归一化为小写 |
-| `model_name` | 否 | 缺省读 `user_config.default_model`；未配置时回退已加载 expert 中 version_key 最大者 |
+| `model_name` | 是 | 必须显式指定已加载模型；不设默认值或回退规则 |
 | `decision_threshold` | 否 | 开区间 (0,1)，缺省读全局配置 |
 | `force_recompute` | 否 | 默认 `false`：同模型与特征版本有可用库中结果则沿用；`true` 立即重新计算 |
 
@@ -46,7 +46,7 @@
 
 ### POST /api/predict/run
 
-`multipart/form-data`：`files[]` 接收一个 commits/cleaned 表格，以及可选一个 `model_package.zip`；`config` JSON part。小文件同步，大文件创建 `kind=predict_batch` job。
+`multipart/form-data`：`files[]` 接收一个 `collected_commits` / `clean_dataset` 表格（CSV/XLSX），以及可选一个 `model_package.zip`；`config` JSON part。小文件同步，大文件创建 `kind=predict_batch` job。
 
 | config 字段 | 必填 | 契约 |
 |---|---|---|
@@ -57,7 +57,7 @@
 | `force_recompute` | 否 | 默认 true（文件运行始终按输入计算）；false 仅对可选库输入允许复用同版本结果 |
 | `format` | 否 | `csv` / `xlsx`，默认 `csv` |
 
-模型解析顺序：显式上传模型包 → 显式 model_name → `user_config.default_model` → 已加载 expert 中 version_key 最大者。同步响应 `{job_id,status:"success",outputs[],summary}`；异步 `{job_id,status:"queued"}`。summary 含总数、成功数、失败数、实际模型与阈值；逐行失败不得被写成风险 0。
+模型解析顺序：显式上传模型包 → 显式 `model_name`；两者皆无返回 40001，不设默认值或版本序回退。同步响应 `{job_id,status:"success",outputs[],summary}`；异步 `{job_id,status:"queued"}`。summary 含总数、成功数、失败数、实际模型与阈值；逐行失败不得被写成风险 0。
 
 ### GET /api/predict/outputs/{job_id}/{name}
 
@@ -76,33 +76,36 @@
 
 模型包逐字采用 §3.3：
 
-> zip 内含：权重文件（expert/semantic/fused 为 `.pkl`；e2e 为 safetensors 目录）、`feature_order.txt`、`model_meta.json`（model_name/line/algo/version_key/feature_version/trained_at/超参快照/划分/种子）、`checksum.sha256`。predict/explain MUST 校验 checksum 与特征列宽后再加载。
+> zip 内含：权重文件均为 `.pkl`（`expert`=Kamei 14 维、`semantic`=冻结头 CodeBERT 768 维）、`feature_order.txt`、`feature_schema.json`、`model_meta.json`（model_name/line/algo/feature_set/version_key/feature_version/trained_at/超参快照/划分 mode/种子）、`checksum.sha256`。`fused` / `e2e` 及其 safetensors 产物已取消。predict/explain MUST 校验 checksum 与特征列宽后再加载。
 
-表格采用 §3.1 commits 或 §3.2 cleaned。§3.1 列契约逐字如下：
+表格采用 §3.2 `clean_dataset`；评估场景采用 §3.3 `train_testset`（每行带真标签，schema 与 §3.2 逐列一致）。输入列契约（§3.2）：
 
 | 列 | 类型 | 必填 | 含义 |
 |---|---|---|---|
 | commit_hash | string(40 hex) | 是 | 提交标识（小写） |
-| repo_name | string | 是 | 来源仓库名 |
-| author_name / author_email | string | 是 / 否 | 作者 |
-| committed_at | datetime | 是 | 提交时间 UTC |
-| message | string | 是 | 提交信息 |
+| repo_name | string | 是 | 仓库名或数据集名 |
+| repo_url | string | 否 | 来源 URL |
+| author_name / author_email | string | 否 | 作者 |
+| committed_at | datetime | 否 | 提交时间 UTC |
+| message | string | 否 | 提交信息 |
 | parent_hash | string(40) | 否 | 父提交 |
-| ns…sexp（14 列） | float | 是 | Kamei 14 维 log 变换值（`fix` 为 0/1），列序固定 |
-| is_bug_inducing | int 空可 | 否 | SZZ 真标签 1/0/空 |
+| is_bug_inducing | int 空可 | 是 | 缺陷标签 1/0/空；评估场景 MUST 非空 |
+| label_method | string | 否 | 标签方法 |
+| label_source | string | 是 | `git_szz` / `public_dataset` |
 | labeled_at | datetime | 否 | 打标时间 |
-| is_test | int 0/1 | 是 | 时间序划分标记 |
-| label_method | string | 否 | szz / szz_lite |
+| fix_commit_hash | string(40) | 否 | SZZ 回溯修复提交 |
+| source_type | string | 是 | `git_repo` / `public_dataset` |
 
-§3.2 为“列同 3.1”，不新增预测输入列。ZIP 还须校验路径穿越、文件数量和解压大小；表格执行大小、扩展名魔数、schema、公式注入校验。任何文件名不得拼接 shell。特征顺序严格按包内 `feature_order.txt`，禁止按字典序猜测。
+模型特征不在输入表中，由训练阶段生成并固化进模型包。ZIP 还须校验路径穿越、文件数量和解压大小；表格执行大小、扩展名魔数、schema、公式注入校验。任何文件名不得拼接 shell。特征顺序严格按包内 `feature_order.txt`，禁止按字典序猜测。
+
+**真标签透传**：输入行的 `is_bug_inducing` MUST 原样写入 §3.4 `predictions.csv` 同名列。评估场景（输入 `train_testset`）真标签必非空，缺标签在 predict 前置拒绝；预测新提交场景允许标签空，但结果不供性能评估。
 
 按模型线的批量输入口径：
 
-- **expert**：一个 §3.1/§3.2 特征表（或 `dataset_id`），取 Kamei 14 维；不接受文本表。
-- **semantic / fused**：一个 §3.1/§3.2 特征表提供提交哈希、Kamei 特征与真标签；语义向量按 `commit_hash` 取模型线预计算 embedding（`semantic_embeddings.npz`），缺失时若本机有冻结 CodeBERT 编码器则在线编码，仍不可用该行明确失败（不编造向量）。fused = Kamei 14 ⊕ embedding 768 = 782 维。可选附一个 `commit_hash,text` 文本表为缺预计算的提交提供在线编码文本。
-- **e2e**：使用已登记 `codebert_e2e_v1`（本地 safetensors 目录），接收 §3.1/§3.2 特征表（按哈希取预计算/在线构造文本）或 `commit_hash,text` 文本表（直接前向）；**不接受上传 e2e 模型包**（返回 40001）。
-- 辅助文本表 schema 固定为 `commit_hash,text`（UTF-8 BOM CSV / 单 sheet XLSX），仅 predict 批量消费，不入展示库；与特征表合计最多两个表格 + 一个模型包。
-- CLI `predict run` 与 API 同源：`--model-package` 或 `--model` 二选一，`--input` 特征表、`--text` 文本表按线可选；semantic/fused/e2e 同样按上述口径取向量/文本，缺输入明确报错。
+- **expert**：一个 §3.1/§3.2 提交表（或 `dataset_id`）提供提交标识；14 维特征由模型包 `feature_order.txt` 驱动、从绑定仓库的提交快照现算（与训练侧同一抽取器），不从上传表读取特征列。缺可读仓库或提交不可达返回 40001；不接受文本表。
+- **semantic**：一个 §3.1/§3.2 特征表提供提交哈希与真标签；768 维语义向量按 `commit_hash` 取预计算 embedding（`semantic_embeddings.npz`，冻结头 CodeBERT），缺失时若本机有冻结编码器则从绑定仓库在线编码，仍不可用该行明确失败（不编造向量）。不接收独立文本表。
+- `fused`（782 维拼接）与 `e2e`（文本 / 微调分类头）两线已砍掉，相关模型包与文本表输入不再适用。
+- CLI `predict run` 与 API 同源：`--model-package` 或 `--model` 二选一，`--input` 为 §3.1/§3.2 特征表，不接受文本表；缺输入明确报错。
 
 ## 4. 输出契约
 
@@ -117,7 +120,7 @@
 | decision_threshold | float | 是 | 本次判定阈值 |
 | model_version / feature_version | string | 是 | 版本元信息 |
 | predicted_at | datetime | 是 | 预测时间 |
-| is_bug_inducing | int 空可 | 否 | 透传真标签（便于 evaluate 单文件输入） |
+| is_bug_inducing | int 空可 | 否 | 透传真标签（来自 §3.3 `train_testset`，供 evaluate 算性能；评估场景必非空） |
 
 概率与标签分离，阈值不改变 risk_score；输入真标签原样透传，未打标留空。CSV UTF-8 BOM，XLSX 单 sheet；manifest 严格符合 §3.9，记录模型包 checksum、特征版本、阈值、输入与输出 checksum。
 
@@ -125,7 +128,7 @@
 
 ## 5. 可配置项
 
-- 全局：`default_model`、`decision_threshold`、`risk_high_threshold`、`risk_mid_threshold`。
+- 全局：`decision_threshold`、`risk_high_threshold`、`risk_mid_threshold`；模型不设默认值。
 - 命名空间：`predict.batch_size`、`predict.cache_ttl`、`predict.retry_max`，均落 `user_config` 并重启恢复。
 - 单次运行可指定模型包/模型、阈值、批量大小和输出格式；显式阈值进入 manifest，不从模型包猜测。
 - `.env` 仅提供出厂默认；模型重载是 models 管理动作，不由预测请求隐式触发。

@@ -4,16 +4,16 @@
 
 ## 一句话
 
-独立评估工具：上传或从产物库选择 `predictions.csv`（CSV/XLSX，可选第二输入 `labels.csv`）；已导入数据集仅作额外便利选择。设阈值 slider、勾选指标、指定主排序后运行 job；一次运行产出一版结果，改配置再运行产新一版，结果版本列表可切换查看；产出 metrics/confusion/报告/图 + manifest，可下载；图件与 manifest 可选登记入库（model_figure），供展示层 figures 接口读取。
+独立评估工具：上传或从产物库选择 `predictions.csv`（CSV/XLSX，须自带板块 ⑤ 透传的真标签，不接受独立标签文件）；已导入数据集仅作额外便利选择。设阈值 slider、勾选指标、指定主排序后运行 job；一次运行产出一版结果，改配置再运行产新一版，结果版本列表可切换查看；产出 metrics/confusion/报告/图 + manifest，可下载；图件与 manifest 可选登记入库（model_figure），供展示层 figures 接口读取。多模型性能对比在本页完成。
 
 ## 入口与导航
 
 - 本页为功能⑥（预测性能评估）tab「评估」，路由 `/evaluate`；页内子签为「评估工具台」与「模型性能」，后者保留已有模型指标与图件展示，入口 `/evaluate?section=models`。旧 `/model-performance` 重定向到该子视图并保留其他 query 与 hash，导航见 [README.md](README.md)。
 - 本页是评估计算与结果版本查看入口；展示层经 `GET /api/figures` 读取本页登记入库的图件与指标只读投影（见 [../api/figures.md](../api/figures.md)）。
 - CLI 与本页调用同一评估服务，指标公式单源；页面不手工拼指标、不自行阈值重算。
-- 输出文件契约：[../file-contracts.md](../file-contracts.md) §3.4/§3.5（输入）、§3.6（metrics/confusion/report/图）、§3.9（manifest）。
+- 输出文件契约：[../file-contracts.md](../file-contracts.md) §3.4（predictions 输入）、§3.3（`train_testset` 作为可选 effort 来源）、§3.6（metrics/confusion/report/图）、§3.9（manifest）。真标签已由板块 ⑤ 透传在 predictions 内，不再有独立标签输入（旧 §3.5 废止）。
 
-产物选择与下载再提交统一遵循 [公共流程](../api/README.md#产物库选择与上传等价)：预测文件取自 predict_batch，下载文件及 manifest 后以 `files[]` 提交。外部 labels 可直接上传；已导入数据集仅作额外便利选项。
+产物选择与下载再提交统一遵循 [公共流程](../api/README.md#产物库选择与上传等价)：预测文件取自 predict_batch，下载文件及 manifest 后以 `files[]` 提交。已导入数据集仅作额外便利选项，标签已含在 predictions 内、不另行上传。
 
 ## 线框图
 
@@ -21,10 +21,10 @@
 ┌─ 性能评估工具台 ────────────────────────────────────────────────────────┐
 │ ── 输入区 ──                                                            │
 │ ┌────────────────────────────────────────────────────────────┐         │
-│ │ 拖拽上传 CSV/XLSX（predictions.csv §3.4，可含标签列）       │         │
+│ │ 拖拽上传 CSV/XLSX（predictions.csv §3.4，须含真标签列）     │         │
 │ │ 或选产物库文件 [▾ predict_batch]                            │         │
 │ └────────────────────────────────────────────────────────────┘         │
-│ 第二输入（可选） [拖拽 labels.csv §3.5]（predictions 已含标签时可省略）  │
+│ 可选 effort 来源 [▾ train_testset]（predictions 缺 effort 时用于两类 effort 图）│
 │ ── 配置区 ──                                                            │
 │ 阈值 slider  0 ├────────●────────┤ 1   当前 [0.5]  [恢复默认]           │
 │ 指标 [☑AUC ☑AP ☑F1 ☑Precision ☑Recall ☑Accuracy                         │
@@ -55,8 +55,8 @@
 
 | 控件 | 端点 | 说明 |
 |---|---|---|
-| 预测文件上传 / 产物库 / 已导入数据集（便利） | 产物查询 `GET /api/jobs?kind=predict_batch`，经 `/api/predict/outputs/{job_id}/{name}` 下载文件及 manifest 后按 `files[]` 提交 `POST /api/evaluate/run`；数据集便利选项 `GET /api/datasets` | predictions 必需，labels 按标签完整性可选；数据集便利选择不等同于产物库 |
-| 第二输入 labels.csv | `POST /api/evaluate/run`（multipart 第二文件） | 按 hash join；冲突以 labels 为准，冲突数入 manifest（§3.5） |
+| 预测文件上传 / 产物库 / 已导入数据集（便利） | 产物查询 `GET /api/jobs?kind=predict_batch`，经 `/api/predict/outputs/{job_id}/{name}` 下载文件及 manifest 后按 `files[]` 提交 `POST /api/evaluate/run`；数据集便利选项 `GET /api/datasets` | predictions 必需且须自带真标签；无标签文件输入入口；数据集便利选择不等同于产物库 |
+| effort 来源（可选） | `POST /api/evaluate/run`（上传 §3.3 `train_testset`） | 按 hash join 取 la/ld 还原 LOC；缺来源时 effort-aware 指标披露 `missing_effort` |
 | 阈值 slider / [恢复默认] | `POST /api/evaluate/run`（`threshold`）；`GET/PUT /api/config`（`decision_threshold`） | 开区间 (0,1)；恢复默认 = 删用户键回退出厂值 |
 | 指标勾选 / 主排序 [▾] | `GET /api/evaluate/metrics`（清单与定义）；`PUT /api/config`（`metrics_selected` / `primary_metric`） | 清单接口读取，前端不写死；主排序须属勾选集合 |
 | [运行] | `POST /api/evaluate/run` | 返回 `job_id`；一次运行 = 一版结果，改配置不自动重算 |
@@ -70,7 +70,7 @@
 
 ## 交互流程
 
-1. 上传 `predictions.csv`（CSV/XLSX），或选择 predict_batch 的历史产物，下载文件及 manifest 后以 `files[]` 提交；已导入 dataset_id 另作便利输入。已含可用真标签时可省略 labels，否则另传 labels 按 hash join，冲突以 labels 为准并登记数量。
+1. 上传 `predictions.csv`（CSV/XLSX，须含板块 ⑤ 透传的非空真标签），或选择 predict_batch 的历史产物，下载文件及 manifest 后以 `files[]` 提交；已导入 dataset_id 另作便利输入。缺真标签的文件前置拒绝，无 labels 上传入口。可选上传 §3.3 `train_testset` 作为 effort 来源。
 2. 拖阈值 slider（开区间 (0,1)，越界即 40001 提示）；[恢复默认] 回退出厂 0.5；勾选指标（清单来自 `GET /api/evaluate/metrics`，含 effort-aware 指标）；指定主排序（须属勾选集合）。
 3. [运行] 调 `POST /api/evaluate/run`（multipart）→ 返回 `job_id` → 轮询 `GET /api/jobs/{id}`；运行期间改配置不影响本次 job（配置快照已入 manifest）。
 4. 成功后本 job 成为新一版结果，追加进结果版本列表并自动选中；输出区渲染元信息（阈值/样本数/正样本率/数据集版本/模型版本）+ metrics 长表预览 + confusion 预览 + 六类图缩略图（鉴权 fetch）+ 报告预览。
@@ -83,19 +83,19 @@
 
 - 三态：加载中 / 空（库空时下拉提示「暂无可选项，可直接上传」；无历史版本时版本列表显示「运行后生成第一版」）/ 失败（错误文案 + 重试）。
 - 非法输入：缺列 / 错类型 / 公式注入 / 超大小 → 40001 明确报错，不产半成品指标。
-- 评估不可用语义：缺标签 / 无预测行 / 样本数不足 / 模型与数据不兼容 → 报告与预览给明确原因码，MUST NOT 展示空数值或伪造 0。
+- 缺真标签的文件在入口前置拒绝并提示到预测页重跑；无预测行 / 样本数不足 / 模型与数据不兼容 → 报告与预览给明确原因码，MUST NOT 展示空数值或伪造 0。
 - 阈值越界 / 主排序不属勾选集合 → 40001，原配置不变。
 - 缺图降级以响应 `missing[]` 为准，不靠撞 404；effort-aware 与 effort-unaware 两类图各至少一张（课程硬要求）。
 - 错误码：40001 / 40100（禁用 [运行]）/ 40400 / 50000；进程重启遗留 running 置 failed，历史成功版本不受影响。
 
 ## 验收
 
-- 只上传 `predictions.csv`（含标签列，库空、预测模块未跑）即可完成运行并下载 metrics/confusion/报告/图 + manifest。
+- 只上传 `predictions.csv`（含透传真标签，库空、预测模块未跑）即可完成运行并下载 metrics/confusion/报告/图 + manifest。
 - 非法文件（缺列/错类型/公式注入/超大小）明确报错，不产半成品。
 - 输出 CSV 用 Excel 打开中文不乱码；XLSX 可选。
 - manifest 可下载且 checksum 与文件一致；阈值与指标配置快照完整。
 - CLI 同参数（同输入 + 同阈值 + 同指标集）产出等价文件（fixtures：`tests/fixtures/files/evaluate/`）。
 - 一次运行产一版；改阈值再运行产新版；版本列表切换查看历史版本，各版数值与其配置快照一致。
 - 默认阈值 0.5 下与离线评估口径逐值一致（容差 1e-6）；阈值改 0.3 后混淆与 F1/Precision/Recall/Accuracy 变化，ROC/PR 不变。
-- 勾选指标子集 + 主排序生效；≥2 模型同视图比较；缺标签等不可用场景给原因不造 0。
+- 勾选指标子集 + 主排序生效；≥2 模型同视图比较；缺真标签前置拒绝，无预测行等不可用场景给原因不造 0。
 - [导入库] 后 `GET /api/figures` 可按模型与本版本 job_id 取到图件与指标只读投影；图全部鉴权 fetch 转 ObjectURL。

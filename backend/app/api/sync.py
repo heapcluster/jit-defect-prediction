@@ -51,7 +51,7 @@ logger = logging.getLogger("backend.sync")
 SYNC_BUSY_MESSAGE = "同步进行中，请稍候"
 
 # 架构取值（与库表 model.line 同值，小写）
-VALID_LINES = ("expert", "semantic", "fused", "e2e")
+VALID_LINES = ("expert", "semantic")
 # 单次 IN 查询的分批大小：catchup 时若把全表 prediction.commit_hash 拉进内存，
 # 内存与首屏时间都会随预测规模线性增长（这是启动路径，代价被放大）
 _PREDICTED_CHUNK = 500
@@ -69,7 +69,7 @@ def _loaded_model_names() -> set[str]:
 def _resolve_scope_models(session, line: str | None, model_name: str | None) -> set[str]:
     """把 line / model_name 解析成要补齐的模型集合。
 
-    显式指定 `line` / `model_name` 时覆盖四线交付模型（semantic/fused/e2e 懒加载）；
+    显式指定 `line` / `model_name` 时覆盖两线交付模型（expert / semantic 懒加载）；
     未指定时只取已加载模型（当前为 expert 批量路径），保持普通「刷新」轻量。
     """
     if model_name:
@@ -154,9 +154,9 @@ def _prefetch_features(hashes: list[str], repo) -> int:
 def _predict_commit_models(
     commit_hash: str, repo, model_names: list[str], check_active: Callable | None = None
 ) -> None:
-    """按模型线分流：expert 走 14 维批量路径，semantic/fused/e2e 走单模型在线路径。
+    """按模型线分流：expert 走 14 维批量路径，semantic 走单模型在线路径。
 
-    非 expert 线的输入维度/文本不同，不能复用 14 维批量打分；缺向量或文本时由
+    semantic 输入是 768 维语义向量，不能复用 14 维批量打分；缺向量时由
     `predict_single` 的在线补算兜底。
     """
     expert = [name for name in model_names if model_registry.line_of(name) == "expert"]
@@ -276,8 +276,7 @@ def sync_manual(
 
     时间范围为空时按服务端内部默认批次（config.SYNC_BATCH_LIMIT）取最新一批。
     """
-    if config.SOURCE_REPO is None or not (config.SOURCE_REPO / ".git").exists():
-        raise AppError(40400, "sync source repository unavailable")
+    # 仓库可用性在锁内检查（_execute_sync）：持锁期间的并发调用应先得到「同步进行中」。
     with SessionLocal() as session:
         models = _resolve_scope_models(session, line, model_name)
 
@@ -358,7 +357,7 @@ def sync_endpoint(
     已在同步中时返回 40001（可解释冲突，不排队）。
     """
     if line is not None and line not in VALID_LINES:
-        raise AppError(40001, "参数非法：line 取值需为 expert / semantic / fused / e2e")
+        raise AppError(40001, "参数非法：line 取值需为 expert / semantic")
     if model_name is not None and not model_registry.has(model_name):
         raise AppError(40001, "参数非法：model_name 不存在")
     start = parse_time_param(start_time, "start_time") if start_time else None

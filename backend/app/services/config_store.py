@@ -24,7 +24,7 @@ CONFIG_SCHEMA = {
     "decision_threshold": ("float", "缺陷判定阈值"),
     "risk_high_threshold": ("float", "高风险阈值"),
     "risk_mid_threshold": ("float", "中风险阈值"),
-    "default_model": ("string", "默认模型"),
+    "selected_model": ("string", "当前选择的模型（仅页面回显，不参与运行）"),
     "default_dataset": ("string", "默认数据集"),
     "default_xai": ("string", "默认解释技术"),
     "metrics_selected": ("list", "默认评估指标"),
@@ -61,7 +61,7 @@ def factory_defaults() -> dict:
         "decision_threshold": 0.5,
         "risk_high_threshold": config.HIGH_RISK_THRESHOLD,
         "risk_mid_threshold": config.MID_RISK_THRESHOLD,
-        "default_model": "", "default_dataset": "", "default_xai": "shap",
+        "selected_model": "", "default_dataset": "", "default_xai": "shap",
         "metrics_selected": list(METRIC_KEYS[:6]), "primary_metric": "auc",
         "effort_enabled": True, "page_prefs": {},
         "collect.allow_roots": [str(config.SOURCE_REPO.parent.resolve())] if config.SOURCE_REPO else [],
@@ -164,13 +164,10 @@ def _validate_value(session: Session, key: str, value) -> None:
         minimum = 0 if key.endswith(("cache_ttl", "retry_max")) else 1
         if not minimum <= value <= 2147483647:
             _invalid(key)
-    if key == "default_model" and value:
+    if key == "selected_model" and value:
         model = session.get(Model, value)
-        artifact = session.scalar(select(ModelArtifact).where(ModelArtifact.model_name == value))
         if model is None:
-            raise AppError(40400, "默认模型未登记")
-        if not model_registry.has(value) and (artifact is None or artifact.status != "available"):
-            _invalid(key)
+            raise AppError(40400, "所选模型未登记")
     if key == "default_dataset" and value:
         dataset = session.get(Dataset, value)
         if dataset is None:
@@ -302,7 +299,7 @@ def delete_config(session: Session, key: str, user_id: str = "global") -> dict:
 def schema_metadata(session: Session) -> dict:
     models = session.scalars(select(Model.model_name).order_by(Model.model_name)).all()
     datasets = session.scalars(select(Dataset.dataset_id).where(Dataset.status == "ready").order_by(Dataset.dataset_id)).all()
-    choices = {"default_model": [""] + list(models), "default_dataset": [""] + list(datasets),
+    choices = {"selected_model": [""] + list(models), "default_dataset": [""] + list(datasets),
                "default_xai": ["shap", "lime"], "metrics_selected": list(METRIC_KEYS), "primary_metric": list(METRIC_KEYS),
                "collect.protocol_whitelist": ["https", "git"],
                "localization.suggestion_sources": ["template", "llm", "history"]}

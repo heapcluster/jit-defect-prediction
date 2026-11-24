@@ -1,17 +1,17 @@
 """W5 训练注册表（CORE，file-only，无数据库）。
 
 单一来源约束：
-  · 分类器构造只来自 `pipelines/expert/model.py build_model(name, seed)`
-    （semantic/fused 的 model.py 是 parity 副本，test_model_registry_parity.py 钉死）；
+  · 分类器构造只来自 `pipelines/expert/model.py build_model(name, seed)`；
   · 超参 schema 的 **default 一律从 build_model(algo, 42).get_params() 现取**，
     本文件只提供 min/max/choices/type/description 元数据与可调子集 —— 不复制默认值，
     构造器改了这里自动跟上，不会漂移；
   · seed 是顶层参数（传给 build_model），不是超参。
 
-四条线共 37 个注册项：expert/semantic/fused 各 12（8 个 DEFAULT_MODELS 默认启用，
-nb/dt/knn/mlp 注册但默认关闭），e2e 1 个（codebert_e2e）。
-表格上传契约只能满足 expert 线的输入要求；semantic/fused/e2e 需要嵌入向量或
-commit text 数据集，validate_selection 一律在作业前拒绝（40001），不伪造向量/文本。
+按最新契约只保留 expert / semantic 两线，每线 12 个注册项
+（8 个 DEFAULT_MODELS 默认启用，nb/dt/knn/mlp 注册但默认关闭）。
+两线都能从 collected_commits 二维表训练：expert 内部从绑定仓库现算 14 维，
+semantic 内部用预计算 npz 或绑定仓库的提交文本经冻结头 CodeBERT 编码为 768 维；
+内部来源缺失时训练前置拒绝（40001），不伪造向量。
 """
 
 from __future__ import annotations
@@ -23,14 +23,12 @@ from pathlib import Path
 BASE = Path(__file__).resolve().parent
 ROOT = BASE.parents[1]
 
-LINES = ("expert", "semantic", "fused", "e2e")
+LINES = ("expert", "semantic")
 
 INPUT_REQUIREMENTS = {
-    "expert": "canonical commits/cleaned table (Kamei14)",
-    "semantic": "768-dim CodeBERT embeddings npz keyed by commit_hash "
-    "(not provided by table upload contract)",
-    "fused": "Kamei14 + 768-dim embeddings",
-    "e2e": "commit_text message+diff dataset + transformers fine-tuning",
+    "expert": "collected_commits/clean_dataset table (14-dim features computed in-train from bound repo)",
+    "semantic": "collected_commits/clean_dataset table (768-dim embeddings from precomputed npz "
+    "or frozen CodeBERT encoding of bound repo commit text)",
 }
 
 
@@ -141,7 +139,7 @@ def _schema(algo):
 
 
 def algorithms(line=None, enabled_only=False) -> list[dict]:
-    """注册目录：37 项（expert/semantic/fused 各 12 + e2e 1），25 项默认启用。"""
+    """注册目录：expert/semantic 两线各 12 项，每线 8 项默认启用。"""
     if line is not None and line not in LINES:
         _invalid(f"Unknown line: {line}")
     config, model = _expert()
@@ -149,27 +147,16 @@ def algorithms(line=None, enabled_only=False) -> list[dict]:
     for current in LINES:
         if line is not None and current != line:
             continue
-        if current == "e2e":
-            entries = [
-                {
-                    "algo": "codebert_e2e",
-                    "family": "神经网络（深度学习）",
-                    "enabled": True,
-                    "description": "CodeBERT 端到端微调（commit text：message+diff）。",
-                    "hyperparams_schema": [],
-                }
-            ]
-        else:
-            entries = [
-                {
-                    "algo": algo,
-                    "family": model.MODEL_CLASS[algo],
-                    "enabled": algo in config.DEFAULT_MODELS,
-                    "description": model.MODEL_NAMES[algo],
-                    "hyperparams_schema": _schema(algo),
-                }
-                for algo in model.MODEL_NAMES
-            ]
+        entries = [
+            {
+                "algo": algo,
+                "family": model.MODEL_CLASS[algo],
+                "enabled": algo in config.DEFAULT_MODELS,
+                "description": model.MODEL_NAMES[algo],
+                "hyperparams_schema": _schema(algo),
+            }
+            for algo in model.MODEL_NAMES
+        ]
         for entry in entries:
             if enabled_only and not entry["enabled"]:
                 continue
@@ -205,15 +192,11 @@ def _check_value(spec, value, where):
 def validate_selection(line, algos, hyperparams) -> dict:
     """作业前校验并归一化 {line, algos, hyperparams}；任何非法 → TrainError(40001)。
 
-    非 expert 线的输入要求（嵌入 npz / commit text）无法由表格上传契约满足，
-    一律作业前拒绝 —— 不伪造向量或文本去跑一个假的 semantic/fused/e2e 作业。
+    expert / semantic 两线均可从 collected_commits 二维表训练，特征在训练内部生成；
+    缺绑定仓库或编码器不可用时由 train 内核前置拒绝，不在此处一刀切拦截 semantic。
     """
     if not isinstance(line, str) or line not in LINES:
         _invalid(f"Unknown line: {line}")
-    if line != "expert":
-        _invalid(
-            f"Line {line} cannot run from the table upload contract: {INPUT_REQUIREMENTS[line]}"
-        )
     if not isinstance(algos, list) or not algos or any(not isinstance(a, str) for a in algos):
         _invalid("algos must be a nonempty list of algorithm names")
     if len(set(algos)) != len(algos):

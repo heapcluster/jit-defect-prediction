@@ -52,7 +52,6 @@ def list_commits(
     until: str | None = Query(default=None),
     q: str | None = Query(default=None, max_length=64),
     with_features: str | None = Query(default=None),
-    is_test: str | None = Query(default=None),
 ) -> dict:
     if page < 1:
         raise AppError(40001, "参数非法：page 需 >= 1")
@@ -60,25 +59,21 @@ def list_commits(
         raise AppError(40001, "参数非法：size 超过上限 100")
     if with_features not in (None, "0", "1"):
         raise AppError(40001, "参数非法：with_features 需为 0 或 1")
-    if is_test not in (None, "0", "1"):
-        raise AppError(40001, "参数非法：is_test 需为 0 或 1")
     # 查看过滤：since/until 与 start_time/end_time 同为按 committed_at 过滤的别名，均不触发预测
     start = parse_time_param((since or start_time), "start_time") if (since or start_time) else None
     end = parse_time_param((until or end_time), "end_time", "end") if (until or end_time) else None
     want_features = with_features == "1"
-    want_test = is_test == "1"
+    if not model_name:
+        raise AppError(40001, "参数非法：model_name 必填，不设默认模型")
 
     with SessionLocal() as session:
-        model = model_name or commit_service.default_model_in_table(session)
+        model = model_name
         stmt = (
             select(Prediction, Commit, CommitFeature)
             .join(Commit, Commit.commit_hash == Prediction.commit_hash)
             .outerjoin(CommitFeature, CommitFeature.commit_hash == Prediction.commit_hash)
         )
-        if model is not None:
-            stmt = stmt.where(Prediction.model_name == model)
-        if want_test:
-            stmt = stmt.where(CommitFeature.is_test == 1)
+        stmt = stmt.where(Prediction.model_name == model)
         if start is not None:
             stmt = stmt.where(Commit.committed_at >= start)
         if end is not None:
@@ -128,6 +123,8 @@ def commit_detail(
     commit_hash: str,
     model_name: str | None = Query(default=None),
 ) -> dict:
+    if not model_name:
+        raise AppError(40001, "参数非法：model_name 必填，不设默认模型")
     # 库内哈希是小写：校验放行大写形式，查询就必须用归一化值，否则误报 commit not found（D-09）
     commit_hash = normalize_commit_hash(commit_hash)
     with SessionLocal() as session:
@@ -139,19 +136,12 @@ def commit_detail(
         feature = session.execute(
             select(CommitFeature).where(CommitFeature.commit_hash == commit_hash)
         ).scalar_one_or_none()
-        # 与列表口径一致：显式指定 model_name 时查该模型，否则查默认模型。
-        # 修复「列表选了非默认模型、进详情却显示未预测」。
-        model = model_name or commit_service.default_model_in_table(session)
-        prediction = (
-            session.execute(
-                select(Prediction).where(
-                    Prediction.commit_hash == commit_hash,
-                    Prediction.model_name == model,
-                )
-            ).scalar_one_or_none()
-            if model
-            else None
-        )
+        prediction = session.execute(
+            select(Prediction).where(
+                Prediction.commit_hash == commit_hash,
+                Prediction.model_name == model_name,
+            )
+        ).scalar_one_or_none()
         # 提交存在但无预测记录 → code=0 + null 字段（risk_score / predicted_at）
         explanation = commit_service.explanation_for(
             prediction.model_name if prediction else None, feature

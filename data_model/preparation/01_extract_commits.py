@@ -22,7 +22,6 @@ from pathlib import Path
 from git import Repo
 
 BASE = Path(__file__).resolve().parent
-DEFAULT_REPO = BASE.parent / "data" / "camel"
 DEFAULT_OUT = BASE.parent / "data" / "commits.csv"
 REPORTS_DIR = BASE / "reports"
 
@@ -37,23 +36,11 @@ FIELDS = [
     "parent_hash",
 ]
 
-# docs/common/data-pipeline.md 第 1 节登记表登记的完整提交哈希（Apache Camel tag `camel-4.23.0`）
-EXPECTED_HEAD = "b2329103df8f5d1edfca2ad262be09e3be95ee68"
-REPO_NAME = "camel"
-
-
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="从固定版本的 Apache Camel 仓库抽取提交清单")
-    p.add_argument(
-        "--repo", type=Path, default=DEFAULT_REPO, help=f"仓库副本路径（默认 {DEFAULT_REPO}）"
-    )
+    p = argparse.ArgumentParser(description="从指定 Git 仓库抽取提交清单")
+    p.add_argument("--repo", type=Path, required=True, help="仓库副本路径")
     p.add_argument("--out", type=Path, default=DEFAULT_OUT, help=f"输出 CSV（默认 {DEFAULT_OUT}）")
     p.add_argument("--since", default=None, help="只取此日期之后的提交，如 2018-01-01；不传=全量")
-    p.add_argument(
-        "--allow-head-mismatch",
-        action="store_true",
-        help="允许仓库 HEAD 与登记哈希不一致（默认不允许：版本不固定就没有可复现性）",
-    )
     return p.parse_args()
 
 
@@ -93,25 +80,11 @@ def main() -> int:
     args = parse_args()
 
     if not (args.repo / ".git").exists():
-        print(
-            f"[失败] 找不到仓库：{args.repo}（先按 docs/common/data-pipeline.md 第 1 节克隆并固定版本）",
-            file=sys.stderr,
-        )
+        print(f"[失败] 找不到仓库：{args.repo}", file=sys.stderr)
         return 2
 
     repo = Repo(str(args.repo))
     head = repo.head.commit.hexsha
-
-    # 规格要求：仓库必须固定在登记在册的版本上，浮动引用不可作为数据基准
-    if head != EXPECTED_HEAD and not args.allow_head_mismatch:
-        print(
-            f"[失败] HEAD 与登记哈希不一致：\n  实际 {head}\n  登记 {EXPECTED_HEAD}\n"
-            f"若确要更换版本，先更新 docs/common/data-pipeline.md 第 1 节的登记表。",
-            file=sys.stderr,
-        )
-        return 3
-
-    since = f"--since={args.since}" if args.since else "(全量)"
 
     rows: list[dict[str, str]] = []
     for c in repo.iter_commits(rev=head, since=args.since):
@@ -120,7 +93,7 @@ def main() -> int:
             continue
         rows.append(
             {
-                "repo_name": REPO_NAME,
+                "repo_name": args.repo.name,
                 "commit_hash": c.hexsha,
                 # author 是「谁写的」，committer 是「谁合进去的」；本项目要的是写提交的人
                 "author_name": (c.author.name or "").strip(),
@@ -153,7 +126,7 @@ def main() -> int:
     earliest, latest = rows[0]["committed_at"], rows[-1]["committed_at"]
     print(f"[完成] 仓库：{args.repo}")
     print(f"       固定版本 HEAD：{head}")
-    print(f"       时间窗口：{since}")
+    print(f"       时间窗口：{args.since}")
     print(f"       提交总数：{len(rows)}")
     print(f"       时间跨度：{earliest} ~ {latest}")
     print(f"       输出：{args.out}")
@@ -166,7 +139,7 @@ def main() -> int:
         "| 指标 | 值 |\n|---|---|\n"
         f"| 仓库副本 | `{args.repo.name}` |\n"
         f"| 固定版本 HEAD | `{head}` |\n"
-        f"| 时间窗口 | `{since}` |\n"
+        f"| 时间窗口 | `{args.since}` |\n"
         f"| 提交总数（已过滤合并提交） | {len(rows)} |\n"
         f"| 最早提交时间（UTC） | {earliest} |\n"
         f"| 最晚提交时间（UTC） | {latest} |\n",

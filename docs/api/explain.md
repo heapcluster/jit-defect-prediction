@@ -12,6 +12,7 @@
 - 一期至少支持 SHAP 与 LIME；支持性由算法族与技术矩阵决定，不限定某一模型线。
 - 不负责预测打分、重训、指标计算或行级定位；解释不得改变 risk_score 与 predicted_label。
 - predict 服务不调用本模块；详情页独立调用 `/api/explain`，重新预测成功后另行刷新解释；解释失败不影响预测展示。
+- 页面层作为⑤预测的子页，可从预测结果/提交详情带入 commit/model；接口本身独立，不依赖⑤在线。
 
 W8 实现包括带符号 SHAP、真实 LIME 局部代理、参数注册表、提交/模型/特征/参数/代码 checksum 缓存及独立 CLI。线性 SHAP 输出尺度为 log_odds，树 SHAP 为 tree_raw；LIME 为 local_probability_coefficient，不能把两种技术的数值直接相加或比较绝对大小。未提供真实背景数据时，线性 SHAP 使用零参考，LIME 使用零值和正负单位值合成参考并明确提示，不冒称真实训练分布。
 
@@ -37,7 +38,7 @@ W8 实现包括带符号 SHAP、真实 LIME 局部代理、参数注册表、提
 | 字段 | 必填 | 契约 |
 |---|---|---|
 | `commit_hash` | 是 | 已存在预测与特征输入的提交 |
-| `model_name` | 否 | 缺省读 default_model，再按公共回退规则解析 |
+| `model_name` | 是 | 必须显式指定已加载模型；不设默认值或回退 |
 | `technique` | 否 | 缺省读 default_xai |
 | `params` | 否 | 按技术 schema 校验，如采样数、背景集大小、top_n |
 
@@ -50,7 +51,7 @@ W8 实现包括带符号 SHAP、真实 LIME 局部代理、参数注册表、提
 | config 字段 | 必填 | 契约 |
 |---|---|---|
 | `dataset_id` | 否 | 已导入输入文件的便利选择；显式上传优先 |
-| `model_name` | 否 | 未上传模型包时使用已加载/登记模型 |
+| `model_name` | 否 | 未上传模型包时必须显式指定已加载模型 |
 | `techniques[]` | 是 | 非空技术数组；比较时需 `explain.compare_enabled=true` |
 | `params` | 否 | `{technique:{param:value}}` |
 | `top_n` | 否 | 每行每技术输出的最大特征数，正整数 |
@@ -88,25 +89,29 @@ W8 实现包括带符号 SHAP、真实 LIME 局部代理、参数注册表、提
 | predicted_at | datetime | 是 | 预测时间 |
 | is_bug_inducing | int 空可 | 否 | 透传真标签（便于 evaluate 单文件输入） |
 
-待解释特征行来自 §3.1 commits 或 §3.2 cleaned；§3.2 为“列同 3.1”。仅提供可选 predictions 时才按 hash 核对提交范围与模型版本；未提供时以特征表中的提交为解释对象。§3.1 的固定契约为：
+待解释提交来自 §3.1 `collected_commits` 或 §3.2 `clean_dataset`，两表均为提交元信息 + 标签 + 基础派生列，**不含 Kamei 14 维、语义向量或 `is_test`**。expert 的模型输入特征由训练阶段内部生成并固化进模型包的 `feature_order.txt` / `feature_schema.json`；加载模型包后按包内特征顺序，从绑定仓库的该提交快照现算 14 维（与训练侧同一抽取器），不从上传表格读取特征列。semantic 线按 `commit_hash` 取预计算 `semantic_embeddings.npz`（冻结头 CodeBERT 768 维），缺失且有本地冻结编码器时在线编码，仍不可用返回 40001，不编造向量。要求上传含 14 维 / `is_test` 列的文件属于已废止口径，按未知列拒绝。仅提供可选 predictions 时才按 hash 核对提交范围与模型版本；未提供时以输入表中的提交为解释对象。§3.1 的固定契约为：
 
 | 列 | 类型 | 必填 | 含义 |
 |---|---|---|---|
 | commit_hash | string(40 hex) | 是 | 提交标识（小写） |
-| repo_name | string | 是 | 来源仓库名 |
-| author_name / author_email | string | 是 / 否 | 作者 |
-| committed_at | datetime | 是 | 提交时间 UTC |
-| message | string | 是 | 提交信息 |
+| repo_name | string | 是 | 仓库名或数据集名 |
+| repo_url | string | 否 | 仓库 URL 或数据集来源 |
+| author_name / author_email | string | 否 | 作者 |
+| committed_at | datetime | 否 | 提交时间，UTC ISO 8601 |
+| message | string | 否 | 提交信息 |
 | parent_hash | string(40) | 否 | 父提交 |
-| ns…sexp（14 列） | float | 是 | Kamei 14 维 log 变换值（`fix` 为 0/1），列序固定 |
-| is_bug_inducing | int 空可 | 否 | SZZ 真标签 1/0/空 |
+| is_bug_inducing | int 空可 | 是 | 缺陷标签 1/0/空；评估场景非空 |
+| label_method | string | 否 | `szz_v1` / `szz_lite` / `third_party` |
+| label_source | string | 是 | `git_szz` / `public_dataset` |
 | labeled_at | datetime | 否 | 打标时间 |
-| is_test | int 0/1 | 是 | 时间序划分标记 |
-| label_method | string | 否 | szz / szz_lite |
+| fix_commit_hash | string(40) | 否 | SZZ 回溯修复提交 |
+| source_type | string | 是 | `git_repo` / `public_dataset` |
+
+模型所需仓库来源由 `collect.allow_roots` 白名单内的本地仓库提供；CLI 需显式 `--repo` / `--allow-root`，HTTP 运行由配置中心绑定仓库路径。缺可读仓库或提交不可达时前置拒绝（40001），不猜测特征、不填 0。
 
 模型包逐字采用 §3.3：
 
-> zip 内含：权重文件（expert/semantic/fused 为 `.pkl`；e2e 为 safetensors 目录）、`feature_order.txt`、`model_meta.json`（model_name/line/algo/version_key/feature_version/trained_at/超参快照/划分/种子）、`checksum.sha256`。predict/explain MUST 校验 checksum 与特征列宽后再加载。
+> zip 内含：权重文件均为 `.pkl`（`expert`=Kamei 14 维、`semantic`=冻结头 CodeBERT 768 维）、`feature_order.txt`、`feature_schema.json`、`model_meta.json`（model_name/line/algo/feature_set/version_key/feature_version/trained_at/超参快照/划分 mode/种子）、`checksum.sha256`。`fused` / `e2e` 及其 safetensors 产物已取消。predict/explain MUST 校验 checksum 与特征列宽后再加载。
 
 上传执行大小、扩展名魔数、schema、ZIP 路径穿越、checksum 和公式注入校验。模型包与特征表必须兼容；仅在提供 predictions 时额外核对其模型版本、特征版本与提交范围，不一致返回 40001。未提供 predictions 不算缺少输入，不猜测对齐。
 
@@ -134,7 +139,7 @@ W8 实现包括带符号 SHAP、真实 LIME 局部代理、参数注册表、提
 - 批量 run 同步写终态，异步 kind=`explain` 写五态；同 kind 条件更新互斥，重启遗留 running 置 failed，可 retry/cancel。
 - 输出落 `backend/var/outputs/<job_id>/`（gitignore）；job 登记技术、产物和 reason_code 统计。
 - 缓存不是唯一结果存储，最多保留 1024 项进程内成功结果；缓存键含实际特征内容、模型权重 checksum、版本、技术、参数、top_n 和代码摘要。重启只丢缓存，不影响已交付文件。
-- 上传模型不放入在线注册表；校验包后在受限工作进程中解释。macOS 系统沙箱在可信依赖加载完成后、pickle 反序列化之前启用，默认拒绝外部文件读取、网络与子进程，写入仅允许本次任务目录；120 秒墙钟/90 秒 CPU/32MiB 输出限制，取消终止整个进程组。当前无沙箱的平台明确拒绝文件解释，不退回不受限执行。超时、无效输出和不支持组合均交付 reason_code 行。
+- 上传模型不放入在线注册表；校验包后在受限工作进程中解释。子进程以 `-I -B` 启动，可信依赖加载完成后、pickle 反序列化之前收紧：macOS 叠加系统 sandbox-exec，所有平台统一启用不可卸载的 Python 审计钩子，白名单外的文件读取/写入、网络、新建进程与动态库加载一律拒绝，写入仅允许本次任务目录；120 秒墙钟/90 秒 CPU（Windows 以墙钟与任务终止等价约束）/32MiB 输出限制，取消终止整个进程组。子进程输出为纯 ASCII JSON 规避 Windows GBK stdout；无系统沙箱的平台不再拒绝文件解释，但绝不退回父进程不受限 pickle。超时、无效输出和不支持组合均交付 reason_code 行。
 - 单条解释只读已有输入，可缓存但不修改 prediction；批量文件运行不要求数据库存在。
 
 ## 7. 验收

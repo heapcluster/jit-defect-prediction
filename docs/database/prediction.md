@@ -38,7 +38,7 @@
 - **真标签不在本表**：算性能指标时 join `commit_feature.is_bug_inducing` 取；`NULL`（未打标）样本不参与指标计算。
 - **`predicted_at` 对外**：提交详情按选中模型返回该行预测时间；该提交没有选中模型的预测行时，`risk_score` / `predicted_at` 同为 `null`。
 - 批量预测保持联合主键幂等；单条预测沿用库中结果时，若行内 `model_version / feature_version` 与当前模型/特征版本不一致则 `stale=true`，`force_recompute=true` 重算并刷新版本。旧库经迁移脚本为 prediction 增补这两个可空列（不回填历史版本）。
-- 导入范围覆盖四线 25 模型。
+- 导入范围覆盖两线 16 模型（expert + semantic）。
 
 ## 验收
 

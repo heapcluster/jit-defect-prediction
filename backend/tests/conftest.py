@@ -21,13 +21,25 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
+# CLI 子进程与进程内 mock 共用同一确定性抽取器，避免 parity 测试漂移。
+_FIXTURES = Path(__file__).parent / "fixtures"
+FAKE_EXTRACTOR = _FIXTURES / "fake_feature_extractor.py"
+import sys as _sys
+
+if str(_FIXTURES) not in _sys.path:
+    _sys.path.insert(0, str(_FIXTURES))
+
 import numpy as np
 import pytest
+from fake_feature_extractor import _fake_features  # noqa: E402
 from sklearn.tree import DecisionTreeClassifier
 
 MODEL_DIR = Path(tempfile.mkdtemp(prefix="jit-models-"))
 os.environ["API_TOKEN"] = "test-token"
 os.environ["MODEL_DIR"] = str(MODEL_DIR)
+# 训练/预测从"绑定仓库"现算特征；测试用假仓库路径，实际抽取被全局 mock 覆盖。
+TEST_REPO = Path(tempfile.mkdtemp(prefix="jit-repo-"))
+os.environ["SOURCE_REPO"] = str(TEST_REPO)
 # 连接不在此写死：由 backend/.env 的分字段或 DATABASE_URL 提供，库名自动切到 DB_TEST_NAME。
 # 跑 pytest 前请确保测试库已建好（见 infra/setup_mysql.py）。
 
@@ -83,6 +95,38 @@ _make_pickle("fixture_v2")
 # 钉死 mtime 顺序：「默认最新模型」必须确定为 fixture_v2，不依赖文件系统时间精度
 os.utime(MODEL_DIR / "fixture_v1.pkl", (1_000_000, 1_000_000))
 os.utime(MODEL_DIR / "fixture_v2.pkl", (2_000_000, 2_000_000))
+
+
+@pytest.fixture(autouse=True)
+def _mock_feature_extraction(request, monkeypatch):
+    """测试用假提交无法现算真实特征，统一 mock 为按 hash 派生的确定性 14 维。
+
+    测试模块可用 `@pytest.mark.no_feature_mock` 关闭（用于 feature_source 自身单测）。
+    """
+    if "no_feature_mock" in request.keywords:
+        return
+    from app import feature_source
+
+    def fake_extract(commit_hash, repo=None):
+        values = _fake_features(commit_hash)
+        return {
+            "commit_hash": commit_hash,
+            "repo_name": "fixture",
+            "author_name": "jdoe",
+            "author_email": "",
+            "committed_at": "2026-01-01T00:00:00Z",
+            "message": "fixture",
+            "parent_hash": None,
+            "feature_version": "v1",
+            "features": values,
+            "vector": [values[name] for name in FEATURE_VALUES],
+        }
+
+    def fake_extract_many(commit_hashes, repo=None):
+        return [{"commit_hash": h, **_fake_features(h)} for h in commit_hashes]
+
+    monkeypatch.setattr(feature_source, "extract", fake_extract)
+    monkeypatch.setattr(feature_source, "extract_many", fake_extract_many)
 
 
 @pytest.fixture(scope="session")

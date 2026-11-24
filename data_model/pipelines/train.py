@@ -55,7 +55,18 @@ def _modules():
 
 fc, metrics_core, registry, expert_model, clean_core = _modules()
 TrainError = registry.TrainError
-split05 = clean_core.original05
+
+
+def _load_split05():
+    import importlib.util
+    script = Path(__file__).resolve().parents[1] / "preparation" / "05_split_dataset.py"
+    spec = importlib.util.spec_from_file_location("_train_split05", script)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+split05 = _load_split05()
 
 METRICS_COLUMNS = (
     "model_name",
@@ -212,14 +223,14 @@ def _positive_proba(model, X):
     return np.full(len(X), 1.0 if classes and classes[0] == 1 else 0.0)
 
 
-def _package(algo, model, meta):
+def _package(algo, model, meta, feature_order):
     import joblib
 
     buffer = io.BytesIO()
     joblib.dump(model, buffer)
     members = {
         f"{algo}.pkl": buffer.getvalue(),
-        "feature_order.txt": ("\n".join(fc.FEATURE_COLUMNS) + "\n").encode("utf-8"),
+        "feature_order.txt": ("\n".join(feature_order) + "\n").encode("utf-8"),
         "model_meta.json": _json(meta),
     }
     checksum = "".join(
@@ -239,25 +250,63 @@ def _sanitize(text):
     return re.sub(r"[\x00-\x1f\x7f]", " ", str(text))[:500]
 
 
+def extract_features(commit_hashes: list[str], repo: str | None = None) -> list[dict]:
+    """训练特征现算入口（可替换）；生产从绑定仓库计算，测试可 monkeypatch。"""
+    from app import feature_source
+    return feature_source.extract_many(commit_hashes, repo)
+
+
 def run(rows: list[dict], config: dict, *, metadata: dict | None = None, progress=None) -> dict:
     import numpy as np
 
     normalized = validate_config(config)
-    validated = clean_core._rows(rows)
-    version, _state = clean_core._feature_metadata(metadata)
+    # 新契约：输入仅为 collected_commits/clean_dataset 二维表，不含模型特征；
+    # 训练内核按线现算：expert 从绑定仓库算 14 维，semantic 用预计算/在线编码 768 维。
+    # 缺来源即前置拒绝，不伪造向量。
+    validated = clean_core._rows_external(rows)
+    line = normalized["line"]
+    repo = (metadata or {}).get("repo")
+    if not repo:
+        raise TrainError("external dataset requires a bound repository (metadata.repo) for feature extraction")
+    feature_order = list(fc.FEATURE_COLUMNS) if line == "expert" else [f"semantic_{i}" for i in range(768)]
+    try:
+        if line == "expert":
+            computed = extract_features([row["commit_hash"] for row in validated], repo)
+            by_hash = {item["commit_hash"]: item for item in computed}
+            missing = [row["commit_hash"] for row in validated if row["commit_hash"] not in by_hash]
+            if missing:
+                raise TrainError(f"feature extraction missing {len(missing)} commits (e.g. {missing[0]})")
+            for row in validated:
+                row["_vector"] = [float(by_hash[row["commit_hash"]][f]) for f in fc.FEATURE_COLUMNS]
+        else:
+            from app import semantic_source
+            for row in validated:
+                vector = semantic_source.embedding_for(row["commit_hash"])
+                if vector is None:
+                    raise TrainError(
+                        f"semantic embedding unavailable for {row['commit_hash']} "
+                        "(neither precomputed nor encodable from bound repository)"
+                    )
+                row["_vector"] = vector.astype(float).tolist()
+    except TrainError:
+        raise
+    except Exception as error:
+        raise TrainError(f"feature extraction failed: {error}") from error
+    version = (metadata or {}).get("feature_version", "v1")
+    if not isinstance(version, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,31}", version):
+        raise TrainError("feature_version must be a valid string")
     input_sha = ((metadata or {}).get("input") or {}).get("sha256") or fc.sha256(_json(validated))
     ordered = _sorted_labeled(validated)
     unlabeled = len(validated) - len(ordered)
     train, test, split_record = _split_rows(ordered, normalized["split"])
     normalized.update(feature_version=version, split=split_record, input_sha=input_sha)
-    warnings = list((metadata or {}).get("warnings", []))
-    if metadata is None:
-        warnings.append("No metadata: declared default feature_version=v1, feature_state=log_v1.")
+    warnings = [f"Input table lacked model features; {line} features computed in-train from bound repository."]
+    warnings += list((metadata or {}).get("warnings", []))
     if unlabeled:
         warnings.append(f"{unlabeled} unlabeled rows excluded from training and evaluation.")
-    X_train = np.array([[r[f] for f in fc.FEATURE_COLUMNS] for r in train], dtype=float)
+    X_train = np.array([r["_vector"] for r in train], dtype=float)
     y_train = np.array([r["is_bug_inducing"] for r in train], dtype=int)
-    X_test = np.array([[r[f] for f in fc.FEATURE_COLUMNS] for r in test], dtype=float)
+    X_test = np.array([r["_vector"] for r in test], dtype=float)
     y_test = np.array([r["is_bug_inducing"] for r in test], dtype=int)
     threshold = normalized["decision_threshold"]
     fingerprint_split = {
@@ -326,9 +375,9 @@ def run(rows: list[dict], config: dict, *, metadata: dict | None = None, progres
                     if k in split_record
                 },
                 "seed": normalized["seed"],
-                "feature_order": list(fc.FEATURE_COLUMNS),
+                "feature_order": feature_order,
             }
-            packages[algo] = _package(algo, model, meta)
+            packages[algo] = _package(algo, model, meta, feature_order)
             predictions[algo] = {"y": y_test.tolist(), "proba": proba.tolist()}
             for metric in ("auc", "f1", "precision", "recall", "accuracy"):
                 metrics_rows.append(
@@ -653,6 +702,14 @@ def main(argv=None) -> int:
         inputs = [metadata["input"]]
         if companion_content is not None:
             inputs.append({"name": companion.name, "sha256": fc.sha256(companion_content)})
+        repo = getattr(args, "repo", None)
+        if not repo:
+            try:
+                from app import config as _app_config
+                repo = _app_config.SOURCE_REPO
+            except Exception:
+                repo = None
+        metadata["repo"] = str(repo) if repo else ""
         result = run(rows, config, metadata=metadata)
         job_id = str(uuid4())
         data = artifacts(result, job_id)

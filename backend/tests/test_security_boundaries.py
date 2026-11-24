@@ -103,13 +103,12 @@ def test_commits_query_boundaries_return_40001(client, query):
     [
         "page=1&size=100",  # 上限值本身合法
         "with_features=1",  # 取值合法
-        "is_test=0",
         "start_time=2026-09-16T08:30:00Z",  # 合法 ISO 8601 带时区
     ],
 )
 def test_commits_query_boundary_values_are_accepted(client, query):
     """边界值本身不误判为非法（防止校验写过头）。"""
-    resp = client.get(f"/api/commits?{query}", headers=HEADERS)
+    resp = client.get(f"/api/commits?{query}&model_name=fixture_v2", headers=HEADERS)
     assert resp.status_code == 200
     assert resp.json()["code"] == 0
 
@@ -140,11 +139,11 @@ def test_detail_uppercase_hash_is_normalized_to_the_stored_commit(client):
     旧行为是「过校验却 40400 commit not found」—— ``_check_hash`` 先 ``lower()``
     放行大写，``commit_detail`` 却用原样字符串匹配库内小写哈希。
     """
-    baseline = client.get(f"/api/commits/{GOOD_HASH}", headers=HEADERS)
+    baseline = client.get(f"/api/commits/{GOOD_HASH}", params={"model_name": "fixture_v2"}, headers=HEADERS)
     assert baseline.status_code == 200
     for variant in (GOOD_HASH.upper(), GOOD_HASH.title()):
         assert variant != GOOD_HASH
-        resp = client.get(f"/api/commits/{variant}", headers=HEADERS)
+        resp = client.get(f"/api/commits/{variant}", params={"model_name": "fixture_v2"}, headers=HEADERS)
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
         assert resp.json()["data"] == baseline.json()["data"]
@@ -155,7 +154,7 @@ def test_detail_unknown_hash_stays_40400_after_normalization(client):
     """归一化只改大小写：库内没有的哈希仍是 40400，不得改判 40001、不得误命中。"""
     unknown = "d" * 40
     for variant in (unknown, unknown.upper()):
-        resp = client.get(f"/api/commits/{variant}", headers=HEADERS)
+        resp = client.get(f"/api/commits/{variant}", params={"model_name": "fixture_v2"}, headers=HEADERS)
         assert resp.status_code == 404
         assert resp.json()["code"] == 40400
         assert resp.json()["message"] == "commit not found"

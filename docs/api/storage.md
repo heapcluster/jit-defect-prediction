@@ -27,8 +27,8 @@ W2 已实现文件导入、模型包/PNG 登记、12 表导出和产物下载。
 
 | config 字段 | 必填 | 契约 |
 |---|---|---|
-| `dataset_id` | 否 | 导入 commits/cleaned 时关联既有 dataset；不存在返回 40400 |
-| `create_dataset` | 否 | `{name,repo_source,branch,head_hash}`，需要新数据集时与 commits/cleaned 同传 |
+| `dataset_id` | 否 | 导入 collected_commits / clean_dataset 时关联既有 dataset；不存在返回 40400 |
+| `create_dataset` | 否 | `{name,repo_source,branch,head_hash}`，需要新数据集时与 collected_commits / clean_dataset 同传 |
 | `model_artifact_status` | 否 | 模型包登记初始状态，仅允许 `available` / `retired`，默认 available |
 | `register_figures` | 否 | 默认 true；evaluate 图及 manifest 可登记 model_figure |
 
@@ -38,9 +38,9 @@ W2 已实现文件导入、模型包/PNG 登记、12 表导出和产物下载。
 
 | 输入 | 权威 schema | 目标与约束 |
 |---|---|---|
-| commits / cleaned | §3.1、§3.2 | commit + commit_feature；可选 dataset_commit，create_dataset 时写 dataset |
-| labels | §3.5 | 按 commit_hash 更新 commit_feature 标签；未打标不覆盖为 0 |
-| predictions | §3.4 | prediction，按 `(commit_hash,model_name)` upsert |
+| collected_commits / clean_dataset | §3.1、§3.2 | dataset + dataset_commit；不写 commit_feature |
+| train_testset | §3.3 | 测试集，按提交自然键登记 dataset_commit；每行带真标签 |
+| predictions | §3.4 | prediction，按 `(commit_hash,model_name)` upsert；`is_bug_inducing` 透传真标签 |
 | model_package | §3.3 | 校验后登记 model_artifact 并派生 model；checksum 不符拒绝 |
 | evaluate 图及 manifest | §3.6、§3.9 | 按模型与 figure_type 登记 model_figure，路径只指允许输出根内文件 |
 | metrics/confusion/report、explanations、localization/suggestions/patch | §3.6–§3.8 | 12 表无对应结果表，返回 40001 `unsupported_storage_schema`，不假装导入 |
@@ -66,23 +66,25 @@ W2 已实现文件导入、模型包/PNG 登记、12 表导出和产物下载。
 
 所有交换列只接受 [../file-contracts.md](../file-contracts.md) §3.1–§3.8，不能通过增加别名绕过识别。关键 schema 逐字引用如下。
 
-§3.1 commits：
+§3.1 collected_commits：
 
 | 列 | 类型 | 必填 | 含义 |
 |---|---|---|---|
 | commit_hash | string(40 hex) | 是 | 提交标识（小写） |
-| repo_name | string | 是 | 来源仓库名 |
-| author_name / author_email | string | 是 / 否 | 作者 |
-| committed_at | datetime | 是 | 提交时间 UTC |
-| message | string | 是 | 提交信息 |
+| repo_name | string | 是 | 仓库名或数据集名 |
+| repo_url | string | 否 | 来源 URL |
+| author_name / author_email | string | 否 | 作者 |
+| committed_at | datetime | 否 | 提交时间 UTC |
+| message | string | 否 | 提交信息 |
 | parent_hash | string(40) | 否 | 父提交 |
-| ns…sexp（14 列） | float | 是 | Kamei 14 维 log 变换值（`fix` 为 0/1），列序固定 |
-| is_bug_inducing | int 空可 | 否 | SZZ 真标签 1/0/空 |
+| is_bug_inducing | int 空可 | 是 | 缺陷标签 1/0/空 |
+| label_method | string | 否 | `szz_v1` / `szz_lite` / `third_party` |
+| label_source | string | 是 | `git_szz` / `public_dataset` |
 | labeled_at | datetime | 否 | 打标时间 |
-| is_test | int 0/1 | 是 | 时间序划分标记 |
-| label_method | string | 否 | szz / szz_lite |
+| fix_commit_hash | string(40) | 否 | SZZ 回溯修复提交 |
+| source_type | string | 是 | `git_repo` / `public_dataset` |
 
-§3.2：**“列同 3.1；另必伴 `steps_stats.json`（每步 rows_before/after/removed/label_dist/elapsed_ms/excluded_samples）与特征前后分布图 png。处理链配置快照入 manifest。”** 导入 cleaned 主表时同 §3.1，统计与图不会映射为虚构表。
+§3.2 clean_dataset：列同 §3.1，可追加 `derive_basic_fields` 基础展示列；不得含 Kamei 14 维模型特征、`is_test` 或训练测试划分。必伴 `steps_stats.json` 与列统计/分布图，但统计和 png 不映射为数据库表。
 
 §3.4 predictions：
 
@@ -95,11 +97,11 @@ W2 已实现文件导入、模型包/PNG 登记、12 表导出和产物下载。
 | decision_threshold | float | 是 | 本次判定阈值 |
 | model_version / feature_version | string | 是 | 版本元信息 |
 | predicted_at | datetime | 是 | 预测时间 |
-| is_bug_inducing | int 空可 | 否 | 透传真标签（便于 evaluate 单文件输入） |
+| is_bug_inducing | int 空可 | 否 | 透传真标签（来自 §3.3 `train_testset`，供 evaluate 算性能） |
 
-§3.5：**“`commit_hash,is_bug_inducing,labeled_at`；与 predictions 按 hash join；冲突时以 labels 为准并登记冲突数入 manifest。predictions 已含标签列时可省略。”** storage 导入 labels 时仅按 hash 更新标签，不执行评估 join。
+§3.5 `labels.csv` 已废止：真标签统一由 §3.3 `train_testset` 提供并由 predict 透传进 §3.4 `predictions.csv`；storage 不再导入独立标签文件，导入 predictions 时按 hash 同步其透传标签，未打标保持 NULL。
 
-§3.3：**“zip 内含：权重文件（expert/semantic/fused 为 `.pkl`；e2e 为 safetensors 目录）、`feature_order.txt`、`model_meta.json`（model_name/line/algo/version_key/feature_version/trained_at/超参快照/划分/种子）、`checksum.sha256`。predict/explain MUST 校验 checksum 与特征列宽后再加载。”** storage 登记前同样校验 checksum。
+§3.3：**“zip 内含：权重文件均为 `.pkl`（`expert`=Kamei 14 维、`semantic`=冻结头 CodeBERT 768 维）、`feature_order.txt`、`feature_schema.json`、`model_meta.json`（model_name/line/algo/feature_set/version_key/feature_version/trained_at/超参快照/划分 mode/种子）、`checksum.sha256`。`fused` / `e2e` 及其 safetensors 产物已取消。predict/explain MUST 校验 checksum 与特征列宽后再加载。”** storage 登记前同样校验 checksum。
 
 安全要求：限制大小、扩展名与魔数、ZIP 解压大小和路径、列 schema、公式注入；存储路径限定允许输出根，文件名不拼接 shell。敏感配置、API Key、口令和 LLM Key 不允许通过 import 写入 user_config。
 
@@ -136,8 +138,8 @@ CSV 默认 UTF-8 BOM，XLSX 单 sheet，空标签和缺预测保持空值；公�
 
 fixtures：`tests/fixtures/files/storage/`，包含各权威 schema、重复批次与非法文件，不要求任何业务模块先运行。
 
-- **正常**：commits、labels、predictions、模型包分别自动识别到目标表；重复导入 inserted/updated/unchanged 统计合理，行数不重复；12 表均可导出并带 §3.9 manifest。
-- **边界**：空标签、空预测、labels 冲突、create_dataset、同事务多表写入、重复 model_name 版本均保持自然键与 NULL 语义；CSV BOM/XLSX 可打开。
+- **正常**：collected_commits、clean_dataset、train_testset、predictions、模型包分别自动识别到目标表；重复导入 inserted/updated/unchanged 统计合理，行数不重复；12 表均可导出并带 §3.9 manifest。
+- **边界**：空标签、空预测、create_dataset、同事务多表写入、重复 model_name 版本均保持自然键与 NULL 语义；CSV BOM/XLSX 可打开。旧 `labels.csv` 必须被拒绝（40001），不得识别为标签输入。
 - **非法**：未知 schema、无目标表、错列、checksum 失败、公式注入、非法 table/format、敏感配置导入均返回 40001；事务失败无部分写入。
 - 模块在空库仍能独立运行；导入后 commits/trends 等展示端点可读；导出 checksum、命名和下载鉴权通过。
 

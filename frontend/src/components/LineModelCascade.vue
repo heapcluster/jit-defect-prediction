@@ -40,8 +40,8 @@ const props = defineProps({
   lines: { type: Array, default: () => [] },
   line: { type: String, default: '' },
   model: { type: String, default: '' },
-  // 模型下拉的占位文案：查询/趋势/模型性能用「全部模型」，详情重预测用「默认模型」
-  modelPlaceholder: { type: String, default: '全部模型' }
+  // 模型下拉的占位文案：必须显式选择模型
+  modelPlaceholder: { type: String, default: '选择模型' }
 })
 
 const emit = defineEmits(['update:line', 'update:model'])

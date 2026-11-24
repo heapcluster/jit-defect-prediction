@@ -42,10 +42,10 @@ class ModelUnavailable(RuntimeError):
 
 
 _REGISTRY: dict[str, ModelEntry] = {}
-# 四线全部模型的元数据（name → 目录/线），权重懒加载；不含 model 对象
+# 两线全部模型的元数据（name → 目录/线），权重懒加载；不含 model 对象
 _CATALOG: dict[str, ModelEntry] = {}
 _LINE_OF: dict[str, str] = {}
-_LINE_WIDTH = {"expert": 14, "semantic": 768, "fused": 782}
+_LINE_WIDTH = {"expert": 14, "semantic": 768}
 
 
 def _delivery_models(model_dir: Path) -> list[str] | None:
@@ -115,14 +115,9 @@ def _scan_manifest(models_dir: Path, manifest_name: str, line: str) -> None:
 
 
 def _scan_other_lines() -> None:
-    """登记 semantic/fused/e2e 三线模型（懒加载，启动不读大权重）。"""
+    """登记 semantic 线模型（懒加载，启动不读大权重）。"""
     pipelines = config.PIPELINES_DIR
     _scan_manifest(pipelines / "semantic" / "models", "load_manifest.txt", "semantic")
-    _scan_manifest(pipelines / "fused" / "models", "load_manifest.txt", "fused")
-    e2e_dir = pipelines / "e2e" / "models" / "codebert_e2e_v1"
-    if e2e_dir.is_dir():
-        _CATALOG["codebert_e2e_v1"] = ModelEntry("codebert_e2e_v1", e2e_dir, 0.0, None, line="e2e")
-        _LINE_OF["codebert_e2e_v1"] = "e2e"
 
 
 def load_models() -> None:
@@ -244,8 +239,6 @@ def get_model(name: str) -> ModelEntry:
     meta = _CATALOG.get(name)
     if meta is None:
         raise KeyError(name)
-    if meta.line == "e2e":
-        raise ModelUnavailable("e2e 模型需 CodeBERT 前向，当前后端未启用在线编码")
     try:
         model = joblib.load(meta.path)
     except Exception as exc:
@@ -277,8 +270,8 @@ def all_models() -> list[ModelEntry]:
     return list(_REGISTRY.values())
 
 
-def default_model() -> ModelEntry | None:
-    # 默认模型恒取 expert 线（列表/详情/趋势的基准；semantic/fused 懒加载后不篡位）
+def prewarm_model() -> ModelEntry | None:
+    """任选一个已加载的 expert 模型用于启动预热，不是默认模型（运行入口必须显式选模型）。"""
     experts = [entry for entry in _REGISTRY.values() if entry.line == "expert"]
     if not experts:
         return None
@@ -286,8 +279,8 @@ def default_model() -> ModelEntry | None:
 
 
 def warmup() -> None:
-    """预热默认模型的推理与 SHAP，避免首个并发请求承担解释器初始化尖峰（#230）。"""
-    entry = default_model()
+    """预热一个已加载模型的推理与 SHAP，避免首个并发请求承担解释器初始化尖峰（#230）。"""
+    entry = prewarm_model()
     if entry is None:
         return
     vector = [0.0] * len(config.FEATURE_COLUMNS)

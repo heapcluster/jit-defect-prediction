@@ -42,12 +42,13 @@ def extract(commit_hash: str, repo: Path | str | None = None) -> dict:
     避免调用方传字符串时在 `source / ".git"` 处炸出 `str / str`（2026-10-26 修复）。
     """
     source: Path | None = Path(repo) if repo is not None else config.SOURCE_REPO
-    if source is None or not (source / ".git").exists():
-        raise RuntimeError("source repository unavailable")
-    # 快查可达性：不可达提交直接拒，避免 extract_single_commit 先扫全量历史
-    # （8 万+ 提交的 git log --numstat）再判「目标不是当前 HEAD 可达的非合并提交」。
-    if not is_ancestor(str(source), commit_hash):
-        raise ValueError("目标不是当前 HEAD 可达的非合并提交")
+    # 插件抽取器自带来源解析（可非 Git 源），核心不强制 .git 与可达性校验。
+    if not config.FEATURE_EXTRACTOR_SCRIPT:
+        if source is None or not (source / ".git").exists():
+            raise RuntimeError("source repository unavailable")
+        # 快查可达性：不可达提交直接拒，避免先扫全量历史再判非合并提交。
+        if not is_ancestor(str(source), commit_hash):
+            raise ValueError("目标不是当前 HEAD 可达的非合并提交")
     return _extractor()(source, commit_hash)
 
 
@@ -57,7 +58,9 @@ def extract_many(commit_hashes: list[str], repo: Path | str | None = None) -> li
     自定义抽取器若未实现 `extract_commits`，回退为逐条调用，行为不变。
     """
     source: Path | None = Path(repo) if repo is not None else config.SOURCE_REPO
-    if source is None or not (source / ".git").exists():
+    if not config.FEATURE_EXTRACTOR_SCRIPT and (
+        source is None or not (source / ".git").exists()
+    ):
         raise RuntimeError("source repository unavailable")
     if not commit_hashes:
         return []

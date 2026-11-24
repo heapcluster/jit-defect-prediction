@@ -20,14 +20,6 @@ from app.services.git import GitError, show_unified_diff
 from app.timeutil import iso_z
 
 
-def default_model_in_table(session: Session | None = None) -> str | None:
-    configured = get_value("default_model", session) if session is not None else ""
-    if configured:
-        return configured
-    entry = model_registry.default_model()
-    return entry.name if entry is not None else None
-
-
 def feature_dict(feature: CommitFeature | None) -> dict | None:
     """14 项特征 → dict（fix 为整型，其余浮点）。"""
     if feature is None:
@@ -42,7 +34,7 @@ def feature_dict(feature: CommitFeature | None) -> dict | None:
 def explanation_for(model_name: str | None, feature: CommitFeature | None) -> list[dict]:
     """SHAP 解释项（附中文因子名）；模型未注册、缺特征或非 expert 线时返回空。
 
-    semantic/fused/e2e 的输入不是 14 维特征，强行算 SHAP 会加载错模型/维度不符；
+    semantic 的输入不是 14 维特征，强行算 SHAP 会加载错模型/维度不符；
     与 predict_single 同口径，只对 expert 线提供逐因子解释。
     """
     if not model_name or feature is None or not model_registry.has(model_name):

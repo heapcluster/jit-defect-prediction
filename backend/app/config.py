@@ -70,10 +70,10 @@ API_TOKEN = os.getenv("API_TOKEN", "")
 MODEL_DIR = Path(
     os.getenv("MODEL_DIR", "") or (REPO_ROOT / "data_model" / "pipelines" / "expert" / "models")
 )
-# 四线模型目录根（expert/semantic/fused/e2e）；在线接入按线加载权重与特征
+# 模型目录根（按最新契约只保留 expert / semantic 两线）
 PIPELINES_DIR = REPO_ROOT / "data_model" / "pipelines"
 # 语义特征来源：模型线预计算的 CodeBERT mean-pool embedding（commit_hash → 768 维）。
-# semantic / fused 在线预测直接查这张表，无需 transformers（e2e 仍需 CodeBERT 前向）。
+# semantic 线在线预测查这张表，无需 transformers。
 SEMANTIC_EMBEDDINGS = Path(
     os.getenv("SEMANTIC_EMBEDDINGS", "")
     or (PIPELINES_DIR / "semantic" / "data" / "semantic_embeddings.npz")
@@ -81,12 +81,10 @@ SEMANTIC_EMBEDDINGS = Path(
 # 缺预计算向量时在线补算用的冻结编码器（与模型线训练一致）；默认 HF 缓存里的 codebert-base
 SEMANTIC_TEXT_MODEL = os.getenv("SEMANTIC_TEXT_MODEL", "microsoft/codebert-base")
 SEMANTIC_MAX_LEN = int(os.getenv("SEMANTIC_MAX_LEN", "512"))
-# 在线补算 diff 文本的截断上限（与 data_model/pipelines/e2e/build_text_dataset.py 一致）
+# 在线补算 diff 文本的截断上限
 TEXT_MAX_CHARS = int(os.getenv("TEXT_MAX_CHARS", "4000"))
-# 历史索引仓库：apache/camel 的 **blobless 克隆**（`git clone --filter=blob:none`，
-# 只取提交+树、不含 blob，几十 MB），仅供 feature_source 跑 `git log --numstat` /
-# `git cat-file` 计算 14 维特征。它**不是开发库、不进工作流、不持有预测状态**，
-# 纯粹是「只读历史索引」。实时 PR 清单与提交来自 GitHub REST API（见 app/github.py）。
+# 绑定仓库：训练/预测在内核现算 14 维特征时使用的本地仓库路径（只读历史索引），
+# 由用户在数据集登记或环境变量中指定，不绑定任何特定项目。
 SOURCE_REPO = Path(os.environ["SOURCE_REPO"]) if os.getenv("SOURCE_REPO") else None
 # 特征抽取器脚本路径（插件化）：默认走模型线 data_model/preparation/03_extract_features.py。
 # 外部提供自定义抽取器时用本变量覆盖，MUST 实现 extract_single_commit(repo_dir, commit_hash)

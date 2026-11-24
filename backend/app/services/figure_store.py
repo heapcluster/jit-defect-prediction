@@ -14,7 +14,7 @@ from app import config
 
 logger = logging.getLogger("backend.figure_store")
 
-_LINES = ("expert", "semantic", "fused", "e2e")
+_LINES = ("expert", "semantic")
 
 
 def _copy_tree(src: str, dst) -> int:

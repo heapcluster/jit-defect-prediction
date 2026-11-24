@@ -23,7 +23,7 @@ class PredictRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     commit_hash: str
-    model_name: str | None = None
+    model_name: str
     decision_threshold: float | None = Field(default=None, gt=0, lt=1)
     force_recompute: bool = False
 

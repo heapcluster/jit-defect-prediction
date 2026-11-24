@@ -6,11 +6,12 @@
 
 ## 一句话
 
-独立定位工具：输入仓库与提交版本的源码，上传或从产物库选择必需的 `predictions.csv`，可选提供 `explanations.csv`，配置行级权重、Top-N 与建议来源后同步运行，交付可疑行、完整证据 JSON、提交版本源码高亮、四段式建议及可下载文件与同 stem manifest。原始提交 diff 单独作为只读证据展示，不是修复补丁；当前无可靠修改，不生成 patch。
+独立定位工具：输入仓库与提交版本的源码，上传或从产物库选择必需的 `predictions.csv`，可选提供 `explanations.csv`，配置行级权重、Top-N 与建议来源后同步运行，交付可疑行、完整证据 JSON、提交版本源码高亮、四段式建议及可下载文件与同 stem manifest。原始提交 diff 单独作为只读证据展示，不是修复补丁；当前无可靠修改，不生成 patch。本页作为⑤预测的子页，可从预测结果/提交详情带入 commit/model，也可独立访问 `/localization`。
 
 ## 入口与导航
 
-- 本页为功能⑧（缺陷定位及修复）tab「定位及修复」，路由 `/localization`；页内为定位及修复工具台，源码浏览、行级高亮与建议在输出区展示，导航见 [README.md](README.md)。提交详情通过 `/localization?commit_hash=&model_name=` 进入并回填对象。
+- 本页为功能⑧（缺陷定位及修复），作为⑤模型预测的页内子页（子签），保留独立路由 `/localization`；页内为定位及修复工具台，源码浏览、行级高亮与建议在输出区展示，导航见 [README.md](README.md)。提交详情通过 `/localization?commit_hash=&model_name=` 进入并回填对象。
+- 从⑤风险列表/提交详情进入时带入 `commit_hash`、`model_name` 和本次预测结果；独立访问时自行提供仓库、预测文件与可选解释文件。两种入口调用同一源码读取、行级评分和建议服务。
 - CLI 与本页调用同一源码读取、行级评分和建议服务；页面不计算可疑度，不直接调用具体 XAI 解释器。
 - 文件契约：[../file-contracts.md](../file-contracts.md) §3.4（必需预测输入）、§3.7（可选解释输入）、§3.8（定位与四段式建议）、§3.9（manifest）。当前交付定位 CSV/XLSX、完整证据 JSON、建议 Markdown 及同 stem manifest，不生成 §3.8 所述修复补丁。
 - 定位运行必须提供预测文件与对应提交的源码；仅解释文件缺失时可标注证据不足继续。源码 tree/file 浏览可只凭仓库与提交独立使用，不等于可以省略定位 run 的预测输入。
@@ -103,3 +104,4 @@
 - 当前不生成修复补丁，patch 请求为 true 时明确 no_reliable_patch；原始 diff 是只读输入证据，不是修复 patch，不存在应用补丁、修改源码、自动提交或创建 PR 的路径。
 - 已登记定位 CSV/XLSX、完整 evidence JSON、同 stem manifest 与 suggestions Markdown 可下载，CSV 中文不乱码；定位结果不映射展示库 schema。
 - 权重、Top-N、文件大小上限和建议来源读配置并可保存，HTTP 嵌套部分覆盖保留已保存默认值，重启后恢复；仓库错误、二进制与超大文件状态明确，超大文件不能靠行范围绕过。
+- 从⑤带 `commit_hash/model_name` 进入时自动预填对象；未运行预测也可独立提供仓库、预测文件与可选解释文件完成定位。

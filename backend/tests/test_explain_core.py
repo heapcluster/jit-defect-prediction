@@ -18,6 +18,9 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 
+# LIME 是可选重依赖：环境未安装时整个 LIME 组跳过，不伪装通过。
+pytest.importorskip("lime")
+
 CORE_PATH = Path(__file__).resolve().parents[1] / "app" / "explain_core.py"
 NAMES = [f"feature_{index}" for index in range(14)]
 

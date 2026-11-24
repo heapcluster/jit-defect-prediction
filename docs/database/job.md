@@ -2,9 +2,11 @@
 
 `实现状态：部分　期次：一期`
 
-W2 已实现持久状态、条件流转/重试令牌、同 kind 互斥及启动中断恢复；业务执行器随各模块波次接入。任务 API 不伪造业务已运行结果。
+W2 已实现持久状态、条件流转/重试令牌、同 kind 互斥及启动中断恢复；业务执行器随各模块波次接入。任务 API 不伪造业务已运行结果。板块 2 的 collect 任务按本文承载 Git 仓库采集和公开数据集导入，二者共用 `kind=collect`。
 
 **一句话**：统一任务表，承载收集 / 清洗 / 训练 / 批量预测 / 评估 / 解释六类异步任务的状态、进度、日志与产出引用；任务状态持久化，重启可恢复。
+
+collect 的 `params_json` 必须记录 `source_type`、`dataset_name`、`save_to_db`、`label_source`；Git 模式另记仓库/分支/范围/SZZ 方法，公开数据集模式另记来源、许可证、字段映射与标签映射。`error_log` 记载保存数据库失败的脱敏原因；`output_ref_json` 记载 `dataset_id`、CSV/XLSX/manifest/summary/quality 路径。
 
 ## 字段（逐字对齐 infra/schema.sql）
 

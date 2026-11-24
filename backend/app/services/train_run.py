@@ -76,7 +76,7 @@ def ensure_algorithms(session):
 
 
 def list_algorithms(session, line=None, enabled_only=False):
-    if line is not None and line not in ('expert', 'semantic', 'fused', 'e2e'):
+    if line is not None and line not in ('expert', 'semantic'):
         fc.invalid('line 非法')
     ensure_algorithms(session)
     query = select(Algorithm)
@@ -142,17 +142,18 @@ def _dataset_input(session, dataset_id):
     if not isinstance(dataset_id, str) or not dataset_id:
         fc.invalid('dataset_id 非法')
     storage.snapshot(session)
-    storage.require_dataset(session, dataset_id)
+    dataset = storage.require_dataset(session, dataset_id)
     members, _ = storage.bounded_rows(session, storage.member_query(dataset_id))
-    if not members or any(feature is None for _, feature in members):
-        fc.invalid('所选数据集没有完整提交特征')
-    versions = {feature.feature_version for _, feature in members}
-    if len(versions) != 1 or not next(iter(versions)):
-        fc.invalid('数据集特征版本缺失或混合')
-    records = [dict.fromkeys(fc.COMMITS_COLUMNS, '') | storage.member_record(commit, feature) for commit, feature in members]
-    content = fc.encode_table(fc.COMMITS_COLUMNS, records, 'csv')
+    if not members:
+        fc.invalid('所选数据集没有提交成员')
+    records = [storage.member_record(member) for member in members]
+    content = fc.encode_table(fc.COLLECTED_COMMITS_COLUMNS, records, 'csv')
     rows, metadata = _parse_table('dataset_commits.csv', content)
-    metadata.update(feature_version=next(iter(versions)))
+    # 训练内核从绑定仓库现算 14 维；仓库来源取数据集登记的本地路径或 URL。
+    source = dataset.source_url or dataset.repo_source
+    if not source or '://' in source:
+        fc.invalid('dataset 未绑定可读取的本地仓库，无法在训练内现算特征')
+    metadata.update(feature_version='v1', repo=source)
     return rows, metadata, [{'name': 'dataset_commits.csv', 'sha256': fc.sha256(content), 'rows': len(rows)}], len(content)
 
 
@@ -188,6 +189,8 @@ def submit(session, raw_config, files):
         if manifests and manifests[0][0] != name.rsplit('.', 1)[0] + '.manifest.json':
             fc.invalid('manifest 必须与主表同名')
         rows, metadata = _parse_table(name, content, manifests[0][1] if manifests else None)
+        # 新契约：训练特征从绑定仓库现算；上传文件场景使用系统配置的仓库。
+        metadata['repo'] = str(config.SOURCE_REPO) if config.SOURCE_REPO else ''
         inputs = [{'name': name, 'sha256': fc.sha256(content), 'rows': len(rows)}]
         inputs += [{'name': mn, 'sha256': fc.sha256(raw)} for mn, raw in manifests]
         byte_count = sum(len(raw) for _, raw in files)

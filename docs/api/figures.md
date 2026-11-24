@@ -84,4 +84,4 @@ fixtures：`tests/fixtures/files/figures/`，包含合法 PNG、缺失文件、c
 
 ## 8. 边界
 
-figures 是评估产物的展示索引，不是评估计算入口。evaluate 只依 §3.4/§3.5 文件独立运行，storage 登记为可选展示路径；数据库或 figures 服务均不是评估和其他模块运行前置。
+figures 是评估产物的展示索引，不是评估计算入口。evaluate 只依 §3.4 文件（含透传真标签）独立运行，storage 登记为可选展示路径；数据库或 figures 服务均不是评估和其他模块运行前置。

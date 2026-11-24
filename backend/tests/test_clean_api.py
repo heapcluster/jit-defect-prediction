@@ -17,22 +17,26 @@ from tests.conftest import HEADERS
 def source_rows():
     rows = []
     for index in range(4):
-        row = dict.fromkeys(fc.COMMITS_COLUMNS, '')
-        row.update({feature: 0 for feature in fc.FEATURE_COLUMNS})
-        row.update(commit_hash=f'{index + 1:040x}', repo_name='AI unreviewed', author_name='测试',
-                   message='fixture', committed_at=f'2026-01-0{index + 1}T00:00:00Z',
-                   is_bug_inducing='' if index == 3 else index % 2, is_test=int(index > 1))
-        rows.append(row)
+        rows.append({
+            'commit_hash': f'{index + 1:040x}', 'repo_name': 'AI fixture',
+            'repo_url': 'https://example.org/repo.git', 'author_name': '测试', 'author_email': '',
+            'committed_at': f'2026-01-0{index + 1}T00:00:00Z', 'message': 'fixture',
+            'parent_hash': '', 'is_bug_inducing': '' if index == 3 else index % 2,
+            'label_method': 'szz_v1', 'label_source': 'git_szz',
+            'labeled_at': f'2026-01-0{index + 1}T01:00:00Z', 'fix_commit_hash': '',
+            'source_type': 'git_repo',
+        })
     return rows
 
 
 def settings(mode='preview'):
-    return {'mode': mode, 'steps': [{'op': 'feature_align'}, {'op': 'time_split'}], 'features': ['ns']}
+    return {'mode': mode, 'steps': [{'op': 'schema_validate'}, {'op': 'derive_basic_fields'}],
+            'chart_columns': ['is_bug_inducing']}
 
 
 def post(client, mode='preview', config=None, files=None):
     return client.post('/api/clean/run', data={'config': json.dumps(config if config is not None else settings(mode))},
-        files=files if files is not None else [('files[]', ('commits.csv', fc.encode_table(fc.COMMITS_COLUMNS, source_rows(), 'csv')))], headers=HEADERS)
+        files=files if files is not None else [('files[]', ('collected_commits.csv', fc.encode_table(fc.COLLECTED_COMMITS_COLUMNS, source_rows(), 'csv')))], headers=HEADERS)
 
 
 @pytest.fixture
@@ -45,28 +49,28 @@ def clean_client(client, tmp_path, monkeypatch):
         monkeypatch.setattr(module, 'dispatch', lambda: None)
         monkeypatch.setattr(output_store, 'OUTPUT_ROOT', tmp_path / 'outputs')
         def validate(raw):
-            if set(raw) - {'mode', 'steps', 'features', 'seed', 'split_ratio', 'format'} or raw.get('mode') not in ('preview', 'apply'):
+            if set(raw) - {'mode', 'steps', 'chart_columns', 'format'} or raw.get('mode') not in ('preview', 'apply'):
                 raise AppError(40001, 'invalid config')
-            return {'seed': 42, 'format': 'csv', **raw}
+            return {'format': 'csv', **raw}
         def parse(name, content, manifest=None):
             columns, rows = fc.read_table(name, content)
-            if columns != list(fc.COMMITS_COLUMNS):
+            if tuple(columns) != tuple(fc.COLLECTED_COMMITS_COLUMNS):
                 raise AppError(40001, 'schema invalid')
             if manifest:
                 fc.verify_manifest(name, content, manifest)
             return rows, {'feature_version': 'v1', 'feature_state': 'log_v1'}
         def run(rows, config, **kwargs):
-            kwargs['progress']('feature_align', 1, 2)
+            kwargs['progress']('schema_validate', 1, 2)
             return {'rows': rows, 'config': {**config, 'feature_version': 'v1'},
-                    'summary': {'input_rows': len(rows), 'output_rows': len(rows)}, 'steps_stats': [], 'feature_stats': {}}
+                    'summary': {'input_rows': len(rows), 'output_rows': len(rows)}, 'steps_stats': [], 'column_stats': {}}
         def artifacts(result, job_id):
-            output = {f'clean_steps_stats_{job_id}.json': b'[]', f'clean_feature_stats_{job_id}.json': b'{}',
-                      f'clean_feature_distribution_ns_{job_id}.png': b'\x89PNG\r\n\x1a\nfixture'}
+            output = {f'clean_steps_stats_{job_id}.json': b'[]', f'clean_column_stats_{job_id}.json': b'{}',
+                      f'clean_column_distribution_is_bug_inducing_{job_id}.png': b'\x89PNG\r\n\x1a\nfixture'}
             if result['config']['mode'] == 'apply':
-                output = {f'clean_cleaned_{job_id}.{fmt}': fc.encode_table(fc.COMMITS_COLUMNS, result['rows'], fmt) for fmt in ('csv', 'xlsx')} | output
+                output = {f'clean_dataset_{job_id}.{fmt}': fc.encode_table(fc.CLEAN_DATASET_COLUMNS, result['rows'], fmt) for fmt in ('csv', 'xlsx')} | output
             return output
         fake = SimpleNamespace(validate_config=validate, parse_input=parse, run=run, artifacts=artifacts,
-                               operations=lambda: [{'op': 'feature_align'}], code_version=lambda: 'clean-test')
+                               operations=lambda: [{'op': 'schema_validate'}], code_version=lambda: 'clean-test')
         monkeypatch.setattr(module, '_core', lambda: fake)
     return client, module, fake, tmp_path
 
@@ -225,15 +229,15 @@ def test_cancel_during_artifact_build_never_publishes(clean_client, monkeypatch)
 
 def test_clean_templates_persist_and_run_without_overwriting_snapshot(clean_client):
     client, _, _, _ = clean_client
-    template = {'steps': [{'op': 'feature_align'}], 'features': ['ns'], 'seed': 7}
+    template = {'steps': [{'op': 'schema_validate'}], 'chart_columns': ['is_bug_inducing']}
     saved = client.put('/api/config/clean.chain_templates', json={'value': {'AI template': template}}, headers=HEADERS)
     assert saved.status_code == 200
     response = post(client, config={'mode': 'preview', 'template': 'AI template'})
     assert response.status_code == 200 and response.json()['data']['status'] == 'success'
     job = client.get('/api/jobs/' + response.json()['data']['job_id'], headers=HEADERS).json()['data']
-    assert job['params_json']['config']['seed'] == 7
-    assert client.put('/api/config/clean.chain_templates', json={'value': {'AI template': template | {'seed': 8}}}, headers=HEADERS).status_code == 200
-    assert client.get('/api/jobs/' + job['job_id'], headers=HEADERS).json()['data']['params_json']['config']['seed'] == 7
+    assert job['params_json']['config']['steps'][0]['op'] == 'schema_validate'
+    assert client.put('/api/config/clean.chain_templates', json={'value': {'AI template': template | {'chart_columns': []}}}, headers=HEADERS).status_code == 200
+    assert client.get('/api/jobs/' + job['job_id'], headers=HEADERS).json()['data']['params_json']['config']['chart_columns'] == ['is_bug_inducing']
 
 
 def test_clean_upload_body_guard_precedes_parser(clean_client, monkeypatch):

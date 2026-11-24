@@ -1,4 +1,4 @@
-"""25 模型在线矩阵：逐个 `POST /api/predict`，输出逐条结果并作为测试门禁。
+"""两线模型在线矩阵：逐个 `POST /api/predict`，输出逐条结果并作为验收门禁。
 
 用法（先起后端）：
 
@@ -6,14 +6,13 @@
     python scripts/online_models_matrix.py --json out.json
     BASE_URL=http://127.0.0.1:8001 python scripts/online_models_matrix.py
 
-退出码：全部 25 个模型可预测 → 0；任一失败 → 1（可直接作为 CI/验收门禁）。
-当前已知阻塞：`tabnet_semantic_v1` / `tabnet_fused_v1` 的 CUDA 权重（#222）。
+退出码：全部已登记模型可预测 → 0；任一失败 → 1（可直接作为 CI/验收门禁）。
+模型线按 docs 最新设计仅 expert / semantic 两线。
 """
 
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import os
 import sys
@@ -31,20 +30,16 @@ BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 AUTH = {"X-API-Key": os.getenv("API_TOKEN", "")}
 PIPELINES = REPO_ROOT / "data_model" / "pipelines"
 NPZ = PIPELINES / "semantic" / "data" / "semantic_embeddings.npz"
-TEXT_CSV = PIPELINES / "e2e" / "data" / "commit_text.csv"
 
 
 def covered_hashes() -> set[str] | None:
-    """语义表与 e2e 文本表都覆盖的 hash 集合；缺表时返回 None（不静默跳过）。"""
-    if not NPZ.is_file() or not TEXT_CSV.is_file():
+    """语义向量表覆盖的 hash 集合；缺表时返回 None（不静默跳过）。"""
+    if not NPZ.is_file():
         return None
     import numpy as np  # noqa: PLC0415 - 只在需要时加载大依赖
 
     npz = np.load(NPZ, allow_pickle=False)
-    sem = {str(h).lower() for h in npz["commit_hash"]}
-    with TEXT_CSV.open(encoding="utf-8", newline="") as fh:
-        e2e = {(row.get("commit_hash") or "").lower() for row in csv.DictReader(fh)}
-    return sem & e2e
+    return {str(h).lower() for h in npz["commit_hash"]}
 
 
 def main() -> None:
@@ -61,19 +56,23 @@ def main() -> None:
         for line in lines
         for m in line["models"]
     ]
-    rows = client.get("/api/commits", params={"size": min(args.size, 100)}).json()["data"]["items"]
+    probe_model = models[0][0] if models else ""
+    rows = client.get(
+        "/api/commits",
+        params={"size": min(args.size, 100), "model_name": probe_model},
+    ).json()["data"]["items"]
     if not rows:
-        print("[matrix] 库内无已预测提交，先跑 sync 或导入 data_init.sql", file=sys.stderr)
+        print("[matrix] 库内无已预测提交，先跑 sync 或导入数据", file=sys.stderr)
         raise SystemExit(2)
 
-    both = covered_hashes()
-    if both is None:
+    sem_hashes = covered_hashes()
+    if sem_hashes is None:
         print(
-            "[matrix] 语义表或 e2e 文本表不在约定路径，本次只用默认提交（semantic/fused/e2e 可能失败）",
+            "[matrix] 语义向量表不在约定路径，本次只用默认提交（semantic 线可能失败）",
             file=sys.stderr,
         )
     commit = next(
-        (r["commit_hash"] for r in rows if both and r["commit_hash"] in both),
+        (r["commit_hash"] for r in rows if sem_hashes and r["commit_hash"] in sem_hashes),
         rows[0]["commit_hash"],
     )
     print(f"[matrix] models={len(models)} commit={commit}")

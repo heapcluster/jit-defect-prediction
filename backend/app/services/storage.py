@@ -15,6 +15,7 @@ from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy import case, func, select
+from sqlalchemy.engine import Row
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -126,20 +127,27 @@ def import_config(raw):
         fc.invalid("register_figures requires a boolean")
     if "create_dataset" in value:
         dataset = value["create_dataset"]
-        if not isinstance(dataset, dict) or set(dataset) - {"name", "repo_source", "branch", "head_hash"}:
+        allowed_dataset = {"name", "source_type", "source_url", "repo_name", "repo_source", "branch", "head_hash"}
+        if not isinstance(dataset, dict) or set(dataset) - allowed_dataset:
             fc.invalid("create_dataset has unknown fields")
-        for key, maximum in (("name", 128), ("repo_source", 255)):
-            text(dataset.get(key), key, maximum)
+        text(dataset.get("name"), "name", 128)
+        source_type = text(dataset.get("source_type"), "source_type", 16)
+        if source_type not in ("git_repo", "public_dataset"):
+            fc.invalid("source_type requires git_repo or public_dataset")
+        text(dataset.get("source_url"), "source_url", 512, True)
+        text(dataset.get("repo_name"), "repo_name", 128, True)
+        text(dataset.get("repo_source"), "repo_source", 255, True)
         text(dataset.get("branch"), "branch", 128, True)
         hash40(dataset.get("head_hash"), "head_hash", True)
-        if "://" in dataset["repo_source"]:
+        source = dataset.get("source_url") or dataset.get("repo_source") or ""
+        if source and "://" in source:
             try:
-                source = urlsplit(dataset["repo_source"])
-                _ = source.port  # Validate malformed ports as well as IPv6 syntax.
+                parsed = urlsplit(source)
+                _ = parsed.port  # Validate malformed ports as well as IPv6 syntax.
             except ValueError:
-                fc.invalid("repo_source URL is malformed")
-            if source.scheme not in ("https", "git") or not source.hostname or source.username or source.password or source.query or source.fragment:
-                fc.invalid("repo_source requires a credential-free https/git URL or an allowed local repository")
+                fc.invalid("source_url URL is malformed")
+            if parsed.scheme not in ("https", "git") or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+                fc.invalid("source_url requires a credential-free https/git URL or an allowed local repository")
     return value
 
 
@@ -156,20 +164,25 @@ def verified_manifest(name, raw, companion):
 
 
 def schema(columns):
-    found = []
-    for kind, allowed, required in (("commits", fc.COMMITS_COLUMNS, fc.COMMITS_REQUIRED),
-                                    ("predictions", fc.PREDICTIONS_COLUMNS, fc.PREDICTIONS_REQUIRED),
-                                    ("labels", fc.LABELS_COLUMNS, set(fc.LABELS_COLUMNS))):
+    """识别对外交换 schema；labels.csv 已废止，commits（内部特征表）不再作为导入类型。"""
+    candidates = []
+    for kind, allowed, required in (
+        ("collected_commits", fc.COLLECTED_COMMITS_COLUMNS, fc.COLLECTED_COMMITS_REQUIRED),
+        ("clean_dataset", fc.CLEAN_DATASET_COLUMNS, fc.CLEAN_DATASET_REQUIRED),
+        ("predictions", fc.PREDICTIONS_COLUMNS, fc.PREDICTIONS_REQUIRED),
+    ):
         if set(columns) <= set(allowed) and required <= set(columns):
-            found.append(kind)
-    if len(found) != 1:
-        fc.invalid("unsupported_storage_schema: unknown/ambiguous columns or missing required columns; use canonical commits, labels or predictions")
-    return found[0]
+            candidates.append((kind, len(set(allowed) - set(columns))))
+    if not candidates:
+        fc.invalid("unsupported_storage_schema: unknown columns or missing required columns; use collected_commits, clean_dataset or predictions")
+    # clean_dataset 是 collected_commits 的超集：缺失列最少者胜出，避免歧义。
+    candidates.sort(key=lambda item: item[1])
+    if len(candidates) > 1 and candidates[0][1] == candidates[1][1]:
+        fc.invalid("unsupported_storage_schema: ambiguous columns")
+    return candidates[0][0]
 
 
 def table_rows(kind, rows, manifest):
-    version = text((manifest or {}).get("config", {}).get("feature_version"),
-                   "manifest.config.feature_version (upload a verified companion manifest)", 32) if kind == "commits" else None
     validated, keys = [], set()
     for row in rows:
         item = {"commit_hash": hash40(row["commit_hash"])}
@@ -177,19 +190,30 @@ def table_rows(kind, rows, manifest):
         if key in keys:
             fc.invalid("duplicate natural key within file")
         keys.add(key)
-        if kind in ("commits", "labels"):
-            item.update(is_bug_inducing=binary(row.get("is_bug_inducing", ""), "is_bug_inducing", True),
-                        labeled_at=utc(row.get("labeled_at", ""), "labeled_at", True))
-        if kind == "commits":
-            item.update(feature_version=version, committed_at=utc(row["committed_at"], "committed_at"),
-                        parent_hash=hash40(row.get("parent_hash"), "parent_hash", True), is_test=binary(row["is_test"], "is_test"))
-            for field, maximum in (("repo_name", 64), ("author_name", 128), ("author_email", 128), ("message", 65535)):
-                item[field] = text(row.get(field), field, maximum, field == "author_email")
+        if kind in ("collected_commits", "clean_dataset"):
+            item.update(
+                repo_name=text(row.get("repo_name"), "repo_name", 128),
+                repo_url=text(row.get("repo_url"), "repo_url", 512, True),
+                author_name=text(row.get("author_name"), "author_name", 128, True),
+                author_email=text(row.get("author_email"), "author_email", 128, True),
+                committed_at=utc(row.get("committed_at", ""), "committed_at", True),
+                message=text(row.get("message"), "message", 65535, True),
+                parent_hash=hash40(row.get("parent_hash"), "parent_hash", True),
+                is_bug_inducing=binary(row.get("is_bug_inducing", ""), "is_bug_inducing", True),
+                label_method=text(row.get("label_method"), "label_method", 32, True),
+                label_source=text(row.get("label_source"), "label_source", 32),
+                labeled_at=utc(row.get("labeled_at", ""), "labeled_at", True),
+                fix_commit_hash=hash40(row.get("fix_commit_hash"), "fix_commit_hash", True),
+                source_type=text(row.get("source_type"), "source_type", 16),
+            )
+            if item["label_source"] not in ("git_szz", "public_dataset"):
+                fc.invalid("label_source requires git_szz or public_dataset")
+            if item["source_type"] not in ("git_repo", "public_dataset"):
+                fc.invalid("source_type requires git_repo or public_dataset")
+            if item["label_method"] and item["label_method"] not in ("szz_v1", "szz_lite", "third_party"):
+                fc.invalid("label_method requires szz_v1/szz_lite/third_party or empty")
             if len(item["message"].encode()) > 65535:
                 fc.invalid("message exceeds TEXT byte capacity")
-            if row.get("label_method", "") not in ("", "szz", "szz_lite"):
-                fc.invalid("label_method requires szz/szz_lite or empty; it is not stored in the schema")
-            item.update({field: binary(row[field], field) if field == "fix" else number(row[field], field) for field in config.FEATURE_COLUMNS})
         if kind == "predictions":
             for field, maximum in (("model_name", 64), ("model_version", 64), ("feature_version", 32)):
                 item[field] = text(row[field], field, maximum)
@@ -227,17 +251,16 @@ def model_package(name, raw):
         text(meta.get(field), field, maximum)
     line = meta["line"]
     algos = {"lr", "rf", "xgb", "lgbm", "et", "svm", "mlp_deep", "tabnet", "nb", "dt", "knn", "mlp"}
-    if line not in ("expert", "semantic", "fused", "e2e") or meta["algo"] not in ({"codebert_e2e"} if line == "e2e" else algos):
+    if line not in ("expert", "semantic") or meta["algo"] not in algos:
         fc.invalid("illegal model line/algo architecture")
     if not order or len(set(order)) != len(order) or any(not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_]*", field) for field in order):
         fc.invalid("feature_order.txt requires unique plain ordered column names")
-    if line == "expert" and order != list(config.FEATURE_COLUMNS) or line in ("semantic", "fused") and len(order) != {"semantic": 768, "fused": 782}[line] or line == "fused" and order[:14] != list(config.FEATURE_COLUMNS):
+    if line == "expert" and order != list(config.FEATURE_COLUMNS) or line == "semantic" and len(order) != 768:
         fc.invalid("model feature order/width does not match its architecture")
     declared_order = meta.get("feature_order", meta.get("text_columns"))
     if declared_order is not None and declared_order != order:
         fc.invalid("feature order disagrees with model metadata")
-    suffix = ".safetensors" if line == "e2e" else ".pkl"
-    if not any(key.endswith(suffix) and content for key, content in members.items()):
+    if not any(key.endswith(".pkl") and content for key, content in members.items()):
         fc.invalid("model package is missing opaque architecture weights")
     meta["trained_at"] = utc(meta.get("trained_at"), "trained_at")
     for field in ("hyperparams_snapshot", "hyperparams", "split"):
@@ -261,14 +284,20 @@ def upsert(session, cls, values):
 
 
 def dataset_record(session, dataset, detail=False):
-    count, pos, neg, start, end = session.execute(select(func.count(DatasetCommit.commit_hash),
-        func.sum(case((CommitFeature.is_bug_inducing == 1, 1), else_=0)),
-        func.sum(case((CommitFeature.is_bug_inducing == 0, 1), else_=0)), func.min(Commit.committed_at), func.max(Commit.committed_at))
-        .select_from(DatasetCommit).join(Commit).outerjoin(CommitFeature).where(DatasetCommit.dataset_id == dataset.dataset_id)).one()
+    # 统计直接来自 dataset_commit 二维表成员行（新契约：成员自带标签与时间）。
+    count, pos, neg, start, end = session.execute(select(
+        func.count(DatasetCommit.commit_hash),
+        func.sum(case((DatasetCommit.is_bug_inducing == 1, 1), else_=0)),
+        func.sum(case((DatasetCommit.is_bug_inducing == 0, 1), else_=0)),
+        func.min(DatasetCommit.committed_at), func.max(DatasetCommit.committed_at))
+        .where(DatasetCommit.dataset_id == dataset.dataset_id)).one()
     result = serialize({column.name: getattr(dataset, column.name) for column in Dataset.__table__.columns})
     result.update(sample_count=count, pos_count=int(pos or 0), neg_count=int(neg or 0), time_start=iso_z(start), time_end=iso_z(end))
     if detail:
-        result.update(pos_rate=int(pos or 0) / (pos + neg) if pos or neg else None, label_method=None, label_method_source="not_stored")
+        unlabeled = int(count or 0) - int(pos or 0) - int(neg or 0)
+        result.update(unlabeled_count=unlabeled,
+                      pos_rate=int(pos or 0) / (pos + neg) if pos or neg else None,
+                      label_method=None, label_method_source="not_stored")
     return result
 
 
@@ -286,18 +315,23 @@ def refresh_datasets(session, hashes):
 
 def import_table(session, kind, rows, settings, manifest):
     counts = dict.fromkeys(COUNTS, 0)
-    dataset_id = settings.get("dataset_id") if kind == "commits" else None
-    tables = {"commits": ["commit", "commit_feature"], "labels": ["commit_feature"], "predictions": ["prediction"]}[kind].copy()
-    if kind == "commits" and "create_dataset" in settings:
+    dataset_id = settings.get("dataset_id") if kind in ("collected_commits", "clean_dataset") else None
+    tables = {
+        "collected_commits": ["commit", "dataset_commit"],
+        "clean_dataset": ["commit", "dataset_commit"],
+        "predictions": ["prediction"],
+    }[kind].copy()
+    if kind in ("collected_commits", "clean_dataset") and "create_dataset" in settings:
         meta = settings["create_dataset"]
-        if "://" not in meta["repo_source"]:
+        source = meta.get("source_url") or meta.get("repo_source", "")
+        if source and "://" not in source:
             from pathlib import Path
-            if "::" in meta["repo_source"]:
+            if "::" in source:
                 fc.invalid("repo_source local path must not contain '::'")
-            path = Path(meta["repo_source"]).resolve()
+            path = Path(source).resolve()
             if not any(path.is_relative_to(Path(root).resolve()) for root in config_store.get_value("collect.allow_roots", session)):
                 fc.invalid("repo_source is outside allowed local repository roots")
-        source_key = json.dumps({"dataset": meta, "inputs": sorted(entry["sha256"] for entry in manifest["inputs"])}, sort_keys=True)
+        source_key = json.dumps({"dataset": meta}, sort_keys=True)
         dataset_id = str(uuid5(NAMESPACE_URL, source_key))
         if session.get(Dataset, dataset_id, with_for_update=True) is None:
             session.add(Dataset(dataset_id=dataset_id, **meta, status="ready", created_at=now_naive_utc().replace(microsecond=0)))
@@ -306,33 +340,36 @@ def import_table(session, kind, rows, settings, manifest):
     if dataset_id:
         if session.get(Dataset, dataset_id) is None:
             raise AppError(40400, "dataset not found")
-        tables.append("dataset_commit")
+        if "dataset_commit" not in tables:
+            tables.append("dataset_commit")
     for values in rows:
         hash_ = values["commit_hash"]
-        feature = session.get(CommitFeature, hash_, with_for_update=True)
-        if kind == "commits":
-            if feature and any(getattr(feature, field) != values[field] for field in ("feature_version", *config.FEATURE_COLUMNS)) and session.scalar(select(Prediction.commit_hash).where(Prediction.commit_hash == hash_).limit(1)):
-                fc.invalid("feature_version change would invalidate existing predictions; use a new registered source/version")
-            commit_values = {column.name: values[column.name] for column in Commit.__table__.columns}
-            feature_values = {column.name: values[column.name] for column in CommitFeature.__table__.columns}
-            if feature and values["is_bug_inducing"] is None:
-                feature_values.update(is_bug_inducing=feature.is_bug_inducing, labeled_at=feature.labeled_at)
+        if kind in ("collected_commits", "clean_dataset"):
+            commit_values = {
+                "commit_hash": hash_,
+                "repo_name": values["repo_name"],
+                "author_name": values["author_name"],
+                "author_email": values["author_email"],
+                "committed_at": values["committed_at"],
+                "message": values["message"],
+                "parent_hash": values["parent_hash"],
+            }
             statuses = [upsert(session, Commit, commit_values)]
-            session.flush()
-            statuses.append(upsert(session, CommitFeature, feature_values))
             if dataset_id:
-                statuses.append(upsert(session, DatasetCommit, {"dataset_id": dataset_id, "commit_hash": hash_}))
+                session.flush()
+                member_values = {column.name: values[column.name] for column in DatasetCommit.__table__.columns
+                                 if column.name in values}
+                member_values["dataset_id"] = dataset_id
+                member_values["commit_hash"] = hash_
+                member_values.setdefault("row_no", 0)
+                statuses.append(upsert(session, DatasetCommit, member_values))
             status = "inserted" if "inserted" in statuses else "updated" if "updated" in statuses else "unchanged"
-        elif kind == "labels":
-            if feature is None:
-                fc.invalid("labels reference missing CommitFeature; import commits with a verified feature_version first")
-            status = upsert(session, CommitFeature, values) if values["is_bug_inducing"] is not None else "unchanged"
         else:
             model = session.get(Model, values["model_name"], with_for_update=True)
-            if model is None or feature is None or session.get(Commit, hash_) is None:
-                fc.invalid("prediction references a missing registered Model/Commit/CommitFeature; import those objects first")
-            if model.version_key != values["model_version"] or not model.feature_version or model.feature_version != values["feature_version"] or feature.feature_version != values["feature_version"]:
-                fc.invalid("prediction model_version/feature_version disagrees with registered Model/CommitFeature")
+            if model is None or session.get(Commit, hash_) is None:
+                fc.invalid("prediction references a missing registered Model/Commit; import those objects first")
+            if model.version_key != values["model_version"] or not model.feature_version or model.feature_version != values["feature_version"]:
+                fc.invalid("prediction model_version/feature_version disagrees with registered Model")
             status = upsert(session, Prediction, {column.name: values[column.name] for column in Prediction.__table__.columns})
         counts[status] += 1
     if kind != "predictions":
@@ -453,10 +490,12 @@ def import_files(session: Session, files: list[tuple[str, bytes]], raw_config="{
                 item["schema"] = "model_package" if extension == "zip" else "figure"
             else:
                 fc.invalid("unsupported_storage_schema: no result table for this file")
-            item["target_tables"] = {"commits": ["commit", "commit_feature"], "labels": ["commit_feature"],
-                "predictions": ["prediction"], "model_package": ["model_artifact", "model"], "figure": ["model_figure"]}[item["schema"]]
-            if item["schema"] == "commits" and (settings.get("dataset_id") or settings.get("create_dataset")):
-                item["target_tables"] += (["dataset"] if settings.get("create_dataset") else []) + ["dataset_commit"]
+            item["target_tables"] = {
+                "collected_commits": ["commit", "dataset_commit"], "clean_dataset": ["commit", "dataset_commit"],
+                "predictions": ["prediction"], "model_package": ["model_artifact", "model"], "figure": ["model_figure"],
+            }[item["schema"]]
+            if item["schema"] in ("collected_commits", "clean_dataset") and settings.get("create_dataset"):
+                item["target_tables"] = ["dataset", "commit", "dataset_commit"]
             manifest = verified_manifest(name, raw, uploaded.get(name.rsplit(".", 1)[0] + ".manifest.json"))
             if extension in ("csv", "xlsx"):
                 content = table_rows(item["schema"], content, manifest)
@@ -613,22 +652,25 @@ def list_datasets(session, page, size, status=None, q=None):
     return {"total": total, "page": page, "size": size, "items": [dataset_record(session, item) for item in items]}
 
 
-def member_query(dataset_id, is_test=None, start_time=None, end_time=None):
+def member_query(dataset_id, start_time=None, end_time=None):
+    """数据集成员 = dataset 的已打标二维表（DatasetCommit），不再 join CommitFeature 展示标签。"""
     start, end = time_filters(start_time, end_time)
-    query = select(Commit, CommitFeature).join(DatasetCommit).outerjoin(CommitFeature).where(DatasetCommit.dataset_id == dataset_id)
-    if is_test is not None:
-        query = query.where(CommitFeature.is_test == is_test)
+    query = select(DatasetCommit).where(DatasetCommit.dataset_id == dataset_id)
     if start:
-        query = query.where(Commit.committed_at >= start)
+        query = query.where(DatasetCommit.committed_at >= start)
     if end:
-        query = query.where(Commit.committed_at <= end)
-    return query.order_by(Commit.committed_at, Commit.commit_hash)
+        query = query.where(DatasetCommit.committed_at <= end)
+    return query.order_by(DatasetCommit.committed_at, DatasetCommit.commit_hash)
 
 
-def member_record(commit, feature, with_features=True):
-    item = {column.name: getattr(commit, column.name) for column in Commit.__table__.columns}
-    fields = ("is_bug_inducing", "labeled_at", "is_test") + (config.FEATURE_COLUMNS if with_features else ())
-    item.update({field: getattr(feature, field) if feature else None for field in fields})
+def member_record(member, feature=None, with_features=True):
+    if isinstance(member, Row):
+        member = member[0]
+    item = {column.name: getattr(member, column.name) for column in DatasetCommit.__table__.columns}
+    # 新契约：成员行自带标签与元信息；is_test 不再是文件 handoff 契约的一部分。
+    item.pop("is_test", None)
+    if with_features and feature is not None:
+        item.update({field: getattr(feature, field) for field in config.FEATURE_COLUMNS})
     return serialize(item)
 
 
@@ -637,8 +679,8 @@ def dataset_members(session, dataset_id, page, size, with_features=1, **filters)
     query = member_query(dataset_id, **filters)
     require_dataset(session, dataset_id)
     total = session.scalar(select(func.count()).select_from(query.order_by(None).subquery()))
-    rows = session.execute(query.offset((page - 1) * size).limit(size)).all()
-    return {"total": total, "page": page, "size": size, "items": [member_record(commit, feature, with_features) for commit, feature in rows]}
+    rows = session.scalars(query.offset((page - 1) * size).limit(size)).all()
+    return {"total": total, "page": page, "size": size, "items": [member_record(row[0] if isinstance(row, Row) else row) for row in rows]}
 
 
 def export_dataset(session, dataset_id, format="csv", artifact="commits", model_name=None, decision_threshold=None, **filters):
@@ -647,19 +689,15 @@ def export_dataset(session, dataset_id, format="csv", artifact="commits", model_
     snapshot(session)
     query = member_query(dataset_id, **filters)
     require_dataset(session, dataset_id)
-    members, total = bounded_rows(session, query)
-    if any(feature is None for _, feature in members):
-        fc.invalid("dataset export requires CommitFeature rows for all selected members")
-    versions = {feature.feature_version for _, feature in members}
-    if len(versions) > 1:
-        fc.invalid("dataset has mixed feature_version values; canonical commits need one manifest version")
+    raw_members, total = bounded_rows(session, query)
+    members = [row[0] if isinstance(row, Row) else row for row in raw_members]
     rows = []
-    settings = {"dataset_id": dataset_id, "artifact": artifact, "format": format, "filters": filters, "feature_version": next(iter(versions), None), "label_method_source": "not_stored"}
+    settings = {"dataset_id": dataset_id, "artifact": artifact, "format": format, "filters": filters, "label_method_source": "not_stored"}
     if artifact == "commits":
         if decision_threshold is not None or model_name is not None:
             fc.invalid("decision_threshold/model_name are only applicable to predictions exports")
-        rows = [member_record(commit, feature) for commit, feature in members]
-        columns = fc.COMMITS_COLUMNS
+        rows = [member_record(member) for member in members]
+        columns = fc.COLLECTED_COMMITS_COLUMNS
     else:
         if not model_name:
             fc.invalid("predictions export requires model_name")
@@ -668,17 +706,15 @@ def export_dataset(session, dataset_id, format="csv", artifact="commits", model_
             raise AppError(40400, "model not found")
         text(model.feature_version, "registered Model.feature_version", 32)
         text(model.version_key, "registered Model.version_key", 64)
-        if versions and versions != {model.feature_version}:
-            fc.invalid("dataset feature_version disagrees with registered model")
         threshold = parse_threshold(decision_threshold if decision_threshold is not None else config_store.get_value("decision_threshold", session))
-        predictions = {row.commit_hash: row for row in session.scalars(select(Prediction).where(Prediction.model_name == model_name, Prediction.commit_hash.in_([commit.commit_hash for commit, _ in members])))}
-        for commit, feature in members:
-            prediction = predictions.get(commit.commit_hash)
-            rows.append({"commit_hash": commit.commit_hash, "model_name": model_name, "risk_score": prediction.risk_score if prediction else None,
+        predictions = {row.commit_hash: row for row in session.scalars(select(Prediction).where(Prediction.model_name == model_name, Prediction.commit_hash.in_([m.commit_hash for m in members])))}
+        for member in members:
+            prediction = predictions.get(member.commit_hash)
+            rows.append({"commit_hash": member.commit_hash, "model_name": model_name, "risk_score": prediction.risk_score if prediction else None,
                 "predicted_label": int(prediction.risk_score >= threshold) if prediction else None, "decision_threshold": threshold,
                 "model_version": prediction.model_version if prediction and prediction.model_version else model.version_key,
                 "feature_version": prediction.feature_version if prediction and prediction.feature_version else model.feature_version,
-                "predicted_at": prediction.predicted_at if prediction else None, "is_bug_inducing": feature.is_bug_inducing})
+                "predicted_at": prediction.predicted_at if prediction else None, "is_bug_inducing": member.is_bug_inducing})
         settings.update(model_name=model_name, decision_threshold=threshold, feature_version=model.feature_version,
                         predicted_label_source="stored probability >= export decision_threshold", missing_predictions=total - len(predictions))
         columns = fc.PREDICTIONS_COLUMNS

@@ -45,30 +45,31 @@ def test_real_clean_files_and_stats_equivalent_to_core(real_clean, mode):
     reference = job['output_ref_json']
     assert reference['mode'] == mode
     manifest = client.get(f'/api/clean/outputs/{job_id}/{reference["manifest_name"]}', headers=HEADERS).json()
-    assert manifest['config']['feature_version'] == 'v1'
-    png_name = f'clean_feature_distribution_ns_{job_id}.png'
+    assert manifest['config']['mode'] == mode
+    png_name = f'clean_column_distribution_final_is_bug_inducing_{job_id}.png'
     png = client.get(f'/api/clean/outputs/{job_id}/{png_name}', headers=HEADERS).content
     assert png.startswith(b'\x89PNG\r\n\x1a\n')
     for entry in reference['outputs']:
         data = client.get(f'/api/clean/outputs/{job_id}/{entry["name"]}', headers=HEADERS)
         assert data.status_code == 200 and fc.sha256(data.content) == entry['sha256']
-    content = fc.encode_table(fc.COMMITS_COLUMNS, source_rows(), 'csv')
-    rows, metadata = module._core().parse_input('commits.csv', content)
+    content = fc.encode_table(fc.COLLECTED_COMMITS_COLUMNS, source_rows(), 'csv')
+    rows, metadata = module._core().parse_input('collected_commits.csv', content)
     direct = module._core().run(rows, settings(mode), metadata=metadata)
     assert reference['summary'] == direct['summary']
     if mode == 'apply':
-        name = f'clean_cleaned_{job_id}.csv'
+        name = f'clean_dataset_{job_id}.csv'
         data = client.get(f'/api/clean/outputs/{job_id}/{name}', headers=HEADERS).content
         direct_bytes = module._core().artifacts(direct, job_id)[name]
         assert data == direct_bytes
-        parsed = fc.read_table(name, data)[1]
+        columns, parsed = fc.read_table(name, data)
+        assert columns == list(fc.CLEAN_DATASET_COLUMNS)
         assert parsed[-1]['is_bug_inducing'] == ''
-        assert [item['is_test'] for item in parsed] == ['0', '0', '1', '1']
+        assert 'is_test' not in columns
 
 
 @pytest.mark.parametrize('config', [settings() | {'features': []}, settings() | {'steps': [{'op': 'unknown'}]},
-    settings() | {'steps': [{'op': 'time_split', 'params': {'method': 'random'}}]},
-    settings() | {'steps': [{'op': 'time_split'}, {'op': 'feature_align'}]}, settings() | {'seed': True}])
+    settings() | {'steps': [{'op': 'schema_validate'}, {'op': 'type_convert', 'params': {'columns': 'bad'}}]},
+    settings() | {'steps': [{'op': 'derive_basic_fields'}, {'op': 'date_normalize'}]}, settings() | {'seed': True}])
 def test_real_config_rejected_before_job(real_clean, config):
     client, _, path = real_clean
     response = post(client, config=config)
@@ -79,7 +80,7 @@ def test_real_config_rejected_before_job(real_clean, config):
 
 def test_collect_file_handoff_apply_explicit_import_then_dataset_input(real_clean):
     client, module, _ = real_clean
-    bytes_ = fc.encode_table(fc.COMMITS_COLUMNS, source_rows(), 'csv')
+    bytes_ = fc.encode_table(fc.COLLECTED_COMMITS_COLUMNS, source_rows(), 'csv')
     batch = output_store.publish_output('collect', {'collect_commits_ai.csv': bytes_},
         inputs=[], config={'feature_version': 'v1'}, code_version='AI fixture')
     manifest_bytes = output_store.read_output('collect', batch['job_id'], batch['manifest_name']).read_bytes()
@@ -90,10 +91,10 @@ def test_collect_file_handoff_apply_explicit_import_then_dataset_input(real_clea
     with db.SessionLocal() as session:
         assert session.scalar(select(func.count()).select_from(Commit)) == 0
         assert session.scalar(select(func.count()).select_from(Dataset)) == 0
-    name = f'clean_cleaned_{job_id}.csv'
+    name = f'clean_dataset_{job_id}.csv'
     manifest = name.replace('.csv', '.manifest.json')
     uploaded = [('files[]', (file_name, output_store.read_output('clean', job_id, file_name).read_bytes())) for file_name in (name, manifest)]
-    imported = client.post('/api/storage/import', files=uploaded, data={'config': json.dumps({'create_dataset': {'name': 'W4 AI fixture', 'repo_source': 'fixture'}})}, headers=HEADERS)
+    imported = client.post('/api/storage/import', files=uploaded, data={'config': json.dumps({'create_dataset': {'name': 'W4 AI fixture', 'source_type': 'git_repo', 'repo_name': 'fixture'}})}, headers=HEADERS)
     assert imported.status_code == 200 and imported.json()['data']['summary']['rejected'] == 0, imported.text
     dataset = client.get('/api/datasets', headers=HEADERS).json()['data']['items'][0]
     assert dataset['sample_count'] == 4 and dataset['pos_count'] == 1 and dataset['neg_count'] == 2

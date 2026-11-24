@@ -56,6 +56,7 @@ CONTRACT_PATHS = {
     "/api/models/{name}/load",
     "/api/models/{name}/unload",
     "/api/models/{name}/reload",
+    "/api/models/selection",
     "/api/models/default",
     "/api/predict/run",
     "/api/predict/outputs/{job_id}/{name}",
@@ -93,7 +94,8 @@ def test_sync_params_match_contract(client):
 def test_commits_params_match_contract(client):
     params = {p["name"] for p in _schema(client)["paths"]["/api/commits"]["get"]["parameters"]}
     assert {"page", "size", "model_name", "start_time", "end_time", "q"} <= params
-    assert {"with_features", "is_test"} <= params
+    assert "with_features" in params
+    assert "is_test" not in params
     assert "min_risk" not in params and "has_label" not in params
 
 

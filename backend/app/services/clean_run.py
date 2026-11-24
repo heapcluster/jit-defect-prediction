@@ -82,17 +82,12 @@ def _dataset_input(session, dataset_id):
     storage.snapshot(session)
     storage.require_dataset(session, dataset_id)
     members, _ = storage.bounded_rows(session, storage.member_query(dataset_id))
-    if not members or any(feature is None for _, feature in members):
-        fc.invalid('所选数据集没有完整提交特征')
-    versions = {feature.feature_version for _, feature in members}
-    if len(versions) != 1 or not next(iter(versions)):
-        fc.invalid('数据集特征版本缺失或混合')
-    records = [dict.fromkeys(fc.COMMITS_COLUMNS, '') | storage.member_record(commit, feature)
-               for commit, feature in members]
-    content = fc.encode_table(fc.COMMITS_COLUMNS, records, 'csv')
+    if not members:
+        fc.invalid('所选数据集没有提交成员')
+    records = [storage.member_record(member) for member in members]
+    content = fc.encode_table(fc.COLLECTED_COMMITS_COLUMNS, records, 'csv')
     rows, metadata = _call('parse_input', 'dataset_commits.csv', content)
-    version = next(iter(versions))
-    metadata.update(feature_version=version, feature_state='standardized_v1' if version.endswith('-standardized') else 'log_v1')
+    metadata.update(feature_version='v1', feature_state='log_v1')
     return rows, metadata, [{'name': 'dataset_commits.csv', 'sha256': fc.sha256(content), 'rows': len(rows)}], len(content)
 
 
@@ -185,7 +180,7 @@ def _execute(job_id, attempt):
             reference = output_store.publish_output('clean', artifacts, inputs=request['inputs'],
                 config=job_store.sanitize(result['config']), job_id=job_id, code_version=version)
             published = True
-            reference.update(mode=request['config']['mode'], summary=result['summary'], columns=list(fc.COMMITS_COLUMNS))
+            reference.update(mode=request['config']['mode'], summary=result['summary'], columns=list(fc.CLEAN_DATASET_COLUMNS))
             job_store.finish(session, job_id, attempt=attempt, output_ref=reference)
         return True
     except Exception as error:

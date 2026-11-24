@@ -500,11 +500,6 @@
           </template>
         </el-table-column>
         <el-table-column
-          prop="is_test"
-          label="测试集"
-          width="80"
-        />
-        <el-table-column
           label="14 维特征"
           min-width="280"
         >

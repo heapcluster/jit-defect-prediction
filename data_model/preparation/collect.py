@@ -36,13 +36,13 @@ def _kill_process_group(pid):
         os.killpg(pid, signal.SIGKILL)
 GIT_TIMEOUT = 180
 CACHE_VERSION = "collect-json-v1"
-SZZ_VERSION = "camel-d4-backtracking-nullable-v1"
+SZZ_VERSION = "d4-backtracking-nullable-v1"
 PHASES = ("validate", "repository", "commits", "szz", "features", "split")
 FIELDS = {"repo_source", "branch", "dataset_name", "start_time", "end_time", "start_commit",
           "end_commit", "mode", "fetch_remote", "head_expect", "dedup", "szz_method", "split_ratio", "format"}
 DEFAULTS = {"branch": None, "start_time": None, "end_time": None, "start_commit": None,
             "end_commit": None, "mode": "incremental", "fetch_remote": True, "head_expect": None,
-            "dedup": "commit_hash", "szz_method": "szz", "split_ratio": 0.7, "format": "csv"}
+            "dedup": "commit_hash", "szz_method": "szz_v1", "split_ratio": 0.7, "format": "csv"}
 
 
 class CollectError(ValueError):
@@ -171,7 +171,7 @@ def validate_config(raw: dict, *, allow_roots: list[str], protocol_whitelist: li
     if type(result["fetch_remote"]) is not bool:
         _invalid("fetch_remote 须为 bool")
     for key, choices in (("mode", ("full", "incremental")), ("dedup", ("commit_hash",)),
-                         ("szz_method", ("szz", "szz_lite")), ("format", ("csv", "xlsx"))):
+                         ("szz_method", ("szz_v1", "szz_lite")), ("format", ("csv", "xlsx"))):
         if not isinstance(result[key], str) or result[key] not in choices:
             _invalid(f"{key} 非法")
     ratio = result["split_ratio"]
@@ -667,23 +667,22 @@ def _file_services():
 
 
 def encode_rows(rows: list[dict], format: str) -> bytes:
-    """Fixed decimal text preserves CSV/XLSX parity without rounding computation results."""
+    """输出 collected_commits 契约二维表：不含 Kamei14、不含 is_test。
+
+    内部特征仅用于 SZZ/切分校验，不对外 handoff；训练阶段从绑定仓库现算。
+    """
     contracts, _ = _file_services()
+    columns = contracts.COLLECTED_COMMITS_COLUMNS
     cells = []
     for row in rows:
         record = {key: "" if value is None else value for key, value in row.items()}
-        for field in contracts.FEATURE_COLUMNS:
-            if field == "fix":
-                continue
-            try:
-                value = Decimal(str(record[field]))
-                if not value.is_finite():
-                    raise ValueError
-                record[field] = f"{value.quantize(Decimal('0.0000000001')):.10f}"
-            except (DecimalException, ValueError, KeyError) as error:
-                raise contracts.AppError(40001, f"特征 {field} 必须为有限数值") from error
-        cells.append(record)
-    return contracts.encode_table(contracts.COMMITS_COLUMNS, cells, format)
+        record.setdefault("repo_url", "")
+        record.setdefault("fix_commit_hash", (row.get("fix_commit_hash") or ""))
+        record.setdefault("label_source", "git_szz")
+        record.setdefault("source_type", "git_repo")
+        record.setdefault("label_method", "")
+        cells.append({key: record.get(key, "") for key in columns})
+    return contracts.encode_table(columns, cells, format)
 
 
 def _publish(result: dict, out: Path, format: str, *, version: str | None = None):
@@ -718,7 +717,7 @@ def main(argv=None) -> int:
     command.add_argument("--head-expect")
     command.add_argument("--mode", choices=("full", "incremental"), default="incremental")
     command.add_argument("--fetch-remote", choices=("true", "false"), default="true")
-    command.add_argument("--szz-method", choices=("szz", "szz_lite"), default="szz")
+    command.add_argument("--szz-method", choices=("szz_v1", "szz_lite"), default="szz_v1")
     command.add_argument("--split-ratio", type=float, default=0.7)
     command.add_argument("--format", choices=("csv", "xlsx"), default="csv")
     command.add_argument("--out", required=True, type=Path)
@@ -749,8 +748,8 @@ def main(argv=None) -> int:
             if manifest["module"] != "collect" or manifest["config"].get("feature_version") != "v1":
                 _invalid("export 需要 collect/v1 companion manifest")
             columns, rows = contracts.read_table(path.name, content)
-            if tuple(columns) != contracts.COMMITS_COLUMNS:
-                _invalid("export 表格列序不符合 commits 契约")
+            if tuple(columns) != contracts.COLLECTED_COMMITS_COLUMNS:
+                _invalid("export 表格列序不符合 collected_commits 契约")
             # No Git or SZZ during export; the verified source code identity is retained.
             result = {"rows": rows, "summary": {"rows": len(rows)}, "audit": {"export_only": True},
                       "config": {**manifest["config"], "format": args.format},

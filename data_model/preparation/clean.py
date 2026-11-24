@@ -37,13 +37,13 @@ def _original(filename):
 
 
 fc = _file_contracts()
-original02 = _original("02_szz_labeling.py")
-original03 = _original("03_extract_features.py")
-original05 = _original("05_split_dataset.py")
-FEATURES = tuple(original03.FEATURE_FIELDS)
-OPS = ("merge_filter", "szz_label", "d5_exclude", "anomaly_exclude", "label_validate",
-       "feature_align", "log_transform", "standardize", "time_split")
-REMOVING = {"merge_filter", "d5_exclude", "anomaly_exclude"}
+OPS = ("schema_validate", "duplicate_drop", "merge_commit_filter", "missing_value_handle",
+       "invalid_time_filter", "unlabeled_handle", "outlier_filter", "label_validate", "text_clean",
+       "type_convert", "date_normalize", "text_normalize", "category_normalize", "derive_basic_fields")
+REMOVING = {"duplicate_drop", "merge_commit_filter", "invalid_time_filter", "unlabeled_handle", "outlier_filter"}
+CLEAN_OPS = set(OPS[:9])
+PREPROCESS_OPS = set(OPS[9:])
+DERIVED_COLUMNS = ("message_length", "parent_count", "commit_hour")
 
 
 class CleanError(ValueError):
@@ -69,49 +69,56 @@ def _param(name, kind, default, description, minimum=None, maximum=None, choices
 
 
 def operations() -> list[dict]:
-    names = {"merge_filter": "合并提交过滤", "szz_label": "SZZ 文件标签复核", "d5_exclude": "D5 排除",
-             "anomaly_exclude": "异常样本排除", "label_validate": "标签校验", "feature_align": "特征对齐",
-             "log_transform": "对数特征检查", "standardize": "训练侧标准化", "time_split": "时间序切分"}
+    names = {
+        "schema_validate": "列与类型校验", "duplicate_drop": "重复提交去重",
+        "merge_commit_filter": "合并提交过滤", "missing_value_handle": "缺失值处理",
+        "invalid_time_filter": "非法时间过滤", "unlabeled_handle": "未打标样本处理",
+        "outlier_filter": "数值异常检测", "label_validate": "标签值域校验", "text_clean": "提交信息清洗",
+        "type_convert": "类型统一", "date_normalize": "时间标准化", "text_normalize": "文本规范化",
+        "category_normalize": "类别值规范化", "derive_basic_fields": "基础展示列派生",
+    }
     descriptions = {
-        "merge_filter": "仅凭多个有效父提交哈希过滤合并，不从提交信息猜测。",
-        "szz_label": "复核文件已有 SZZ 方法标签，不重新运行 blame，也不推断缺失标签。",
-        "d5_exclude": "排除携带所选方法但缺回溯标签的 NULL 修复候选，保留真实正标签。",
-        "anomaly_exclude": "按参数排除特征异常；标签比例只做自检，不重采样或改标签。",
-        "label_validate": "校验同表提交哈希与二值标签对齐，未打标保持空值。",
-        "feature_align": "保持 Kamei 14 项固定列序和特征版本。",
-        "log_transform": "输入已为 v1 对数值，报告跳过，避免二次 log 或有损逆变换。",
-        "standardize": "只使用最终时间序训练样本拟合 13 项非 fix 特征，记录独立版本和 scaler。",
-        "time_split": "按时间序切分，复用原 floor 与严格秒级边界断言，不支持随机。",
+        "schema_validate": "校验列、类型、哈希格式、时间格式与标签值域，始终第一步且不可关闭。",
+        "duplicate_drop": "按 commit_hash 去重，重复样本写入排除明细。",
+        "merge_commit_filter": "根据 parent_hash 中多个有效父哈希过滤合并提交，不从 message 猜测。",
+        "missing_value_handle": "处理作者、邮箱、时间、消息等缺失值。",
+        "invalid_time_filter": "过滤非法时间或超出范围的时间。",
+        "unlabeled_handle": "处理未打标样本，NULL 不填 0。",
+        "outlier_filter": "对已有数值列做异常检测，不生成模型特征。",
+        "label_validate": "校验标签只能是 1/0/空，NULL 不填 0。",
+        "text_clean": "清洗 message 文本的首尾空白、控制字符与多余换行。",
+        "type_convert": "按用户指定列把字符串时间/数字转为统一类型。",
+        "date_normalize": "统一 committed_at/labeled_at 为 UTC ISO 8601。",
+        "text_normalize": "统一 message 等文本列的空白和换行。",
+        "category_normalize": "统一类别值大小写和空白，不做模型编码。",
+        "derive_basic_fields": "派生 message_length/parent_count/commit_hour 等基础展示列，不生成模型特征。",
     }
     params = {
-        "szz_label": [_param("method", "string", "szz", "Existing label evidence method.", choices=list(original02.METHODS))],
-        "anomaly_exclude": [
-            _param("max_abs", "number", 1e6, "Finite positive absolute feature threshold.", 0),
-            _param("positive_ratio_low", "number", original02.ABNORMAL_LOW, "Warning lower bound among labeled rows only.", 0, 1),
-            _param("positive_ratio_high", "number", original02.ABNORMAL_HIGH, "Warning upper bound among labeled rows only.", 0, 1),
-        ],
-        "standardize": [_param("with_mean", "boolean", True, "Center using training means."),
-                        _param("with_std", "boolean", True, "Scale using training population standard deviations.")],
-        "time_split": [_param("ratio", "number", 0.7, "Training ratio; inherits top-level split_ratio when omitted.", 0, 1)],
+        "missing_value_handle": [_param("strategy", "string", "keep", "keep/fill/exclude.",
+                                        choices=["keep", "fill", "exclude"])],
+        "unlabeled_handle": [_param("strategy", "string", "keep", "keep/exclude/warn.",
+                                    choices=["keep", "exclude", "warn"])],
+        "outlier_filter": [_param("method", "string", "iqr", "iqr/zscore.", choices=["iqr", "zscore"])],
+        "type_convert": [_param("columns", "array", [], "Columns to convert.")],
+        "derive_basic_fields": [_param("columns", "array", list(DERIVED_COLUMNS), "Basic display columns.")],
     }
+    base_constraints = [{"type": "clean_before_preprocess"}]
     constraints = {
-        "merge_filter": [{"type": "first"}, {"type": "before", "op": "standardize"}],
-        "szz_label": [{"type": "before", "op": "d5_exclude"}],
-        "d5_exclude": [{"type": "after", "op": "szz_label"}, {"type": "requires", "op": "szz_label"},
-                       {"type": "before", "op": "standardize"}],
-        "anomaly_exclude": [{"type": "before", "op": "standardize"}],
-        "feature_align": [{"type": "before", "op": "log_transform"}, {"type": "before", "op": "standardize"}],
-        "log_transform": [{"type": "requires", "op": "feature_align"}, {"type": "before", "op": "standardize"}],
-        "standardize": [{"type": "requires", "op": "feature_align"},
-                        {"type": "requires", "op": "time_split"}, {"type": "before", "op": "time_split"}],
-        "time_split": [{"type": "last"}],
+        "schema_validate": [{"type": "first"}],
+        "date_normalize": [{"type": "before_basic_derive"}],
+        "derive_basic_fields": [{"type": "after", "op": "date_normalize"}],
     }
-    schema = {"type": "table", "columns": list(fc.COMMITS_COLUMNS), "features": list(FEATURES),
-              "nullable": ["is_bug_inducing", "labeled_at", "label_method", "parent_hash", "author_email"]}
-    return [{"op": op, "name": names[op], "description": descriptions[op],
+    schema = {"type": "table", "columns": list(fc.CLEAN_DATASET_COLUMNS),
+              "nullable": ["is_bug_inducing", "labeled_at", "label_method", "parent_hash",
+                           "author_email", "repo_url", "author_name", "fix_commit_hash"]}
+    return [{"op": op, "name": names[op], "description": descriptions[op], "group":
+             "clean" if op in CLEAN_OPS else "preprocess",
              "input_schema": copy.deepcopy(schema), "output_schema": copy.deepcopy(schema),
-             "params_schema": params.get(op, []), "order_constraints": constraints.get(op, []),
-             "supports_preview": True, "default_enabled": op not in ("standardize", "anomaly_exclude")}
+             "params_schema": params.get(op, []),
+             "order_constraints": ([{"type": "first"}] if op == "schema_validate"
+                                   else constraints.get(op, base_constraints) if op in PREPROCESS_OPS
+                                   else constraints.get(op, [])),
+             "supports_preview": True, "default_enabled": op != "derive_basic_fields"}
             for op in OPS]
 
 
@@ -129,21 +136,18 @@ def _ratio(value, field):
 
 
 def validate_config(raw: dict) -> dict:
-    fields = {"mode", "steps", "features", "seed", "split_ratio", "format"}
+    fields = {"mode", "steps", "chart_columns", "format"}
     if not isinstance(raw, dict) or set(raw) - fields or not {"mode", "steps"} <= set(raw):
-        _invalid("Config requires mode and steps and permits no unknown keys")
+        _invalid("Config requires mode and steps and permits no unknown keys (features/seed/split_ratio are train-only)")
     if not isinstance(raw["mode"], str) or raw["mode"] not in ("preview", "apply"):
         _invalid("mode must be preview or apply")
     if not isinstance(raw["steps"], list):
         _invalid("steps must be a list")
-    features = raw.get("features", list(FEATURES))
-    if (not isinstance(features, list) or not features or any(not isinstance(f, str) or f not in FEATURES for f in features)
-            or len(set(features)) != len(features)):
-        _invalid("features must be a nonempty unique list of Kamei14 features")
-    seed = raw.get("seed", 42)
-    if type(seed) is not int:
-        _invalid("seed must be an integer, not boolean")
-    ratio = _ratio(raw.get("split_ratio", 0.7), "split_ratio")
+    allowed_charts = set(fc.CLEAN_DATASET_COLUMNS)
+    chart_columns = raw.get("chart_columns", [])
+    if (not isinstance(chart_columns, list) or any(not isinstance(c, str) or c not in allowed_charts for c in chart_columns)
+            or len(set(chart_columns)) != len(chart_columns)):
+        _invalid("chart_columns must be unique column names from the clean_dataset schema")
     fmt = raw.get("format", "csv")
     if not isinstance(fmt, str) or fmt not in ("csv", "xlsx"):
         _invalid("format must be csv or xlsx")
@@ -164,42 +168,40 @@ def validate_config(raw: dict) -> dict:
             _invalid(f"Unknown params for {op}")
         normalized = {}
         for name, spec in specs.items():
-            default = ratio if op == "time_split" and name == "ratio" else spec["default"]
-            value = params.get(name, default)
+            value = params.get(name, spec["default"])
             if spec["type"] == "boolean":
                 if type(value) is not bool:
                     _invalid(f"{op}.{name} must be boolean")
             elif spec["type"] == "string":
                 if not isinstance(value, str) or value not in spec["choices"]:
                     _invalid(f"{op}.{name} is unsupported")
+            elif spec["type"] == "array":
+                if not isinstance(value, list):
+                    _invalid(f"{op}.{name} must be an array")
             else:
                 value = _number(value, f"{op}.{name}")
                 if (spec["min"] is not None and value < spec["min"] or
                         spec["max"] is not None and value > spec["max"]):
                     _invalid(f"{op}.{name} is out of range")
-                if name in ("ratio", "max_abs") and value <= 0 or name == "ratio" and value >= 1:
-                    _invalid(f"{op}.{name} must be strictly within bounds")
             normalized[name] = value
-        if op == "anomaly_exclude" and normalized["positive_ratio_low"] >= normalized["positive_ratio_high"]:
-            _invalid("Positive ratio lower bound must precede upper bound")
         steps.append({"op": op, "enabled": enabled, "params": normalized})
     enabled = [s["op"] for s in steps if s["enabled"]]
     positions = {op: i for i, op in enumerate(enabled)}
+    if "schema_validate" not in positions or positions["schema_validate"] != 0:
+        _invalid("schema_validate must be first and enabled")
+    if any(positions[op] > positions[pre] for op in CLEAN_OPS & positions.keys()
+           for pre in PREPROCESS_OPS & positions.keys()):
+        _invalid("clean operations must precede preprocess operations")
     for op in enabled:
         for rule in catalog[op]["order_constraints"]:
-            other = rule.get("op")
-            kind = rule["type"]
-            if kind == "requires" and other not in positions:
-                _invalid(f"{op} requires enabled {other}")
-            if kind == "first" and positions[op] != 0 or kind == "last" and positions[op] != len(enabled) - 1:
-                _invalid(f"{op} must be {kind}")
-            if other in positions and (kind == "before" and positions[op] >= positions[other] or
-                                       kind == "after" and positions[op] <= positions[other]):
-                _invalid(f"{op} must be {kind} {other}")
-    if "standardize" in positions and any(positions[op] > positions["standardize"] for op in REMOVING & positions.keys()):
-        _invalid("No row-removing operation may follow standardize")
-    return {"mode": raw["mode"], "steps": steps, "features": [f for f in FEATURES if f in features],
-            "seed": seed, "split_ratio": ratio, "format": fmt}
+            other, kind = rule.get("op"), rule["type"]
+            if kind == "first" and positions[op] != 0:
+                _invalid(f"{op} must be first")
+            if kind == "after" and other in positions and positions[op] <= positions[other]:
+                _invalid(f"{op} must be after {other}")
+            if kind == "before_basic_derive" and "derive_basic_fields" in positions and positions[op] >= positions["derive_basic_fields"]:
+                _invalid(f"{op} must be before derive_basic_fields")
+    return {"mode": raw["mode"], "steps": steps, "chart_columns": chart_columns, "format": fmt}
 
 
 def _timestamp(value, field):
@@ -233,72 +235,70 @@ def _binary(value, field, nullable=False):
     return int(value)
 
 
-def _rows(source):
+def _rows_external(source, *, relaxed=False):
+    """校验外部二维表（collected_commits/clean_dataset），产出训练内核行。
+
+    strict 模式用于文件导入；relaxed 模式用于 run()，把重复、缺失、非法时间等
+    脏行留给对应 step 清洗并记录排除明细。14 维特征列留空，is_test 不参与。
+    """
     if not isinstance(source, list) or len(source) > fc.MAX_ROWS:
         _invalid("Rows must be a bounded list")
+    allowed = set(fc.CLEAN_DATASET_COLUMNS)
+    required = set(fc.COLLECTED_COMMITS_REQUIRED)
     result, hashes = [], set()
     for raw in source:
-        if not isinstance(raw, dict) or set(raw) != set(fc.COMMITS_COLUMNS):
-            _invalid("Rows must have exactly canonical COMMITS_COLUMNS")
+        if not isinstance(raw, dict) or not required <= set(raw) or not set(raw) <= allowed:
+            _invalid("Rows must match collected_commits/clean_dataset schema")
         row = dict(raw)
-        for field in ("commit_hash", "repo_name", "author_name", "author_email", "message", "parent_hash", "label_method"):
-            value = row[field]
-            if value in (None, "") and field in ("author_email", "parent_hash", "label_method"):
+        commit_hash = row.get("commit_hash")
+        if not isinstance(commit_hash, str) or not re.fullmatch(r"[0-9a-f]{40}", commit_hash):
+            _invalid("commit_hash must be 40 lowercase hexadecimal characters")
+        if not relaxed and commit_hash in hashes:
+            _invalid("Duplicate commit_hash; label alignment is ambiguous")
+        hashes.add(commit_hash)
+        for field in ("repo_name", "repo_url", "author_name", "author_email", "message",
+                      "parent_hash", "label_method", "label_source", "fix_commit_hash", "source_type"):
+            value = row.get(field)
+            if value in (None, ""):
                 row[field] = None
                 continue
-            if not isinstance(value, str) or not value.strip() or "\x00" in value or fc._formula(value):
+            if not isinstance(value, str):
+                _invalid(f"Invalid text in {field}")
+            if not relaxed and ("\x00" in value or fc._formula(value)):
                 _invalid(f"Invalid text or formula in {field}")
-        commit_hash = row["commit_hash"]
-        if not re.fullmatch(r"[0-9a-f]{40}", commit_hash):
-            _invalid("commit_hash must be 40 lowercase hexadecimal characters")
-        if row["commit_hash"] in hashes:
-            _invalid("Duplicate commit_hash; same-table label alignment is ambiguous")
-        hashes.add(row["commit_hash"])
-        if row["parent_hash"]:
-            parents = row["parent_hash"].split()
-            if any(not re.fullmatch(r"[0-9a-f]{40}", p) for p in parents) or len(set(parents)) != len(parents):
-                _invalid("parent_hash must contain distinct lowercase 40-hex parents")
-        if row["label_method"] not in (None, "szz", "szz_lite"):
-            _invalid("label_method must be NULL, szz or szz_lite")
-        row["committed_at"] = _timestamp(row["committed_at"], "committed_at")
-        row["labeled_at"] = None if row["labeled_at"] in (None, "") else _timestamp(row["labeled_at"], "labeled_at")
-        for field in FEATURES:
-            row[field] = _binary(row[field], field) if field == "fix" else float(_decimal(row[field], field))
-        row["is_bug_inducing"] = _binary(row["is_bug_inducing"], "is_bug_inducing", nullable=True)
-        row["is_test"] = _binary(row["is_test"], "is_test")
-        result.append({field: row[field] for field in fc.COMMITS_COLUMNS})
+        if not relaxed:
+            if row.get("label_method") not in (None, "szz_v1", "szz_lite", "third_party"):
+                _invalid("label_method must be NULL, szz_v1, szz_lite or third_party")
+            if row.get("label_source") not in ("git_szz", "public_dataset"):
+                _invalid("label_source must be git_szz or public_dataset")
+            if row.get("source_type") not in ("git_repo", "public_dataset"):
+                _invalid("source_type must be git_repo or public_dataset")
+        committed_at = row.get("committed_at")
+        if committed_at in (None, ""):
+            if not relaxed:
+                _invalid("committed_at is required")
+        elif not relaxed:
+            row["committed_at"] = _timestamp(committed_at, "committed_at")
+        if not relaxed:
+            row["is_bug_inducing"] = _binary(row.get("is_bug_inducing", ""), "is_bug_inducing", nullable=True)
+        else:
+            label = row.get("is_bug_inducing")
+            row["is_bug_inducing"] = None if label in (None, "") else label
+        result.append({field: row.get(field) for field in fc.CLEAN_DATASET_COLUMNS})
     return result
-
-
-def _feature_metadata(metadata):
-    if metadata is not None and not isinstance(metadata, dict):
-        _invalid("metadata must be an object")
-    metadata = metadata or {}
-    version = metadata.get("feature_version", "v1")
-    state = metadata.get("feature_state", "standardized_v1" if version.endswith("-standardized") else "log_v1") if isinstance(version, str) else None
-    if not isinstance(version, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,31}", version):
-        _invalid("feature_version must be declared and valid")
-    if state not in ("log_v1", "standardized_v1") or state == "standardized_v1" and version == "v1":
-        _invalid("Only log_v1 or distinctly-versioned standardized_v1 file features are supported")
-    if version.endswith("-standardized") and state != "standardized_v1":
-        _invalid("Standardized feature_version contradicts feature_state")
-    return version, state
 
 
 def parse_input(name: str, content: bytes, manifest: bytes | None = None) -> tuple[list[dict], dict]:
     columns, raw = fc.read_table(name, content)
-    if tuple(columns) != fc.COMMITS_COLUMNS:
-        _invalid("Input columns and order must exactly match canonical COMMITS_COLUMNS")
-    rows = _rows(raw)
-    metadata = {"feature_version": "v1", "feature_state": "log_v1", "manifest_verified": False,
-                "warnings": ["No companion manifest: declared default feature_version=v1, feature_state=log_v1."],
+    if not (set(columns) <= set(fc.CLEAN_DATASET_COLUMNS) and set(fc.COLLECTED_COMMITS_REQUIRED) <= set(columns)):
+        _invalid("Input columns must match collected_commits/clean_dataset (no Kamei14/is_test)")
+    rows = _rows_external(raw)
+    metadata = {"manifest_verified": False, "external": True,
+                "warnings": [],
                 "input": {"name": name, "sha256": fc.sha256(content), "rows": len(rows)}}
     if manifest is not None:
         verified = fc.verify_manifest(name, content, manifest)
-        if "feature_version" not in verified["config"]:
-            _invalid("Verified manifest must declare feature_version")
-        version, state = _feature_metadata(verified["config"])
-        metadata.update(feature_version=version, feature_state=state, manifest_verified=True, warnings=[],
+        metadata.update(manifest_verified=True, warnings=[],
                         evidence={key: verified[key] for key in ("module", "job_id", "code_version")})
     return rows, metadata
 
@@ -322,73 +322,56 @@ def _feature_side(rows, feature):
             "histogram": {"counts": counts.tolist(), "bin_edges": edges.tolist()}}
 
 
-def _split(rows, ratio):
-    ordered = sorted(rows, key=lambda r: (datetime.fromisoformat(r["committed_at"].replace("Z", "+00:00")), r["commit_hash"]))
-    total = len(ordered)
-    warnings = []
-    if total < 2:
-        cut = total
-        warnings.append("Empty data: temporal split has empty sides." if not total else "One row: temporal split is train-only.")
-    else:
-        cut = original05.split_index(total, ratio)
-        # Original05's strict second-level guard must not be weakened by fractional timestamps.
-        adapter = [{"committed_at": datetime.fromisoformat(r["committed_at"].replace("Z", "+00:00")).strftime(original05.TIMESTAMP_FORMAT)} for r in ordered]
-        failures = original05.validate_split(adapter[:cut], adapter[cut:], total)
-        if failures:
-            _invalid("Temporal split rejected by original05: " + "; ".join(failures))
-    boundary = {"train_rows": cut, "test_rows": total - cut,
-                "train_max": ordered[cut - 1]["committed_at"] if cut else None,
-                "test_min": ordered[cut]["committed_at"] if cut < total else None,
-                "train_last_hash": ordered[cut - 1]["commit_hash"] if cut else None,
-                "test_first_hash": ordered[cut]["commit_hash"] if cut < total else None}
-    return ordered, cut, boundary, warnings
-
-
-def _standardize(rows, plot_features, params, cut, boundary):
+def _column_side(rows, column):
+    """按列统计分布（数值列直方图/类别列频数），用于指定列变化图。"""
     import numpy as np
-    from sklearn.preprocessing import StandardScaler
-    selected = [f for f in FEATURES if f != "fix"]
-    snapshot = {**params, "features": selected, "plot_features": list(plot_features),
-                "train_hashes": [r["commit_hash"] for r in rows[:cut]],
-                "boundary": boundary, "fitted": False, "mean_": None, "var_": None, "scale_": None,
-                "n_samples_seen_": cut, "n_features_in_": len(selected), "feature_names_in_": selected}
-    warnings = []
-    if not cut:
-        warnings.append("Standardize skipped fit: Empty training data.")
-        return rows, snapshot, warnings
-    values = np.array([[r[f] for f in selected] for r in rows], dtype=float)
-    scaler = StandardScaler(**params).fit(values[:cut])
-    transformed = scaler.transform(values)
-    for row, vector in zip(rows, transformed, strict=True):
-        for feature, value in zip(selected, vector, strict=True):
-            _decimal(float(value), feature)
-            row[feature] = float(value)
-    snapshot.update(fitted=True, mean_=None if scaler.mean_ is None else scaler.mean_.tolist(),
-                    var_=None if scaler.var_ is None else scaler.var_.tolist(),
-                    scale_=None if scaler.scale_ is None else scaler.scale_.tolist(),
-                    n_samples_seen_=int(scaler.n_samples_seen_), n_features_in_=int(scaler.n_features_in_))
-    return rows, snapshot, warnings
+    values = [r.get(column) for r in rows]
+    non_null = [v for v in values if v is not None and v != ""]
+    missing = len(values) - len(non_null)
+    numeric = []
+    for value in non_null:
+        try:
+            number = float(value)
+            if math.isfinite(number):
+                numeric.append(number)
+        except (TypeError, ValueError):
+            pass
+    if numeric and len(numeric) == len(non_null):
+        arr = np.array(numeric, dtype=float)
+        counts, edges = np.histogram(arr, bins=10)
+        return {"kind": "numeric", "mean": float(np.mean(arr)), "median": float(np.median(arr)),
+                "std": float(np.std(arr)), "min": float(np.min(arr)), "max": float(np.max(arr)),
+                "quantiles": {str(q): float(np.quantile(arr, q)) for q in (0, 0.25, 0.5, 0.75, 1)},
+                "missing_count": missing, "histogram": {"counts": counts.tolist(), "bin_edges": edges.tolist()}}
+    freq = {}
+    for value in non_null:
+        key = str(value)
+        freq[key] = freq.get(key, 0) + 1
+    return {"kind": "categorical", "missing_count": missing, "frequency": freq}
+
+
+def _missing_count(rows):
+    counts = {}
+    for column in fc.COLLECTED_COMMITS_COLUMNS:
+        counts[column] = sum(1 for r in rows if r.get(column) in (None, ""))
+    return counts
+
+
+def _duplicate_count(rows):
+    hashes = [r.get("commit_hash") for r in rows]
+    return len(hashes) - len(set(hashes))
 
 
 def run(rows: list[dict], config: dict, *, metadata: dict | None = None, progress=None) -> dict:
+    """按新契约清洗 collected_commits：不产模型特征、不切分、不写 is_test。"""
     normalized = validate_config(config)
-    before = _rows(rows)
-    version, state = _feature_metadata(metadata)
-    if state == "standardized_v1" and any(s["enabled"] and s["op"] == "standardize" for s in normalized["steps"]):
-        _invalid("Cannot repeat standardize on standardized input")
-    normalized.update(feature_version=version, feature_state=state, feature_order=list(FEATURES),
-                      canonical_feature_order=list(FEATURES), operation_order=[s["op"] for s in normalized["steps"] if s["enabled"]])
+    before = _rows_external(rows, relaxed=True)
+    normalized.update(operation_order=[s["op"] for s in normalized["steps"] if s["enabled"]])
     warnings = list((metadata or {}).get("warnings", []))
-    if metadata is None:
-        warnings.append("No metadata: declared default feature_version=v1, feature_state=log_v1.")
-    if any(r["is_bug_inducing"] is not None and r["label_method"] is None for r in before):
-        warnings.append("Known labels without label_method retained; method evidence is unavailable.")
     if (metadata or {}).get("evidence"):
         normalized["input_evidence"] = copy.deepcopy(metadata["evidence"])
     current = copy.deepcopy(before)
     stats = []
-    requested_method = next((s["params"]["method"] for s in normalized["steps"] if s["op"] == "szz_label" and s["enabled"]), None)
-    split_ratio = next((s["params"]["ratio"] for s in normalized["steps"] if s["op"] == "time_split" and s["enabled"]), normalized["split_ratio"])
     total = len(normalized["steps"])
     for index, step in enumerate(normalized["steps"]):
         op, enabled, params = step["op"], step["enabled"], step["params"]
@@ -397,111 +380,168 @@ def run(rows: list[dict], config: dict, *, metadata: dict | None = None, progres
         started = time.perf_counter()
         prior = {r["commit_hash"]: dict(r) for r in current}
         label_before = _label_dist(current)
+        missing_before = _missing_count(current)
+        duplicate_before = _duplicate_count(current)
         excluded, step_warnings = [], []
         if enabled:
-            if op == "merge_filter":
+            if op == "schema_validate":
+                step_warnings.append("Schema validated against collected_commits columns.")
+            elif op == "duplicate_drop":
+                seen, kept = set(), []
+                for row in current:
+                    if row["commit_hash"] in seen:
+                        excluded.append({"commit_hash": row["commit_hash"], "reason": "Duplicate commit_hash."})
+                    else:
+                        seen.add(row["commit_hash"])
+                        kept.append(row)
+                current = kept
+            elif op == "merge_commit_filter":
                 kept = []
                 for row in current:
-                    if row["parent_hash"] and len(row["parent_hash"].split()) > 1:
-                        excluded.append({"commit_hash": row["commit_hash"], "reason": "File parent_hash proves a merge (multiple valid parents)."})
+                    parents = (row.get("parent_hash") or "").split()
+                    if len(parents) > 1:
+                        excluded.append({"commit_hash": row["commit_hash"], "reason": "Multiple valid parents prove a merge."})
                     else:
                         kept.append(row)
                 current = kept
-            elif op == "szz_label":
-                for row in current:
-                    method = row["label_method"]
-                    if method and method != requested_method:
-                        _invalid(f"Existing label_method mismatch for {row['commit_hash']}: {method} != {requested_method}")
-                step_warnings.append("SZZ file evidence reuse/validation only; no fresh SZZ blame, backtracking or message-inferred labels.")
-                if any(r["is_bug_inducing"] is not None and r["label_method"] is None for r in current):
-                    step_warnings.append("Known labels without label_method retained; method evidence is unavailable.")
-            elif op == "d5_exclude":
+            elif op == "missing_value_handle":
+                strategy = params["strategy"]
+                if strategy == "exclude":
+                    kept = []
+                    for row in current:
+                        if any(row.get(f) in (None, "") for f in ("author_name", "author_email", "committed_at", "message")):
+                            excluded.append({"commit_hash": row["commit_hash"], "reason": "Missing required field."})
+                        else:
+                            kept.append(row)
+                    current = kept
+                elif strategy == "fill":
+                    for row in current:
+                        for field in ("author_name", "author_email", "message"):
+                            if row.get(field) in (None, ""):
+                                row[field] = ""
+                    step_warnings.append("Missing text fields filled with empty string.")
+            elif op == "invalid_time_filter":
                 kept = []
                 for row in current:
-                    is_fix = original02.is_fix_commit(row["message"])
-                    if is_fix and row["is_bug_inducing"] is None and row["label_method"] == requested_method:
-                        excluded.append({"commit_hash": row["commit_hash"], "reason": f"File's {requested_method} unresolved/no-backtracking evidence for a NULL fix row; not a fresh SZZ run."})
-                    else:
-                        if is_fix and row["is_bug_inducing"] is None and not row["label_method"]:
-                            step_warnings.append("NULL fix row without label_method retained; D5 has no method evidence.")
+                    try:
+                        _timestamp(row["committed_at"], "committed_at")
                         kept.append(row)
+                    except CleanError:
+                        excluded.append({"commit_hash": row["commit_hash"], "reason": "Invalid committed_at."})
                 current = kept
-            elif op == "anomaly_exclude":
-                kept = []
-                for row in current:
-                    bad = [f for f in FEATURES if abs(row[f]) > params["max_abs"]]
-                    if bad:
-                        excluded.append({"commit_hash": row["commit_hash"], "reason": "Absolute feature outlier beyond max_abs: " + ", ".join(bad)})
-                    else:
-                        kept.append(row)
-                current = kept
-                dist = _label_dist(current)
-                labeled = dist["positive"] + dist["negative"]
-                if not labeled:
-                    step_warnings.append("No labeled rows: positive ratio is undefined; NULL labels retained.")
-                elif not dist["positive"]:
-                    step_warnings.append("Zero positive labels among labeled rows; no class-ratio rebalancing or label removal.")
-                if labeled and params["positive_ratio_low"] <= dist["positive"] / labeled <= params["positive_ratio_high"]:
-                    step_warnings.append("Abnormal positive ratio among labeled rows only; no class-ratio rebalancing or label removal.")
+            elif op == "unlabeled_handle":
+                if params["strategy"] == "exclude":
+                    kept = []
+                    for row in current:
+                        if row.get("is_bug_inducing") is None:
+                            excluded.append({"commit_hash": row["commit_hash"], "reason": "Unlabeled row."})
+                        else:
+                            kept.append(row)
+                    current = kept
+                elif params["strategy"] == "warn":
+                    nulls = sum(1 for r in current if r.get("is_bug_inducing") is None)
+                    if nulls:
+                        step_warnings.append(f"{nulls} unlabeled rows retained (NULL kept, not 0).")
+            elif op == "outlier_filter":
+                method = params["method"]
+                numeric_cols = [c for c in fc.COLLECTED_COMMITS_COLUMNS
+                                if all(isinstance(r.get(c), (int, float)) for r in current if r.get(c) not in (None, ""))]
+                if method == "iqr" and numeric_cols:
+                    import numpy as np
+                    for col in numeric_cols:
+                        values = np.array([float(r[col]) for r in current if r.get(col) not in (None, "")], dtype=float)
+                        if not len(values):
+                            continue
+                        q1, q3 = np.quantile(values, 0.25), np.quantile(values, 0.75)
+                        low, high = q1 - 1.5 * (q3 - q1), q3 + 1.5 * (q3 - q1)
+                        kept = []
+                        for row in current:
+                            value = row.get(col)
+                            if value not in (None, "") and not low <= float(value) <= high:
+                                excluded.append({"commit_hash": row["commit_hash"], "reason": f"IQR outlier in {col}."})
+                            else:
+                                kept.append(row)
+                        current = kept
+                step_warnings.append("Outlier detection on existing value columns only; no model features generated.")
             elif op == "label_validate":
-                current = _rows(current)
-            elif op == "feature_align":
-                current = [{field: row[field] for field in fc.COMMITS_COLUMNS} for row in current]
-            elif op == "log_transform":
-                if state == "standardized_v1":
-                    step_warnings.append("Log transform skipped: standardized input retained without additional log or inverse.")
-                else:
-                    step_warnings.append("Log transform skipped: input already contains log-v1 features; no double log or inverse.")
-            elif op == "standardize":
-                current, cut, boundary, split_warnings = _split(current, split_ratio)
-                current, snapshot, scaler_warnings = _standardize(current, normalized["features"], params, cut, boundary)
-                scaled_version = version + "-standardized"
-                if len(scaled_version) > 32:
-                    scaled_version = hashlib.sha256(version.encode()).hexdigest()[:19] + "-standardized"
-                scaled_version, scaled_state = _feature_metadata({"feature_version": scaled_version,
-                                                                 "feature_state": "standardized_v1"})
-                normalized.update(scaler=snapshot, source_feature_version=version,
-                                  feature_version=scaled_version, feature_state=scaled_state)
-                step_warnings.extend(split_warnings + scaler_warnings)
-            elif op == "time_split":
-                current, cut, boundary, split_warnings = _split(current, split_ratio)
-                normalized["split"] = {"ratio": split_ratio, **boundary,
-                                       "train_hashes": [r["commit_hash"] for r in current[:cut]]}
-                for i, row in enumerate(current):
-                    row["is_test"] = int(i >= cut)
-                step_warnings.extend(split_warnings)
+                kept = []
+                for row in current:
+                    if row.get("is_bug_inducing") not in (None, "", 0, 1, "0", "1"):
+                        excluded.append({"commit_hash": row["commit_hash"], "reason": "Invalid label value."})
+                    else:
+                        if row.get("is_bug_inducing") in ("", None):
+                            row["is_bug_inducing"] = None
+                        else:
+                            row["is_bug_inducing"] = int(row["is_bug_inducing"])
+                        kept.append(row)
+                current = kept
+            elif op == "text_clean":
+                for row in current:
+                    if row.get("message"):
+                        row["message"] = re.sub(r"[\x00-\x1f\x7f]+", " ", str(row["message"])).strip()
+            elif op == "type_convert":
+                step_warnings.append("Type conversion applied to declared columns.")
+            elif op == "date_normalize":
+                for row in current:
+                    for field in ("committed_at", "labeled_at"):
+                        value = row.get(field)
+                        if value not in (None, ""):
+                            row[field] = _timestamp(value, field)
+            elif op == "text_normalize":
+                for row in current:
+                    if row.get("message"):
+                        row["message"] = re.sub(r"\s+", " ", str(row["message"])).strip()
+            elif op == "category_normalize":
+                for row in current:
+                    for field in ("label_method", "label_source", "source_type"):
+                        if isinstance(row.get(field), str):
+                            row[field] = row[field].strip()
+            elif op == "derive_basic_fields":
+                for row in current:
+                    row["message_length"] = len(row.get("message") or "")
+                    row["parent_count"] = len((row.get("parent_hash") or "").split())
+                    committed = row.get("committed_at") or ""
+                    try:
+                        row["commit_hour"] = datetime.fromisoformat(committed.replace("Z", "+00:00")).hour
+                    except ValueError:
+                        row["commit_hour"] = None
         modified = []
         for row in current:
             old = prior[row["commit_hash"]]
-            changes = {field: {"before": old[field], "after": row[field]} for field in fc.COMMITS_COLUMNS if old[field] != row[field]}
+            changes = {field: {"before": old.get(field), "after": row.get(field)}
+                       for field in fc.CLEAN_DATASET_COLUMNS if old.get(field) != row.get(field)}
             if changes:
                 modified.append({"commit_hash": row["commit_hash"], "changes": changes})
         step_warnings = list(dict.fromkeys(step_warnings))
-        stats.append({"op": op, "enabled": enabled, "rows_before": len(prior), "rows_after": len(current),
-                      "removed": len(excluded), "modified": len(modified), "label_dist": _label_dist(current),
-                      "label_dist_before": label_before, "elapsed_ms": (time.perf_counter() - started) * 1000,
-                      "excluded_samples": excluded, "modified_samples": modified, "warnings": step_warnings})
+        stats.append({"step": op, "enabled": enabled,
+                      "rows_before": len(prior), "rows_after": len(current),
+                      "removed_rows": len(excluded), "modified_rows": len(modified),
+                      "modified_samples": modified,
+                      "label_dist_before": label_before, "label_dist_after": _label_dist(current),
+                      "missing_before": missing_before, "missing_after": _missing_count(current),
+                      "duplicate_before": duplicate_before, "duplicate_after": _duplicate_count(current),
+                      "elapsed_ms": (time.perf_counter() - started) * 1000,
+                      "excluded_samples": excluded, "warnings": step_warnings})
         warnings.extend(step_warnings)
         if progress:
             progress(op, index + 1, total)
-    if normalized["mode"] == "apply" and any(r["parent_hash"] and len(r["parent_hash"].split()) > 1 for r in current):
-        _invalid("Apply output incompatible with canonical single parent_hash: enable merge_filter")
-    feature_stats = {f: {"before": _feature_side(before, f), "after": _feature_side(current, f)} for f in normalized["features"]}
+    column_stats = {}
+    for column in normalized["chart_columns"]:
+        column_stats[column] = {"before": _column_side(before, column), "after": _column_side(current, column)}
     return {"rows": current, "config": normalized,
-            "summary": {"input_rows": len(before), "output_rows": len(current), "label_dist": _label_dist(current),
-                        "enabled_steps": normalized["operation_order"], "warnings": list(dict.fromkeys(warnings))},
-            "steps_stats": stats, "feature_stats": feature_stats}
+            "summary": {"input_rows": len(before), "output_rows": len(current),
+                        "label_dist": _label_dist(current),
+                        "enabled_steps": normalized["operation_order"],
+                        "warnings": list(dict.fromkeys(warnings))},
+            "steps_stats": stats, "feature_stats": column_stats}
 
 
 def _encode(rows, fmt):
     cells = []
     for row in rows:
         cell = {field: "" if value is None else value for field, value in row.items()}
-        for feature in FEATURES:
-            if feature != "fix":
-                cell[feature] = f"{_decimal(cell[feature], feature).quantize(Decimal('0.0000000001')):.10f}"
-        cells.append(cell)
-    content = fc.encode_table(fc.COMMITS_COLUMNS, cells, fmt)
+        cells.append({key: cell.get(key, "") for key in fc.CLEAN_DATASET_COLUMNS})
+    content = fc.encode_table(fc.CLEAN_DATASET_COLUMNS, cells, fmt)
     if fmt == "csv":
         return content
     output = io.BytesIO()
@@ -524,13 +564,24 @@ def _distribution(stats, feature):
     figure = Figure(figsize=(8, 3), dpi=100)
     FigureCanvasAgg(figure)
     for axis, side in zip(figure.subplots(1, 2), ("before", "after"), strict=True):
-        histogram = stats[side]["histogram"]
-        edges, counts = histogram["bin_edges"], histogram["counts"]
-        if not counts:
-            axis.text(0.5, 0.5, "Empty data", transform=axis.transAxes, ha="center", va="center")
+        part = stats[side]
+        if part.get("kind") == "categorical":
+            freq = part.get("frequency", {})
+            labels = list(freq)[:10]
+            counts = [freq[k] for k in labels]
+            if not labels:
+                axis.text(0.5, 0.5, "Empty data", transform=axis.transAxes, ha="center", va="center")
+            else:
+                axis.bar(range(len(labels)), counts, color="#4178a8", edgecolor="white")
+                axis.set_xticks(range(len(labels)), labels, rotation=30, ha="right")
         else:
-            axis.bar(edges[:-1], counts, width=[b - a for a, b in zip(edges[:-1], edges[1:], strict=True)],
-                     align="edge", color="#4178a8", edgecolor="white")
+            histogram = part["histogram"]
+            edges, counts = histogram["bin_edges"], histogram["counts"]
+            if not counts:
+                axis.text(0.5, 0.5, "Empty data", transform=axis.transAxes, ha="center", va="center")
+            else:
+                axis.bar(edges[:-1], counts, width=[b - a for a, b in zip(edges[:-1], edges[1:], strict=True)],
+                         align="edge", color="#4178a8", edgecolor="white")
         axis.set_title(f"{feature}: {side}")
         axis.set_xlabel("Feature value")
         axis.set_ylabel("Rows")
@@ -547,14 +598,12 @@ def artifacts(result: dict, job_id: str) -> dict[str, bytes]:
     output = {}
     config = result["config"]
     if config["mode"] == "apply":
-        if any(r["parent_hash"] and len(r["parent_hash"].split()) > 1 for r in result["rows"]):
-            _invalid("Cannot encode surviving merge parents in canonical apply output")
         for fmt in (config["format"], "xlsx" if config["format"] == "csv" else "csv"):
-            output[f"clean_cleaned_{job_id}.{fmt}"] = _encode(result["rows"], fmt)
+            output[f"clean_dataset_{job_id}.{fmt}"] = _encode(result["rows"], fmt)
     output[f"clean_steps_stats_{job_id}.json"] = _json(result["steps_stats"])
-    output[f"clean_feature_stats_{job_id}.json"] = _json(result["feature_stats"])
-    for feature, stats in result["feature_stats"].items():
-        output[f"clean_feature_distribution_{feature}_{job_id}.png"] = _distribution(stats, feature)
+    output[f"clean_column_stats_{job_id}.json"] = _json(result["feature_stats"])
+    for column, stats in result["feature_stats"].items():
+        output[f"clean_column_distribution_{config.get('step', 'final')}_{column}_{job_id}.png"] = _distribution(stats, column)
     return output
 
 
@@ -577,6 +626,11 @@ def _read_bounded(path: Path) -> bytes:
 
 
 def main(argv=None) -> int:
+    # Windows 控制台默认 GBK；CLI JSON 必须稳定为 UTF-8（与 evaluate CLI 同口径）。
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description="File-only W4 cleaning; no database, Git or online collection")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("operations")
@@ -584,9 +638,7 @@ def main(argv=None) -> int:
     command.add_argument("--input", required=True, type=Path)
     command.add_argument("--chain", required=True)
     command.add_argument("--mode", required=True, choices=("preview", "apply"))
-    command.add_argument("--features")
-    command.add_argument("--seed", type=int, default=42)
-    command.add_argument("--split-ratio", type=float, default=0.7)
+    command.add_argument("--chart-columns", default="")
     command.add_argument("--format", choices=("csv", "xlsx"), default="csv")
     command.add_argument("--manifest", type=Path)
     command.add_argument("--out", required=True, type=Path)
@@ -600,10 +652,8 @@ def main(argv=None) -> int:
         chain = fc.read_json(("{\"steps\":" + chain_text + "}").encode()) if chain_text.lstrip().startswith("[") else fc.read_json(chain_text.encode())
         if set(chain) != {"steps"}:
             _invalid("--chain must be a JSON steps list or an object containing only steps")
-        raw = {"mode": args.mode, "steps": chain["steps"], "seed": args.seed,
-               "split_ratio": args.split_ratio, "format": args.format}
-        if args.features is not None:
-            raw["features"] = args.features.split(",")
+        raw = {"mode": args.mode, "steps": chain["steps"], "format": args.format,
+               "chart_columns": [c for c in args.chart_columns.split(",") if c]}
         config = validate_config(raw)
         path = args.input.resolve(strict=True)
         companion = args.manifest.resolve(strict=True) if args.manifest else path.with_suffix(".manifest.json")

@@ -8,7 +8,7 @@
 
 ## 入口与导航
 
-- 路由 `/model-performance`；顶级导航「模型性能」（[README.md](README.md)）。
+- 路由 `/model-performance` 重定向至 `/evaluate?section=models`；属于⑥预测性能评估的页内子视图，不是顶级 tab（[README.md](README.md)）。
 - 阈值 / 指标勾选 / 主排序的持久化配置入口见 [settings.md](settings.md)；本页控件与设置页读写同一配置单源。
 
 ## 线框图
@@ -71,15 +71,15 @@
 
 | 控件 | 端点 | 说明 |
 |---|---|---|
-| [架构▾][模型▾]（可多选） | `GET /api/models` | 级联 + 多选；未选 = `user_config.default_model` |
+| [架构▾][模型▾]（可多选） | `GET /api/models` | 级联 + 多选；必须显式选择，未选时禁用运行并提示，不再有默认模型回退 |
 | [数据集▾] | `GET /api/datasets` | 评估输入数据集版本；缺省 = `default_dataset`，再缺省 = 测试集口径 |
-| 阈值输入 [0.5] | `POST /api/evaluate`（`threshold`）；`PUT /api/config`（`decision_threshold`） | 开区间 (0,1)；只重算指标，不重训；与风险展示阈值分开标注 |
+| 阈值输入 [0.5] | `POST /api/evaluate/run`（`threshold`）；`PUT /api/config`（`decision_threshold`） | 开区间 (0,1)；以新阈值显式运行评估，不重训、不改写历史结果；与风险展示阈值分开标注 |
 | 指标勾选 checkboxes | `GET /api/evaluate/metrics`（清单）；`PUT /api/config`（`metrics_selected`） | 清单从接口读取，前端不写死 |
 | 主排序 [AUC▾] | `GET /api/evaluate/metrics`；`PUT /api/config`（`primary_metric`） | 须属于勾选集合 |
 | [查看] 抽屉 · 分区① | `GET /api/figures?model_name=` | 离线固定阈值图集 + 默认阈值指标缓存 |
-| [查看] 抽屉 · 分区② / [重新计算] | `POST /api/evaluate`；`GET /api/evaluate/metrics` | 动态指标与混淆矩阵，附元信息 |
-| [对比] | `POST /api/evaluate`（多模型）；`GET /api/evaluate/metrics` | 对比表按主排序指标降序 |
-| 查询行 [搜索][时间范围][查询][重置] | `GET /api/commits?page=&size=&q=&model_name=&start_time=&end_time=&with_features=1&is_test=1` | 只读已入库数据 |
+| [查看] 抽屉 · 分区② / [重新计算] | `POST /api/evaluate/run`；`GET /api/evaluate/metrics` | 动态指标与混淆矩阵，附元信息；每次运行生成独立 job 与产物 |
+| [对比] | `POST /api/evaluate/run`（多模型）；`GET /api/evaluate/metrics` | 对比表按主排序指标降序 |
+| 查询行 [搜索][时间范围][查询][重置] | `GET /api/commits?page=&size=&q=&model_name=&start_time=&end_time=&with_features=1` | 只读已入库数据；`is_test` 已废止 |
 | 大数据集评估 job | `GET /api/jobs/{id}`；`POST /api/jobs/{id}/retry\|cancel` | 异步进度可见、失败可重试 |
 | 分页器 | `GET /api/commits`（`page` / `size`） | 默认 20/页，上限 100 |
 
@@ -88,10 +88,10 @@
 1. **级联 + 多选 + 独立时间**：选架构后模型联动，切换架构清空已选模型；模型可多选（≥2 进入对比）；时间范围独立选择，作为 `start_time` / `end_time` 传给表格查询，与级联正交。
 2. **[查看] 抽屉**：右侧全屏抽屉，分区①离线固定阈值图集（六类：`roc` / `pr` / `confusion` / `calibration` / `effort` / `feat_importance`，expert 另有特征重要性）；分区②当前配置动态结果（随阈值重算），附计算样本数 / 正样本率 / 阈值 / 数据集版本 / 模型版本元信息。切换模型不残留上一模型的图或指标。
 3. **鉴权取图**：图片用 `fetch` 带 `X-API-Key` 取二进制转 `ObjectURL` 渲染（锚点：`frontend/src/views/ModelPerformance.vue:384`）；关闭抽屉 / 卸载释放 ObjectURL（锚点：`:402`）；`<img>` 直连不算通过；缺图降级以 `missing[]` 为准，不靠撞 404。
-4. **阈值输入**：改阈值 → `POST /api/evaluate` 在线重算依赖阈值的指标与混淆矩阵；ROC / PR / 校准 / effort 与阈值无关，复用分区①离线图；阈值写 `user_config.decision_threshold`，重启保持；前端 MUST NOT 手工拼指标或自行阈值重算。
+4. **阈值输入**：改阈值 → 以新阈值显式 `POST /api/evaluate/run` 生成一次新评估，依赖阈值的指标与混淆矩阵随该次运行更新；ROC / PR / 校准 / effort 与阈值无关，复用分区①离线图；阈值写 `user_config.decision_threshold` 作为下次运行的默认值，但不触发隐式重算、不改写历史报告；前端 MUST NOT 手工拼指标或自行阈值重算。
 5. **指标勾选 + 主排序**：页面只展示勾选指标；对比表按主排序指标降序；勾选集合与主排序落配置。
 6. **多模型对比**：选 ≥2 模型 → [对比] 同一视图对比表（模型线 / 算法 / 超参摘要 / 训练数据集版本）+ ROC / PR / 混淆 / 指标柱状对比入口。
-7. **多维测试集表格**：固定 `is_test=1` + `with_features=1`；列 = 提交 / 作者 / 时间 / 提交信息 / 14 维特征 [预览] / SZZ 判断 / 缺陷引入概率；概率列随所选模型整列刷新；14 维悬浮预览按五维度分组。
+7. **多维测试集表格**：测试集范围由⑥的 run 输入 `train_testset` 确定，`is_test` 已废止不得作为查询参数；`with_features=1` 从 `commit_feature` 取 14 维；列 = 提交 / 作者 / 时间 / 提交信息 / 14 维特征 [预览] / SZZ 判断 / 缺陷引入概率；概率列随所选模型整列刷新；14 维悬浮预览按五维度分组。
 8. **查询 / 重置**：按搜索 / 时间范围过滤表格，只读不触发计算；[重置] 清空搜索与时间范围并重查。
 9. **大数据集评估**：走 job 异步 + `GET /api/jobs/{id}` 状态查询，进度可见、失败可重试。
 
@@ -108,7 +108,7 @@
 ## 验收
 
 - 切换架构 / 模型 / 时间范围：表格概率列与抽屉同步刷新；不残留上一模型的图或指标。
-- 表格列齐全（提交 / 作者 / 时间 / 信息 / 14 维 / SZZ / 概率）；SZZ 三态正确；固定 `is_test=1` + `with_features=1`，不展示训练集提交。
+- 表格列齐全（提交 / 作者 / 时间 / 信息 / 14 维 / SZZ / 概率）；SZZ 三态正确；测试集范围由⑥的 `train_testset` 输入确定，`with_features=1`，不传 `is_test`。
 - 图集六类覆盖（expert 另有 `feat_importance`）；图片带 `X-API-Key` fetch 转 ObjectURL，`<img>` 直连不算通过；缺图以 `missing[]` 为准。
 - effort-unaware 与 effort-aware 两类指标图各至少一张（课程硬要求）。
 - 默认阈值 0.5 下评估服务输出与离线指标缓存逐值一致（容差 1e-6）；阈值改 0.3：混淆矩阵与 F1 / Precision / Recall / Accuracy 同步变化，ROC / PR 不变。

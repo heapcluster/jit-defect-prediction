@@ -680,9 +680,6 @@
                 label
               </th>
               <th scope="col">
-                is_test
-              </th>
-              <th scope="col">
                 可选特征（实际返回值）
               </th>
             </tr>
@@ -696,7 +693,6 @@
               <td>{{ row.committed_at }}</td>
               <td>{{ row.message }}</td>
               <td>{{ displayCell(Object.hasOwn(row, 'label') ? row.label : row.is_bug_inducing, 'label') }}</td>
-              <td>{{ displayCell(row.is_test, 'is_test') }}</td>
               <td>{{ memberFeatures(row) }}</td>
             </tr>
           </tbody>

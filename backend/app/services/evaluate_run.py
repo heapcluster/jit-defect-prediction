@@ -97,7 +97,7 @@ def submit(session, raw_config, files):
                 'effort_enabled': config_store.get_value('effort_enabled', session)}
     merged = {**defaults, **settings}
     cfg = _call('validate_config', merged)
-    predictions, labels, effort, inputs = None, None, None, []
+    predictions, effort, inputs = None, None, []
     if sum(len(c) for _, c in files) > fc.MAX_UPLOAD_BYTES:
         fc.invalid('评估上传合计不超过 64MiB')
     for name, content in files:
@@ -108,19 +108,16 @@ def submit(session, raw_config, files):
                 fc.invalid('只能上传一个 predictions 文件')
             predictions = _call('parse_predictions', name, content)
             inputs.append({'name': name, 'sha256': fc.sha256(content), 'rows': len(predictions)})
-        elif columns == ['commit_hash', 'is_bug_inducing', 'labeled_at']:
-            labels = _call('parse_labels', name, content)
-            inputs.append({'name': name, 'sha256': fc.sha256(content)})
-        elif columns == list(fc.COMMITS_COLUMNS):
+        elif set(columns) <= set(fc.CLEAN_DATASET_COLUMNS) and set(fc.COLLECTED_COMMITS_REQUIRED) <= set(columns):
             if effort is not None:
-                fc.invalid('只能上传一个 effort 来源（commits/cleaned）文件')
+                fc.invalid('只能上传一个 effort 来源（train_testset/clean_dataset）文件')
             effort = _call('parse_effort', name, content)
             inputs.append({'name': name, 'sha256': fc.sha256(content)})
         else:
-            fc.invalid('评估文件须为 §3.4 predictions、§3.5 labels 或 §3.1/§3.2 effort 来源')
+            fc.invalid('评估文件须为 predictions 或 train_testset（clean_dataset schema）effort 来源；labels.csv 已废止')
     if predictions is None:
         fc.invalid('必须上传 predictions 文件')
-    reference, digest = _save_request({'predictions': predictions, 'labels': labels, 'effort': effort, 'config': cfg, 'inputs': inputs})
+    reference, digest = _save_request({'predictions': predictions, 'effort': effort, 'config': cfg, 'inputs': inputs})
     try:
         job = job_store.create(session, 'evaluate', params={'module': 'evaluate', 'input_ref': reference,
             'input_sha256': digest, 'config': cfg}, total=len(predictions) + 1)
@@ -163,7 +160,7 @@ def _execute(job_id, attempt):
                 job_store.update_progress(session, job_id, attempt=attempt, total=max(total + 1, job['total']),
                                           done=max(done, job['done']), current_item=phase)
 
-        result = _call('run', request['predictions'], request['config'], label_map=request['labels'], effort=request.get('effort'), progress=progress)
+        result = _call('run', request['predictions'], request['config'], effort=request.get('effort'), progress=progress)
         artifacts = _call('artifacts', result, job_id)
         with db.SessionLocal() as session:
             job_store.assert_running(session, job_id, attempt=attempt)

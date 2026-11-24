@@ -174,7 +174,7 @@ def create_legacy(conn):
         INSERT INTO commit_label (commit_hash,is_bug_inducing,label_method,labeled_at)
         VALUES (%s,1,'szz_lite',%s)
     """, (HASHES[0], datetime(2026, 10, 2)))
-    for commit_hash, model_name in zip(HASHES[:3], ("rf_v1", "lr_semantic_v1", "codebert_e2e_v1"), strict=True):
+    for commit_hash, model_name in zip(HASHES[:3], ("rf_v1", "lr_semantic_v1", "xgb_v1"), strict=True):
         execute(conn, """
             INSERT INTO prediction (commit_hash,model_name,risk_score,predicted_at,feature_version)
             VALUES (%s,%s,0.12345,%s,'legacy-v1')
@@ -255,9 +255,9 @@ def test_legacy4_preserves_values_nulls_and_exact_schema(db, canonical_signature
         (0, 1, datetime(2026, 10, 2)), (0, 0, TIME), (0, None, None),
     )
     assert execute(db, "SELECT model_name,line,algo,version_key,trained_at,feature_version FROM model ORDER BY model_name") == (
-        ("codebert_e2e_v1", "e2e", None, "", None, None),
         ("lr_semantic_v1", "semantic", None, "", None, None),
         ("rf_v1", "expert", None, "", None, None),
+        ("xgb_v1", "expert", None, "", None, None),
     )
     assert execute(db, "SELECT COUNT(*) FROM model_artifact") == ((0,),)
     assert any("split" in warning.lower() and "is_test=0" in warning for warning in report["warnings"])

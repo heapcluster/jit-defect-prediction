@@ -94,7 +94,7 @@
             v-model="line"
             :disabled="busy || auth"
             @change="loadAlgorithms"
-          ><option value="expert">expert · 专家特征</option><option value="semantic">semantic · 语义特征</option><option value="fused">fused · 融合特征</option><option value="e2e">e2e · 端到端文本</option></select>
+          ><option value="expert">expert · 专家特征</option><option value="semantic">semantic · 语义特征</option></select>
         </label>
         <label for="train-template">已保存模板
           <select
@@ -419,7 +419,7 @@ const templates = computed(() => configuration.items.find(i => i.config_key === 
 const isRunning = computed(() => ['queued', 'running'].includes(training.job?.status))
 const statusLabel = computed(() => ({ queued: '排队中', running: '运行中', success: '成功', failed: '失败', cancelled: '已取消' })[training.job?.status] || '')
 const percentage = computed(() => training.job?.total ? Math.min(100, Math.floor(training.job.done / training.job.total * 100)) : 0)
-const lineWarning = computed(() => line.value === 'expert' ? '' : `当前上传契约仅提供 Kamei 表格；${line.value} 线需要${line.value === 'e2e' ? '提交文本数据集' : 'CodeBERT 嵌入向量'}，不满足输入要求，后端将前置拒绝。请选择 expert 线。`)
+const lineWarning = computed(() => line.value === 'expert' ? '' : `${line.value} 线需要数据集绑定可读仓库以在训练内现算特征，缺仓库时后端将前置拒绝。`)
 const successModels = computed(() => (result.value.models || []).filter(m => m.status === 'success'))
 const fmt = v => v == null ? '—' : Number(v).toFixed(4)
 const subStatus = name => (result.value.models || []).find(m => m.model_name === name) || {}

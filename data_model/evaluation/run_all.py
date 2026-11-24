@@ -1,4 +1,4 @@
-"""一键入口：25 模型预测 → 按模型出图 → 导出 schema.sql / data_init.sql。
+"""一键入口：16 模型预测 → 按模型出图 → 导出 schema.sql / data_init.sql。
 
 在 `data_model/` 目录下执行：
     python -m evaluation.run_all

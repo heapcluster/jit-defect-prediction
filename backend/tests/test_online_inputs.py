@@ -1,13 +1,13 @@
 # === AI 辅助说明 ===
-# 本文件共 3 条测试用例
+# 本文件共 2 条测试用例
 # [AI生成]：0 条
-# [AI生成-人工修改]：3 条（AI 生成骨架，人工补充核心断言）
+# [AI生成-人工修改]：2 条（AI 生成骨架，人工补充核心断言）
 # [手写]：0 条
 # 使用工具：原始生成记录未归档（标注依据代码特征判断，作者于 2026-11-17 确认）
 # 提示词见：docs/test/unit_test/prompts/README.md
 
 import numpy as np
-from app import config, e2e_source, semantic_source
+from app import config, semantic_source
 from app.services import text_inputs
 from git import Repo
 
@@ -58,18 +58,3 @@ def test_semantic_embedding_falls_back_to_online_encoding(monkeypatch):
     assert first is not None and first.shape == (semantic_source.DIM,)
     assert np.array_equal(first, second)
     assert calls == {"text": 1, "encode": 1}
-
-
-def test_e2e_text_falls_back_and_caches(monkeypatch):
-    monkeypatch.setattr(e2e_source, "_texts", lambda: {})
-    monkeypatch.setattr(e2e_source, "_computed", {})
-    calls = {"n": 0}
-
-    def fake_text(commit_hash):
-        calls["n"] += 1
-        return "diff --git a/a b/a\n+changed"
-
-    monkeypatch.setattr(text_inputs, "commit_text", fake_text)
-    assert e2e_source._text_for("DEF456").startswith("diff --git")
-    assert e2e_source._text_for("def456").startswith("diff --git")
-    assert calls["n"] == 1

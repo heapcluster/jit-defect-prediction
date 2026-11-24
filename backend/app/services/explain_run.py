@@ -137,7 +137,7 @@ def loaded_model(name):
 
 
 def techniques_payload(session, line=None, model_name=None):
-    if line is not None and line not in ("expert", "semantic", "fused", "e2e"):
+    if line is not None and line not in ("expert", "semantic"):
         fc.invalid("line 非法")
     family = None
     if model_name:
@@ -153,8 +153,6 @@ def techniques_payload(session, line=None, model_name=None):
                 if model.algo == "lr"
                 else "tree"
                 if model.algo in ("rf", "et", "xgb", "lgbm", "dt")
-                else "text"
-                if model.line == "e2e"
                 else "tabular"
             )
     return {
@@ -183,9 +181,30 @@ def _reason(rows, techniques, reason, message):
     ]
 
 
+def _worker_env(root):
+    """跨平台最小环境：缓存/临时目录全部落本次任务目录，禁 JIT 与多线程 BLAS。"""
+    common = {
+        "HOME": str(root),
+        "USERPROFILE": str(root),
+        "TEMP": str(root),
+        "TMP": str(root),
+        "TMPDIR": str(root),
+        "MPLCONFIGDIR": str(root),
+        "NUMBA_DISABLE_JIT": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+    }
+    if os.name == "nt":
+        return {
+            **common,
+            "PATH": os.environ.get("PATH", ""),
+            "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),
+        }
+    return {**common, "PATH": "/usr/bin:/bin", "VECLIB_MAXIMUM_THREADS": "1"}
+
+
 def isolated_results(weights, rows, techniques, params, top_n, progress=None):
-    if sys.platform != "darwin" or not Path("/usr/bin/sandbox-exec").is_file():
-        raise AppError(40001, "当前平台缺少模型文件解释沙箱；未反序列化上传权重")
     with tempfile.TemporaryDirectory(prefix="jit-explain-") as directory:
         root = Path(directory).resolve()
         input_file, output_file, error_file = (
@@ -193,71 +212,56 @@ def isolated_results(weights, rows, techniques, params, top_n, progress=None):
             root / "output.json",
             root / "error.log",
         )
-        input_file.write_bytes(
-            _json(
-                {
-                    "weights": base64.b64encode(weights).decode(),
-                    "rows": rows,
-                    "feature_names": list(config.FEATURE_COLUMNS),
-                    "techniques": techniques,
-                    "params": params,
-                    "top_n": top_n,
-                }
-            )
-        )
         readable = [
             str(Path(sys.prefix).resolve()),
             str(Path(sys.base_prefix).resolve()),
-            "/System/Library",
-            "/usr",
-            "/opt/homebrew",
-            "/dev",
-            str(config.REPO_ROOT / "backend/app"),
-            str(config.REPO_ROOT / "data_model/pipelines"),
+            str(config.REPO_ROOT / "backend" / "app"),
+            str(config.REPO_ROOT / "data_model"),
             str(root),
         ]
-        profile = "(version 1)(allow default)(deny network*)(deny process-fork)(deny file-read*)(allow file-read-metadata)"
-        profile += (
-            "(allow file-read* "
-            + " ".join("(subpath " + json.dumps(p) + ")" for p in readable)
-            + ")"
-        )
-        profile += (
-            "(deny file-write*)(allow file-write* (subpath "
-            + json.dumps(str(root))
-            + ')(literal "/dev/null"))'
-        )
-        env = {
-            "PATH": "/usr/bin:/bin",
-            "HOME": str(root),
-            "TMPDIR": str(root),
-            "MPLCONFIGDIR": str(root),
-            "NUMBA_DISABLE_JIT": "1",
-            "OPENBLAS_NUM_THREADS": "1",
-            "OMP_NUM_THREADS": "1",
-            "VECLIB_MAXIMUM_THREADS": "1",
+        payload = {
+            "weights": base64.b64encode(weights).decode(),
+            "rows": rows,
+            "feature_names": list(config.FEATURE_COLUMNS),
+            "techniques": techniques,
+            "params": params,
+            "top_n": top_n,
+            "allowed_read_roots": readable,
+            "writable_root": str(root),
         }
+        if sys.platform == "darwin":
+            profile = "(version 1)(allow default)(deny network*)(deny process-fork)(deny file-read*)(allow file-read-metadata)"
+            profile += (
+                "(allow file-read* "
+                + " ".join("(subpath " + json.dumps(p) + ")" for p in readable)
+                + ")"
+            )
+            profile += (
+                "(deny file-write*)(allow file-write* (subpath "
+                + json.dumps(str(root))
+                + ')(literal "/dev/null"))'
+            )
+            payload["sandbox_profile"] = profile
+        input_file.write_bytes(_json(payload))
+        env = _worker_env(root)
+        popen_options = (
+            {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+            if os.name == "nt"
+            else {"start_new_session": True}
+        )
         with (
             input_file.open("rb") as source,
             output_file.open("wb") as target,
             error_file.open("wb") as errors,
         ):
-            payload = json.loads(input_file.read_bytes())
-            payload["sandbox_profile"] = profile
-            input_file.write_bytes(_json(payload))
             process = subprocess.Popen(
-                [
-                    sys.executable,
-                    "-I",
-                    "-B",
-                    explain_core.__file__,
-                ],
+                [sys.executable, "-I", "-B", explain_core.__file__],
                 stdin=source,
                 stdout=target,
                 stderr=errors,
                 cwd=root,
                 env=env,
-                start_new_session=True,
+                **popen_options,
             )
             started = time.monotonic()
             try:
@@ -392,7 +396,7 @@ def prepare_files(raw, files, *, model=None):
             fc.read_json(content)
         else:
             columns, _ = fc.read_table(name, content)
-            if columns == list(fc.COMMITS_COLUMNS):
+            if tuple(columns) in (tuple(fc.COLLECTED_COMMITS_COLUMNS), tuple(fc.CLEAN_DATASET_COLUMNS)):
                 tables.append((name, content))
             elif columns == list(fc.PREDICTIONS_COLUMNS):
                 checks.append((name, content))
@@ -433,9 +437,11 @@ def prepare_files(raw, files, *, model=None):
         }
     if model is None:
         fc.invalid("请上传模型包或选择已加载模型")
+    declared_version = metadata.get("feature_version")
     if (
         model["meta"]["line"] == "expert"
-        and model["meta"]["feature_version"] != metadata["feature_version"]
+        and declared_version
+        and model["meta"]["feature_version"] != declared_version
     ):
         fc.invalid("模型与特征版本不兼容")
     if cfg["commit_hashes"]:
@@ -462,12 +468,28 @@ def prepare_files(raw, files, *, model=None):
         rows = [r for r in rows if r["commit_hash"] in selected]
         if not rows:
             fc.invalid("预测核对范围为空")
-    return {
-        "config": cfg,
-        "rows": [
+    # 新契约输入表不含 Kamei14：从配置仓库现算特征，不伪造向量。
+    if rows and not all(field in rows[0] for field in config.FEATURE_COLUMNS):
+        from app import feature_source
+        try:
+            computed = {item["commit_hash"]: item for item in
+                        feature_source.extract_many([r["commit_hash"] for r in rows])}
+        except Exception as error:
+            fc.invalid(f"解释特征现算失败：{error}")
+        missing = [r["commit_hash"] for r in rows if r["commit_hash"] not in computed]
+        if missing:
+            fc.invalid(f"解释特征现算缺少 {len(missing)} 个提交")
+        feature_rows = [{"commit_hash": r["commit_hash"],
+                         "features": [computed[r["commit_hash"]][f] for f in config.FEATURE_COLUMNS]}
+                        for r in rows]
+    else:
+        feature_rows = [
             {"commit_hash": r["commit_hash"], "features": [r[f] for f in config.FEATURE_COLUMNS]}
             for r in rows
-        ],
+        ]
+    return {
+        "config": cfg,
+        "rows": feature_rows,
         "model": model,
         "inputs": inputs,
     }
@@ -654,23 +676,24 @@ def submit(session, raw_config, files):
         fc.invalid("多技术比较已关闭，请先在用户配置开启")
     model = None
     if not any(n.endswith(".zip") for n, _ in files):
-        name = name or model_manage.resolve_default(session)[0]
+        if not name:
+            fc.invalid("未上传模型包时必须显式指定 model_name，不设默认模型")
         model = runtime_snapshot(session, name)
-    if dataset_id and not any(
-        n.endswith((".csv", ".xlsx")) and fc.read_table(n, b)[0] == list(fc.COMMITS_COLUMNS)
-        for n, b in files
-    ):
+    def _is_feature_table(name: str, raw: bytes) -> bool:
+        if not name.endswith((".csv", ".xlsx")):
+            return False
+        columns = fc.read_table(name, raw)[0]
+        return tuple(columns) in (tuple(fc.COLLECTED_COMMITS_COLUMNS), tuple(fc.CLEAN_DATASET_COLUMNS))
+
+    if dataset_id and not any(_is_feature_table(n, b) for n, b in files):
         from app.services import storage
 
         storage.require_dataset(session, dataset_id)
         members, _ = storage.bounded_rows(session, storage.member_query(dataset_id))
-        versions = {f.feature_version for _, f in members if f is not None}
-        if len(versions) != 1 or any(f is None for _, f in members):
-            fc.invalid("数据集没有一致完整的特征")
-        rows = [
-            dict.fromkeys(fc.COMMITS_COLUMNS, "") | storage.member_record(c, f) for c, f in members
-        ]
-        files = [*files, ("dataset_commits.csv", fc.encode_table(fc.COMMITS_COLUMNS, rows, "csv"))]
+        if not members:
+            fc.invalid("数据集没有提交成员")
+        rows = [storage.member_record(member) for member in members]
+        files = [*files, ("dataset_commits.csv", fc.encode_table(fc.COLLECTED_COMMITS_COLUMNS, rows, "csv"))]
     prepared = prepare_files(raw, files, model=model)
     REQUEST_ROOT.mkdir(parents=True, exist_ok=True, mode=0o700)
     if REQUEST_ROOT.is_symlink():
@@ -782,7 +805,9 @@ def explain_single(session, commit_hash, model_name=None, technique=None, params
     from app.validate import normalize_commit_hash
 
     commit_hash = normalize_commit_hash(commit_hash)
-    name = model_name or model_manage.resolve_default(session)[0]
+    if not model_name:
+        raise AppError(40001, "参数非法：model_name 必填，不设默认模型")
+    name = model_name
     loaded_model(name)
     feature = session.get(CommitFeature, commit_hash)
     prediction = session.get(Prediction, (commit_hash, name))

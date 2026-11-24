@@ -2,7 +2,7 @@
 
 公式与 expert 线 `pipelines/expert/metrics.py` **逐字同口径**（同一套 sklearn 调用、
 同一套 effort-aware 数学），本文件自包含常量，不依赖 expert 线的配置模块 ——
-expert/semantic/fused/e2e 四线与新 train CORE 一律从这里取公式，防止第二套口径漂移。
+expert / semantic 两线与新 train CORE 一律从这里取公式，防止第二套口径漂移。
 `safe_summary` 只是退化场景（空检验集 / 单类检验集）的包装，**不是第二套公式**：
 非退化时直接返回 `effort_unaware` 的原样结果。
 

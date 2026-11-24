@@ -12,7 +12,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA_MODEL = ROOT / "data_model"
-PYTHON = str(ROOT / (".venv/Scripts/python.exe" if os.name == "nt" else ".venv/bin/python"))
+PYTHON = sys.executable
 sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, str(DATA_MODEL))
 from app.services import file_contracts as fc  # noqa: E402
@@ -81,17 +81,13 @@ def test_parse_predictions_schema_range_duplicate():
         c.parse_predictions("p.csv", fc.encode_table(fc.PREDICTIONS_COLUMNS, dup, "csv"))
 
 
-def test_join_labels_override_conflict_unlabeled():
+def test_join_labels_uses_predictions_inline_truth():
     c = core()
     rows = pred_rows()
-    label_map = {
-        rows[0]["commit_hash"]: 1 - rows[0]["is_bug_inducing"],
-        rows[2]["commit_hash"]: None,
-    }
-    merged, stats = c.join_labels(rows, label_map)
-    assert stats["conflicts"] >= 1
-    assert merged[0]["is_bug_inducing"] == 1 - rows[0]["is_bug_inducing"]
+    rows[2]["is_bug_inducing"] = None
+    merged, stats = c.join_labels(rows)
     assert stats["unlabeled"] >= 1
+    assert [r["is_bug_inducing"] for r in merged] == [r["is_bug_inducing"] for r in rows]
 
 
 def test_run_metrics_columns_threshold_and_single_class():
@@ -150,33 +146,27 @@ def test_effort_unavailable_and_both_effort_figures():
     assert any(v is not None for v in vals)
 
 
-def commits_bytes(added_deleted):
+def commits_bytes():
     rows = []
-    for commit_hash, (added, deleted) in added_deleted.items():
+    for index in range(8):
         row = {column: "" for column in fc.COMMITS_COLUMNS}
-        row.update(commit_hash=commit_hash, repo_name="r", author_name="a",
-                   committed_at="2026-01-01T00:00:00Z", message="m", is_test=1)
-        for field in fc.FEATURE_COLUMNS:
-            row[field] = 0
-        row["la"] = math.log1p(added)
-        row["ld"] = math.log1p(deleted)
+        row.update(commit_hash=f"{index + 1:040x}", repo_name="r", label_source="git_szz",
+                   source_type="git_repo", author_name="a", committed_at="2026-01-01T00:00:00Z",
+                   message="m", is_bug_inducing=1)
         rows.append(row)
-    return fc.encode_table(fc.COMMITS_COLUMNS, rows, "csv")
+    return fc.encode_table(fc.COLLECTED_COMMITS_COLUMNS, rows, "csv")
 
 
-def test_parse_effort_recovers_real_loc_from_log_features():
+def test_parse_effort_discloses_missing_effort_under_new_contract():
     c = core()
-    added_deleted = {f"{i + 1:040x}": (10 + i, 5) for i in range(8)}
-    effort = c.parse_effort("commits.csv", commits_bytes(added_deleted))
-    assert effort[f"{1:040x}"] == 15
-    assert effort[f"{8:040x}"] == 22
+    effort = c.parse_effort("clean_dataset.csv", commits_bytes())
+    assert effort == {}
     cfg = c.validate_config({"threshold": 0.5, "metrics": ["auc", "recall_at_20", "p_norm"],
                              "primary_metric": "auc", "effort_enabled": True})
     result = c.run(c.parse_predictions("p.csv", pred_bytes()), cfg, effort=effort)
-    assert not any(u["reason_code"] == "missing_effort" for u in result["unavailable"])
+    assert any(u["reason_code"] == "missing_effort" for u in result["unavailable"])
     vals = {r["metric"]: r["value"] for r in result["metrics_rows"] if r["model_name"] == "m1"}
-    assert vals["recall_at_20"] is not None and vals["p_norm"] is not None
-    assert result["summary"]["effort"] == {"provided": 8, "matched": 16}
+    assert vals["recall_at_20"] is None and vals["p_norm"] is None
     with pytest.raises((ValueError, fc.AppError)):
         c.parse_effort("p.csv", pred_bytes())
 

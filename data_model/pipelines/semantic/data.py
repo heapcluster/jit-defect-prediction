@@ -1,8 +1,7 @@
 """semantic 线数据：文本加载 / 自建文本 / 冻结编码 / 缓存读写。
 
-自建文本与 e2e 包的 `build_text_dataset.py` **共用 `pipelines/text_source.py`**（同字段、
-同截断规则、同占位串与来源分类），两边的 `commit_text.csv` 可以互换使用；默认各建各的。
-口径只留一份实现，不靠「两边各抄一遍」维持一致 —— 同名两份必然分叉（见 text_source 模块头）。
+自建文本统一走 `pipelines/text_source.py`（同字段、同截断规则、同占位串与来源分类），
+口径只留一份实现，不靠「多处各抄一遍」维持一致 —— 同名两份必然分叉（见 text_source 模块头）。
 """
 
 from __future__ import annotations
@@ -19,8 +18,8 @@ from .. import text_source
 def load_texts(path: Path) -> pd.DataFrame:
     if not path.is_file():
         print(
-            f"[semantic] 找不到文本数据集：{path}（传 --repo 自动建，或先跑 e2e 的 "
-            "build_text_dataset.py 后把 --text-csv 指过去）",
+            f"[semantic] 找不到文本数据集：{path}（传 --repo 自动建，或把自建 "
+            "commit_text.csv 用 --text-csv 指过去）",
             file=sys.stderr,
         )
         raise SystemExit(2)
@@ -35,7 +34,7 @@ def load_texts(path: Path) -> pd.DataFrame:
 def extract_texts_from_repo(
     repo_path: Path, dataset_csv: Path, out_csv: Path, max_chars: int
 ) -> Path:
-    """diff 文本提取（依赖 GitPython）；口径与 e2e 包共用 `pipelines/text_source.py`。"""
+    """diff 文本提取（依赖 GitPython）；口径统一走 `pipelines/text_source.py`。"""
     from git import Repo
     from git.exc import BadName, BadObject, GitCommandError
 
@@ -127,7 +126,7 @@ def _as_str_array(values) -> np.ndarray:
     """Return a fixed-width Unicode array instead of an object array.
 
     实现只有一份，放在 ``pipelines/text_source.py``：``np.savez`` 把 object 数组存成
-    pickle，而 semantic 与 fused 两个 loader 都用 ``allow_pickle=False`` 读，存成
+    pickle，而 semantic loader 用 ``allow_pickle=False`` 读，存成
     object 就等于让缓存对消费方不可读。本函数保留为该实现的别名，既有调用点与测试不动。
     """
     return text_source.as_str_array(values)
@@ -139,12 +138,12 @@ def save_embeddings(path: Path, df: pd.DataFrame, emb: np.ndarray) -> None:
     Every string column must be written with a fixed-width Unicode dtype.
     ``pandas`` string columns hand back an ``object`` array, and
     ``np.savez_compressed`` then stores it as a pickled object array -- which
-    ``np.load(..., allow_pickle=False)`` refuses to read. Both the semantic and
-    the fused loader load with allow_pickle=False, so an object-dtype save
-    makes the cache unreadable by the very loaders that consume it.
+    ``np.load(..., allow_pickle=False)`` refuses to read. The semantic loader
+    uses allow_pickle=False, so an object-dtype save makes the cache unreadable
+    by the very loader that consumes it.
 
     键：``commit_hash`` / ``embeddings`` / ``labels`` / ``feature_version`` /
-    ``text_source``。最后一个是本次新增（供 fused 线与报告的「文本来源与覆盖率」登记用）；
+    ``text_source``（供报告的「文本来源与覆盖率」登记用）；
     旧缓存没有该键，读方用 ``text_source.load_sources()`` 得到 ``None`` 时，
     报告必须如实写「未登记」，不得按 ``diff`` 冒充。
     """

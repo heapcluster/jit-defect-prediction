@@ -71,43 +71,43 @@ def test_run_delivers_section36_outputs(evalclient):
     assert {r['model_name'] for r in rows} == {'m1', 'm2'}
 
 
-def test_labels_join_and_missing_predictions(evalclient):
+def test_deprecated_labels_and_unknown_files_rejected(evalclient):
+    """labels.csv 已废止；真标签必须由 predictions 透传。未知表格一律拒绝。"""
     client, _ = evalclient
     labels = fc.encode_table(['commit_hash', 'is_bug_inducing', 'labeled_at'],
         [{'commit_hash': f'{1:040x}', 'is_bug_inducing': 1, 'labeled_at': '2026-01-01T00:00:00Z'}], 'csv')
-    response = post(client, files=[pred_file(), ('files[]', ('labels.csv', labels))])
-    assert response.status_code == 200 and response.json()['data']['status'] == 'success', response.text
+    deprecated = post(client, files=[pred_file(), ('files[]', ('labels.csv', labels))])
+    assert deprecated.status_code == 400
     bad = post(client, files=[('files[]', ('wrong.csv', b'a,b\n1,2\n'))])
     assert bad.status_code == 400
 
 
-def test_effort_source_commits_enables_effort_aware_metrics(evalclient):
-    import math
-
+def test_effort_source_accepted_but_missing_effort_disclosed(evalclient):
+    """新契约不含 la/ld，effort 来源被接受但 LOC 不可还原，必须披露 missing_effort。"""
     client, _ = evalclient
     commits = []
     for i in range(8):
-        row = {column: '' for column in fc.COMMITS_COLUMNS}
-        row.update(commit_hash=f'{i + 1:040x}', repo_name='r', author_name='a',
-                   committed_at='2026-01-01T00:00:00Z', message='m', is_test=1)
-        for field in fc.FEATURE_COLUMNS:
-            row[field] = 0
-        row['la'] = math.log1p(10 + i)
-        row['ld'] = math.log1p(5)
-        commits.append(row)
-    effort_file = ('files[]', ('commits.csv', fc.encode_table(fc.COMMITS_COLUMNS, commits, 'csv')))
+        commits.append({
+            'commit_hash': f'{i + 1:040x}', 'repo_name': 'r', 'repo_url': '',
+            'author_name': 'a', 'author_email': '', 'committed_at': '2026-01-01T00:00:00Z',
+            'message': 'm', 'parent_hash': '', 'is_bug_inducing': i % 2,
+            'label_method': 'szz_v1', 'label_source': 'git_szz', 'labeled_at': '',
+            'fix_commit_hash': '', 'source_type': 'git_repo',
+        })
+    effort_file = ('files[]', ('train_testset.csv', fc.encode_table(fc.CLEAN_DATASET_COLUMNS, commits, 'csv')))
     config = {'threshold': 0.5, 'metrics': ['auc', 'recall_at_20', 'p_norm'], 'primary_metric': 'auc', 'effort_enabled': True}
     response = post(client, config=config, files=[pred_file(), effort_file])
     assert response.status_code == 200, response.text
     data = response.json()['data']
     assert data['status'] == 'success'
-    assert data['summary']['effort'] == {'provided': 8, 'matched': 16}
-    assert not any(u['reason_code'] == 'missing_effort' for u in data['summary']['unavailable'])
+    assert data['summary']['effort'] == {'provided': 0, 'matched': 0}
+    assert any(item['reason_code'] == 'missing_effort' for item in data['summary']['unavailable'])
     job_id = data['job_id']
     metrics_name = next(o['name'] for o in data['outputs'] if o['name'].startswith('evaluate_metrics_') and o['name'].endswith('.csv'))
     _, rows = fc.read_table(metrics_name, client.get(f'/api/evaluate/outputs/{job_id}/{metrics_name}', headers=HEADERS).content)
     vals = {r['metric']: r['value'] for r in rows if r['model_name'] == 'm1'}
-    assert vals['recall_at_20'] not in (None, '') and vals['p_norm'] not in (None, '')
+    # 新契约不含 LOC：effort-aware 指标应为不可用，而不是伪造数值。
+    assert vals['recall_at_20'] in (None, '') and vals['p_norm'] in (None, '')
     dup = post(client, config=config, files=[pred_file(), effort_file, effort_file])
     assert dup.status_code == 400
 

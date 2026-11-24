@@ -14,7 +14,7 @@ from app.models import Base, Prediction
 from app.services import file_contracts as fc
 from app.services import output_store
 
-from tests.conftest import C1, HEADERS
+from tests.conftest import C1, FAKE_EXTRACTOR, HEADERS
 from tests.test_clean_api import source_rows
 from tests.test_models_manage import lr_package
 
@@ -36,7 +36,7 @@ def test_file_explain_without_predictions_safe_and_cache(tmp_path):
     mod = service()
     name, version, raw = lr_package()
     rows = source_rows()
-    table = fc.encode_table(fc.COMMITS_COLUMNS, rows, "csv")
+    table = fc.encode_table(fc.COLLECTED_COMMITS_COLUMNS, rows, "csv")
     prepared = mod.prepare_files(
         {"techniques": ["shap", "lime"], "top_n": 3}, [("model.zip", raw), ("commits.csv", table)]
     )
@@ -115,29 +115,27 @@ def test_invalid_config(config):
         service().validate_config(config)
 
 
-@pytest.mark.skipif(sys.platform != "darwin", reason="macOS sandbox profile specific; no Windows sandbox implementation")
-def test_sandbox_blocks_shared_var_tmp_contents():
-    import tempfile
-
+def test_sandbox_blocks_external_shared_tmp_contents(tmp_path):
+    """跨平台：任务目录之外的临时文件内容不得被上传权重读取。"""
     mod = service()
-    with tempfile.NamedTemporaryFile(dir="/private/var/tmp") as target:
-        target.write(b"protected shared data")
-        target.flush()
+    shared = tmp_path / "shared.dat"
+    shared.write_bytes(b"protected shared data")
 
-        class ReadShared:
-            def __reduce__(self):
-                return (Path.read_text, (Path(target.name),))
+    class ReadShared:
+        def __reduce__(self):
+            return (Path.read_bytes, (shared,))
 
-        buffer = io.BytesIO()
-        joblib.dump(ReadShared(), buffer)
-        result = mod.isolated_results(
-            buffer.getvalue(),
-            [{"commit_hash": "a" * 40, "features": [0] * 14}],
-            ["shap"],
-            {"shap": {"background_size": 1}},
-            8,
-        )
-        assert result[0]["reason_code"] == "explainer_failed"
+    buffer = io.BytesIO()
+    joblib.dump(ReadShared(), buffer)
+    result = mod.isolated_results(
+        buffer.getvalue(),
+        [{"commit_hash": "a" * 40, "features": [0] * 14}],
+        ["shap"],
+        {"shap": {"background_size": 1}},
+        8,
+    )
+    assert result[0]["reason_code"] == "explainer_failed"
+    assert "protected shared data" not in json.dumps(result)
 
 
 def test_worker_timeout_kills_group_and_returns_reason(monkeypatch):
@@ -264,7 +262,7 @@ def submit(client):
         data={"config": json.dumps({"techniques": ["shap"], "top_n": 4})},
         files=[
             ("files[]", ("model.zip", raw)),
-            ("files[]", ("commits.csv", fc.encode_table(fc.COMMITS_COLUMNS, source_rows(), "csv"))),
+            ("files[]", ("collected_commits.csv", fc.encode_table(fc.COLLECTED_COMMITS_COLUMNS, source_rows(), "csv"))),
         ],
         headers=HEADERS,
     )
@@ -356,9 +354,14 @@ def test_cli_explain_is_database_independent(tmp_path):
     name, _, raw = lr_package()
     package = tmp_path / "model.zip"
     package.write_bytes(raw)
-    table = tmp_path / "commits.csv"
-    table.write_bytes(fc.encode_table(fc.COMMITS_COLUMNS, source_rows(), "csv"))
-    env = {**os.environ, "DB_HOST": "", "DATABASE_URL": ""}
+    table = tmp_path / "collected_commits.csv"
+    table.write_bytes(fc.encode_table(fc.COLLECTED_COMMITS_COLUMNS, source_rows(), "csv"))
+    env = {
+        **os.environ,
+        "DB_HOST": "",
+        "DATABASE_URL": "",
+        "FEATURE_EXTRACTOR_SCRIPT": str(FAKE_EXTRACTOR),
+    }
     result = subprocess.run(
         [
             sys.executable,
