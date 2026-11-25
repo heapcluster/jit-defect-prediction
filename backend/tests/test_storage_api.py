@@ -11,7 +11,17 @@ import pytest
 from app import config
 from app.db import get_db
 from app.errors import register_error_handlers
-from app.models import Base, Commit, Dataset, Job, Model, ModelArtifact, Prediction, User, UserConfig
+from app.models import (
+    Base,
+    Commit,
+    Dataset,
+    Job,
+    Model,
+    ModelArtifact,
+    Prediction,
+    User,
+    UserConfig,
+)
 from app.services import file_contracts as fc
 from app.services import output_store
 from fastapi import FastAPI
@@ -396,6 +406,7 @@ def test_asset_names_include_the_actual_output_batch_id(storage_client, engine):
 
 def test_packet_registration_cannot_relabel_an_active_model(storage_client, monkeypatch):
     from types import SimpleNamespace
+
     from app import model_registry
     monkeypatch.setattr(model_registry, "all_models", lambda: [SimpleNamespace(name="loaded-model")])
     response = upload(storage_client, [("model_package.zip", package(model_name="loaded-model"))])

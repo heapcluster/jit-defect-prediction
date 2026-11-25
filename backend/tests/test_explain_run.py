@@ -349,7 +349,6 @@ def test_cancel_retries_snapshot_and_body_limits(explain_client, monkeypatch):
 def test_cli_explain_is_database_independent(tmp_path):
     import os
     import subprocess
-    import sys
 
     name, _, raw = lr_package()
     package = tmp_path / "model.zip"

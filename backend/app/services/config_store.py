@@ -10,9 +10,9 @@ from sqlalchemy import select
 from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.orm import Session
 
-from app import config, model_registry
+from app import config
 from app.errors import AppError
-from app.models import Dataset, Model, ModelArtifact, User, UserConfig
+from app.models import Dataset, Model, User, UserConfig
 from app.timeutil import iso_z, now_naive_utc
 
 logger = logging.getLogger("backend.config")

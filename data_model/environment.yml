@@ -41,7 +41,7 @@ dependencies:
       - matplotlib==3.10.1
       - GitPython==3.1.62
 
-      # ===== 语义 / 端到端线（CodeBERT）：此处为 CPU 版 torch 占位，4060 必须按文件头换成 cu124 =====
+      # ===== 语义线（CodeBERT）：此处为 CPU 版 torch 占位，4060 必须按文件头换成 cu124 =====
       - torch==2.5.1
       - transformers==4.46.1
       - tokenizers==0.20.1

@@ -89,6 +89,6 @@ def unload(session, name):
 
 
 def set_selection(session, name):
-    artifact = _artifact(session, name)
+    _artifact(session, name)  # 校验模型存在
     config_store.write_config(session, [{'config_key': 'selected_model', 'value': name}])
     return {'selected_model': name}

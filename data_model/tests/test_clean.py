@@ -189,7 +189,7 @@ def test_parse_input_rejects_duplicate_hash_and_bad_name():
     content = fc.encode_table(fc.COLLECTED_COMMITS_COLUMNS, duplicate, "csv")
     with pytest.raises(ValueError):
         core().parse_input("collected_commits.csv", content)
-    with pytest.raises(Exception):
+    with pytest.raises((ValueError, fc.AppError)):
         core().parse_input("../collected_commits.csv", content)
 
 

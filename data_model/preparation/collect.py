@@ -17,7 +17,6 @@ import sys
 import tempfile
 import time
 from datetime import UTC, datetime
-from decimal import Decimal, DecimalException
 from pathlib import Path
 from urllib.parse import unquote, urlsplit, urlunsplit
 from uuid import uuid4
@@ -360,7 +359,7 @@ def _check_size(directory: Path, progress=None, *, volatile: bool = False):
                 _invalid("仓库大小超限")
 
 
-def _repository(path: Path, roots: list[Path], runner: GitRunner, *, allow_system_shallow: bool = False):
+def _repository(path: Path, roots: list[Path], runner: GitRunner):
     if not (path / ".git").exists() and not ((path / "HEAD").is_file() and (path / "objects").is_dir()):
         raise CollectError(40400, "不是 Git 仓库")
     git_dir = Path(runner(path, "rev-parse", "--absolute-git-dir").strip()).resolve(strict=True)
@@ -374,9 +373,8 @@ def _repository(path: Path, roots: list[Path], runner: GitRunner, *, allow_syste
     _check_size(common, runner.progress)
     if (common / "objects/info/alternates").exists():
         _invalid("收集需要独立的仓库历史，不支持 alternates")
-    shallow = (common / "shallow").exists()
-    if shallow and not allow_system_shallow:
-        _invalid("外部仓库须为完整独立历史；系统按时间窗创建的浅克隆除外")
+    if (common / "shallow").exists():
+        _invalid("收集需要完整独立历史，不支持 shallow 仓库")
     config = runner(path, "config", "--local", "--list").lower()
     if "promisor=true" in config or "extensions.partialclone=" in config:
         _invalid("收集不允许用户仓库按需联网获取对象")
@@ -528,14 +526,8 @@ def run(config: dict, *, allow_roots: list[str], protocol_whitelist: list[str],
             url, runner.network_config = _url(remote, protocol_whitelist)
             runner.size_directory = repo
             # Remote configs/attributes/hooks are not inherited from user Git.
+            # 始终完整 bare clone；start_time/end_time 只过滤输出提交，不影响历史范围。
             clone_args = ["clone", "--bare", "--no-local", "--template="]
-            # 时间窗下推到 clone：只取起始时间之前的有限回溯历史 + 窗口内提交，
-            # 避免大仓库全量传输；SZZ 需回溯到 fix 之前的引入提交，故提前 365 天。
-            if cfg["start_time"]:
-                from datetime import timedelta
-                start = datetime.fromisoformat(cfg["start_time"].replace("Z", "+00:00"))
-                since = (start - timedelta(days=365)).astimezone(UTC).isoformat().replace("+00:00", "Z")
-                clone_args.append(f"--shallow-since={since}")
             runner(controlled, *clone_args, "--", url, str(repo))
             fetch_audit = "new_controlled_clone"
         else:
@@ -545,7 +537,7 @@ def run(config: dict, *, allow_roots: list[str], protocol_whitelist: list[str],
             local_runner(controlled, "clone", "--bare", "--local", "--no-hardlinks", "--template=",
                          "--", str(local_repo), str(repo))
         runner.size_directory = None
-        _repository(repo, roots, runner, allow_system_shallow=True)
+        _repository(repo, roots, runner)
         head = _resolve(repo, cfg["branch"] or "HEAD", runner)
         if cfg["head_expect"] and head != cfg["head_expect"]:
             _invalid("HEAD 与 head_expect 不一致")

@@ -97,14 +97,6 @@ Thumbs.db
 *.log
 logs/
 _tmp/
-/backend/var/outputs/
-/backend/var/collect_inputs/
-/backend/var/collect_cache/
-/backend/var/clean_inputs/
-/backend/var/train_inputs/
-/backend/var/predict_inputs/
-/backend/var/evaluate_inputs/
-/backend/var/explain_inputs/
 
 # ===== 二进制包与备份（仓库只留可读的文本/图，不留压缩包）=====
 *.zip
@@ -122,7 +114,7 @@ _tmp/
 .mypy_cache/
 .dmypy.json
 coverage.xml
-# 集成脚本 `--json out.json` 的临时输出，正式证据归档到 docs/想到什么取什么/
+# 集成脚本 `--json out.json` 的临时输出
 out.json
 
 # ===== 本地辅助脚本（个人工具，不入库；见 tools/）=====
@@ -141,10 +133,3 @@ data_model/condaenv.*.requirements.txt
 .windsurf/
 AGENTS.md
 CLAUDE.md
-
-# ===== 提交快照（交付副本，真源在各端 tests/ 与 backend/scripts/）=====
-# 只同步单元测试线；副本与各端保持逐字节一致，不入库以免双份维护分歧。
-# 交付时本地拷贝到飞书即可，README 说明同步来源与运行方式。
-docs/想到什么取什么/unit_test/tests/*
-!docs/想到什么取什么/unit_test/tests/README.md
-docs/想到什么取什么/integration_test/scripts/*

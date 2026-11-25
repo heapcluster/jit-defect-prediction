@@ -25,7 +25,7 @@ from app import config, db, explain_core, model_registry
 from app.errors import AppError
 from app.explain import explain_label
 from app.models import CommitFeature, Job, Model, ModelArtifact, Prediction
-from app.services import config_store, job_store, model_manage, output_store
+from app.services import config_store, job_store, output_store
 from app.services import file_contracts as fc
 
 logger = logging.getLogger("backend.explain")

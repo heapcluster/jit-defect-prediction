@@ -15,7 +15,6 @@ from app import config, explain_core, model_registry
 from app.diff import parse_unified_diff
 from app.explain import with_labels
 from app.models import Commit, CommitFeature
-from app.services.config_store import get_value
 from app.services.git import GitError, show_unified_diff
 from app.timeutil import iso_z
 

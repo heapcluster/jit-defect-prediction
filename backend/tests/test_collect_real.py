@@ -10,7 +10,8 @@ from pathlib import Path
 import pytest
 from app import config, db
 from app.models import Commit, Dataset
-from app.services import collect_run, file_contracts as fc, output_store
+from app.services import collect_run, output_store
+from app.services import file_contracts as fc
 from sqlalchemy import func, select
 
 from tests.conftest import HEADERS

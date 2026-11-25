@@ -3,9 +3,9 @@
 入口：`python -m pipelines.expert.train`（在 data_model/ 目录下）
 流程：加载切分 → 逐模型 fit → 两类指标 → SHAP 实测 → 导出 .pkl + 交付清单 → 报告 + 图表。
 
-与 `data_model/06_train_model.py` 的关系：本包是 06 的模块化等价实现（口径逐字一致），
-产物落在本包 `models/`、`reports/` 下，不覆盖 06 的根目录产物。六条铁规矩照抄：
-时间序切分不在此重切、特征口径以契约为准、数据集与模型不入库、不写接口不建库表。
+新契约 W5 的统一训练入口是 `pipelines/train.py`（CLI/API 共用）；本模块保留 expert
+线的离线基线与 `from_saved` 复用逻辑，产物落在本包 `models/`、`reports/` 下。
+时间序切分不在此重切、特征口径以契约为准、数据集与模型不入库。
 """
 
 from __future__ import annotations

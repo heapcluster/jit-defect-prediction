@@ -1,13 +1,13 @@
 """W5 训练 CORE（file-only，无数据库；CLI 与 API 共用同一 run/artifacts）。
 
 单一来源复用（不复制公式/构造器/切分/解析）：
-  · 构造器：pipelines/expert/model.py build_model(algo, seed)（12 算法）；
+  · 构造器：pipelines/expert/model.py build_model(algo, seed)（8 算法 × 2 线）；
     超参覆盖用返回对象的 sklearn set_params（Pipeline 步前缀如 lr__C）。
   · 切分：preparation/05_split_dataset.py split_index(floor) + validate_split
     （严格秒级边界：检验集最早 > 训练集最晚），经 preparation.clean 的 importlib
     路径加载复用；禁止随机切分。
-  · 表格解析：preparation/clean.py parse_input（canonical COMMITS_COLUMNS +
-    feature_version 校验）；行校验复用 clean._rows。
+  · 表格解析：preparation/clean.py parse_input（collected_commits/clean_dataset schema）；
+    行校验复用 clean._rows_external。
   · 指标：evaluation/metrics.py safe_summary（effort_unaware 同口径 + 退化包装）。
   · 编解码/发布：backend file_contracts + output_store（同茎 manifest，批次不可覆盖）。
 
@@ -45,10 +45,9 @@ def _modules():
             sys.path.insert(0, str(source))
     from app.services import file_contracts
     from evaluation import metrics
-    from preparation import clean
-
     from pipelines import registry
     from pipelines.expert import model
+    from preparation import clean
 
     return file_contracts, metrics, registry, model, clean
 

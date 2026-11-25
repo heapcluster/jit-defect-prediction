@@ -18,8 +18,21 @@
 | `frontend/` | Vue 3 单页应用与 vitest 用例 |
 | `data_model/` | 数据准备、训练、评测 |
 | `infra/` | 建表 DDL、CI 路径选择、nginx 配置，见 [infra/deployment.md](infra/deployment.md) |
-| `docs/` | 技术文档（api / database / model / web_page / test） |
-| `openspec/` | 规格与变更提案 |
+| `docs/` | 技术文档（api / database / common / function_point / test / web_page） |
+| `openspec/` | 现行规格与活跃变更提案（历史归档不入库） |
+| `temp/` | 唯一过程数据根：请求输入、缓存、运行日志、临时文件和 `outputs/<job_id>/` 产物；Git 不追踪，不存源码 |
+
+### 包结构与命名规范
+
+目标：清晰分层、边界可验证、核心功能不变。约束：API 路径、CLI 入口、测试路径与 handoff schema 保持不变；外部调用只走各层公开入口。
+
+- `backend/app/api/`：只做 HTTP 路由与请求校验，薄层；业务编排在 `services/`。
+- `backend/app/services/`：按功能命名的编排服务（`*_run.py` 为作业入口，`storage.py` / `output_store.py` / `file_contracts.py` 为共享内核）。
+- `data_model/preparation/`：`collect` / `clean` / `public_load` 三个公开入口；`01_*`~`05_*` 为 collect 内部阶段实现，编号体现流水线顺序，外部不直接调用。
+- `data_model/pipelines/`：`expert/` 与 `semantic/` 两条模型线；`train.py` 为两线共用的 W5 训练核心。
+- `data_model/evaluation/`：评估、指标与图集；`infra/`：DDL、迁移与部署配置。
+
+预期成果：新增功能先按上述分层归位；跨层依赖通过文件契约与公开入口，不直接 import 对方内部模块；`git status` 不因过程数据产生变更噪音。
 
 ## 一、容器一键启动（推荐先跑通这个）
 

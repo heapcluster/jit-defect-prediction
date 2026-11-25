@@ -10,7 +10,6 @@ import argparse
 import hashlib
 import io
 import json
-import math
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -25,7 +24,6 @@ def _services():
         if str(source) not in sys.path:
             sys.path.insert(0, str(source))
     from app.services import file_contracts, output_store
-
     from evaluation import metrics
 
     return file_contracts, output_store, metrics

@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
-import math
 import os
 import subprocess
 import sys
@@ -296,7 +295,6 @@ def test_limits_and_git_failure_codes(repository, monkeypatch):
 
 
 def test_encoded_features_have_database_precision_without_changing_math(repository):
-    from decimal import Decimal
     module = collect()
     repo, _ = repository
     result = run(repo)
