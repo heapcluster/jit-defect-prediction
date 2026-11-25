@@ -235,11 +235,25 @@ class GitRunner:
         settings = ["core.hooksPath=" + os.devnull, "core.fsmonitor=false", "core.quotepath=false",
                     "core.pager=cat", "core.attributesFile=" + os.devnull, "credential.helper=",
                     "credential.interactive=false", "protocol.allow=never", "http.proxy=",
-                    "http.followRedirects=false", "http.sslVerify=true", "fetch.recurseSubmodules=false",
+                    "http.followRedirects=false", "http.sslVerify=true", "http.schannelCheckRevoke=false",
+                    "fetch.recurseSubmodules=false",
                     "submodule.recurse=false", "maintenance.auto=false", "gc.auto=0",
                     "diff.external=", "diff.trustExitCode=false"]
         settings.extend(f"protocol.{p}.allow=always" for p in self.protocols)
-        settings.extend(self.network_config)
+        # 与后端 services/git.py 同口径：代理只认显式注入的 GIT_PROXY（其次 HTTPS_PROXY）。
+        # 校验后的仓库 URL 与协议白名单不变，仅本机出口走代理。
+        proxy = os.getenv("GIT_PROXY", "").strip() or os.getenv("HTTPS_PROXY", "").strip()
+        if proxy:
+            settings = [item for item in settings if not item.startswith("http.proxy=")]
+            settings.extend((f"http.proxy={proxy}", f"https.proxy={proxy}"))
+            # 代理自己解析 DNS，不再 pin 直连 IP（否则绕过代理）。
+            settings = [item for item in settings
+                        if not item.startswith("http.curloptResolve=")]
+            # MITM 代理的证书不被系统信任时，必须显式 opt-in 才放宽校验；默认强校验。
+            if os.getenv("GIT_PROXY_INSECURE_TLS", "").strip() in ("1", "true", "TRUE"):
+                settings = [item for item in settings if item != "http.sslVerify=true"]
+                settings.append("http.sslVerify=false")
+        settings.extend(self.network_config if not proxy else [])
         argv = ["git", "--no-pager"]
         for setting in settings:
             argv.extend(("-c", setting))
@@ -346,7 +360,7 @@ def _check_size(directory: Path, progress=None, *, volatile: bool = False):
                 _invalid("仓库大小超限")
 
 
-def _repository(path: Path, roots: list[Path], runner: GitRunner):
+def _repository(path: Path, roots: list[Path], runner: GitRunner, *, allow_system_shallow: bool = False):
     if not (path / ".git").exists() and not ((path / "HEAD").is_file() and (path / "objects").is_dir()):
         raise CollectError(40400, "不是 Git 仓库")
     git_dir = Path(runner(path, "rev-parse", "--absolute-git-dir").strip()).resolve(strict=True)
@@ -358,8 +372,11 @@ def _repository(path: Path, roots: list[Path], runner: GitRunner):
     if not _within(common, roots):
         _invalid("Git 公共存储路径越界")
     _check_size(common, runner.progress)
-    if (common / "objects/info/alternates").exists() or (common / "shallow").exists():
-        _invalid("收集需要完整且独立的仓库历史，不支持 shallow/alternates")
+    if (common / "objects/info/alternates").exists():
+        _invalid("收集需要独立的仓库历史，不支持 alternates")
+    shallow = (common / "shallow").exists()
+    if shallow and not allow_system_shallow:
+        _invalid("外部仓库须为完整独立历史；系统按时间窗创建的浅克隆除外")
     config = runner(path, "config", "--local", "--list").lower()
     if "promisor=true" in config or "extensions.partialclone=" in config:
         _invalid("收集不允许用户仓库按需联网获取对象")
@@ -511,7 +528,15 @@ def run(config: dict, *, allow_roots: list[str], protocol_whitelist: list[str],
             url, runner.network_config = _url(remote, protocol_whitelist)
             runner.size_directory = repo
             # Remote configs/attributes/hooks are not inherited from user Git.
-            runner(controlled, "clone", "--bare", "--no-local", "--template=", "--", url, str(repo))
+            clone_args = ["clone", "--bare", "--no-local", "--template="]
+            # 时间窗下推到 clone：只取起始时间之前的有限回溯历史 + 窗口内提交，
+            # 避免大仓库全量传输；SZZ 需回溯到 fix 之前的引入提交，故提前 365 天。
+            if cfg["start_time"]:
+                from datetime import timedelta
+                start = datetime.fromisoformat(cfg["start_time"].replace("Z", "+00:00"))
+                since = (start - timedelta(days=365)).astimezone(UTC).isoformat().replace("+00:00", "Z")
+                clone_args.append(f"--shallow-since={since}")
+            runner(controlled, *clone_args, "--", url, str(repo))
             fetch_audit = "new_controlled_clone"
         else:
             # Explicit file permission is restricted to this previously validated
@@ -520,7 +545,7 @@ def run(config: dict, *, allow_roots: list[str], protocol_whitelist: list[str],
             local_runner(controlled, "clone", "--bare", "--local", "--no-hardlinks", "--template=",
                          "--", str(local_repo), str(repo))
         runner.size_directory = None
-        _repository(repo, roots, runner)
+        _repository(repo, roots, runner, allow_system_shallow=True)
         head = _resolve(repo, cfg["branch"] or "HEAD", runner)
         if cfg["head_expect"] and head != cfg["head_expect"]:
             _invalid("HEAD 与 head_expect 不一致")

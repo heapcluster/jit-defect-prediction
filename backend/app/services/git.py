@@ -73,6 +73,9 @@ def run_git(repo: str, *args: str) -> str:
         cmd += ["-c", f"http.proxy={proxy}", "-c", f"https.proxy={proxy}"]
     else:
         cmd += ["-c", "http.proxy=", "-c", "https.proxy="]
+    # Windows Schannel 默认要求 CRL 在线；离线环境会报 CRYPT_E_REVOCATION_OFFLINE。
+    # 仅关闭吊销检查，http.sslVerify 仍校验证书链。
+    cmd += ["-c", "http.schannelCheckRevoke=false"]
     cmd += [*args]
     try:
         proc = subprocess.run(

@@ -45,6 +45,9 @@ model/
 data_model/evaluation/out/data_init.sql
 data_model/evaluation/out/schema.sql
 
+# 本地实跑产物（在线拉取/采集/清洗输出），不入库
+backend/var/
+
 # ===== Python =====
 __pycache__/
 *.py[cod]

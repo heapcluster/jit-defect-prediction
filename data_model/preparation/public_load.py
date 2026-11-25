@@ -135,7 +135,18 @@ def load_public(*, name, source, license_id, out, mapping=None, sample_size=None
                 'rows': len(selected), 'sampled': sampled, 'sampling_method': 'month-stratified-proportional-equidistant',
                 'layers': layers, 'mapping': mapping, 'label_semantics': 'binary: 1=bug-inducing; 0=non-inducing; empty=unlabeled'}
     report = analyze(records)
-    normalized = fc.encode_table(list(mapping), selected, 'csv')
+    columns = list(fc.COLLECTED_COMMITS_COLUMNS)
+    normalized_rows = []
+    for row in selected:
+        record = {column: '' for column in columns}
+        record.update(row)
+        record['label_method'] = record.get('label_method') or 'third_party'
+        record['label_source'] = 'public_dataset'
+        record['source_type'] = 'public_dataset'
+        record['repo_name'] = record.get('repo_name') or name
+        record['repo_url'] = record.get('repo_url') or str(source) if '://' in str(source) else record.get('repo_url', '')
+        normalized_rows.append(record)
+    normalized = fc.encode_table(columns, normalized_rows, 'csv')
     def encode(value):
         return json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True).encode('utf-8')
     local_files = {'normalized.csv': normalized, 'records.json': encode({'records': records}),
@@ -143,7 +154,7 @@ def load_public(*, name, source, license_id, out, mapping=None, sample_size=None
                    'quality.json': encode(report), 'source_' + filename: content}
     destination.parent.mkdir(parents=True, exist_ok=True)
     job_id = 'j-' + uuid4().hex
-    artifacts = {f'collect_public_records_{job_id}.csv': normalized,
+    artifacts = {f'collected_commits_{job_id}.csv': normalized,
                  f'collect_public_metadata_{job_id}.json': encode(metadata),
                  f'collect_public_quality_{job_id}.json': encode(report),
                  f'collect_public_quality_{job_id}.md': markdown(name, report).encode('utf-8')}
