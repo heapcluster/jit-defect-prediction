@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from starlette.concurrency import run_in_threadpool
 
+from app import config
 from app.api.storage import download, query_keys
 from app.auth import require_api_key
 from app.errors import AppError, ok
@@ -17,7 +18,7 @@ router = APIRouter(prefix='/api/clean', dependencies=[Depends(require_api_key)])
 @router.get('/operations')
 def operations(request: Request):
     query_keys(request, set())
-    return ok({'operations': clean_run._call('operations'), 'features': list(fc.FEATURE_COLUMNS)})
+    return ok({'operations': clean_run._call('operations'), 'features': list(config.FEATURE_COLUMNS)})
 
 
 @router.post('/run')

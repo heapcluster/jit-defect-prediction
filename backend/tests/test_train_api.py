@@ -16,7 +16,7 @@ from tests.test_clean_api import source_rows
 
 
 def settings(**extra):
-    return {'line': 'expert', 'algos': ['lr'], 'split': {'ratio': 0.7}, **extra}
+    return {'line': 'expert', 'feature_set': 'kamei14', 'algos': ['lr'], 'split': {'ratio': 0.7}, **extra}
 
 
 def post(client, config=None, files=None):
@@ -36,7 +36,9 @@ def train_client(client, tmp_path, monkeypatch):
         monkeypatch.setattr(output_store, 'OUTPUT_ROOT', tmp_path / 'outputs')
 
         def validate(raw):
-            if set(raw) - {'line', 'algos', 'hyperparams', 'split', 'seed', 'decision_threshold', 'register', 'auto_load'} or raw.get('line') != 'expert' or not raw.get('algos'):
+            allowed = {'line', 'feature_set', 'algos', 'hyperparams', 'split', 'seed',
+                       'decision_threshold', 'register', 'auto_load'}
+            if set(raw) - allowed or raw.get('line') != 'expert' or raw.get('feature_set') not in (None, 'kamei14') or not raw.get('algos'):
                 raise AppError(40001, 'invalid train config')
             return {'seed': 42, 'decision_threshold': 0.5, 'register': False, 'auto_load': False, 'split': {'ratio': 0.7}, **raw}
 
@@ -48,7 +50,9 @@ def train_client(client, tmp_path, monkeypatch):
             return {'config': {**config, 'feature_version': 'v1', 'input_sha': 'a' * 64},
                     'summary': {'input_rows': len(rows), 'labeled_rows': 3, 'unlabeled_rows': 1, 'train_rows': 2, 'test_rows': 1,
                                 'success_count': 1, 'failed_count': 0, 'warnings': []},
-                    'models': [sub], 'metrics_rows': [], 'comparison': {'line': 'expert', 'models': [sub]}}
+                    'models': [sub], 'metrics_rows': [],
+                    'testset_rows': [{key: ('1' if key == 'is_bug_inducing' else '') for key in fc.CLEAN_DATASET_COLUMNS}],
+                    'comparison': {'line': 'expert', 'models': [sub]}}
 
         def artifacts(result, job_id):
             return {f'train_lr_model_package_{job_id}.zip': b'PK\x03\x04mock', f'train_metrics_{job_id}.csv': b'metric\n',

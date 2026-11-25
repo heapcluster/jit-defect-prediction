@@ -187,7 +187,7 @@ function hasSensitiveValue(value) {
 const fields = computed(() => configuration.items.flatMap(item => {
   const meta = configuration.schema[item.config_key]
   if (!meta || sensitiveKey.test(item.config_key) || hasSensitiveValue(item.value)) return []
-  return [{ ...item, ...meta, key: item.config_key }]
+  return [{ ...meta, ...item, key: item.config_key }]
 }))
 const groups = computed(() => {
   const values = [...new Set(fields.value.map(field => field.group))]

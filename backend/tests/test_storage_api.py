@@ -18,6 +18,7 @@ from app.models import (
     Job,
     Model,
     ModelArtifact,
+    ModelFigure,
     Prediction,
     User,
     UserConfig,
@@ -34,7 +35,8 @@ ROOT = Path(__file__).parent / "fixtures/files/storage"
 HEADERS = {"X-API-Key": "test-token"}
 A, B = "a" * 40, "b" * 40
 CREATE = {"create_dataset": {"name": "AI fixture", "source_type": "git_repo",
-                             "source_url": "https://example.org/repo.git", "repo_name": "fixture"}}
+                             "source_url": "https://example.org/repo.git", "repo_name": "fixture",
+                             "branch": "main", "head_hash": "a" * 40}}
 
 
 def test_required_storage_modules():
@@ -122,6 +124,11 @@ def test_commits_idempotent_counts_and_null_preservation(storage_client, engine)
     assert set(first["items"][0]["target_tables"]) == {"commit", "dataset", "dataset_commit"}
     dataset = storage_client.get("/api/datasets", headers=HEADERS).json()["data"]["items"][0]
     assert (dataset["sample_count"], dataset["pos_count"], dataset["neg_count"]) == (2, 1, 0)
+    # 新契约：数据集元数据含来源/分支/HEAD 与未打标计数，统计来自成员二维表
+    assert dataset["source_type"] == "git_repo"
+    assert dataset["repo_name"] == "fixture"
+    assert dataset["branch"] == "main" and dataset["head_hash"] == "a" * 40
+    assert dataset["status"] == "ready"
     assert commits(storage_client).json()["data"]["items"][0]["unchanged"] == 2
     columns, rows = fc.read_table("commits.csv", (ROOT / "normal/commits.csv").read_bytes())
     rows[0]["is_bug_inducing"] = ""
@@ -233,6 +240,12 @@ def test_figure_verification(storage_client, engine, case):
     assert response.status_code == (200 if case == "valid" else 400)
     if case == "valid":
         assert response.json()["data"]["items"][0]["target_tables"] == ["model_figure"]
+        # 新契约：model_figure 以 (model_name, figure_type) 为键，登记标题与相对路径
+        with Session(engine) as db:
+            figure = db.get(ModelFigure, ("fixture", "roc"))
+            assert figure is not None
+            assert figure.title == "roc" and figure.file_path
+            assert figure.generated_at is not None
 
 
 @pytest.mark.parametrize("table", list(Base.metadata.tables))
@@ -274,10 +287,21 @@ def test_datasets_members_and_canonical_exports(storage_client):
     commits(storage_client)
     dataset = storage_client.get("/api/datasets?status=ready&q=AI", headers=HEADERS).json()["data"]["items"][0]
     url = f"/api/datasets/{dataset['dataset_id']}"
-    assert storage_client.get(url, headers=HEADERS).json()["data"]["pos_rate"] == 1
+    detail = storage_client.get(url, headers=HEADERS).json()["data"]
+    assert detail["pos_rate"] == 1
+    # 新契约：详情给出未打标计数与标签来源溯源，未打标不记入正负样本分母
+    assert detail["unlabeled_count"] == 0
+    assert detail["label_method_source"] == "not_stored"
     members = storage_client.get(url + "/commits", headers=HEADERS).json()["data"]
     assert members["total"] == 2
+    # 成员是已打标二维表，不再是特征视图：固定字段齐全且不含 is_test / Kamei 14 维
+    assert {
+        "commit_hash", "repo_name", "repo_url", "author_name", "author_email",
+        "committed_at", "message", "parent_hash", "is_bug_inducing", "label_method",
+        "label_source", "labeled_at", "fix_commit_hash", "source_type", "row_no",
+    } <= set(members["items"][0])
     assert "is_test" not in members["items"][0]
+    assert "ns" not in members["items"][0] and "features" not in members["items"][0]
     for artifact, cols in (("commits", fc.COLLECTED_COMMITS_COLUMNS), ("predictions", fc.PREDICTIONS_COLUMNS)):
         upload(storage_client, [("p.csv", prediction_rows())])
         params = {"artifact": artifact}
@@ -290,6 +314,11 @@ def test_datasets_members_and_canonical_exports(storage_client):
         assert columns == list(cols)
         if artifact == "predictions":
             assert rows[0]["predicted_label"] == "0"
+            # 新契约：预测导出逐字采用 §3.4，含模型/特征版本与透传真标签
+            assert rows[0]["model_version"] == "v2"
+            assert rows[0]["feature_version"] == "log-v2"
+            assert rows[0]["is_bug_inducing"] == "1"
+            assert set(rows[0]) == set(fc.PREDICTIONS_COLUMNS)
 
 
 @pytest.mark.parametrize("suffix", ["?size=0", "?status=evil", "/missing/commits?page=0"])

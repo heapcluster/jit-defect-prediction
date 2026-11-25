@@ -85,7 +85,10 @@ def test_token_error_does_not_reveal_which_char_is_wrong(client):
         "size=101",  # 超过上限 100
         "size=-5",
         "with_features=2",  # 仅 0/1
-        "is_test=2",
+        "is_test=1",  # 已废止参数，任何取值一律 40001
+        "risk_min=1.5",  # 风险区间须在 [0,1]
+        "risk_max=-0.1",
+        "risk_min=0.9&risk_max=0.1",  # min<=max
         "start_time=not-a-time",
         "end_time=2026-13-45",  # 月/日越界
     ],

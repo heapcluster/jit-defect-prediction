@@ -241,6 +241,14 @@ let requestId = 0
 async function load(page = filters.page) {
   const id = ++requestId
   filters.page = page
+  if (!filters.model_name) {
+    items.value = []
+    total.value = 0
+    error.value = '请先在预测工具台选择模型，再查看风险列表'
+    retryable.value = false
+    loading.value = false
+    return
+  }
   loading.value = true
   error.value = ''
   retryable.value = false

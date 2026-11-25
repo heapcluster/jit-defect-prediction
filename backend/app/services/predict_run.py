@@ -210,7 +210,7 @@ def _predict_rows(rows, cfg, progress, job_id, attempt, total):
             commit_hash = row['commit_hash']
             if line == 'expert':
                 if external and commit_hash in computed:
-                    vector = [float(computed[commit_hash][field]) for field in config.FEATURE_COLUMNS]
+                    vector = feature_source.vector_from(computed[commit_hash])
                 else:
                     vector = [float(row[field]) for field in config.FEATURE_COLUMNS]
             else:

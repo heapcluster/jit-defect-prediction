@@ -510,7 +510,13 @@ async function load() {
   error.value = ''
   errorCode.value = 0
   try {
-    const model = typeof route.query.model_name === 'string' ? route.query.model_name : undefined
+    const model = typeof route.query.model_name === 'string' ? route.query.model_name : ''
+    if (!model) {
+      detail.value = null
+      errorCode.value = 40001
+      error.value = '请先从风险列表进入，并携带 model_name 查看提交详情'
+      return
+    }
     detail.value = await getCommitDetail(props.hash, model)
     await loadExplanation()
   } catch (e) {

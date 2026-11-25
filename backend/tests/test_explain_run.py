@@ -401,6 +401,16 @@ def test_float_parameter_accepts_json_integer_number():
     )
 
 
+def test_single_explain_requires_explicit_model_name(explain_client):
+    """docs/api/explain.md §2：POST /api/explain 的 model_name 必填，不设默认值或回退。"""
+    client, _, _ = explain_client
+    response = client.post("/api/explain", json={"commit_hash": C1}, headers=HEADERS)
+    assert response.status_code == 400
+    body = response.json()
+    assert body["code"] == 40001
+    assert "model_name" in body["message"]
+
+
 def test_prediction_does_not_call_explain(client, monkeypatch):
     from app import explain_core
 

@@ -205,6 +205,13 @@ let requestId = 0
 async function load() {
   const id = ++requestId
   const granularity = filters.granularity
+  if (!filters.model_name) {
+    series.value = []
+    error.value = '请先在预测工具台选择模型，再查看趋势看板'
+    retryable.value = false
+    loading.value = false
+    return
+  }
   loading.value = true
   error.value = ''
   retryable.value = false

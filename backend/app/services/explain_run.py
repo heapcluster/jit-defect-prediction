@@ -480,7 +480,7 @@ def prepare_files(raw, files, *, model=None):
         if missing:
             fc.invalid(f"解释特征现算缺少 {len(missing)} 个提交")
         feature_rows = [{"commit_hash": r["commit_hash"],
-                         "features": [computed[r["commit_hash"]][f] for f in config.FEATURE_COLUMNS]}
+                         "features": feature_source.vector_from(computed[r["commit_hash"]])}
                         for r in rows]
     else:
         feature_rows = [

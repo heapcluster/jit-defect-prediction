@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/explain", dependencies=[Depends(require_api_key)
 class ExplainRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     commit_hash: str
-    model_name: str | None = None
+    model_name: str
     technique: str | None = None
     params: dict | None = None
 

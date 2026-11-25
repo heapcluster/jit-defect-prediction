@@ -1,15 +1,20 @@
-"""查询接口 3：缺陷引入趋势（契约三 1.5 第 3 节）。"""
+"""查询接口 3：缺陷引入趋势（docs/api/trends.md）。
+
+只读聚合已导入的 commit / prediction，按 ISO 周或月分桶；阈值从配置中心回显，
+不回写预测、不触发预测计算。
+"""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import case, func, select
 
 from app import schemas
+from app.api.storage import query_keys
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import AppError, ok
-from app.models import Commit, Prediction
+from app.models import Commit, Dataset, DatasetCommit, Prediction
 from app.services.config_store import get_value
 from app.timeutil import parse_time_param
 
@@ -49,11 +54,14 @@ def build_aggregate_stmt(base, granularity: str, high: float):
 
 @router.get("/api/trends", response_model=schemas.TrendsResponse)
 def trends(
+    request: Request,
     granularity: str = Query(default="week"),
     start_time: str | None = Query(default=None),
     end_time: str | None = Query(default=None),
     model_name: str | None = Query(default=None),
+    dataset_id: str | None = Query(default=None),
 ) -> dict:
+    query_keys(request, {"granularity", "start_time", "end_time", "model_name", "dataset_id"})
     if granularity not in ("week", "month"):
         raise AppError(40001, "参数非法：granularity 取值需为 week 或 month")
     if not model_name:
@@ -68,8 +76,13 @@ def trends(
         base = select(Prediction.risk_score, Commit.committed_at).join(
             Commit, Commit.commit_hash == Prediction.commit_hash
         )
-        if model is not None:
-            base = base.where(Prediction.model_name == model)
+        if dataset_id:
+            if session.get(Dataset, dataset_id) is None:
+                raise AppError(40400, "dataset not found")
+            base = base.join(
+                DatasetCommit, DatasetCommit.commit_hash == Prediction.commit_hash
+            ).where(DatasetCommit.dataset_id == dataset_id)
+        base = base.where(Prediction.model_name == model)
         if start is not None:
             base = base.where(Commit.committed_at >= start)
         if end is not None:
@@ -101,4 +114,10 @@ def trends(
                 }
                 for period_key, scores in sorted(buckets.items())
             ]
-    return ok({"granularity": granularity, "model_name": model, "series": series})
+    return ok({
+        "granularity": granularity,
+        "model_name": model,
+        "dataset_id": dataset_id,
+        "threshold": high,
+        "series": series,
+    })

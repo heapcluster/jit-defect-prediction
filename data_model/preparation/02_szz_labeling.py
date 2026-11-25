@@ -42,7 +42,7 @@
 > 其官方仓库依赖 gitlog 数据格式，属研究专用工具，Sprint 0 内跑通不现实。故按
 > docs/common/data-pipeline.md 第 3 节的兜底策略切自研实现：`szz` 由本脚本实现标准行级 SZZ
 > 算法。**契约一已于 1.2 版同步该口径**（`szz` = 标准行级 SZZ，自研实现），
-> `label_method` 取值集合 `{szz, szz_lite}` 与契约保持一致。
+> `label_method` 输出取值集合 `{szz_v1, szz_lite}` 与契约保持一致。
 
 ── 排除口径（D5）────────────────────────────────────────────────────────
 回溯未命中的修复提交 **既不入样本集也不记 0**，只在统计中单列数量。
@@ -460,6 +460,7 @@ def run_method(
 
 
 def write_labels(path: Path, method: str, result: dict, labeled_at: str) -> None:
+    label_method = {"szz": "szz_v1", "szz_lite": "szz_lite"}.get(method, method)
     rows = []
     for r in result["sample"]:
         h = r["commit_hash"]
@@ -468,7 +469,7 @@ def write_labels(path: Path, method: str, result: dict, labeled_at: str) -> None
             {
                 "commit_hash": h,
                 "is_bug_inducing": is_bug,
-                "label_method": method,
+                "label_method": label_method,
                 "bug_fix_hash": result["labels"].get(h, ""),
                 "labeled_at": labeled_at,
             }

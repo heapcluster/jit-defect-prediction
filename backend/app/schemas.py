@@ -176,10 +176,32 @@ class ModelsResponse(BaseModel):
     data: ModelsData
 
 
+class MetricRow(BaseModel):
+    model_name: str
+    line: str | None = None
+    metric: str
+    value: float | None = None
+    threshold: float | None = None
+    n: int | None = None
+    pos_rate: float | None = None
+    dataset_version: str | None = None
+    model_version: str | None = None
+    computed_at: str | None = None
+
+
 class FigureData(BaseModel):
     figure_type: str
+    effort_kind: str | None = None
     title: str
     file_path: str
+    checksum_sha256: str | None = None
+    source_job_id: str | None = None
+
+
+class MissingFigure(BaseModel):
+    figure_type: str
+    file_path: str
+    reason: str
 
 
 class MetricsData(BaseModel):
@@ -196,10 +218,12 @@ class MetricsData(BaseModel):
 class FiguresData(BaseModel):
     model_name: str
     line: str
-    metrics: MetricsData | None = None
-    figures: list[FigureData]
+    source_job_id: str | None = None
+    metrics: list[MetricRow] = Field(default_factory=list)
+    metrics_unavailable: str | None = None
+    figures: list[FigureData] = Field(default_factory=list)
     # 库内有记录但磁盘缺图：前端据此提示降级，不把不可用路径当可用返回
-    missing: list[str] = Field(default_factory=list)
+    missing: list[MissingFigure] = Field(default_factory=list)
 
 
 class FiguresResponse(BaseModel):

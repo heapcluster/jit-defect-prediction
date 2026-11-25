@@ -99,10 +99,13 @@ def validate_templates(value):
             fc.invalid('训练模板名称非法')
         if not isinstance(template, dict) or 'line' not in template or 'algos' not in template:
             fc.invalid('训练模板必须含 line 与 algos')
-        allowed = {'line', 'algos', 'hyperparams', 'split', 'seed', 'decision_threshold', 'register', 'auto_load'}
+        allowed = {'line', 'feature_set', 'algos', 'hyperparams', 'split', 'seed', 'decision_threshold',
+                   'register', 'auto_load'}
         if set(template) - allowed:
             fc.invalid('训练模板含未知字段')
-        _call('validate_config', {'line': template['line'], 'algos': template['algos'],
+        line = template['line']
+        feature_set = template.get('feature_set') or {'expert': 'kamei14', 'semantic': 'codebert768'}.get(line)
+        _call('validate_config', {'line': line, 'feature_set': feature_set, 'algos': template['algos'],
             'hyperparams': template.get('hyperparams', {}), 'split': template.get('split', {'ratio': 0.7}),
             'seed': template.get('seed', 42), 'decision_threshold': template.get('decision_threshold', 0.5),
             'register': template.get('register', False), 'auto_load': template.get('auto_load', False)})
@@ -211,8 +214,11 @@ def submit(session, raw_config, files):
         dispatch()
         current = job_store.get(session, job['job_id'])
         ref = current['output_ref_json'] or {}
+        testset = next((item['name'] for item in ref.get('outputs', [])
+                        if item.get('name', '').startswith('train_testset_')), None)
         return {'job_id': current['job_id'], 'status': current['status'], 'outputs': ref.get('outputs', []),
-                'models': ref.get('models', []), 'summary': ref.get('summary'), 'error_log': current['error_log']}
+                'models': ref.get('models', []), 'summary': ref.get('summary'), 'testset': testset,
+                'error_log': current['error_log']}
     dispatch()
     return {'job_id': job['job_id'], 'status': job['status']}
 
@@ -266,6 +272,8 @@ def _execute(job_id, attempt):
                                           done=max(done, job['done']), current_item=phase)
 
         result = _call('run', request['rows'], request['config'], metadata=request['metadata'], progress=progress)
+        if not isinstance(result.get('testset_rows'), list) or not result['testset_rows']:
+            raise AppError(40001, '训练内核未返回测试集行，无法产出 train_testset')
         result['job_id'] = job_id
         artifacts = _call('artifacts', result, job_id)
         version = output_store.backend_code_version() + '+' + _call('code_version')

@@ -173,7 +173,7 @@ def test_predict_new_git_commit_extracts_and_persists_features(client, tmp_path,
         assert session.query(CommitFeature).filter_by(commit_hash=commit_hash).count() == 1
     detail = client.get(f"/api/commits/{commit_hash}", params={"model_name": "fixture_v2"}, headers=HEADERS)
     assert detail.status_code == 200
-    assert detail.json()["data"]["risk_score"] is not None
+    assert detail.json()["data"]["prediction"]["risk_score"] is not None
     listed = client.get("/api/commits", params={"model_name": "fixture_v2"}, headers=HEADERS).json()
     assert commit_hash in {item["commit_hash"] for item in listed["data"]["items"]}
 

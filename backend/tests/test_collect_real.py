@@ -17,6 +17,23 @@ from sqlalchemy import func, select
 from tests.conftest import HEADERS
 
 
+def assert_collect_contract_outputs(job_id, result):
+    """docs/api/collect.md §2/§3：按新契约登记六类产物 + 同名 manifest。"""
+    names = {item['name'] for item in result['outputs']}
+    assert {
+        f'collected_commits_{job_id}.csv',
+        f'collected_commits_{job_id}.xlsx',
+        f'collect_summary_{job_id}.json',
+        f'collect_audit_{job_id}.json',
+        f'collect_quality_{job_id}.json',
+        f'collect_quality_{job_id}.md',
+        f'collected_commits_{job_id}.manifest.json',
+    } <= names
+    assert result['manifest_name'] == f'collected_commits_{job_id}.manifest.json'
+    # 旧名 commits_<job_id>.* 已废止，不得再登记。
+    assert not any(name.startswith('commits_') for name in names)
+
+
 @pytest.fixture
 def real_collect(client, tmp_path, monkeypatch):
     monkeypatch.setattr(collect_run, 'REQUEST_ROOT', tmp_path / 'requests')
@@ -53,7 +70,8 @@ def run(client, repo, **settings):
     job = client.get('/api/jobs/' + job_id, headers=HEADERS).json()['data']
     assert job['status'] == 'success', job['error_log']
     result = job['output_ref_json']
-    csv_name = next(item['name'] for item in result['outputs'] if item['name'].endswith('.csv'))
+    assert_collect_contract_outputs(job_id, result)
+    csv_name = f'collected_commits_{job_id}.csv'
     raw = client.get(f'/api/collect/outputs/{job_id}/{csv_name}', headers=HEADERS).content
     return job_id, result, list(csv.DictReader(io.StringIO(raw.decode('utf-8-sig')))), raw
 
@@ -90,6 +108,40 @@ def test_real_collected_output_can_be_explicitly_imported(real_collect):
     assert response.json()['data']['summary']['inserted'] == len(rows)
 
 
+def test_real_collect_quality_report_is_downloadable_and_traceable(real_collect):
+    """新契约：collect_quality_*.json/md 为已登记产物，内容只投影采集结果、不伪造指标。"""
+    client, repo, _ = real_collect
+    job_id, result, rows, _ = run(client, repo)
+    manifest = json.loads(client.get(
+        f'/api/collect/outputs/{job_id}/{result["manifest_name"]}', headers=HEADERS).content)
+    entries = {item['name']: item for item in manifest['outputs']}
+
+    quality_name = f'collect_quality_{job_id}.json'
+    markdown_name = f'collect_quality_{job_id}.md'
+    quality_raw = client.get(f'/api/collect/outputs/{job_id}/{quality_name}', headers=HEADERS).content
+    markdown_raw = client.get(f'/api/collect/outputs/{job_id}/{markdown_name}', headers=HEADERS).content
+    assert fc.sha256(quality_raw) == entries[quality_name]['sha256']
+    assert fc.sha256(markdown_raw) == entries[markdown_name]['sha256']
+
+    quality = json.loads(quality_raw)
+    assert set(quality) == {'summary', 'audit', 'checks'}
+    checks = quality['checks']
+    assert {
+        'missing_rate', 'duplicate_rows', 'skipped_rows', 'label_conflicts',
+        'time_anomalies', 'field_mapping', 'anomaly_samples', 'handling_note',
+    } <= set(checks)
+    # 采集内核未上报的指标必须保持 null，不得推测。
+    assert checks['label_conflicts'] is None
+    assert checks['time_anomalies'] is None
+    assert checks['anomaly_samples'] is None
+    total = quality['summary'].get('rows', quality['summary'].get('total_rows'))
+    unlabeled = quality['summary'].get('unlabeled_rows')
+    if isinstance(total, int) and total > 0 and isinstance(unlabeled, int):
+        assert checks['missing_rate'] == pytest.approx(unlabeled / total)
+    markdown = markdown_raw.decode('utf-8')
+    assert '## summary' in markdown and '## audit' in markdown and '## checks' in markdown
+
+
 def test_cli_and_api_files_are_identical_for_the_same_real_repository(real_collect, tmp_path):
     client, repo, _ = real_collect
     _, _, rows, _ = run(client, repo)
@@ -99,7 +151,7 @@ def test_cli_and_api_files_are_identical_for_the_same_real_repository(real_colle
         '--allow-root', str(repo.parent), '--out', str(tmp_path / 'cli')],
         cwd=root, env={**os.environ, 'PYTHONPATH': str(root / 'data_model')}, text=True, capture_output=True)
     assert process.returncode == 0, process.stdout + process.stderr
-    csv_path = next((tmp_path / 'cli').rglob('collect_commits_*.csv'))
+    csv_path = next((tmp_path / 'cli').rglob('collected_commits_*.csv'))
     with csv_path.open(encoding='utf-8-sig', newline='') as source:
         assert list(csv.DictReader(source)) == rows
 

@@ -171,6 +171,11 @@ def _source_or_localize(args):
 
 
 def main(argv=None) -> int:
+    # Windows 控制台默认 GBK 会让 ensure_ascii=False 的 JSON 以非 UTF-8 字节输出，
+    # 调用方（含 subprocess 测试）按 UTF-8 解码时会失败；CLI 协议固定 UTF-8。
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description="JIT 预测与模型管理 CLI")
     sub = parser.add_subparsers(dest="group", required=True)
     predict = sub.add_parser("predict").add_subparsers(dest="action", required=True)

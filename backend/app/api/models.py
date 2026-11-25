@@ -1,7 +1,7 @@
 """模型清单接口：GET /api/models（docs/api/models.md）。
 
-数据来源 `model` 表（model_name / line），按 line 分组，只读；「架构 → 模型」两级
-级联选择器的唯一数据源，前端不写死清单。
+登记源为 `model_artifact` 表（docs/api/models.md §1、docs/database/model_artifact.md）：
+`model` 行由工件派生，选择器只列 available 工件，retired 不可选；只读，不触发加载。
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from app import schemas
 from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import AppError, ok
-from app.models import Model
+from app.models import ModelArtifact
 from app.services import model_manage
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
@@ -28,9 +28,13 @@ def list_models(line: str | None = Query(default=None)) -> dict:
     if line is not None and line not in LINE_ORDER:
         raise AppError(40001, "参数非法：line 取值需为 expert / semantic")
     with SessionLocal() as session:
-        stmt = select(Model.model_name, Model.line)
+        # 唯一登记源是 model_artifact；model 行只是它的派生结果，不能反向当清单源。
+        # retired 工件保留追溯但不可选；load_failed 仍是登记工件，沿用 status 口径由 status 端点暴露失败态。
+        stmt = select(ModelArtifact.model_name, ModelArtifact.line).where(
+            ModelArtifact.status == "available"
+        )
         if line is not None:
-            stmt = stmt.where(Model.line == line)
+            stmt = stmt.where(ModelArtifact.line == line)
         rows = session.execute(stmt).all()
     grouped: dict[str, list[str]] = {name: [] for name in LINE_ORDER}
     for model_name, model_line in rows:

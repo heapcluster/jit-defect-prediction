@@ -10,7 +10,7 @@ import sys
 import threading
 from functools import lru_cache
 from pathlib import Path
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from sqlalchemy import select
 
@@ -19,6 +19,7 @@ from app.errors import AppError
 from app.models import Dataset, DatasetCommit, Job
 from app.services import config_store, job_store, output_store
 from app.services import file_contracts as fc
+from app.timeutil import now_naive_utc
 
 logger = logging.getLogger('backend.collect')
 REQUEST_ROOT = config.TEMP_ROOT / 'collect_inputs'
@@ -54,6 +55,48 @@ def _policy(session):
 
 def _json(value):
     return json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True).encode('utf-8')
+
+
+def _quality_report(result, settings):
+    """Only project values already present in the collector result; never invent metrics."""
+    summary = job_store.sanitize(result.get('summary') or {})
+    audit = job_store.sanitize(result.get('audit') or {})
+    total = summary.get('rows', summary.get('total_rows'))
+    unlabeled = summary.get('unlabeled_rows')
+    missing_rate = (unlabeled / total) if isinstance(total, int) and total > 0 and isinstance(unlabeled, int) else None
+    checks = {
+        'missing_rate': missing_rate,
+        'duplicate_rows': audit.get('deduplicated'),
+        'skipped_rows': audit.get('skipped'),
+        'label_conflicts': None,
+        'time_anomalies': None,
+        'field_mapping': settings.get('field_mapping'),
+        'anomaly_samples': None,
+        'handling_note': '采集内核未上报的指标保持 null，不做推测。',
+    }
+    return {'summary': summary, 'audit': audit, 'checks': checks}
+
+
+def _quality_cell(value):
+    if value is None:
+        return 'null'
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True).replace('|', '\\|')
+    return str(value).replace('|', '\\|').replace('\n', ' ')
+
+
+def _quality_markdown(report):
+    lines = ['# 采集质量报告', '', '> 仅由采集结果的 summary/audit 派生，未上报指标标记为 null。', '']
+    for section in ('summary', 'audit', 'checks'):
+        value = report.get(section) or {}
+        lines.append(f'## {section}')
+        lines.append('')
+        lines.append('| 字段 | 值 |')
+        lines.append('|---|---|')
+        for key in sorted(value):
+            lines.append(f'| {key} | {_quality_cell(value[key])} |')
+        lines.append('')
+    return ('\n'.join(lines)).encode('utf-8')
 
 
 def _request_path(reference):
@@ -165,11 +208,14 @@ def _execute(job_id, attempt):
         progress('publish', 5, 5)
         settings = job_store.sanitize(result['config'])
         settings['source_fingerprint'] = fc.sha256(_json(request['config']))
-        base = f'collect_commits_{job_id}'
+        base = f'collected_commits_{job_id}'
+        quality = _quality_report(result, settings)
         artifacts = {base + '.csv': _call('encode_rows', result['rows'], 'csv'),
                      base + '.xlsx': _call('encode_rows', result['rows'], 'xlsx'),
                      f'collect_summary_{job_id}.json': _json(job_store.sanitize(result['summary'])),
-                     f'collect_audit_{job_id}.json': _json(job_store.sanitize(result['audit']))}
+                     f'collect_audit_{job_id}.json': _json(job_store.sanitize(result['audit'])),
+                     f'collect_quality_{job_id}.json': _json(quality),
+                     f'collect_quality_{job_id}.md': _quality_markdown(quality)}
         inputs = []
         for item in result['inputs']:
             if item.get('name') == 'repository_snapshot.json' and item.get('path'):
@@ -219,3 +265,60 @@ def dispatch():
 def dispatch_retry(data):
     if data['kind'] == 'collect' and (data['params_json'] or {}).get('module') == 'collect':
         dispatch()
+
+
+def resave(session, job_id):
+    """Re-import an already published collected_commits artifact; never re-run collect/SZZ."""
+    job = job_store.get(session, job_id)
+    if job['kind'] != 'collect' or job['status'] != 'success':
+        raise AppError(40400, '采集任务不存在或未成功')
+    reference = job['output_ref_json'] or {}
+    candidates = (f'collected_commits_{job_id}.csv', f'collected_commits_{job_id}.xlsx')
+    entry = next((item for item in reference.get('outputs', []) if item.get('name') in candidates), None)
+    if entry is None:
+        raise AppError(40400, '采集产物未登记')
+    name = entry['name']
+    try:
+        path = output_store.read_output('collect', job_id, name)
+    except AppError as error:
+        if error.code == 40400:
+            raise AppError(40001, '输入产物 checksum 不一致') from error
+        raise
+    content = path.read_bytes()
+    if fc.sha256(content) != entry.get('sha256'):
+        raise AppError(40001, '输入产物 checksum 不一致')
+    columns, rows = fc.read_table(name, content)
+    if tuple(columns) != tuple(fc.COLLECTED_COMMITS_COLUMNS):
+        fc.invalid('采集产物列与契约不一致')
+    from app.services import storage
+
+    validated = storage.table_rows('collected_commits', rows, None)
+    for row in validated:
+        if row.get('author_name') is None:
+            row['author_name'] = ''
+    settings = (job['params_json'] or {}).get('config') or {}
+    summary = reference.get('summary') or {}
+    head = summary.get('head_hash')
+    head_hash = head if isinstance(head, str) and re.fullmatch(r'[0-9a-f]{40}', head) else None
+    source = settings.get('repo_source') or ''
+    dataset_id = str(uuid5(NAMESPACE_URL, 'collect-resave:' + job_id))
+    dataset = session.get(Dataset, dataset_id, with_for_update=True)
+    if dataset is None:
+        session.add(Dataset(
+            dataset_id=dataset_id,
+            name=str(settings.get('dataset_name') or f'collected_{job_id}')[:128],
+            source_type='git_repo' if source else 'public_dataset',
+            source_url=str(settings.get('source_url') or (source if '://' in source else ''))[:512] or None,
+            repo_name=str(settings.get('dataset_name') or '')[:128],
+            repo_source=source[:255],
+            branch=settings.get('branch'),
+            head_hash=head_hash,
+            mode=settings.get('mode') or 'full',
+            status='ready',
+            job_id=job_id,
+            created_at=now_naive_utc().replace(microsecond=0),
+        ))
+        session.flush()
+    storage.import_table(session, 'collected_commits', validated, {'dataset_id': dataset_id}, None)
+    session.commit()
+    return {'job_id': job_id, 'dataset_id': dataset_id, 'status': 'success'}

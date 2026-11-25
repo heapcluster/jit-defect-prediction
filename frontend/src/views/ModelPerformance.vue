@@ -229,6 +229,23 @@
           class="mb"
         />
 
+        <el-alert
+          v-if="metricsUnavailable"
+          :title="'指标不可用：' + metricsUnavailable"
+          type="warning"
+          show-icon
+          :closable="false"
+          class="mb"
+        />
+        <el-alert
+          v-if="missingFigures.length"
+          :title="'部分图不可用：' + missingFigures.map((f) => f.figure_type + '/' + f.reason).join('，')"
+          type="warning"
+          show-icon
+          :closable="false"
+          class="mb"
+        />
+
         <div
           v-if="metrics"
           class="metrics"
@@ -362,6 +379,8 @@ const drawerVisible = ref(false)
 const drawerLoading = ref(false)
 const drawerError = ref('')
 const metrics = ref(null)
+const metricsUnavailable = ref('')
+const missingFigures = ref([])
 const figureImages = ref([])
 const drawerTitle = computed(() =>
   selectedModel.value ? `${selectedModel.value} 性能评估` : '性能评估'
@@ -373,10 +392,14 @@ async function openDrawer() {
   drawerLoading.value = true
   drawerError.value = ''
   metrics.value = null
+  metricsUnavailable.value = ''
+  missingFigures.value = []
   figureImages.value = []
   try {
     const data = await getFigures(selectedModel.value)
-    metrics.value = data.metrics || null
+    metrics.value = Object.fromEntries((data.metrics || []).map((row) => [row.metric, row.value]))
+    metricsUnavailable.value = data.metrics_unavailable || ''
+    missingFigures.value = data.missing || []
     const urls = await Promise.all(
       (data.figures || []).map(async (f) => ({
         figure_type: f.figure_type,

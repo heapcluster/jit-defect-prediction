@@ -37,7 +37,7 @@ async def run_collect(request: Request, config: Annotated[str, Form()] = '{}',
 @router.get('/preview/{job_id}')
 def preview_collect(request: Request, job_id: str):
     query_keys(request, set())
-    path = collect_run.output_store.read_output('collect', job_id, f'collect_commits_{job_id}.csv')
+    path = collect_run.output_store.read_output('collect', job_id, f'collected_commits_{job_id}.csv')
     try:
         with path.open(encoding='utf-8-sig', newline='') as source:
             reader = csv.DictReader(source)
@@ -49,6 +49,17 @@ def preview_collect(request: Request, job_id: str):
     except csv.Error as error:
         fc.invalid(f'无法预览表格：{error}')
     return ok({'columns': columns, 'preview': rows})
+
+
+@router.post('/resave/{job_id}')
+def resave_collect(request: Request, job_id: str):
+    query_keys(request, set())
+
+    def resave():
+        with collect_run.db.SessionLocal() as session:
+            return collect_run.resave(session, job_id)
+
+    return ok(run_in_threadpool(resave))
 
 
 @router.get('/outputs/{job_id}/{name}')

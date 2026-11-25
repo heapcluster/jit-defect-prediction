@@ -43,6 +43,12 @@ def test_status_load_unload_reload_default(manage):
     status = client.get('/api/models/status', headers=HEADERS).json()['data']
     item = next(i for i in status['items'] if i['model_name'] == name)
     assert item['artifact_status'] == 'available' and item['checksum_sha256']
+    # docs/api/models.md §2：状态项逐字段齐全，GET 清单不触发加载
+    assert {
+        'model_name', 'line', 'algo', 'artifact_status', 'runtime_state',
+        'load_error', 'version_key', 'feature_version', 'trained_at', 'checksum_sha256',
+    } <= set(item)
+    assert 'selected_model' in status
     loaded = client.post(f'/api/models/{name}/load', headers=HEADERS).json()['data']
     assert loaded['runtime_state'] == 'loaded' and loaded['load_error'] is None
     assert model_registry.has(name)

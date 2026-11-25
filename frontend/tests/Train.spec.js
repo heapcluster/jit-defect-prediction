@@ -99,7 +99,7 @@ it('retains draft when no file and disables run without algorithms', async () =>
 })
 it('blocks non-expert line with input-requirements reason', async () => {
   await open(); await upload(); await wrapper.get('#train-line').setValue('semantic')
-  expect(wrapper.text()).toContain('嵌入')
+  expect(wrapper.text()).toContain('可读仓库')
   expect(wrapper.get('[data-testid="train-run"]').attributes('disabled')).toBeDefined()
 })
 it('submits hyperparameter overrides and split ratio', async () => {

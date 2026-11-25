@@ -16,12 +16,10 @@ vi.mock('../src/api', () => ({
 
 // 模型层级（架构 → 模型）唯一数据源是 GET /api/models，前端不写死清单
 describe('模型层级（架构 → 模型）', () => {
-  it('四个架构固定顺序 + 中文名', () => {
-    expect(LINE_ORDER).toEqual(['expert', 'semantic', 'fused', 'e2e'])
+  it('两条架构固定顺序 + 中文名', () => {
+    expect(LINE_ORDER).toEqual(['expert', 'semantic'])
     expect(LINE_LABELS.expert).toBe('专家特征')
     expect(LINE_LABELS.semantic).toBe('语义')
-    expect(LINE_LABELS.fused).toBe('融合')
-    expect(LINE_LABELS.e2e).toBe('端到端')
   })
 
   it('loadModelLines 走 GET /api/models 并缓存结果', async () => {

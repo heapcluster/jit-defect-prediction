@@ -33,7 +33,7 @@ COLLECTED_COMMITS_COLUMNS = (
     "message", "parent_hash", "is_bug_inducing", "label_method", "label_source", "labeled_at",
     "fix_commit_hash", "source_type",
 )
-COLLECTED_COMMITS_REQUIRED = {"commit_hash", "repo_name", "label_source", "source_type"}
+COLLECTED_COMMITS_REQUIRED = {"commit_hash", "repo_name", "is_bug_inducing", "label_source", "source_type"}
 CLEAN_DATASET_COLUMNS = (*COLLECTED_COMMITS_COLUMNS, "message_length", "parent_count", "commit_hour")
 CLEAN_DATASET_REQUIRED = COLLECTED_COMMITS_REQUIRED
 
@@ -44,7 +44,8 @@ COMMITS_REQUIRED = {"commit_hash", "repo_name", "author_name", "committed_at", "
 
 PREDICTIONS_COLUMNS = ("commit_hash", "model_name", "risk_score", "predicted_label", "decision_threshold",
                        "model_version", "feature_version", "predicted_at", "is_bug_inducing")
-PREDICTIONS_REQUIRED = set(PREDICTIONS_COLUMNS) - {"is_bug_inducing"}
+# §3.4：is_bug_inducing 列必须存在（值在新提交预测场景允许为空），不能当作可选列漏掉。
+PREDICTIONS_REQUIRED = set(PREDICTIONS_COLUMNS)
 
 
 def invalid(message: str) -> None:

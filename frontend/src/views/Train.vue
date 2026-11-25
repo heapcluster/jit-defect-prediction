@@ -464,7 +464,7 @@ async function useArtifact() {
 function snapshot() {
   const hp = {}
   for (const algo of selected.value) hp[algo] = Object.fromEntries(Object.entries(hyperparams[algo] || {}).filter(([, v]) => v != null && v !== ''))
-  return { line: line.value, algos: [...selected.value], hyperparams: hp,
+  return { line: line.value, feature_set: line.value === 'semantic' ? 'codebert768' : 'kamei14', algos: [...selected.value], hyperparams: hp,
     split: splitMode.value === 'ratio' ? { ratio: draft.ratio } : { time_boundary: draft.boundary },
     seed: draft.seed, decision_threshold: draft.threshold, register: draft.register, auto_load: draft.auto_load }
 }

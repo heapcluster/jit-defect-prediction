@@ -81,6 +81,7 @@ METRICS_COLUMNS = (
 )
 _CONFIG_FIELDS = {
     "line",
+    "feature_set",
     "algos",
     "hyperparams",
     "split",
@@ -89,6 +90,8 @@ _CONFIG_FIELDS = {
     "register",
     "auto_load",
 }
+# One authoritative mapping: line decides the only legal feature_set, and vice versa.
+FEATURE_SETS = {"kamei14": "expert", "codebert768": "semantic"}
 
 
 def _invalid(message):
@@ -129,6 +132,11 @@ def validate_config(raw: dict) -> dict:
     if not isinstance(raw, dict) or set(raw) - _CONFIG_FIELDS or not {"line", "algos"} <= set(raw):
         _invalid("Config requires line and algos and permits no unknown keys")
     selection = registry.validate_selection(raw["line"], raw["algos"], raw.get("hyperparams", {}))
+    feature_set = raw.get("feature_set")
+    if not isinstance(feature_set, str) or feature_set not in FEATURE_SETS:
+        _invalid("feature_set must be one of kamei14/codebert768")
+    if FEATURE_SETS[feature_set] != selection["line"]:
+        _invalid(f"feature_set {feature_set} is incompatible with line {selection['line']}")
     split = raw.get("split", {"ratio": 0.7})
     if not isinstance(split, dict) or not split or set(split) - {"ratio", "time_boundary"}:
         _invalid("split must be exactly one of ratio or time_boundary (random split forbidden)")
@@ -147,6 +155,7 @@ def validate_config(raw: dict) -> dict:
             _invalid(f"{field} must be boolean")
     return {
         "line": selection["line"],
+        "feature_set": feature_set,
         "algos": selection["algos"],
         "hyperparams": selection["hyperparams"],
         "split": split,
@@ -267,16 +276,19 @@ def run(rows: list[dict], config: dict, *, metadata: dict | None = None, progres
     repo = (metadata or {}).get("repo")
     if not repo:
         raise TrainError("external dataset requires a bound repository (metadata.repo) for feature extraction")
-    feature_order = list(fc.FEATURE_COLUMNS) if line == "expert" else [f"semantic_{i}" for i in range(768)]
+    feature_set = normalized["feature_set"]
+    feature_order = (list(fc.FEATURE_COLUMNS) if feature_set == "kamei14"
+                     else [f"semantic_{i}" for i in range(768)])
     try:
         if line == "expert":
+            from app import feature_source
             computed = extract_features([row["commit_hash"] for row in validated], repo)
             by_hash = {item["commit_hash"]: item for item in computed}
             missing = [row["commit_hash"] for row in validated if row["commit_hash"] not in by_hash]
             if missing:
                 raise TrainError(f"feature extraction missing {len(missing)} commits (e.g. {missing[0]})")
             for row in validated:
-                row["_vector"] = [float(by_hash[row["commit_hash"]][f]) for f in fc.FEATURE_COLUMNS]
+                row["_vector"] = feature_source.vector_from(by_hash[row["commit_hash"]])
         else:
             from app import semantic_source
             for row in validated:
@@ -356,6 +368,7 @@ def run(rows: list[dict], config: dict, *, metadata: dict | None = None, progres
             meta = {
                 "model_name": model_name,
                 "line": normalized["line"],
+                "feature_set": feature_set,
                 "algo": algo,
                 "version_key": version_key,
                 "feature_version": version,
@@ -424,6 +437,7 @@ def run(rows: list[dict], config: dict, *, metadata: dict | None = None, progres
         },
         "models": models,
         "metrics_rows": metrics_rows,
+        "testset_rows": [{key: row.get(key) for key in fc.CLEAN_DATASET_COLUMNS} for row in test],
         "comparison": comparison,
         "packages": packages,
         "predictions": predictions,
@@ -566,6 +580,15 @@ def artifacts(result: dict, job_id: str) -> dict[str, bytes]:
             output[f"train_{item['algo']}_model_package_{job_id}.zip"] = result["packages"][
                 item["algo"]
             ]
+    testset = result.get("testset_rows")
+    if not isinstance(testset, list) or not testset:
+        _invalid("train result contains no testset rows; train_testset cannot be fabricated")
+    if any(row.get("is_bug_inducing") in (None, "") for row in testset):
+        _invalid("train testset rows must all carry a non-null is_bug_inducing label")
+    for fmt in ("csv", "xlsx"):
+        output[f"train_testset_{job_id}.{fmt}"] = fc.encode_table(
+            fc.CLEAN_DATASET_COLUMNS, testset, fmt
+        )
     output[f"train_metrics_{job_id}.csv"] = fc.encode_table(
         METRICS_COLUMNS, result["metrics_rows"], "csv"
     )
@@ -618,6 +641,8 @@ def main(argv=None) -> int:
     )
     command.add_argument("--input", required=True, type=Path)
     command.add_argument("--line", required=True, choices=registry.LINES)
+    command.add_argument("--feature-set", choices=tuple(FEATURE_SETS),
+                         help="kamei14 for expert / codebert768 for semantic (defaults by line)")
     command.add_argument("--algos", required=True, help="Comma-separated algorithm names")
     command.add_argument("--hyperparams", type=Path, help="JSON file {algo: {param: value}}")
     command.add_argument("--split-ratio", type=float)
@@ -678,6 +703,7 @@ def main(argv=None) -> int:
         hyperparams = fc.read_json(_read_bounded(args.hyperparams)) if args.hyperparams else {}
         raw = {
             "line": args.line,
+            "feature_set": args.feature_set or {"expert": "kamei14", "semantic": "codebert768"}[args.line],
             "algos": args.algos.split(","),
             "hyperparams": hyperparams,
             "split": split,

@@ -43,6 +43,7 @@ CONTRACT_PATHS = {
     "/api/datasets/{dataset_id}/export",
     "/api/collect/run",
     "/api/collect/preview/{job_id}",
+    "/api/collect/resave/{job_id}",
     "/api/collect/outputs/{job_id}/{name}",
     "/api/clean/run",
     "/api/clean/operations",
@@ -106,7 +107,7 @@ def test_models_params_match_contract(client):
 
 def test_figures_params_match_contract(client):
     params = {p["name"] for p in _schema(client)["paths"]["/api/figures"]["get"]["parameters"]}
-    assert "model_name" in params
+    assert {"model_name", "figure_type", "job_id"} <= params
 
 
 def test_trends_params_match_contract(client):
@@ -211,21 +212,41 @@ def test_models_response_fields_match_contract(client):
 
 def test_figures_response_fields_match_contract(client):
     doc, data = _data_props(client, "/api/figures")
-    assert _keys(doc, data) == {"model_name", "line", "metrics", "figures", "missing"}
+    assert _keys(doc, data) == {
+        "model_name",
+        "line",
+        "source_job_id",
+        "metrics",
+        "metrics_unavailable",
+        "figures",
+        "missing",
+    }
     assert _keys(doc, data["properties"]["figures"]["items"]) == {
         "figure_type",
+        "effort_kind",
         "title",
         "file_path",
+        "checksum_sha256",
+        "source_job_id",
     }
-    assert _keys(doc, data["properties"]["metrics"]) == {
-        "auc",
-        "ap",
-        "f1",
-        "precision",
-        "recall",
-        "accuracy",
+    # §3.6 指标长表：逐模型逐指标一行，不是旧的 8 字段宽表对象。
+    assert _keys(doc, data["properties"]["metrics"]["items"]) == {
+        "model_name",
+        "line",
+        "metric",
+        "value",
+        "threshold",
         "n",
         "pos_rate",
+        "dataset_version",
+        "model_version",
+        "computed_at",
+    }
+    # 缺图/校验失败改为对象数组，逐项给出 figure_type/file_path/reason。
+    assert _keys(doc, data["properties"]["missing"]["items"]) == {
+        "figure_type",
+        "file_path",
+        "reason",
     }
 
 

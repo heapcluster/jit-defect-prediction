@@ -69,3 +69,9 @@ def extract_many(commit_hashes: list[str], repo: Path | str | None = None) -> li
     if batch is not None:
         return batch(source, list(commit_hashes), skip_missing=True)
     return [module.extract_single_commit(source, commit_hash) for commit_hash in commit_hashes]
+
+
+def vector_from(item: dict) -> list[float]:
+    """兼容嵌套 features 与扁平插件返回，统一输出契约顺序的 14 维向量。"""
+    values = item.get("features", item)
+    return [float(values[field]) for field in config.FEATURE_COLUMNS]

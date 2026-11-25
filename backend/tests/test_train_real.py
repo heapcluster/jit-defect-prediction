@@ -33,7 +33,22 @@ def train_rows(n=12):
 
 
 def settings(**extra):
-    return {'line': 'expert', 'algos': ['lr', 'rf'], 'split': {'ratio': 0.7}, 'seed': 42, 'decision_threshold': 0.5, **extra}
+    return {'line': 'expert', 'feature_set': 'kamei14', 'algos': ['lr', 'rf'],
+            'split': {'ratio': 0.7}, 'seed': 42, 'decision_threshold': 0.5, **extra}
+
+
+def assert_train_testset(client, job_id, result):
+    """新契约：train_testset_<job_id>.csv 为 §3.3 测试集，schema 同 clean_dataset。"""
+    testset = result['testset']
+    assert testset == f'train_testset_{job_id}.csv'
+    assert testset in {item['name'] for item in result['outputs']}
+    response = client.get(f'/api/train/outputs/{job_id}/{testset}', headers=HEADERS)
+    assert response.status_code == 200, response.text
+    columns, rows = fc.read_table(testset, response.content)
+    assert tuple(columns) == tuple(fc.CLEAN_DATASET_COLUMNS)
+    assert rows and all(row['is_bug_inducing'] not in ('', None) for row in rows)
+    assert 'is_test' not in columns
+    assert not any(column.startswith('semantic_') for column in columns)
 
 
 def post(client, config=None, rows=None):
@@ -84,16 +99,18 @@ def test_real_train_packages_register_and_autoload(real_train):
         zip_name = f'train_{sub["algo"]}_model_package_{job_id}.zip'
         blob = client.get(f'/api/train/outputs/{job_id}/{zip_name}', headers=HEADERS).content
         members = fc.read_zip(zip_name, blob)
-        assert {'model_meta.json', 'feature_order.txt', 'checksum.sha256'} <= members.keys()
+        assert {'model_meta.json', 'feature_order.txt', 'feature_schema.json', 'checksum.sha256'} <= members.keys()
         assert members['feature_order.txt'].decode().splitlines() == list(fc.FEATURE_COLUMNS)
         meta = json.loads(members['model_meta.json'])
         assert meta['line'] == 'expert' and meta['algo'] == sub['algo'] and meta['seed'] == 42
+        assert meta['feature_set'] == 'kamei14'
         with db.SessionLocal() as session:
             artifact = session.scalar(select(ModelArtifact).where(ModelArtifact.model_name == sub['model_name']))
             assert artifact is not None and artifact.checksum_sha256 == fc.sha256(blob)
             assert session.get(Model, sub['model_name']) is not None
         from app import model_registry
         assert model_registry.get_model(sub['model_name']).model is not None
+    assert_train_testset(client, job_id, result)
     compare = client.get('/api/train/compare', params={'job_id': job_id}, headers=HEADERS).json()['data']
     assert compare['primary_metric'] == 'auc' and len(compare['models']) == 2
 
@@ -102,13 +119,15 @@ def test_real_cli_api_parity(real_train, tmp_path):
     client, _, _ = real_train
     response = post(client, settings(algos=['lr']))
     assert response.status_code == 200 and response.json()['data']['status'] == 'success', response.text
-    api_sub = response.json()['data']['models'][0]
+    api_result = response.json()['data']
+    api_sub = api_result['models'][0]
     source = tmp_path / 'cleaned.csv'
     source.write_bytes(fc.encode_table(fc.COLLECTED_COMMITS_COLUMNS, train_rows(), 'csv'))
     out = tmp_path / 'cli'
     env = {**os.environ, 'PYTHONPATH': str(ROOT / 'data_model'), 'DATABASE_URL': '', 'DB_HOST': '', 'MPLCONFIGDIR': str(tmp_path / 'mpl'), 'FEATURE_EXTRACTOR_SCRIPT': str(FAKE_EXTRACTOR)}
     proc = subprocess.run([PYTHON, '-B', '-m', 'pipelines.train', 'run', '--input', str(source), '--line', 'expert',
-        '--algos', 'lr', '--split-ratio', '0.7', '--seed', '42', '--threshold', '0.5', '--out', str(out)],
+        '--feature-set', 'kamei14', '--algos', 'lr', '--split-ratio', '0.7', '--seed', '42',
+        '--threshold', '0.5', '--out', str(out)],
         env=env, capture_output=True, text=True, cwd=str(ROOT / 'data_model'))
     assert proc.returncode == 0, proc.stderr
     registered = json.loads(proc.stdout)
@@ -117,13 +136,19 @@ def test_real_cli_api_parity(real_train, tmp_path):
     assert cli_sub['model_name'] == api_sub['model_name'] and cli_sub['version_key'] == api_sub['version_key']
     for metric in ('auc', 'f1', 'precision', 'recall', 'accuracy'):
         assert cli_sub['metrics'][metric] == pytest.approx(api_sub['metrics'][metric], abs=1e-9)
+    # CLI 与 API 用同 inputs + 同 split/seed，测试集产物须逐字节一致。
+    cli_testset = out / registered['job_id'] / f'train_testset_{registered["job_id"]}.csv'
+    assert cli_testset.is_file()
+    api_testset = client.get(
+        f'/api/train/outputs/{api_result["job_id"]}/{api_result["testset"]}', headers=HEADERS).content
+    assert cli_testset.read_bytes() == api_testset
 
 
 def test_semantic_without_embedding_job_fails_without_outputs(real_train, monkeypatch):
     """semantic 线缺语义向量时任务失败且不落产物。"""
     client, _, path = real_train
     monkeypatch.setattr('app.semantic_source.embedding_for', lambda h: None)
-    response = post(client, settings(line='semantic', algos=['lr']))
+    response = post(client, settings(line='semantic', feature_set='codebert768', algos=['lr']))
     assert response.status_code == 200, response.text
     assert response.json()['data']['status'] == 'failed'
     assert not (path / 'outputs').exists()
@@ -131,10 +156,21 @@ def test_semantic_without_embedding_job_fails_without_outputs(real_train, monkey
 
 def test_real_template_run(real_train):
     client, _, _ = real_train
-    template = {'line': 'expert', 'algos': ['lr'], 'split': {'ratio': 0.7}, 'seed': 42, 'decision_threshold': 0.5}
+    template = {'line': 'expert', 'feature_set': 'kamei14', 'algos': ['lr'],
+                'split': {'ratio': 0.7}, 'seed': 42, 'decision_threshold': 0.5}
     assert client.put('/api/config/train.templates', json={'value': {'AI tpl': template}}, headers=HEADERS).status_code == 200
     response = post(client, {'template_name': 'AI tpl'})
     assert response.status_code == 200 and response.json()['data']['status'] == 'success', response.text
+    result = response.json()['data']
+    assert_train_testset(client, result['job_id'], result)
+
+
+def test_real_train_rejects_incompatible_feature_set(real_train):
+    """新契约：feature_set 必须与 line 兼容（expert=kamei14 / semantic=codebert768）。"""
+    client, _, _ = real_train
+    response = post(client, settings(feature_set='codebert768'))
+    assert response.status_code == 400
+    assert response.json()['code'] == 40001
 
 
 def test_real_template_rejects_bad_register_type(real_train):

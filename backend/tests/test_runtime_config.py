@@ -201,16 +201,21 @@ def test_single_prediction_requires_explicit_model(config_client):
     assert prediction.json()["code"] == 40001
 
 
-def test_risk_threshold_change_updates_trend_and_detail(config_client):
+def test_risk_threshold_change_updates_trend_but_not_stored_risk_score(config_client):
+    """阈值只改变风险判定展示；docs/api/commits.md 详情无 summary 字段，且阈值不改变库中 risk_score。"""
     first = config_client.get("/api/commits/" + "a" * 40, params={"model_name": "fixture_v2"}, headers=HEADERS).json()["data"]
-    assert "高风险" in first["summary"]
+    assert first["prediction"] is not None
+    original_score = first["prediction"]["risk_score"]
+    # 详情按 docs 字段编排，不含解释/定位/修复参考
+    for forbidden in ("explanation", "localization", "fix_references"):
+        assert forbidden not in first
     saved = config_client.put("/api/config/risk_high_threshold", headers=HEADERS, json={"value": 0.9})
     assert saved.status_code == 200
     response = config_client.get("/api/trends", params={"model_name": "fixture_v2"}, headers=HEADERS)
     assert response.status_code == 200
     assert sum(item["high_risk_count"] for item in response.json()["data"]["series"]) == 0
     second = config_client.get("/api/commits/" + "a" * 40, params={"model_name": "fixture_v2"}, headers=HEADERS).json()["data"]
-    assert "中风险" in second["summary"]
+    assert second["prediction"]["risk_score"] == original_score
 
 
 @pytest.mark.parametrize("name,status", [("normal", 200), ("boundary", 200), ("invalid", 400)])

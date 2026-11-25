@@ -182,7 +182,7 @@ describe('CommitDetail 重新预测与 SZZ 三态', () => {
 
     wrapper.vm.detail.model_name = 'xgb_semantic_v1'
     await wrapper.vm.$nextTick()
-    expect(wrapper.text()).toContain('语义 / 融合 / 端到端线')
+    expect(wrapper.text()).toContain('该模型属于语义线')
   })
 
   it('SZZ 三态：1 → 引入缺陷，0 → 非缺陷，null → 无标记', async () => {

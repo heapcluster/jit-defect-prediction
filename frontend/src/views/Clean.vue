@@ -555,8 +555,12 @@ async function submit() {
   if (!Number.isInteger(draft.seed) || draft.seed < 0) { error.value = '种子必须为非负整数'; return }
   busy.value = true; error.value = ''; importMessage.value = ''
   try {
-    const config = snapshot()
-    if (draft.dataset_id && !files.value.length) config.dataset_id = draft.dataset_id
+    const config = {
+      mode: draft.mode,
+      steps: JSON.parse(JSON.stringify(steps.value)),
+      chart_columns: [...draft.features],
+      format: draft.format
+    }
     const accepted = await runClean(config, files.value)
     if (!accepted?.job_id || !['queued', 'running', 'success', 'failed'].includes(accepted.status)) throw new Error('清洗任务响应不完整')
     resetOutputs(); cleaning.request = config; cleaning.job = accepted

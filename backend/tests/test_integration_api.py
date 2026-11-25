@@ -159,7 +159,7 @@ def test_predict_then_query_and_repeat_keeps_one_row(populated_api):
         )
     detail = client.get(f"/api/commits/{C1}", params={"model_name": "integration_v2"}, headers=HEADERS)
     assert detail.status_code == 200
-    assert detail.json()["data"]["risk_score"] == predicted["risk_score"]
+    assert detail.json()["data"]["prediction"]["risk_score"] == predicted["risk_score"]
     listing = client.get("/api/commits", params={"model_name": "integration_v2"}, headers=HEADERS).json()["data"]
     assert listing["total"] == 2
     match = next(row for row in listing["items"] if row["commit_hash"] == C1)
@@ -192,8 +192,7 @@ def test_missing_prediction_and_feature_keep_contract_shapes(populated_api, monk
     unpredicted = client.get(f"/api/commits/{C4}", params={"model_name": "integration_v2"}, headers=HEADERS)
     assert unpredicted.status_code == 200
     body = unpredicted.json()["data"]
-    assert body["risk_score"] is None
-    assert body["model_name"] is None
+    assert body["prediction"] is None  # 提交存在但无所选模型预测 → prediction=null
     assert set(body["features"]) == set(FEATURE_VALUES)
     missing = client.get(f"/api/commits/{C3}", params={"model_name": "integration_v2"}, headers=HEADERS)
     assert missing.status_code == 200
