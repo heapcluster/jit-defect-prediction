@@ -144,14 +144,58 @@ def backup_fixture(conn, directory):
     return path
 
 
+LEGACY_DDL = [
+    """CREATE TABLE commit (
+        id BIGINT NOT NULL AUTO_INCREMENT,
+        commit_hash CHAR(40) NOT NULL,
+        repo_name VARCHAR(64) NOT NULL,
+        author_name VARCHAR(128) NOT NULL,
+        author_email VARCHAR(128),
+        committed_at DATETIME NOT NULL,
+        message TEXT NOT NULL,
+        parent_hash CHAR(40),
+        PRIMARY KEY (id),
+        INDEX ix_commit_hash (commit_hash)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+    """CREATE TABLE commit_feature (
+        commit_hash CHAR(40) NOT NULL,
+        committed_at DATETIME NOT NULL,
+        feature_version VARCHAR(32) NOT NULL,
+        ns DECIMAL(20, 10) NOT NULL, nd DECIMAL(20, 10) NOT NULL,
+        nf DECIMAL(20, 10) NOT NULL, entropy DECIMAL(20, 10) NOT NULL,
+        la DECIMAL(20, 10) NOT NULL, ld DECIMAL(20, 10) NOT NULL,
+        lt DECIMAL(20, 10) NOT NULL, fix TINYINT(1) NOT NULL,
+        ndev DECIMAL(20, 10) NOT NULL, age DECIMAL(20, 10) NOT NULL,
+        nuc DECIMAL(20, 10) NOT NULL, exp DECIMAL(20, 10) NOT NULL,
+        rexp DECIMAL(20, 10) NOT NULL, sexp DECIMAL(20, 10) NOT NULL,
+        PRIMARY KEY (commit_hash)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+    """CREATE TABLE commit_label (
+        id BIGINT NOT NULL AUTO_INCREMENT,
+        commit_hash CHAR(40) NOT NULL,
+        is_bug_inducing TINYINT(1) NOT NULL,
+        label_method VARCHAR(32) NOT NULL,
+        bug_fix_hash CHAR(40),
+        labeled_at DATETIME NOT NULL,
+        PRIMARY KEY (id),
+        INDEX ix_commit_label_hash (commit_hash)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+    """CREATE TABLE prediction (
+        id BIGINT NOT NULL AUTO_INCREMENT,
+        commit_hash CHAR(40) NOT NULL,
+        model_name VARCHAR(64) NOT NULL,
+        risk_score DECIMAL(6, 5) NOT NULL,
+        predicted_at DATETIME NOT NULL,
+        feature_version VARCHAR(32) NOT NULL,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_prediction_hash_model (commit_hash, model_name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+]
+
+
 def create_legacy(conn):
-    # Use the actual backup's four DDL statements, never its INSERT/USE/DROP statements.
-    sql = (INFRA.parent / "backend" / "jit_demo_backup_20261101_195117.sql").read_text(
-        encoding="utf-8"
-    )
-    tables = re.findall(r"CREATE TABLE `\w+` \([\s\S]*?\) ENGINE=[^;]+;", sql)
-    assert len(tables) == 4
-    for statement in tables:
+    # 旧四表 DDL 内联为夹具，不依赖本地备份文件；INSERT/USE/DROP 语句永不执行。
+    for statement in LEGACY_DDL:
         execute(conn, statement)
     for number, commit_hash in enumerate(HASHES[:3]):
         execute(conn, """

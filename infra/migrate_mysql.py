@@ -56,7 +56,7 @@ def _canonical():
             column = re.match(r"(\w+)\s+((?:CHAR|VARCHAR|DECIMAL|TINYINT)\([\d, ]+\)|DATETIME|TEXT|BIGINT|INT)(.*)$", line)
             if column:
                 name, kind, rest = column.groups()
-                default = re.search(r"DEFAULT ('[^']*'|\d+)", rest)
+                default = re.search(r"DEFAULT ('[^']*'|\d+|CURRENT_TIMESTAMP)", rest)
                 columns[name] = (re.sub(r"\s+", "", kind.lower()), "NO" if "NOT NULL" in rest else "YES",
                                  default[1].strip("'") if default else None, line)
             key = re.match(r"(PRIMARY KEY|INDEX \w+|UNIQUE KEY \w+)\s*\(([^)]+)\)", line)
@@ -93,10 +93,10 @@ def _metadata(conn, table):
 
 
 def _lineage(name):
-    match = re.fullmatch(rf"(?:{EXPERT_ALGOS})(?:_semantic)?_v\d+", name)
-    if match and match[1]:
-        return "semantic"
-    return "expert"
+    match = re.fullmatch(rf"(?:{EXPERT_ALGOS})(_semantic)?_v\d+", name)
+    if not match:
+        raise MigrationError(f"Unrecognized model lineage: {name}")
+    return "semantic" if match[1] else "expert"
 
 
 def _prepare(conn):
@@ -148,7 +148,8 @@ def _prepare(conn):
                     raise MigrationError(f"Required NULL in {table}.{name}")
         else:
             expected = [(name, *definition[:3], "") for name, definition in specs[table][1].items()]
-            actual = [row[:5] for row in columns]
+            # MySQL 8 给 CURRENT_TIMESTAMP 默认值标注 DEFAULT_GENERATED；DDL 文本里没有该标记。
+            actual = [row[:4] + ("",) if row[4] == "DEFAULT_GENERATED" else row[:5] for row in columns]
             added = []
             if table == "prediction" and actual != expected:
                 # 旧 current12/proper5 的 prediction 缺两个可空版本列；只接受整组缺失，部分缺失仍拒绝。
