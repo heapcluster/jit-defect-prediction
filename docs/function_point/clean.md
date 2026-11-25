@@ -1,62 +1,38 @@
-# 数据清洗与预处理（功能 3）
+# 鏁版嵁娓呮礂涓庨澶勭悊锛堝姛鑳?3锛?
+瀹炵幇鐘舵€侊細鐩爣濂戠害銆€鏈熸锛氫竴鏈?
+> 鏃у疄鐜颁腑瀛樺湪 `szz_label`銆乣d5_exclude`銆乣time_split`銆乣is_test`銆乣feature_build`銆並amei 14 缁撮粯璁ゅ浘鍜岃缁冧晶鍙樻崲锛涙湰鏂囧凡搴熸銆傛湰杞彧淇敼璁捐鏂囨。锛屼唬鐮佸悗缁寜鏈枃鍚屾銆?
+## 涓€鍙ヨ瘽姒傝堪
 
-实现状态：目标契约　期次：一期
+鐙珛鐨勬暟鎹竻娲椾笌棰勫鐞嗗伐鍏凤細涓婁紶鏉垮潡 2 浜у嚭鐨?`collected_commits.csv/xlsx`锛屾寜鐢ㄦ埛閫夋嫨鐨勫父鐢ㄦ竻娲楁搷浣滃拰閫氱敤棰勫鐞嗘搷浣滅敓鎴愭竻娲楀悗鏁版嵁闆嗭紱姣忎竴姝ュ睍绀烘暟鎹泦鍙樺寲鍜屾寚瀹氬垪/鍩虹鐗瑰緛鍙樺寲锛岀粨鏋滃彲瀵煎嚭 CSV/XLSX銆?
+## 1 鑱岃矗涓庝笉璐熻矗鑼冨洿
 
-> 旧实现中存在 `szz_label`、`d5_exclude`、`time_split`、`is_test`、`feature_build`、Kamei 14 维默认图和训练侧变换；本文已废止。本轮只修改设计文档，代码后续按本文同步。
+**璐熻矗**锛?
+- 鎻愪緵鍒嗙粍鎿嶄綔娉ㄥ唽琛細甯哥敤娓呮礂鎿嶄綔銆侀€氱敤棰勫鐞嗘搷浣溿€?- 鏀寔鐢ㄦ埛閫夋嫨銆佹帓搴忋€佸惎鍋溿€侀厤缃瘡涓搷浣溿€?- 鏀寔 `preview` / `apply` 涓ょ妯″紡锛?  - `preview` 鍙骇鍑烘瘡姝ョ粺璁″拰鍥捐〃銆?  - `apply` 棰濆浜у嚭娓呮礂鍚庢暟鎹泦銆?- 瀵规瘡涓€姝ヨ褰曞鐞嗗墠鍚庤鏁般€佸垹闄?淇敼琛屾暟銆佹爣绛惧垎甯冦€佺己澶卞€笺€侀噸澶嶆暟鍜屾帓闄ゅ師鍥犮€?- 瀵圭敤鎴锋寚瀹氬垪/鍩虹鐗瑰緛灞曠ず澶勭悊鍓嶅悗鍒嗗竷鍙樺寲锛涜嫢娌℃湁鎸囧畾鍒楋紝鍒欒嚦灏戝睍绀烘暟鎹泦绾у彉鍖栥€?- 浜у嚭 `clean_dataset_<job_id>.csv/xlsx`銆佺粺璁°€佸浘琛ㄣ€乵anifest銆?- 淇濊瘉鍚岃緭鍏ャ€佸悓澶勭悊閾俱€佸悓閰嶇疆鍙鐜般€?
+**涓嶈礋璐?*锛?
+- Git 鎷夊彇銆丼ZZ 鎵撴爣銆丏5 鍥炴函涓庝慨澶嶅€欓€夊垽瀹氥€?- 璁粌/娴嬭瘯闆嗗垏鍒嗐€乣is_test` 鐢熸垚銆?- Kamei 14 缁淬€佽涔夊悜閲忋€佽瀺鍚堢壒寰併€佺鍒扮鏂囨湰鐗瑰緛绛?*妯″瀷鐗瑰緛**鐨勭敓鎴愩€侀€夋嫨鎴栭攣瀹氥€?- 璁粌渚?`log_transform` / `standardize` / `categorical_encode` / `feature_select`銆?- 妯″瀷璁粌銆侀娴嬨€佽瘎浼般€佽В閲娿€佸畾浣嶃€?- 鎶婃暟鎹簱鎴栭〉闈綔涓鸿繍琛屽墠鎻愩€?- 鎶婃竻娲楃粨鏋滃己鍒跺啓鍏ユ暟鎹簱銆?
+妯″瀷鐗瑰緛涓庤缁冧晶鍙樻崲缁熶竴灞炰簬鏉垮潡 4銆屾ā鍨嬭缁冦€嶃€?
+## 2 鐙珛杩愯鍏ュ彛
 
-## 一句话概述
-
-独立的数据清洗与预处理工具：上传板块 2 产出的 `collected_commits.csv/xlsx`，按用户选择的常用清洗操作和通用预处理操作生成清洗后数据集；每一步展示数据集变化和指定列/基础特征变化，结果可导出 CSV/XLSX。
-
-## 1 职责与不负责范围
-
-**负责**：
-
-- 提供分组操作注册表：常用清洗操作、通用预处理操作。
-- 支持用户选择、排序、启停、配置每个操作。
-- 支持 `preview` / `apply` 两种模式：
-  - `preview` 只产出每步统计和图表。
-  - `apply` 额外产出清洗后数据集。
-- 对每一步记录处理前后行数、删除/修改行数、标签分布、缺失值、重复数和排除原因。
-- 对用户指定列/基础特征展示处理前后分布变化；若没有指定列，则至少展示数据集级变化。
-- 产出 `clean_dataset_<job_id>.csv/xlsx`、统计、图表、manifest。
-- 保证同输入、同处理链、同配置可复现。
-
-**不负责**：
-
-- Git 拉取、SZZ 打标、D5 回溯与修复候选判定。
-- 训练/测试集切分、`is_test` 生成。
-- Kamei 14 维、语义向量、融合特征、端到端文本特征等**模型特征**的生成、选择或锁定。
-- 训练侧 `log_transform` / `standardize` / `categorical_encode` / `feature_select`。
-- 模型训练、预测、评估、解释、定位。
-- 把数据库或页面作为运行前提。
-- 把清洗结果强制写入数据库。
-
-模型特征与训练侧变换统一属于板块 4「模型训练」。
-
-## 2 独立运行入口
-
-| 入口 | 命令 / 端点 | 契约 |
+| 鍏ュ彛 | 鍛戒护 / 绔偣 | 濂戠害 |
 |---|---|---|
-| CLI | `python -m preparation.clean run --input collected_commits.csv --chain chain.json --mode apply --out ./out` | 文件与处理链即可运行 |
-| CLI | `python -m preparation.clean operations` | 查询操作注册表 |
-| 注册表 API | `GET /api/clean/operations` | 返回清洗/通用预处理操作元数据 |
-| 任务 API | `POST /api/clean/run` | multipart 上传 CSV/XLSX + `config`，返回 `job_id` |
-| 任务管理 | `GET /api/jobs/{id}`、`POST /api/jobs/{id}/retry\|cancel` | 五态、进度、日志 |
-| 预览 | `GET /api/clean/preview/{job_id}` | 仅 apply 成功后返回清洗后数据集前 20 行 |
-| 下载 | `GET /api/clean/outputs/{job_id}/{name}` | 下载清洗后数据集、统计、图、manifest |
+| CLI | `python -m preparation.clean run --input collected_commits.csv --chain chain.json --mode apply --out ./out` | 鏂囦欢涓庡鐞嗛摼鍗冲彲杩愯 |
+| CLI | `python -m preparation.clean operations` | 鏌ヨ鎿嶄綔娉ㄥ唽琛?|
+| 娉ㄥ唽琛?API | `GET /api/clean/operations` | 杩斿洖娓呮礂/閫氱敤棰勫鐞嗘搷浣滃厓鏁版嵁 |
+| 浠诲姟 API | `POST /api/clean/run` | multipart 涓婁紶 CSV/XLSX + `config`锛岃繑鍥?`job_id` |
+| 浠诲姟绠＄悊 | `GET /api/jobs/{id}`銆乣POST /api/jobs/{id}/retry\|cancel` | 浜旀€併€佽繘搴︺€佹棩蹇?|
+| 棰勮 | `GET /api/clean/preview/{job_id}` | 浠?apply 鎴愬姛鍚庤繑鍥炴竻娲楀悗鏁版嵁闆嗗墠 20 琛?|
+| 涓嬭浇 | `GET /api/clean/outputs/{job_id}/{name}` | 涓嬭浇娓呮礂鍚庢暟鎹泦銆佺粺璁°€佸浘銆乵anifest |
 
-CLI 与 API 调用同一处理链实现。
+CLI 涓?API 璋冪敤鍚屼竴澶勭悊閾惧疄鐜般€?
+## 3 杈撳叆濂戠害
 
-## 3 输入契约
-
-主输入是 [`../file-contracts.md`](../file-contracts.md) §3.1 的：
+涓昏緭鍏ユ槸 [`../file-contracts.md`](../file-contracts.md) 搂3.1 鐨勶細
 
 ```text
 collected_commits_<job_id>.csv / xlsx
 ```
 
-可用列：
+鍙敤鍒楋細
 
 ```text
 commit_hash, repo_name, repo_url, author_name, author_email,
@@ -65,9 +41,8 @@ is_bug_inducing, label_method, label_source,
 labeled_at, fix_commit_hash, source_type
 ```
 
-可选输入只有同名 manifest，用于校验 checksum 与来源信息。
-
-本模块不再接受：
+鍙€夎緭鍏ュ彧鏈夊悓鍚?manifest锛岀敤浜庢牎楠?checksum 涓庢潵婧愪俊鎭€?
+鏈ā鍧椾笉鍐嶆帴鍙楋細
 
 ```text
 repo_source
@@ -76,104 +51,73 @@ feature_plan
 feature_set
 ```
 
-这些字段若出现，返回 40001，并提示“模型特征配置请在训练阶段提供”。
+杩欎簺瀛楁鑻ュ嚭鐜帮紝杩斿洖 40001锛屽苟鎻愮ず鈥滄ā鍨嬬壒寰侀厤缃鍦ㄨ缁冮樁娈垫彁渚涒€濄€?
+杈撳叆绾︽潫锛?
+- 鏂囦欢鍚嶄笉鍐嶅亣瀹氫负 `commits.csv`銆?- 涓嶈姹傝緭鍏ュ凡鏈?Kamei 14 缁淬€?- 涓嶈姹傝緭鍏ュ凡鏈?`is_test`銆?- 鏈墦鏍?`is_bug_inducing` 蹇呴』淇濇寔绌哄€笺€?- CSV 浣跨敤 UTF-8/UTF-8 BOM锛沊LSX 鍗?sheet锛涜〃澶翠负 snake_case銆?
+## 4 鎿嶄綔娉ㄥ唽琛?
+鎿嶄綔娉ㄥ唽琛ㄥ繀椤荤敱鍚庣鎻愪緵锛屽墠绔笉寰楃‖缂栫爜銆?
+### 4.1 甯哥敤娓呮礂鎿嶄綔
 
-输入约束：
-
-- 文件名不再假定为 `commits.csv`。
-- 不要求输入已有 Kamei 14 维。
-- 不要求输入已有 `is_test`。
-- 未打标 `is_bug_inducing` 必须保持空值。
-- CSV 使用 UTF-8/UTF-8 BOM；XLSX 单 sheet；表头为 snake_case。
-
-## 4 操作注册表
-
-操作注册表必须由后端提供，前端不得硬编码。
-
-### 4.1 常用清洗操作
-
-| 操作 | 职责 | 默认参数 / 约束 |
+| 鎿嶄綔 | 鑱岃矗 | 榛樿鍙傛暟 / 绾︽潫 |
 |---|---|---|
-| `schema_validate` | 校验列、类型、哈希格式、时间格式、标签值域 | 始终先执行，不可关闭 |
-| `duplicate_drop` | 按 `commit_hash` 去重 | 默认保留首行，重复样本写入排除明细 |
-| `merge_commit_filter` | 根据 `parent_hash` 中多个有效父哈希过滤合并提交 | 不从 message 猜测 |
-| `missing_value_handle` | 处理作者、邮箱、时间、消息等缺失值 | 策略：`keep` / `fill` / `exclude`，默认 `keep` |
-| `invalid_time_filter` | 过滤非法时间或超出范围的时间 | 默认排除非法时间 |
-| `unlabeled_handle` | 处理未打标样本 | 策略：`keep` / `exclude` / `warn`，默认 `keep` |
-| `outlier_filter` | 对已有数值列做异常检测 | 方法 `iqr` / `zscore`，默认 `iqr`；不生成模型特征 |
-| `label_validate` | 校验标签只能是 1 / 0 / 空 | 默认开启；NULL 不填 0 |
-| `text_clean` | 清洗 `message` 文本 | 去首尾空白、控制字符、多余换行 |
+| `schema_validate` | 鏍￠獙鍒椼€佺被鍨嬨€佸搱甯屾牸寮忋€佹椂闂存牸寮忋€佹爣绛惧€煎煙 | 濮嬬粓鍏堟墽琛岋紝涓嶅彲鍏抽棴 |
+| `duplicate_drop` | 鎸?`commit_hash` 鍘婚噸 | 榛樿淇濈暀棣栬锛岄噸澶嶆牱鏈啓鍏ユ帓闄ゆ槑缁?|
+| `merge_commit_filter` | 鏍规嵁 `parent_hash` 涓涓湁鏁堢埗鍝堝笇杩囨护鍚堝苟鎻愪氦 | 涓嶄粠 message 鐚滄祴 |
+| `missing_value_handle` | 澶勭悊浣滆€呫€侀偖绠便€佹椂闂淬€佹秷鎭瓑缂哄け鍊?| 绛栫暐锛歚keep` / `fill` / `exclude`锛岄粯璁?`keep` |
+| `invalid_time_filter` | 杩囨护闈炴硶鏃堕棿鎴栬秴鍑鸿寖鍥寸殑鏃堕棿 | 榛樿鎺掗櫎闈炴硶鏃堕棿 |
+| `unlabeled_handle` | 澶勭悊鏈墦鏍囨牱鏈?| 绛栫暐锛歚keep` / `exclude` / `warn`锛岄粯璁?`keep` |
+| `outlier_filter` | 瀵瑰凡鏈夋暟鍊煎垪鍋氬紓甯告娴?| 鏂规硶 `iqr` / `zscore`锛岄粯璁?`iqr`锛涗笉鐢熸垚妯″瀷鐗瑰緛 |
+| `label_validate` | 鏍￠獙鏍囩鍙兘鏄?1 / 0 / 绌?| 榛樿寮€鍚紱NULL 涓嶅～ 0 |
+| `text_clean` | 娓呮礂 `message` 鏂囨湰 | 鍘婚灏剧┖鐧姐€佹帶鍒跺瓧绗︺€佸浣欐崲琛?|
 
-### 4.2 通用预处理操作
-
-| 操作 | 职责 | 默认参数 / 约束 |
+### 4.2 閫氱敤棰勫鐞嗘搷浣?
+| 鎿嶄綔 | 鑱岃矗 | 榛樿鍙傛暟 / 绾︽潫 |
 |---|---|---|
-| `type_convert` | 把字符串时间/数字转为统一类型 | 由用户指定列；不产生模型特征集 |
-| `date_normalize` | 统一时间为 UTC ISO 8601 | 作用于 `committed_at` / `labeled_at` |
-| `text_normalize` | 统一文本空白和换行 | 作用于 `message` 等文本列 |
-| `category_normalize` | 统一类别值写法，如大小写和空白 | 不做模型编码，只做值规范化 |
-| `derive_basic_fields` | 派生基础展示列，如 `message_length`、`parent_count`、`commit_hour` | 默认关闭；不得生成 Kamei 14 维、语义向量或模型输入特征 |
+| `type_convert` | 鎶婂瓧绗︿覆鏃堕棿/鏁板瓧杞负缁熶竴绫诲瀷 | 鐢辩敤鎴锋寚瀹氬垪锛涗笉浜х敓妯″瀷鐗瑰緛闆?|
+| `date_normalize` | 缁熶竴鏃堕棿涓?UTC ISO 8601 | 浣滅敤浜?`committed_at` / `labeled_at` |
+| `text_normalize` | 缁熶竴鏂囨湰绌虹櫧鍜屾崲琛?| 浣滅敤浜?`message` 绛夋枃鏈垪 |
+| `category_normalize` | 缁熶竴绫诲埆鍊煎啓娉曪紝濡傚ぇ灏忓啓鍜岀┖鐧?| 涓嶅仛妯″瀷缂栫爜锛屽彧鍋氬€艰鑼冨寲 |
+| `derive_basic_fields` | 娲剧敓鍩虹灞曠ず鍒楋紝濡?`message_length`銆乣parent_count`銆乣commit_hour` | 榛樿鍏抽棴锛涗笉寰楃敓鎴?Kamei 14 缁淬€佽涔夊悜閲忔垨妯″瀷杈撳叆鐗瑰緛 |
 
-`derive_basic_fields` 只是数据查看和变化图用的基础列，不是模型特征工程。模型训练需要哪些特征，由板块 4 决定。
-
-### 4.3 已移除操作
-
-以下操作不再属于板块 3：
-
-| 旧操作 | 现归属 |
+`derive_basic_fields` 鍙槸鏁版嵁鏌ョ湅鍜屽彉鍖栧浘鐢ㄧ殑鍩虹鍒楋紝涓嶆槸妯″瀷鐗瑰緛宸ョ▼銆傛ā鍨嬭缁冮渶瑕佸摢浜涚壒寰侊紝鐢辨澘鍧?4 鍐冲畾銆?
+### 4.3 宸茬Щ闄ゆ搷浣?
+浠ヤ笅鎿嶄綔涓嶅啀灞炰簬鏉垮潡 3锛?
+| 鏃ф搷浣?| 鐜板綊灞?|
 |---|---|
-| `szz_label` | 板块 2，SZZ 打标 |
-| `d5_exclude` | 板块 2，SZZ 质量控制 |
-| `time_split` | 板块 4，训练配置 |
-| `feature_build` | 板块 4，训练时按模型线生成模型特征 |
-| `feature_align` | 板块 4，训练时锁定特征列 |
-| `log_transform` | 板块 4，训练侧预处理 |
-| `standardize` | 板块 4，训练侧预处理 |
-| `categorical_encode` | 板块 4，训练侧预处理 |
-| `feature_select` | 板块 4，训练时选择模型特征 |
+| `szz_label` | 鏉垮潡 2锛孲ZZ 鎵撴爣 |
+| `d5_exclude` | 鏉垮潡 2锛孲ZZ 璐ㄩ噺鎺у埗 |
+| `time_split` | 鏉垮潡 4锛岃缁冮厤缃?|
+| `feature_build` | 鏉垮潡 4锛岃缁冩椂鎸夋ā鍨嬬嚎鐢熸垚妯″瀷鐗瑰緛 |
+| `feature_align` | 鏉垮潡 4锛岃缁冩椂閿佸畾鐗瑰緛鍒?|
+| `log_transform` | 鏉垮潡 4锛岃缁冧晶棰勫鐞?|
+| `standardize` | 鏉垮潡 4锛岃缁冧晶棰勫鐞?|
+| `categorical_encode` | 鏉垮潡 4锛岃缁冧晶棰勫鐞?|
+| `feature_select` | 鏉垮潡 4锛岃缁冩椂閫夋嫨妯″瀷鐗瑰緛 |
 
-### 4.4 顺序约束
+### 4.4 椤哄簭绾︽潫
 
-- `schema_validate` 必须第一步。
-- 清洗操作必须先于通用预处理操作。
-- `date_normalize` 必须先于任何基于时间的基础派生。
-- `derive_basic_fields` 只能派生基础列，不得生成模型特征。
-- 不允许任何训练测试切分或模型特征选择操作。
+- `schema_validate` 蹇呴』绗竴姝ャ€?- 娓呮礂鎿嶄綔蹇呴』鍏堜簬閫氱敤棰勫鐞嗘搷浣溿€?- `date_normalize` 蹇呴』鍏堜簬浠讳綍鍩轰簬鏃堕棿鐨勫熀纭€娲剧敓銆?- `derive_basic_fields` 鍙兘娲剧敓鍩虹鍒楋紝涓嶅緱鐢熸垚妯″瀷鐗瑰緛銆?- 涓嶅厑璁镐换浣曡缁冩祴璇曞垏鍒嗘垨妯″瀷鐗瑰緛閫夋嫨鎿嶄綔銆?
+## 5 杈撳嚭濂戠害
 
-## 5 输出契约
+### 5.1 娓呮礂鍚庢暟鎹泦
 
-### 5.1 清洗后数据集
-
-文件名：
+鏂囦欢鍚嶏細
 
 ```text
 clean_dataset_<job_id>.csv
 clean_dataset_<job_id>.xlsx
 ```
 
-字段：
-
-- 保留 §3.1 的原始列，按清洗结果更新。
-- 可追加 `derive_basic_fields` 生成的基础列。
-- 不生成 Kamei 14 维、语义向量、融合特征或模型输入特征。
-- 不出现 `is_test`。
-- 不出现训练/测试划分列。
-- 未打标 `is_bug_inducing` 保持空。
-
-导出要求：
-
-- CSV 使用 UTF-8 BOM。
-- XLSX 单 sheet。
-- apply 模式才生成主表。
-- preview 模式不生成主表。
-
-### 5.2 每步数据集变化
-
+瀛楁锛?
+- 淇濈暀 搂3.1 鐨勫師濮嬪垪锛屾寜娓呮礂缁撴灉鏇存柊銆?- 鍙拷鍔?`derive_basic_fields` 鐢熸垚鐨勫熀纭€鍒椼€?- 涓嶇敓鎴?Kamei 14 缁淬€佽涔夊悜閲忋€佽瀺鍚堢壒寰佹垨妯″瀷杈撳叆鐗瑰緛銆?- 涓嶅嚭鐜?`is_test`銆?- 涓嶅嚭鐜拌缁?娴嬭瘯鍒掑垎鍒椼€?- 鏈墦鏍?`is_bug_inducing` 淇濇寔绌恒€?
+瀵煎嚭瑕佹眰锛?
+- CSV 浣跨敤 UTF-8 BOM銆?- XLSX 鍗?sheet銆?- apply 妯″紡鎵嶇敓鎴愪富琛ㄣ€?- preview 妯″紡涓嶇敓鎴愪富琛ㄣ€?
+### 5.2 姣忔鏁版嵁闆嗗彉鍖?
 ```text
 clean_steps_stats_<job_id>.json
 ```
 
-每一步必须包含：
+姣忎竴姝ュ繀椤诲寘鍚細
 
 ```text
 step
@@ -191,27 +135,22 @@ elapsed_ms
 excluded_samples
 ```
 
-对应图：
+瀵瑰簲鍥撅細
 
 ```text
 clean_dataset_change_<step>_<job_id>.png
 ```
 
-图中至少展示：
-
-- 行数前后对比。
-- 标签分布前后对比。
-- 缺失/重复变化。
-
-### 5.3 指定列/基础特征变化
+鍥句腑鑷冲皯灞曠ず锛?
+- 琛屾暟鍓嶅悗瀵规瘮銆?- 鏍囩鍒嗗竷鍓嶅悗瀵规瘮銆?- 缂哄け/閲嶅鍙樺寲銆?
+### 5.3 鎸囧畾鍒?鍩虹鐗瑰緛鍙樺寲
 
 ```text
 clean_column_stats_<job_id>.json
 clean_column_distribution_<step>_<column>_<job_id>.png
 ```
 
-对每个指定列记录：
-
+瀵规瘡涓寚瀹氬垪璁板綍锛?
 ```text
 mean
 median
@@ -222,17 +161,12 @@ quantiles
 missing_count
 ```
 
-图表类型：
-
-- 数值列：直方图、箱线图、密度图。
-- 类别列：频数柱状图。
-
-若没有指定列，数据集级图必须产出，列级图可为空并在 manifest 标记原因。
-
+鍥捐〃绫诲瀷锛?
+- 鏁板€煎垪锛氱洿鏂瑰浘銆佺绾垮浘銆佸瘑搴﹀浘銆?- 绫诲埆鍒楋細棰戞暟鏌辩姸鍥俱€?
+鑻ユ病鏈夋寚瀹氬垪锛屾暟鎹泦绾у浘蹇呴』浜у嚭锛屽垪绾у浘鍙负绌哄苟鍦?manifest 鏍囪鍘熷洜銆?
 ### 5.4 manifest
 
-每个主产物同名 manifest，遵循 file-contracts §3.9，并记录：
-
+姣忎釜涓讳骇鐗╁悓鍚?manifest锛岄伒寰?file-contracts 搂3.9锛屽苟璁板綍锛?
 ```text
 source_type = collected_commits
 chain_config
@@ -244,55 +178,29 @@ output_checksum
 mode
 ```
 
-不再记录 `feature_schema`；模型特征 schema 由板块 4 写入 `model_package.zip`。
+涓嶅啀璁板綍 `feature_schema`锛涙ā鍨嬬壒寰?schema 鐢辨澘鍧?4 鍐欏叆 `model_package.zip`銆?
+## 6 鍙厤缃」
 
-## 6 可配置项
-
-| 配置 | 来源 | 说明 |
+| 閰嶇疆 | 鏉ユ簮 | 璇存槑 |
 |---|---|---|
-| `clean.chain_templates` | `user_config` | 可复用处理链模板 |
-| `steps[]` | 本次 run | 操作、启停、参数 |
-| `chart_columns[]` | 本次 run | 需要画前后变化图的列/基础特征 |
-| `mode` | 本次 run | `preview` / `apply` |
-| `format` | 本次 run | `csv` / `xlsx` |
+| `clean.chain_templates` | `user_config` | 鍙鐢ㄥ鐞嗛摼妯℃澘 |
+| `steps[]` | 鏈 run | 鎿嶄綔銆佸惎鍋溿€佸弬鏁?|
+| `chart_columns[]` | 鏈 run | 闇€瑕佺敾鍓嶅悗鍙樺寲鍥剧殑鍒?鍩虹鐗瑰緛 |
+| `mode` | 鏈 run | `preview` / `apply` |
+| `format` | 鏈 run | `csv` / `xlsx` |
 
-不再提供：
-
+涓嶅啀鎻愪緵锛?
 - `repo_source`
 - `feature_file`
 - `seed`
 - `split_ratio`
 - `feature_set`
 
-## 7 状态持久化
+## 7 鐘舵€佹寔涔呭寲
 
-- `job.kind=clean`，五态 `queued / running / success / failed / cancelled`。
-- 任务保存模式、处理链、图表列、进度、错误日志、输入输出引用。
-- preview 不产主表；apply 才产 `clean_dataset`。
-- 输出落 `backend/var/outputs/<job_id>/`。
-- 同输入、同链、同配置重跑，主表、统计和图表数值一致。
-- 模板后续变化不影响历史任务，历史配置固化在 job 与 manifest。
+- `job.kind=clean`锛屼簲鎬?`queued / running / success / failed / cancelled`銆?- 浠诲姟淇濆瓨妯″紡銆佸鐞嗛摼銆佸浘琛ㄥ垪銆佽繘搴︺€侀敊璇棩蹇椼€佽緭鍏ヨ緭鍑哄紩鐢ㄣ€?- preview 涓嶄骇涓昏〃锛沘pply 鎵嶄骇 `clean_dataset`銆?- 杈撳嚭钀?`temp/outputs/<job_id>/`銆?- 鍚岃緭鍏ャ€佸悓閾俱€佸悓閰嶇疆閲嶈窇锛屼富琛ㄣ€佺粺璁″拰鍥捐〃鏁板€间竴鑷淬€?- 妯℃澘鍚庣画鍙樺寲涓嶅奖鍝嶅巻鍙蹭换鍔★紝鍘嗗彶閰嶇疆鍥哄寲鍦?job 涓?manifest銆?
+## 8 涓庡叾浠栨ā鍧楄竟鐣?
+- 涓?collect 鐨勫叧绯讳粎涓?搂3.1 鏂囦欢 schema 鍏煎銆?- 涓嶈皟鐢?collect 鍦ㄧ嚎鏈嶅姟锛屼笉渚濊禆鏁版嵁搴撳凡鏈夋暟鎹泦銆?- 涓嶅啓 `dataset` / `dataset_commit`銆?- 涓嶉噸鏂版墽琛?SZZ锛屼笉鏀瑰彉 `label_source`銆?- train 鍚庣画娑堣垂鏈ā鍧楃殑 `clean_dataset` 鏂囦欢锛屽苟鍦ㄨ缁冮樁娈甸€夋嫨妯″瀷鐗瑰緛銆佸垏鍒嗘暟鎹拰鎷熷悎璁粌渚у彉鎹€?- storage 涓庢湰妯″潡鏃犲叧锛涙竻娲楃粨鏋滈€氳繃鏂囦欢 handoff銆?
+## 9 楠屾敹鏍囧噯
 
-## 8 与其他模块边界
-
-- 与 collect 的关系仅为 §3.1 文件 schema 兼容。
-- 不调用 collect 在线服务，不依赖数据库已有数据集。
-- 不写 `dataset` / `dataset_commit`。
-- 不重新执行 SZZ，不改变 `label_source`。
-- train 后续消费本模块的 `clean_dataset` 文件，并在训练阶段选择模型特征、切分数据和拟合训练侧变换。
-- storage 与本模块无关；清洗结果通过文件 handoff。
-
-## 9 验收标准
-
-- 空库且未运行 collect 时，CLI 和 API 均可仅凭上传的 `collected_commits.csv/xlsx` 完成 preview 与 apply。
-- 操作注册表分组展示清洗/通用预处理操作，前端不硬编码。
-- 用户可选择、排序、启停、配置操作；非法顺序、未知操作、参数越界前置拒绝。
-- `feature_build` / 模型特征选择 / 训练测试切分请求被拒绝，并指向训练阶段。
-- preview 产出每步数据集变化和指定列变化图，不产清洗后数据集。
-- apply 额外产出 `clean_dataset_<job_id>.csv/xlsx`，支持 CSV/Excel 导出。
-- 每一步都能看到行数、标签分布、缺失值、重复数和排除样本变化。
-- 选择指定列后能看到该列处理前后分布图。
-- 输出不含 `is_test`、训练/测试划分列和模型特征集。
-- 未打标样本保持空值，不写 0。
-- 相同输入和相同配置可复现。
-- 输出 manifest、checksum、图表和统计文件完整。
+- 绌哄簱涓旀湭杩愯 collect 鏃讹紝CLI 鍜?API 鍧囧彲浠呭嚟涓婁紶鐨?`collected_commits.csv/xlsx` 瀹屾垚 preview 涓?apply銆?- 鎿嶄綔娉ㄥ唽琛ㄥ垎缁勫睍绀烘竻娲?閫氱敤棰勫鐞嗘搷浣滐紝鍓嶇涓嶇‖缂栫爜銆?- 鐢ㄦ埛鍙€夋嫨銆佹帓搴忋€佸惎鍋溿€侀厤缃搷浣滐紱闈炴硶椤哄簭銆佹湭鐭ユ搷浣溿€佸弬鏁拌秺鐣屽墠缃嫆缁濄€?- `feature_build` / 妯″瀷鐗瑰緛閫夋嫨 / 璁粌娴嬭瘯鍒囧垎璇锋眰琚嫆缁濓紝骞舵寚鍚戣缁冮樁娈点€?- preview 浜у嚭姣忔鏁版嵁闆嗗彉鍖栧拰鎸囧畾鍒楀彉鍖栧浘锛屼笉浜ф竻娲楀悗鏁版嵁闆嗐€?- apply 棰濆浜у嚭 `clean_dataset_<job_id>.csv/xlsx`锛屾敮鎸?CSV/Excel 瀵煎嚭銆?- 姣忎竴姝ラ兘鑳界湅鍒拌鏁般€佹爣绛惧垎甯冦€佺己澶卞€笺€侀噸澶嶆暟鍜屾帓闄ゆ牱鏈彉鍖栥€?- 閫夋嫨鎸囧畾鍒楀悗鑳界湅鍒拌鍒楀鐞嗗墠鍚庡垎甯冨浘銆?- 杈撳嚭涓嶅惈 `is_test`銆佽缁?娴嬭瘯鍒掑垎鍒楀拰妯″瀷鐗瑰緛闆嗐€?- 鏈墦鏍囨牱鏈繚鎸佺┖鍊硷紝涓嶅啓 0銆?- 鐩稿悓杈撳叆鍜岀浉鍚岄厤缃彲澶嶇幇銆?- 杈撳嚭 manifest銆乧hecksum銆佸浘琛ㄥ拰缁熻鏂囦欢瀹屾暣銆?

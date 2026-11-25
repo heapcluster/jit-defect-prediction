@@ -19,7 +19,7 @@ from app.services import config_store, job_store, output_store
 from app.services import file_contracts as fc
 
 logger = logging.getLogger('backend.clean')
-REQUEST_ROOT = config.REPO_ROOT / 'backend' / 'var' / 'clean_inputs'
+REQUEST_ROOT = config.TEMP_ROOT / 'clean_inputs'
 SYNC_MAX_ROWS = 2000
 SYNC_MAX_BYTES = 1024 * 1024
 _executor_lock = threading.Lock()

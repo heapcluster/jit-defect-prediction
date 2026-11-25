@@ -1,87 +1,61 @@
-# 模型图件查询 API（figures）
+# 妯″瀷鍥句欢鏌ヨ API锛坒igures锛?
+涓€鍙ヨ瘽锛氬彧璇诲垪鍑鸿瘎浼拌繍琛屼骇鐢熷苟缁?storage 鐧昏鐨勬ā鍨嬪浘浠跺強鍙敤鐘舵€侊紝鎸夐壌鏉?URL 渚涢〉闈㈠彇鍥撅紝涓嶅湪鏌ヨ鏃惰绠楁寚鏍囨垨缁樺浘銆?
+瀹炵幇鐘舵€侊細閮ㄥ垎銆€鏈熸锛氫竴鏈?
+W2 宸叉敮鎸佸凡鐧昏杈撳嚭鍥句欢鐨勯壌鏉冧笅杞?URL 涓?checksum 鍙敤鎬ч獙璇侊紱鏂版壒娆′笉瀚佹帴鏃ч潤鎬佹寚鏍囥€傚畬鏁磋瘎浼版寚鏍囩殑鍚屾壒娆℃姇褰遍殢 W7 鎺ュ叆锛屽皻鏈疄鐜伴儴鍒嗕笉浣滈€氳繃璇佹嵁銆?
+鍥炬枃浠?schema 涓庣被鍨嬪紩鐢?[../file-contracts.md](../file-contracts.md) 搂3.6锛宮anifest 寮曠敤 搂3.9锛涜瘎浼颁骇鐗╄ [evaluate.md](evaluate.md)銆?
+## 1. 鑱岃矗涓庝笉璐熻矗鑼冨洿
 
-一句话：只读列出评估运行产生并经 storage 登记的模型图件及可用状态，按鉴权 URL 供页面取图，不在查询时计算指标或绘图。
-
-实现状态：部分　期次：一期
-
-W2 已支持已登记输出图件的鉴权下载 URL 与 checksum 可用性验证；新批次不嫁接旧静态指标。完整评估指标的同批次投影随 W7 接入，尚未实现部分不作通过证据。
-
-图文件 schema 与类型引用 [../file-contracts.md](../file-contracts.md) §3.6，manifest 引用 §3.9；评估产物见 [evaluate.md](evaluate.md)。
-
-## 1. 职责与不负责范围
-
-- 负责按 model_name 返回 model_figure 中登记的图类型、标题、鉴权 URL、checksum 和缺图状态。
-- 支持 roc/pr/confusion/calibration/effort/feat_importance；effort-aware 与 effort-unaware 两类图均可登记。
-- 不负责读取静态指标表充当评估，不负责重算指标、预测、训练或生成新图；指标数值由 evaluate 输出提供。
-
-## 2. 端点契约
+- 璐熻矗鎸?model_name 杩斿洖 model_figure 涓櫥璁扮殑鍥剧被鍨嬨€佹爣棰樸€侀壌鏉?URL銆乧hecksum 鍜岀己鍥剧姸鎬併€?- 鏀寔 roc/pr/confusion/calibration/effort/feat_importance锛沞ffort-aware 涓?effort-unaware 涓ょ被鍥惧潎鍙櫥璁般€?- 涓嶈礋璐ｈ鍙栭潤鎬佹寚鏍囪〃鍏呭綋璇勪及锛屼笉璐熻矗閲嶇畻鎸囨爣銆侀娴嬨€佽缁冩垨鐢熸垚鏂板浘锛涙寚鏍囨暟鍊肩敱 evaluate 杈撳嚭鎻愪緵銆?
+## 2. 绔偣濂戠害
 
 ### GET /api/figures
 
-| 参数 | 必填 | 契约 |
+| 鍙傛暟 | 蹇呭～ | 濂戠害 |
 |---|---|---|
-| `model_name` | 是 | 已登记模型 |
-| `figure_type` | 否 | `roc` / `pr` / `confusion` / `calibration` / `effort` / `feat_importance` |
-| `job_id` | 否 | 选择已登记的 evaluate 输出批次；缺省取该模型最新登记且 manifest 完整的批次 |
+| `model_name` | 鏄?| 宸茬櫥璁版ā鍨?|
+| `figure_type` | 鍚?| `roc` / `pr` / `confusion` / `calibration` / `effort` / `feat_importance` |
+| `job_id` | 鍚?| 閫夋嫨宸茬櫥璁扮殑 evaluate 杈撳嚭鎵规锛涚己鐪佸彇璇ユā鍨嬫渶鏂扮櫥璁颁笖 manifest 瀹屾暣鐨勬壒娆?|
 
-响应 `data`：
-
-| 字段 | 含义 |
+鍝嶅簲 `data`锛?
+| 瀛楁 | 鍚箟 |
 |---|---|
-| `model_name` / `line` / `source_job_id` | 模型、模型线与选定的 evaluate 批次 |
-| `metrics[]` | 只读该批次 evaluate_metrics 中此模型的 §3.6 长表行；文件不可用则为空并由 metrics_unavailable 说明 |
-| `metrics_unavailable` | 指标文件缺失、checksum 不符或批次无此模型时的原因，无问题为 null |
-| `figures[]` | 磁盘校验存在的图，按上述类型固定顺序 |
-| `figures[].figure_type` | 六类之一；effort 项另含 effort_kind |
-| `figures[].effort_kind` | `aware` / `unaware`，非 effort 为 null |
-| `figures[].title` / `file_path` / `checksum_sha256` | 标题、鉴权 URL 与校验值 |
-| `figures[].source_job_id` | 产生该图的 evaluate job |
-| `missing[]` | 有登记但文件或 checksum 校验失败的项及原因 |
+| `model_name` / `line` / `source_job_id` | 妯″瀷銆佹ā鍨嬬嚎涓庨€夊畾鐨?evaluate 鎵规 |
+| `metrics[]` | 鍙璇ユ壒娆?evaluate_metrics 涓妯″瀷鐨?搂3.6 闀胯〃琛岋紱鏂囦欢涓嶅彲鐢ㄥ垯涓虹┖骞剁敱 metrics_unavailable 璇存槑 |
+| `metrics_unavailable` | 鎸囨爣鏂囦欢缂哄け銆乧hecksum 涓嶇鎴栨壒娆℃棤姝ゆā鍨嬫椂鐨勫師鍥狅紝鏃犻棶棰樹负 null |
+| `figures[]` | 纾佺洏鏍￠獙瀛樺湪鐨勫浘锛屾寜涓婅堪绫诲瀷鍥哄畾椤哄簭 |
+| `figures[].figure_type` | 鍏被涔嬩竴锛沞ffort 椤瑰彟鍚?effort_kind |
+| `figures[].effort_kind` | `aware` / `unaware`锛岄潪 effort 涓?null |
+| `figures[].title` / `file_path` / `checksum_sha256` | 鏍囬銆侀壌鏉?URL 涓庢牎楠屽€?|
+| `figures[].source_job_id` | 浜х敓璇ュ浘鐨?evaluate job |
+| `missing[]` | 鏈夌櫥璁颁絾鏂囦欢鎴?checksum 鏍￠獙澶辫触鐨勯」鍙婂師鍥?|
 
-`file_path` 可为 `/static/figures/...` 或受控输出下载 URL；两种路径都要求 X-API-Key。metrics 的逐字段结构只能是 §3.6 的 `model_name,line,metric,value,threshold,n,pos_rate,dataset_version,model_version,computed_at`，从同一批次已生成文件只读投影，本接口不重算。混淆数据从对应 evaluate 输出取得。
-
-### 错误码
-
-| 业务码 | HTTP | 场景 |
+`file_path` 鍙负 `/static/figures/...` 鎴栧彈鎺ц緭鍑轰笅杞?URL锛涗袱绉嶈矾寰勯兘瑕佹眰 X-API-Key銆俶etrics 鐨勯€愬瓧娈电粨鏋勫彧鑳芥槸 搂3.6 鐨?`model_name,line,metric,value,threshold,n,pos_rate,dataset_version,model_version,computed_at`锛屼粠鍚屼竴鎵规宸茬敓鎴愭枃浠跺彧璇绘姇褰憋紝鏈帴鍙ｄ笉閲嶇畻銆傛贩娣嗘暟鎹粠瀵瑰簲 evaluate 杈撳嚭鍙栧緱銆?
+### 閿欒鐮?
+| 涓氬姟鐮?| HTTP | 鍦烘櫙 |
 |---|---|---|
-| 40001 | 400 | 缺 model_name、figure_type 非法或未知参数 |
-| 40100 | 401 | 缺失或错误的 `X-API-Key`，包括 `/static` 取图 |
-| 40400 | 404 | 模型不存在或没有任何图件登记 |
-| 50000 | 500 | 未预期读取错误；可预期缺图进入 missing，不作为 50000 |
+| 40001 | 400 | 缂?model_name銆乫igure_type 闈炴硶鎴栨湭鐭ュ弬鏁?|
+| 40100 | 401 | 缂哄け鎴栭敊璇殑 `X-API-Key`锛屽寘鎷?`/static` 鍙栧浘 |
+| 40400 | 404 | 妯″瀷涓嶅瓨鍦ㄦ垨娌℃湁浠讳綍鍥句欢鐧昏 |
+| 50000 | 500 | 鏈鏈熻鍙栭敊璇紱鍙鏈熺己鍥捐繘鍏?missing锛屼笉浣滀负 50000 |
 
-## 3. 输入契约
+## 3. 杈撳叆濂戠害
 
-无上传文件。查询只接受模型、图类型和可选 evaluate job_id；图与 metrics 必须来自 §3.6 evaluate 输出及 §3.9 manifest，经 storage 校验登记。登记路径限定在允许静态根或 `backend/var/outputs` 内，拒绝绝对任意外部路径与 `..`。
+鏃犱笂浼犳枃浠躲€傛煡璇㈠彧鎺ュ彈妯″瀷銆佸浘绫诲瀷鍜屽彲閫?evaluate job_id锛涘浘涓?metrics 蹇呴』鏉ヨ嚜 搂3.6 evaluate 杈撳嚭鍙?搂3.9 manifest锛岀粡 storage 鏍￠獙鐧昏銆傜櫥璁拌矾寰勯檺瀹氬湪鍏佽闈欐€佹牴鎴?`temp/outputs` 鍐咃紝鎷掔粷缁濆浠绘剰澶栭儴璺緞涓?`..`銆?
+搂3.6 瀵瑰浘鐨勯€愬瓧瀹氫箟涓猴細**鈥滃浘 png锛歳oc/pr/confusion/calibration/effort/feat_importance锛坋ffort 涓ょ被璇剧▼纭姹傦級銆傗€?* 鏂囦欢鏍煎紡闇€鏍￠獙 PNG 榄旀暟銆佸ぇ灏忓拰 checksum锛孲VG 鎴栦吉閫?PNG 涓嶅緱鍐掑厖銆?
+## 4. 杈撳嚭濂戠害
 
-§3.6 对图的逐字定义为：**“图 png：roc/pr/confusion/calibration/effort/feat_importance（effort 两类课程硬要求）。”** 文件格式需校验 PNG 魔数、大小和 checksum，SVG 或伪造 PNG 不得冒充。
+GET 浠呰緭鍑?JSON 鍥句欢绱㈠紩涓庡凡鐢熸垚 metrics 鐨勫彧璇绘姇褰憋紝涓嶇敓鎴愭柊鍥俱€丆SV 鎴?manifest锛屼笉鍒涘缓杈撳嚭鐩綍銆傚浘銆乵etrics 涓庡叾鍘?evaluate manifest 浠嶇敱浜х敓瀹冧滑鐨勮緭鍑虹洰褰曟彁渚涳紱鏈帴鍙ｄ笉澶嶅埗銆侀噸鍛藉悕鎴栦慨鏀规枃浠躲€?
+缂哄浘鏃?figures 涓嶅寘鍚笉鍙敤 URL锛宮issing 缁欏嚭鍘熷洜锛沜hecksum 鏀瑰彉瑙嗕负涓嶅彲鐢ㄣ€傞〉闈娇鐢ㄥ甫 X-API-Key 鐨?fetch 鑾峰彇浜岃繘鍒跺苟杞?ObjectURL锛屼笉鑳戒负 img 鏍囩鍏抽棴閴存潈銆?
+## 5. 鍙厤缃」
 
-## 4. 输出契约
+- model_name銆乫igure_type 涓?job_id 涓烘煡璇㈤€夐」锛沞ffort_enabled 鎺у埗璇勪及鏄惁浜х敓 effort-aware 缁撴灉锛屼絾 figures 涓嶉殣钘忓凡鐧昏鍘嗗彶鍥俱€?- 闈欐€佹牴銆佽緭鍑烘牴鍜屽ぇ灏忛檺鍒跺睘浜庨儴缃插畨鍏ㄧ瓥鐣ワ紱闃堝€间笌鎸囨爣閰嶇疆鐢?evaluate 浣跨敤锛宖igures 涓嶅彟璁捐绠楅厤缃€?- `.env` 浠呮彁渚涘嚭鍘傝矾寰勯粯璁わ紝涓嶅厑璁搁€氳繃鏌ヨ鎸囧畾浠绘剰鏂囦欢绯荤粺璺緞銆?
+## 6. 鐘舵€佹寔涔呭寲
 
-GET 仅输出 JSON 图件索引与已生成 metrics 的只读投影，不生成新图、CSV 或 manifest，不创建输出目录。图、metrics 与其原 evaluate manifest 仍由产生它们的输出目录提供；本接口不复制、重命名或修改文件。
+- model_figure 鎸佷箙鐧昏妯″瀷銆佸浘绫诲瀷銆佽矾寰勫拰鏉ユ簮锛涙簮鏂囦欢浣嶄簬 `temp/outputs/<job_id>/`锛坓itignore锛夋垨鍙楁帶闈欐€佹牴銆?- 鍙鏌ヨ涓嶅垱寤?job銆佷笉鏀瑰浘銆佷笉鏀规寚鏍囷紱鏈嶅姟閲嶅惎鍚庣櫥璁颁粛鍦紝鏂囦欢缂哄け鎹疄杩涘叆 missing銆?- 鏂?evaluate 浜х墿缁?storage 鐧昏鍚庡彲鏃犻渶閲嶅惎鏌ヨ锛涙棫鐧昏涓嶈鐩栦笉鍚屾潵婧?job 鐨勫璁′俊鎭€?
+## 7. 楠屾敹
 
-缺图时 figures 不包含不可用 URL，missing 给出原因；checksum 改变视为不可用。页面使用带 X-API-Key 的 fetch 获取二进制并转 ObjectURL，不能为 img 标签关闭鉴权。
+fixtures锛歚tests/fixtures/files/figures/`锛屽寘鍚悎娉?PNG銆佺己澶辨枃浠躲€乧hecksum 鏀瑰彉鍜屼吉閫犳牸寮忥紝浠ュ強瀵瑰簲 搂3.9 manifest銆?
+- **姝ｅ父**锛氬悇鍥剧被鍨嬩笌 effort 涓ょ被鎸夊浐瀹氶『搴忚繑鍥烇紝URL 甯﹂壌鏉冨彲鍙栵紝source_job_id/checksum 涓庣櫥璁颁竴鑷淬€?- **杈圭晫**锛氭煇妯″瀷鍙湁閮ㄥ垎鍥俱€佹棤 effort-aware銆乫eat_importance 涓嶅彲鐢ㄣ€佹枃浠惰鍒犻櫎鍧囬€氳繃 figures/missing 鏄庣‘琛ㄨ揪銆?- **闈炴硶**锛氱己妯″瀷鍙傛暟銆侀潪娉曠被鍨嬨€佷吉閫?PNG銆佽矾寰勮秺鐣屻€佹棤/閿?API Key 杩斿洖 40001/40100/40400锛涗笉瑙﹀彂璇勪及璁＄畻銆?- 鍝嶅簲鏃犵鏈夋寚鏍囨潵婧愶紱鏀圭敤鎴烽槇鍊间笉浼氬鑷存湰鎺ュ彛缁樺浘锛屾柊鐨勫浘鍙兘鏉ヨ嚜 evaluate run銆?
+## 8. 杈圭晫
 
-## 5. 可配置项
-
-- model_name、figure_type 与 job_id 为查询选项；effort_enabled 控制评估是否产生 effort-aware 结果，但 figures 不隐藏已登记历史图。
-- 静态根、输出根和大小限制属于部署安全策略；阈值与指标配置由 evaluate 使用，figures 不另设计算配置。
-- `.env` 仅提供出厂路径默认，不允许通过查询指定任意文件系统路径。
-
-## 6. 状态持久化
-
-- model_figure 持久登记模型、图类型、路径和来源；源文件位于 `backend/var/outputs/<job_id>/`（gitignore）或受控静态根。
-- 只读查询不创建 job、不改图、不改指标；服务重启后登记仍在，文件缺失据实进入 missing。
-- 新 evaluate 产物经 storage 登记后可无需重启查询；旧登记不覆盖不同来源 job 的审计信息。
-
-## 7. 验收
-
-fixtures：`tests/fixtures/files/figures/`，包含合法 PNG、缺失文件、checksum 改变和伪造格式，以及对应 §3.9 manifest。
-
-- **正常**：各图类型与 effort 两类按固定顺序返回，URL 带鉴权可取，source_job_id/checksum 与登记一致。
-- **边界**：某模型只有部分图、无 effort-aware、feat_importance 不可用、文件被删除均通过 figures/missing 明确表达。
-- **非法**：缺模型参数、非法类型、伪造 PNG、路径越界、无/错 API Key 返回 40001/40100/40400；不触发评估计算。
-- 响应无私有指标来源；改用户阈值不会导致本接口绘图，新的图只能来自 evaluate run。
-
-## 8. 边界
-
-figures 是评估产物的展示索引，不是评估计算入口。evaluate 只依 §3.4 文件（含透传真标签）独立运行，storage 登记为可选展示路径；数据库或 figures 服务均不是评估和其他模块运行前置。
+figures 鏄瘎浼颁骇鐗╃殑灞曠ず绱㈠紩锛屼笉鏄瘎浼拌绠楀叆鍙ｃ€俥valuate 鍙緷 搂3.4 鏂囦欢锛堝惈閫忎紶鐪熸爣绛撅級鐙珛杩愯锛宻torage 鐧昏涓哄彲閫夊睍绀鸿矾寰勶紱鏁版嵁搴撴垨 figures 鏈嶅姟鍧囦笉鏄瘎浼板拰鍏朵粬妯″潡杩愯鍓嶇疆銆?

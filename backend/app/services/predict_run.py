@@ -19,7 +19,7 @@ from app.services import config_store, job_store, model_manage, output_store
 from app.services import file_contracts as fc
 
 logger = logging.getLogger('backend.predict_batch')
-REQUEST_ROOT = config.REPO_ROOT / 'backend' / 'var' / 'predict_inputs'
+REQUEST_ROOT = config.TEMP_ROOT / 'predict_inputs'
 SYNC_MAX_ROWS = 2000
 _executor_lock = threading.Lock()
 _wakeup = threading.Event()

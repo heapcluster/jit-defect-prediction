@@ -29,7 +29,7 @@ from app.services import config_store, job_store, model_manage, output_store
 from app.services import file_contracts as fc
 
 logger = logging.getLogger("backend.explain")
-REQUEST_ROOT = config.REPO_ROOT / "backend" / "var" / "explain_inputs"
+REQUEST_ROOT = config.TEMP_ROOT / "explain_inputs"
 SYNC_MAX_ROWS = 20
 MAX_WORKER_BYTES = 32 * 1024 * 1024
 

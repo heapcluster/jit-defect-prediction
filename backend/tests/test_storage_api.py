@@ -391,7 +391,7 @@ def test_asset_names_include_the_actual_output_batch_id(storage_client, engine):
     with Session(engine) as db:
         path = db.scalar(select(ModelArtifact.weight_path))
     parts = path.split("/")
-    assert parts[3] in parts[4]
+    assert parts[-2] in parts[-1]
 
 
 def test_packet_registration_cannot_relabel_an_active_model(storage_client, monkeypatch):

@@ -1,27 +1,15 @@
-# 预测结果解释（功能 7）
+# 棰勬祴缁撴灉瑙ｉ噴锛堝姛鑳?7锛?
+瀹炵幇鐘舵€侊細宸插疄鐜般€€鏈熸锛氫竴鏈?
+## 涓€鍙ヨ瘽姒傝堪
 
-实现状态：已实现　期次：一期
+鐙珛鐨?XAI 宸ュ叿锛氶€氳繃瑙ｉ噴鍣ㄦ敞鍐岃〃涓烘寚瀹氭ā鍨嬪寘涓庤緭鍏ユ牱鏈敓鎴愯嚦灏?SHAP銆丩IME 涓ょ缁熶竴缁撴瀯瑙ｉ噴锛屼笉鏀寔鐨勭粍鍚堢敤 `reason_code` 琛屾槑纭氦浠樿€岄潪闈欓粯缂鸿銆?
+## 1 鑱岃矗涓庝笉璐熻矗鑼冨洿
 
-## 一句话概述
-
-独立的 XAI 工具：通过解释器注册表为指定模型包与输入样本生成至少 SHAP、LIME 两种统一结构解释，不支持的组合用 `reason_code` 行明确交付而非静默缺行。
-
-## 1 职责与不负责范围
-
-**负责**：
-
-- 建立 XAI 解释器注册表与“模型族 × 技术”兼容矩阵，一期至少实现并验证 SHAP 和 LIME。
-- 接收模型包和特征输入，按所选技术与参数计算特征原值、贡献、方向、排名和版本信息。
-- 提供统一解释文件、技术切换、缓存和可选多技术比较；耗时任务进入统一 job 生命周期。
-- 对不支持的模型族、输入形态或技术返回明确原因码与说明，保证每个请求样本都有结果或原因记录。
-
-**不负责**：
-
-- 训练、预测、修改概率或标签、行级定位、修复建议和 CI 阻断。
-- 把解释限制在 expert 线而不给兼容矩阵，或在预测服务内部隐式执行解释。
-- 让具体 SHAP/LIME 实现成为 localization 的直接依赖。
-
-## 2 独立运行入口
+**璐熻矗**锛?
+- 寤虹珛 XAI 瑙ｉ噴鍣ㄦ敞鍐岃〃涓庘€滄ā鍨嬫棌 脳 鎶€鏈€濆吋瀹圭煩闃碉紝涓€鏈熻嚦灏戝疄鐜板苟楠岃瘉 SHAP 鍜?LIME銆?- 鎺ユ敹妯″瀷鍖呭拰鐗瑰緛杈撳叆锛屾寜鎵€閫夋妧鏈笌鍙傛暟璁＄畻鐗瑰緛鍘熷€笺€佽础鐚€佹柟鍚戙€佹帓鍚嶅拰鐗堟湰淇℃伅銆?- 鎻愪緵缁熶竴瑙ｉ噴鏂囦欢銆佹妧鏈垏鎹€佺紦瀛樺拰鍙€夊鎶€鏈瘮杈冿紱鑰楁椂浠诲姟杩涘叆缁熶竴 job 鐢熷懡鍛ㄦ湡銆?- 瀵逛笉鏀寔鐨勬ā鍨嬫棌銆佽緭鍏ュ舰鎬佹垨鎶€鏈繑鍥炴槑纭師鍥犵爜涓庤鏄庯紝淇濊瘉姣忎釜璇锋眰鏍锋湰閮芥湁缁撴灉鎴栧師鍥犺褰曘€?
+**涓嶈礋璐?*锛?
+- 璁粌銆侀娴嬨€佷慨鏀规鐜囨垨鏍囩銆佽绾у畾浣嶃€佷慨澶嶅缓璁拰 CI 闃绘柇銆?- 鎶婅В閲婇檺鍒跺湪 expert 绾胯€屼笉缁欏吋瀹圭煩闃碉紝鎴栧湪棰勬祴鏈嶅姟鍐呴儴闅愬紡鎵ц瑙ｉ噴銆?- 璁╁叿浣?SHAP/LIME 瀹炵幇鎴愪负 localization 鐨勭洿鎺ヤ緷璧栥€?
+## 2 鐙珛杩愯鍏ュ彛
 
 ```bash
 python -m app.cli explain techniques
@@ -33,69 +21,45 @@ python -m app.cli explain run \
   --technique lime --compare shap --out ./out
 ```
 
-| 入口 | 命令 / 端点 | 契约 |
+| 鍏ュ彛 | 鍛戒护 / 绔偣 | 濂戠害 |
 |---|---|---|
-| CLI | `explain techniques/run` | 模型包、输入文件和技术名即可运行，与 API 共用解释器注册表 |
-| 注册表 API | `GET /api/explain/techniques` | 返回技术、参数 schema、兼容矩阵和默认技术 |
-| 单条 API | `POST /api/explain` | 详情编排同步解释单条提交；只读已存输入与已加载模型，不产交换文件 |
-| 任务 API | `POST /api/explain/run` | multipart 上传模型包与输入文件，单样本或批量均返回可跟踪的 `job_id` |
-| 任务管理 | `GET /api/jobs/{id}`、`POST /api/jobs/{id}/retry\|cancel` | `kind=explain` 的五态、进度、日志、取消与重试 |
-| 下载 | `GET /api/explain/outputs/{job_id}/{name}` | 下载 explanations、比较结果与 manifest |
+| CLI | `explain techniques/run` | 妯″瀷鍖呫€佽緭鍏ユ枃浠跺拰鎶€鏈悕鍗冲彲杩愯锛屼笌 API 鍏辩敤瑙ｉ噴鍣ㄦ敞鍐岃〃 |
+| 娉ㄥ唽琛?API | `GET /api/explain/techniques` | 杩斿洖鎶€鏈€佸弬鏁?schema銆佸吋瀹圭煩闃靛拰榛樿鎶€鏈?|
+| 鍗曟潯 API | `POST /api/explain` | 璇︽儏缂栨帓鍚屾瑙ｉ噴鍗曟潯鎻愪氦锛涘彧璇诲凡瀛樿緭鍏ヤ笌宸插姞杞芥ā鍨嬶紝涓嶄骇浜ゆ崲鏂囦欢 |
+| 浠诲姟 API | `POST /api/explain/run` | multipart 涓婁紶妯″瀷鍖呬笌杈撳叆鏂囦欢锛屽崟鏍锋湰鎴栨壒閲忓潎杩斿洖鍙窡韪殑 `job_id` |
+| 浠诲姟绠＄悊 | `GET /api/jobs/{id}`銆乣POST /api/jobs/{id}/retry\|cancel` | `kind=explain` 鐨勪簲鎬併€佽繘搴︺€佹棩蹇椼€佸彇娑堜笌閲嶈瘯 |
+| 涓嬭浇 | `GET /api/explain/outputs/{job_id}/{name}` | 涓嬭浇 explanations銆佹瘮杈冪粨鏋滀笌 manifest |
 
-所有 HTTP 端点（含下载）必须使用 `X-API-Key`。提交详情需要解释时，由详情编排并行调用 predict 与本模块；predict 响应不含 explanation，predict 服务不得调用本模块。
+鎵€鏈?HTTP 绔偣锛堝惈涓嬭浇锛夊繀椤讳娇鐢?`X-API-Key`銆傛彁浜よ鎯呴渶瑕佽В閲婃椂锛岀敱璇︽儏缂栨帓骞惰璋冪敤 predict 涓庢湰妯″潡锛沺redict 鍝嶅簲涓嶅惈 explanation锛宲redict 鏈嶅姟涓嶅緱璋冪敤鏈ā鍧椼€?
+## 3 杈撳叆濂戠害
 
-## 3 输入契约
+- 妯″瀷杈撳叆閬靛惊 [`../file-contracts.md`](../file-contracts.md) 搂3.3 `model_package.zip`锛屽姞杞藉墠鏍￠獙 checksum銆佹ā鍨嬪厓淇℃伅銆佺壒寰侀『搴忓拰鍒楀銆?- 寰呰В閲婃彁浜ょ敱 搂3.2 `clean_dataset.csv` 鎴?搂3.1 `collected_commits.csv` 鎻愪緵锛涗袱琛ㄤ笉鍚?14 缁?/ `is_test`锛宔xpert 鐨勭壒寰佹寜妯″瀷鍖?`feature_order.txt` 浠庣粦瀹氫粨搴撶幇绠楋紝semantic 鐢ㄩ璁＄畻鍚戦噺鎴栧喕缁撳ご鍦ㄧ嚎缂栫爜銆傛ā鍨嬪寘涓庢彁浜よ〃灏辨槸涓昏緭鍏ャ€偮?.4 `predictions.csv` 浠呬负鍙€夌増鏈笌鑼冨洿鏍稿杈撳叆锛屼笉鎻愪緵瀹冧篃蹇呴』鑳藉畬鎴愯В閲婏紝涓嶈姹?predict 鏈嶅姟鍦ㄧ嚎銆?- 鏈ā鍧楅厤缃寘鎷?`technique`銆佹妧鏈笓灞?`params`銆乣feature_version`銆乣top_n`銆乣compare_techniques[]` 鍜岀紦瀛樼瓥鐣ワ紱缂虹渷鎶€鏈鍙?`user_config.default_xai`銆?- 娉ㄥ唽琛ㄧ粨鍚堢櫥璁扮畻娉曟爣璇嗕笌瀹為檯宸插姞杞芥ā鍨嬭瘑鍒?tree/linear/tabular/text锛歋HAP 鏀寔鏍?绾挎€э紝LIME 鏀寔琛ㄦ牸姒傜巼妯″瀷锛屾枃鏈垨缂哄皯杈撳叆褰㈡€佺殑妯″瀷鏄庣‘缁欏師鍥犮€傜畻娉曞簱鐨勭矖绮掑害 family 涓嶅啋鍏呭叿浣撹В閲婂櫒閫傞厤璇佹嵁锛涗笉浼氭倓鎮勬崲鎶€鏈€?- 杈撳叆缂哄皯妯″瀷鎵€闇€鐗瑰緛銆佺増鏈笉绗︽垨鍒楀涓嶇鏃舵槑纭け璐ワ紱涓嶈兘閫氳繃濉?0銆佹埅鏂垨閲嶆帓鍒楃寽娴嬪吋瀹广€?
+## 4 杈撳嚭濂戠害
 
-- 模型输入遵循 [`../file-contracts.md`](../file-contracts.md) §3.3 `model_package.zip`，加载前校验 checksum、模型元信息、特征顺序和列宽。
-- 待解释提交由 §3.2 `clean_dataset.csv` 或 §3.1 `collected_commits.csv` 提供；两表不含 14 维 / `is_test`，expert 的特征按模型包 `feature_order.txt` 从绑定仓库现算，semantic 用预计算向量或冻结头在线编码。模型包与提交表就是主输入。§3.4 `predictions.csv` 仅为可选版本与范围核对输入，不提供它也必须能完成解释，不要求 predict 服务在线。
-- 本模块配置包括 `technique`、技术专属 `params`、`feature_version`、`top_n`、`compare_techniques[]` 和缓存策略；缺省技术读取 `user_config.default_xai`。
-- 注册表结合登记算法标识与实际已加载模型识别 tree/linear/tabular/text：SHAP 支持树/线性，LIME 支持表格概率模型，文本或缺少输入形态的模型明确给原因。算法库的粗粒度 family 不冒充具体解释器适配证据；不会悄悄换技术。
-- 输入缺少模型所需特征、版本不符或列宽不符时明确失败；不能通过填 0、截断或重排列猜测兼容。
-
-## 4 输出契约
-
-| 输出 | 文件与内容 |
+| 杈撳嚭 | 鏂囦欢涓庡唴瀹?|
 |---|---|
-| 统一解释 | `explain_explanations_<job_id>.csv`，可选 `.xlsx`；逐行严格遵循 §3.7 explanations schema |
-| 技术比较 | `explain_comparison_<job_id>.json`：同一输入在不同技术下的结果引用、参数和状态，供并排展示 |
-| 运行摘要 | `explain_summary_<job_id>.json`：样本数、成功数、不支持数、缓存命中、技术与版本统计 |
-| manifest | 每个产物伴同名 `explain_<artifact>_<job_id>.manifest.json`，满足 §3.9，记录模型/输入 checksum、技术参数与代码版本 |
+| 缁熶竴瑙ｉ噴 | `explain_explanations_<job_id>.csv`锛屽彲閫?`.xlsx`锛涢€愯涓ユ牸閬靛惊 搂3.7 explanations schema |
+| 鎶€鏈瘮杈?| `explain_comparison_<job_id>.json`锛氬悓涓€杈撳叆鍦ㄤ笉鍚屾妧鏈笅鐨勭粨鏋滃紩鐢ㄣ€佸弬鏁板拰鐘舵€侊紝渚涘苟鎺掑睍绀?|
+| 杩愯鎽樿 | `explain_summary_<job_id>.json`锛氭牱鏈暟銆佹垚鍔熸暟銆佷笉鏀寔鏁般€佺紦瀛樺懡涓€佹妧鏈笌鐗堟湰缁熻 |
+| manifest | 姣忎釜浜х墿浼村悓鍚?`explain_<artifact>_<job_id>.manifest.json`锛屾弧瓒?搂3.9锛岃褰曟ā鍨?杈撳叆 checksum銆佹妧鏈弬鏁颁笌浠ｇ爜鐗堟湰 |
 
-命名统一为 `<module>_<artifact>_<job_id>.<ext>`。不支持的组合必须按 §3.7 产 `reason_code` 行：feature 与 contribution 留空、reason_code 非空，并附可展示说明；不得静默缺行或只给空白区域。所有支持的技术共用同一结构、排序和方向语义，解释过程只读，不改变预测结果。
+鍛藉悕缁熶竴涓?`<module>_<artifact>_<job_id>.<ext>`銆備笉鏀寔鐨勭粍鍚堝繀椤绘寜 搂3.7 浜?`reason_code` 琛岋細feature 涓?contribution 鐣欑┖銆乺eason_code 闈炵┖锛屽苟闄勫彲灞曠ず璇存槑锛涗笉寰楅潤榛樼己琛屾垨鍙粰绌虹櫧鍖哄煙銆傛墍鏈夋敮鎸佺殑鎶€鏈叡鐢ㄥ悓涓€缁撴瀯銆佹帓搴忓拰鏂瑰悜璇箟锛岃В閲婅繃绋嬪彧璇伙紝涓嶆敼鍙橀娴嬬粨鏋溿€?
+## 5 鍙厤缃」
 
-## 5 可配置项
-
-| 配置 | 来源 | 默认 / 约束 |
+| 閰嶇疆 | 鏉ユ簮 | 榛樿 / 绾︽潫 |
 |---|---|---|
-| `default_xai` | `user_config` 全局键 | 默认 `shap`，须属于注册表，重启恢复 |
-| SHAP/LIME 参数 | run 配置 + 技术 schema | 背景集、采样数等按注册表校验并入快照 |
-| `explain.cache_ttl` | `user_config` 命名空间键 | 非负时长；模型/特征/技术参数变化使缓存失效 |
-| `explain.compare_enabled` | `user_config` 命名空间键 | HTTP 多技术比较默认 false，显式开启；CLI 的 --compare 是本次独立运行的明确选择 |
-| 展示特征数量 | run `top_n` 或 `page_prefs` | 默认 8，只影响展示，不截断交付文件中的原因行 |
+| `default_xai` | `user_config` 鍏ㄥ眬閿?| 榛樿 `shap`锛岄』灞炰簬娉ㄥ唽琛紝閲嶅惎鎭㈠ |
+| SHAP/LIME 鍙傛暟 | run 閰嶇疆 + 鎶€鏈?schema | 鑳屾櫙闆嗐€侀噰鏍锋暟绛夋寜娉ㄥ唽琛ㄦ牎楠屽苟鍏ュ揩鐓?|
+| `explain.cache_ttl` | `user_config` 鍛藉悕绌洪棿閿?| 闈炶礋鏃堕暱锛涙ā鍨?鐗瑰緛/鎶€鏈弬鏁板彉鍖栦娇缂撳瓨澶辨晥 |
+| `explain.compare_enabled` | `user_config` 鍛藉悕绌洪棿閿?| HTTP 澶氭妧鏈瘮杈冮粯璁?false锛屾樉寮忓紑鍚紱CLI 鐨?--compare 鏄湰娆＄嫭绔嬭繍琛岀殑鏄庣‘閫夋嫨 |
+| 灞曠ず鐗瑰緛鏁伴噺 | run `top_n` 鎴?`page_prefs` | 榛樿 8锛屽彧褰卞搷灞曠ず锛屼笉鎴柇浜や粯鏂囦欢涓殑鍘熷洜琛?|
 
-## 6 状态持久化
+## 6 鐘舵€佹寔涔呭寲
 
-- 解释创建 `job.kind=explain`，使用统一五态并持久化技术、参数、输入引用、进度和错误日志；同 kind 互斥，重启遗留 running 置 failed。
-- 输出落盘 `backend/var/outputs/<job_id>/`，目录整体加入 gitignore；失败或不支持均保留可诊断结果，不把部分空文件标为完整成功。
-- 缓存键至少包含输入样本、模型包 checksum、特征版本、技术和参数；命中缓存不重复计算，版本变化不得读取旧解释。
-- `default_xai`、`explain.cache_ttl` 和 `explain.compare_enabled` 落 `user_config` 并重启恢复；每次运行固化注册表/兼容矩阵版本、模型与特征版本。
-- LIME 0.2.0.1 已锁版于唯一 environment.yml；固定 seed/num_samples/kernel_width 可重算。线性 SHAP 为 log_odds，树为 tree_raw，LIME 为 local_probability_coefficient；保留符号、rank、raw_value，数值不能跨尺度直接相加。无真实背景时明确记录零/合成参考。
-- 模型包解释在跨平台受限子进程内执行，不加入在线注册表；macOS 用系统 sandbox-exec，Windows 与其它平台用不可卸载的 Python 审计钩子限制文件读写/网络/子进程/动态库，pickle 只在收紧后的子进程内反序列化，父进程永不执行未受权限衡量的权重。执行有 120 秒墙钟/90 秒 CPU（Windows 等价墙钟约束）/32MiB 输出上限，超时、无效输出和不支持都交付原因行。
+- 瑙ｉ噴鍒涘缓 `job.kind=explain`锛屼娇鐢ㄧ粺涓€浜旀€佸苟鎸佷箙鍖栨妧鏈€佸弬鏁般€佽緭鍏ュ紩鐢ㄣ€佽繘搴﹀拰閿欒鏃ュ織锛涘悓 kind 浜掓枼锛岄噸鍚仐鐣?running 缃?failed銆?- 杈撳嚭钀界洏 `temp/outputs/<job_id>/`锛岀洰褰曟暣浣撳姞鍏?gitignore锛涘け璐ユ垨涓嶆敮鎸佸潎淇濈暀鍙瘖鏂粨鏋滐紝涓嶆妸閮ㄥ垎绌烘枃浠舵爣涓哄畬鏁存垚鍔熴€?- 缂撳瓨閿嚦灏戝寘鍚緭鍏ユ牱鏈€佹ā鍨嬪寘 checksum銆佺壒寰佺増鏈€佹妧鏈拰鍙傛暟锛涘懡涓紦瀛樹笉閲嶅璁＄畻锛岀増鏈彉鍖栦笉寰楄鍙栨棫瑙ｉ噴銆?- `default_xai`銆乣explain.cache_ttl` 鍜?`explain.compare_enabled` 钀?`user_config` 骞堕噸鍚仮澶嶏紱姣忔杩愯鍥哄寲娉ㄥ唽琛?鍏煎鐭╅樀鐗堟湰銆佹ā鍨嬩笌鐗瑰緛鐗堟湰銆?- LIME 0.2.0.1 宸查攣鐗堜簬鍞竴 environment.yml锛涘浐瀹?seed/num_samples/kernel_width 鍙噸绠椼€傜嚎鎬?SHAP 涓?log_odds锛屾爲涓?tree_raw锛孡IME 涓?local_probability_coefficient锛涗繚鐣欑鍙枫€乺ank銆乺aw_value锛屾暟鍊间笉鑳借法灏哄害鐩存帴鐩稿姞銆傛棤鐪熷疄鑳屾櫙鏃舵槑纭褰曢浂/鍚堟垚鍙傝€冦€?- 妯″瀷鍖呰В閲婂湪璺ㄥ钩鍙板彈闄愬瓙杩涚▼鍐呮墽琛岋紝涓嶅姞鍏ュ湪绾挎敞鍐岃〃锛沵acOS 鐢ㄧ郴缁?sandbox-exec锛學indows 涓庡叾瀹冨钩鍙扮敤涓嶅彲鍗歌浇鐨?Python 瀹¤閽╁瓙闄愬埗鏂囦欢璇诲啓/缃戠粶/瀛愯繘绋?鍔ㄦ€佸簱锛宲ickle 鍙湪鏀剁揣鍚庣殑瀛愯繘绋嬪唴鍙嶅簭鍒楀寲锛岀埗杩涚▼姘镐笉鎵ц鏈彈鏉冮檺琛￠噺鐨勬潈閲嶃€傛墽琛屾湁 120 绉掑閽?90 绉?CPU锛圵indows 绛変环澧欓挓绾︽潫锛?32MiB 杈撳嚭涓婇檺锛岃秴鏃躲€佹棤鏁堣緭鍑哄拰涓嶆敮鎸侀兘浜や粯鍘熷洜琛屻€?
+## 7 涓庡叾浠栨ā鍧楄竟鐣?
+- 涓绘彙鎵嬫槸 train 鐨?搂3.3 妯″瀷鍖呬笌 clean/collect 鐨?搂3.1/搂3.2 鐗瑰緛鏂囦欢锛沺redict 鐨?搂3.4 棰勬祴鏂囦欢鍙綔鍙€夋牳瀵广€備换浣曚笂娓告湇鍔℃垨鏃㈡湁棰勬祴鏂囦欢閮戒笉鏄В閲婅繍琛屽墠鎻愩€?- localization 鍙秷璐?搂3.7 缁熶竴瑙ｉ噴锛屼笉鐩存帴瀹炰緥鍖?SHAP/LIME锛涙湰妯″潡涓嶈皟鐢?localization銆?- 璇︽儏椤靛彲浠ュ苟琛岃皟鐢?predict 鍜?explain锛屼絾杩欐槸澶栭儴灞曠ず缂栨帓锛沺redict 鍐呴儴绂佹瑙﹀彂瑙ｉ噴锛岃В閲婂け璐ヤ篃涓嶅奖鍝嶉娴嬪搷搴斻€?- 椤甸潰灞備綔涓衡懁棰勬祴鐨勫瓙椤碉紝鍙粠棰勬祴缁撴灉/鎻愪氦璇︽儏甯﹀叆 commit/model锛涙ā鍧楁湰韬笉渚濊禆鈶ゅ湪绾匡紝浠嶅彲鐙珛涓婁紶妯″瀷鍖呬笌鐗瑰緛鏂囦欢杩愯銆?- `algorithm.family` 涓?`user_config` 灞炰簬閰嶇疆鍏冩暟鎹紱鐙珛 CLI 鍙娇鐢ㄧ浉鍚岀櫥璁颁俊鎭殑蹇収瀹屾垚鍏煎鎬ф牎楠屻€?
+## 8 楠屾敹鏍囧噯
 
-## 7 与其他模块边界
-
-- 主握手是 train 的 §3.3 模型包与 clean/collect 的 §3.1/§3.2 特征文件；predict 的 §3.4 预测文件只作可选核对。任何上游服务或既有预测文件都不是解释运行前提。
-- localization 只消费 §3.7 统一解释，不直接实例化 SHAP/LIME；本模块不调用 localization。
-- 详情页可以并行调用 predict 和 explain，但这是外部展示编排；predict 内部禁止触发解释，解释失败也不影响预测响应。
-- 页面层作为⑤预测的子页，可从预测结果/提交详情带入 commit/model；模块本身不依赖⑤在线，仍可独立上传模型包与特征文件运行。
-- `algorithm.family` 与 `user_config` 属于配置元数据；独立 CLI 可使用相同登记信息的快照完成兼容性校验。
-
-## 8 验收标准
-
-fixtures 为测试内联合成的 AI 生成未审核模型/特征/兼容组合，含正常、边界、非法三类；在无 predict 服务、空业务库环境下，CLI/API 均可独立生成解释文件。
-
-- 同一提交在同一兼容模型上分别运行 SHAP 与 LIME，均有统一结构、可排序且含模型/特征版本的结果；技术切换和并排比较生效。
-- 至少一个不支持的模型与技术组合产生 §3.7 `reason_code` 行，feature/contribution 留空且请求样本不缺失；predict 页面不受影响。
-- checksum 错误、特征缺失、列宽不符、未知技术和参数越界均明确失败，不伪造贡献；输入文件与 manifest 校验完整。
-- 默认技术、缓存和比较配置重启后保持；缓存命中不重复计算，模型或特征版本变化后旧缓存不可命中。
-- 承接 TODO/07：注册表、兼容矩阵、统一结构、缓存、失败原因、主要模型族和技术切换均有测试；五态、互斥、取消、重试和重启中断通过。
+fixtures 涓烘祴璇曞唴鑱斿悎鎴愮殑 AI 鐢熸垚鏈鏍告ā鍨?鐗瑰緛/鍏煎缁勫悎锛屽惈姝ｅ父銆佽竟鐣屻€侀潪娉曚笁绫伙紱鍦ㄦ棤 predict 鏈嶅姟銆佺┖涓氬姟搴撶幆澧冧笅锛孋LI/API 鍧囧彲鐙珛鐢熸垚瑙ｉ噴鏂囦欢銆?
+- 鍚屼竴鎻愪氦鍦ㄥ悓涓€鍏煎妯″瀷涓婂垎鍒繍琛?SHAP 涓?LIME锛屽潎鏈夌粺涓€缁撴瀯銆佸彲鎺掑簭涓斿惈妯″瀷/鐗瑰緛鐗堟湰鐨勭粨鏋滐紱鎶€鏈垏鎹㈠拰骞舵帓姣旇緝鐢熸晥銆?- 鑷冲皯涓€涓笉鏀寔鐨勬ā鍨嬩笌鎶€鏈粍鍚堜骇鐢?搂3.7 `reason_code` 琛岋紝feature/contribution 鐣欑┖涓旇姹傛牱鏈笉缂哄け锛沺redict 椤甸潰涓嶅彈褰卞搷銆?- checksum 閿欒銆佺壒寰佺己澶便€佸垪瀹戒笉绗︺€佹湭鐭ユ妧鏈拰鍙傛暟瓒婄晫鍧囨槑纭け璐ワ紝涓嶄吉閫犺础鐚紱杈撳叆鏂囦欢涓?manifest 鏍￠獙瀹屾暣銆?- 榛樿鎶€鏈€佺紦瀛樺拰姣旇緝閰嶇疆閲嶅惎鍚庝繚鎸侊紱缂撳瓨鍛戒腑涓嶉噸澶嶈绠楋紝妯″瀷鎴栫壒寰佺増鏈彉鍖栧悗鏃х紦瀛樹笉鍙懡涓€?- 鎵挎帴 TODO/07锛氭敞鍐岃〃銆佸吋瀹圭煩闃点€佺粺涓€缁撴瀯銆佺紦瀛樸€佸け璐ュ師鍥犮€佷富瑕佹ā鍨嬫棌鍜屾妧鏈垏鎹㈠潎鏈夋祴璇曪紱浜旀€併€佷簰鏂ャ€佸彇娑堛€侀噸璇曞拰閲嶅惎涓柇閫氳繃銆?

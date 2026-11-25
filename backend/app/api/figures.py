@@ -49,14 +49,23 @@ def _load_metrics() -> dict[str, dict]:
     return out
 
 
+def _output_ref(file_path: str) -> tuple[str, str] | None:
+    """从 `temp/outputs/<job_id>/<name>` 解析 (job_id, name)。"""
+    prefix = config.OUTPUTS_REL + "/"
+    if not file_path.startswith(prefix):
+        return None
+    parts = file_path[len(prefix):].split("/")
+    if len(parts) != 2 or not all(parts):
+        return None
+    return parts[0], parts[1]
+
+
 def _local_file(file_path: str) -> Path | None:
     """把契约里的 `/static/...` URL 还原成磁盘路径；越界路径一律视为不存在。"""
-    if file_path.startswith("backend/var/outputs/"):
-        parts = file_path.split("/")
-        if len(parts) != 5:
-            return None
+    reference = _output_ref(file_path)
+    if reference is not None:
         try:
-            return output_store.read_output("storage", parts[3], parts[4])
+            return output_store.read_output("storage", *reference)
         except AppError:
             return None
     prefix = "/static/"
@@ -94,17 +103,16 @@ def figures(model_name: str = Query(default=...)) -> dict:
         if local is None or not local.is_file():
             missing.append(row.file_path)
             continue
-        public_path = row.file_path
-        if row.file_path.startswith("backend/var/outputs/"):
-            parts = row.file_path.split("/")
-            public_path = f"/api/storage/outputs/{parts[3]}/{parts[4]}"
+        reference = _output_ref(row.file_path)
+        public_path = (f"/api/storage/outputs/{reference[0]}/{reference[1]}"
+                       if reference is not None else row.file_path)
         figures_list.append(
             {"figure_type": figure_type, "title": row.title, "file_path": public_path}
         )
     data = {
         "model_name": model_name,
         "line": model.line,
-        "metrics": None if any(row.file_path.startswith("backend/var/outputs/") for row in rows) else _load_metrics().get(model_name),
+        "metrics": None if any(row.file_path.startswith(config.OUTPUTS_REL + "/") for row in rows) else _load_metrics().get(model_name),
         "figures": figures_list,
         "missing": missing,
     }

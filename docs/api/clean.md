@@ -1,27 +1,15 @@
-# 数据清洗与预处理 API（clean）
+# 鏁版嵁娓呮礂涓庨澶勭悊 API锛坈lean锛?
+瀹炵幇鐘舵€侊細鐩爣濂戠害銆€鏈熸锛氫竴鏈?
+> 鏃?API 鍙ｅ緞鍖呭惈 `commits.csv`銆乣szz_label`銆乣d5_exclude`銆乣time_split`銆乣is_test`銆乣feature_build`銆並amei 14 缁存ā鍨嬬壒寰侊紱鏈枃宸插簾姝€傛湰杞彧淇敼璁捐鏂囨。銆?
+鏂囦欢濂戠害鍞竴鏉冨▉锛歔`../file-contracts.md`](../file-contracts.md) 搂3.1銆伮?.2銆伮?.9锛涘叕鍏卞彛寰勮 [README.md](README.md)銆?
+## 1 鑱岃矗涓庝笉璐熻矗鑼冨洿
 
-实现状态：目标契约　期次：一期
-
-> 旧 API 口径包含 `commits.csv`、`szz_label`、`d5_exclude`、`time_split`、`is_test`、`feature_build`、Kamei 14 维模型特征；本文已废止。本轮只修改设计文档。
-
-文件契约唯一权威：[`../file-contracts.md`](../file-contracts.md) §3.1、§3.2、§3.9；公共口径见 [README.md](README.md)。
-
-## 1 职责与不负责范围
-
-- 负责操作注册表、处理链校验、preview/apply、每步数据集变化统计、指定列变化统计、图表和清洗后数据集文件交付。
-- 输入为板块 2 的 `collected_commits.csv/xlsx`。
-- 不执行 SZZ、D5、Git 拉取。
-- 不生成 `is_test`，不做训练/测试切分。
-- 不生成或选择模型特征；Kamei 14 维、语义向量、融合特征、端到端文本特征均在训练阶段处理。
-- 不做训练侧 `log_transform` / `standardize` / `categorical_encode` / `feature_select`。
-- 不训练模型、不评估、不解释、不定位。
-- 不要求数据库有上游数据；不写 `dataset` / `dataset_commit`。
-
-## 2 端点契约
+- 璐熻矗鎿嶄綔娉ㄥ唽琛ㄣ€佸鐞嗛摼鏍￠獙銆乸review/apply銆佹瘡姝ユ暟鎹泦鍙樺寲缁熻銆佹寚瀹氬垪鍙樺寲缁熻銆佸浘琛ㄥ拰娓呮礂鍚庢暟鎹泦鏂囦欢浜や粯銆?- 杈撳叆涓烘澘鍧?2 鐨?`collected_commits.csv/xlsx`銆?- 涓嶆墽琛?SZZ銆丏5銆丟it 鎷夊彇銆?- 涓嶇敓鎴?`is_test`锛屼笉鍋氳缁?娴嬭瘯鍒囧垎銆?- 涓嶇敓鎴愭垨閫夋嫨妯″瀷鐗瑰緛锛汯amei 14 缁淬€佽涔夊悜閲忋€佽瀺鍚堢壒寰併€佺鍒扮鏂囨湰鐗瑰緛鍧囧湪璁粌闃舵澶勭悊銆?- 涓嶅仛璁粌渚?`log_transform` / `standardize` / `categorical_encode` / `feature_select`銆?- 涓嶈缁冩ā鍨嬨€佷笉璇勪及銆佷笉瑙ｉ噴銆佷笉瀹氫綅銆?- 涓嶈姹傛暟鎹簱鏈変笂娓告暟鎹紱涓嶅啓 `dataset` / `dataset_commit`銆?
+## 2 绔偣濂戠害
 
 ### GET /api/clean/operations
 
-无请求参数。响应 `data.operations[]`，每个操作包含：
+鏃犺姹傚弬鏁般€傚搷搴?`data.operations[]`锛屾瘡涓搷浣滃寘鍚細
 
 ```text
 op
@@ -35,10 +23,9 @@ order_constraints[]
 supports_preview
 ```
 
-一期操作：
+涓€鏈熸搷浣滐細
 
-清洗：
-
+娓呮礂锛?
 ```text
 schema_validate
 duplicate_drop
@@ -51,7 +38,7 @@ label_validate
 text_clean
 ```
 
-通用预处理：
+閫氱敤棰勫鐞嗭細
 
 ```text
 type_convert
@@ -63,26 +50,22 @@ derive_basic_fields
 
 ### POST /api/clean/run
 
-`multipart/form-data`。
-
-文件：
-
-| part | 必填 | 说明 |
+`multipart/form-data`銆?
+鏂囦欢锛?
+| part | 蹇呭～ | 璇存槑 |
 |---|---|---|
-| `files[]` | 是 | `collected_commits.csv/xlsx` |
-| 同名 manifest | 否 | 提供时校验 checksum 与来源 |
+| `files[]` | 鏄?| `collected_commits.csv/xlsx` |
+| 鍚屽悕 manifest | 鍚?| 鎻愪緵鏃舵牎楠?checksum 涓庢潵婧?|
 
-`config` JSON part：
-
-| 字段 | 必填 | 契约 |
+`config` JSON part锛?
+| 瀛楁 | 蹇呭～ | 濂戠害 |
 |---|---|---|
-| `mode` | 是 | `preview` / `apply` |
-| `steps[]` | 是 | 有序数组：`{op,enabled,params}` |
-| `chart_columns[]` | 否 | 需要前后变化图的列/基础特征；可为空 |
-| `format` | 否 | `csv` / `xlsx`，默认 `csv` |
+| `mode` | 鏄?| `preview` / `apply` |
+| `steps[]` | 鏄?| 鏈夊簭鏁扮粍锛歚{op,enabled,params}` |
+| `chart_columns[]` | 鍚?| 闇€瑕佸墠鍚庡彉鍖栧浘鐨勫垪/鍩虹鐗瑰緛锛涘彲涓虹┖ |
+| `format` | 鍚?| `csv` / `xlsx`锛岄粯璁?`csv` |
 
-禁止字段：
-
+绂佹瀛楁锛?
 ```text
 repo_source
 feature_file
@@ -99,10 +82,8 @@ seed
 is_test
 ```
 
-收到禁止字段返回 40001，并提示模型特征与训练切分属于训练阶段。
-
-响应：
-
+鏀跺埌绂佹瀛楁杩斿洖 40001锛屽苟鎻愮ず妯″瀷鐗瑰緛涓庤缁冨垏鍒嗗睘浜庤缁冮樁娈点€?
+鍝嶅簲锛?
 ```json
 {
   "code": 0,
@@ -114,12 +95,10 @@ is_test
 }
 ```
 
-小文件可同步完成；大文件走异步 job。同 kind 同时最多一个 running。
-
+灏忔枃浠跺彲鍚屾瀹屾垚锛涘ぇ鏂囦欢璧板紓姝?job銆傚悓 kind 鍚屾椂鏈€澶氫竴涓?running銆?
 ### GET /api/clean/preview/{job_id}
 
-仅 apply 成功提供：
-
+浠?apply 鎴愬姛鎻愪緵锛?
 ```json
 {
   "columns": [],
@@ -127,11 +106,10 @@ is_test
 }
 ```
 
-最多前 20 行；空标签返回 `null`。preview 模式没有主表，返回 40001。
-
+鏈€澶氬墠 20 琛岋紱绌烘爣绛捐繑鍥?`null`銆俻review 妯″紡娌℃湁涓昏〃锛岃繑鍥?40001銆?
 ### GET /api/clean/outputs/{job_id}/{name}
 
-下载已登记产物。允许名称：
+涓嬭浇宸茬櫥璁颁骇鐗┿€傚厑璁稿悕绉帮細
 
 ```text
 clean_dataset_<job_id>.csv
@@ -143,21 +121,18 @@ clean_column_distribution_<step>_<column>_<job_id>.png
 clean_dataset_<job_id>.manifest.json
 ```
 
-`name` 必须出现在 manifest `outputs[]`，禁止路径分隔符和 `..`。
-
-### 错误码
-
-| 业务码 | HTTP | 场景 |
+`name` 蹇呴』鍑虹幇鍦?manifest `outputs[]`锛岀姝㈣矾寰勫垎闅旂鍜?`..`銆?
+### 閿欒鐮?
+| 涓氬姟鐮?| HTTP | 鍦烘櫙 |
 |---|---|---|
-| 40001 | 400 | 未知操作、顺序冲突、禁止字段、非法 schema、公式注入 |
-| 40100 | 401 | 缺失或错误 `X-API-Key` |
-| 40400 | 404 | job 或输出不存在 |
-| 50000 | 500 | 未预期错误；运行期失败写脱敏日志 |
+| 40001 | 400 | 鏈煡鎿嶄綔銆侀『搴忓啿绐併€佺姝㈠瓧娈点€侀潪娉?schema銆佸叕寮忔敞鍏?|
+| 40100 | 401 | 缂哄け鎴栭敊璇?`X-API-Key` |
+| 40400 | 404 | job 鎴栬緭鍑轰笉瀛樺湪 |
+| 50000 | 500 | 鏈鏈熼敊璇紱杩愯鏈熷け璐ュ啓鑴辨晱鏃ュ織 |
 
-## 3 输入契约
+## 3 杈撳叆濂戠害
 
-主表严格引用 [`../file-contracts.md`](../file-contracts.md) §3.1：
-
+涓昏〃涓ユ牸寮曠敤 [`../file-contracts.md`](../file-contracts.md) 搂3.1锛?
 ```text
 commit_hash, repo_name, repo_url, author_name, author_email,
 committed_at, message, parent_hash,
@@ -165,51 +140,30 @@ is_bug_inducing, label_method, label_source,
 labeled_at, fix_commit_hash, source_type
 ```
 
-校验：
+鏍￠獙锛?
+- `commit_hash` 40 浣嶅皬鍐?hex銆?- `is_bug_inducing` 鍙兘 1 / 0 / 绌恒€?- `label_source` 鍙兘 `git_szz` / `public_dataset`銆?- CSV UTF-8/UTF-8 BOM锛沊LSX 鍗?sheet銆?- 涓嶅厑璁稿叕寮忔敞鍏ュ崟鍏冩牸銆?- 涓嶈姹?14 缁寸壒寰佸垪銆?- 涓嶅厑璁?`is_test` 鍒楄繘鍏ワ紱鑻ヨ緭鍏ュ寘鍚?`is_test`锛屽拷鐣ュ苟鍦?manifest 璁板綍鏉ユ簮璀﹀憡銆?
+## 4 澶勭悊閾捐鍒?
+- `schema_validate` 蹇呴』绗竴姝ヤ笖涓嶅彲鍏抽棴銆?- 娓呮礂鎿嶄綔蹇呴』鍏堜簬閫氱敤棰勫鐞嗘搷浣溿€?- `date_normalize` 蹇呴』鍏堜簬浠讳綍鍩轰簬鏃堕棿鐨勫熀纭€娲剧敓銆?- `derive_basic_fields` 鍙兘娲剧敓鍩虹鍒楋紝涓嶅緱鐢熸垚妯″瀷鐗瑰緛銆?- 涓嶅厑璁?SZZ銆丏5銆佹椂闂村垏鍒嗐€佹ā鍨嬬壒寰佺敓鎴愭垨璁粌渚у彉鎹綔涓烘湰妯″潡鎿嶄綔銆?
+## 5 杈撳嚭濂戠害
 
-- `commit_hash` 40 位小写 hex。
-- `is_bug_inducing` 只能 1 / 0 / 空。
-- `label_source` 只能 `git_szz` / `public_dataset`。
-- CSV UTF-8/UTF-8 BOM；XLSX 单 sheet。
-- 不允许公式注入单元格。
-- 不要求 14 维特征列。
-- 不允许 `is_test` 列进入；若输入包含 `is_test`，忽略并在 manifest 记录来源警告。
+### 5.1 娓呮礂鍚庢暟鎹泦
 
-## 4 处理链规则
-
-- `schema_validate` 必须第一步且不可关闭。
-- 清洗操作必须先于通用预处理操作。
-- `date_normalize` 必须先于任何基于时间的基础派生。
-- `derive_basic_fields` 只能派生基础列，不得生成模型特征。
-- 不允许 SZZ、D5、时间切分、模型特征生成或训练侧变换作为本模块操作。
-
-## 5 输出契约
-
-### 5.1 清洗后数据集
-
-apply 模式产出：
-
+apply 妯″紡浜у嚭锛?
 ```text
 clean_dataset_<job_id>.csv
 clean_dataset_<job_id>.xlsx
 ```
 
-列：
+鍒楋細
 
-- 保留 §3.1 原始列，按清洗结果更新。
-- 可追加 `derive_basic_fields` 生成的基础列。
-- 不生成 Kamei 14 维、语义向量、融合特征或模型输入特征。
-- 不写 `is_test`。
-- 不写任何训练/测试标记。
-
-### 5.2 每步统计
+- 淇濈暀 搂3.1 鍘熷鍒楋紝鎸夋竻娲楃粨鏋滄洿鏂般€?- 鍙拷鍔?`derive_basic_fields` 鐢熸垚鐨勫熀纭€鍒椼€?- 涓嶇敓鎴?Kamei 14 缁淬€佽涔夊悜閲忋€佽瀺鍚堢壒寰佹垨妯″瀷杈撳叆鐗瑰緛銆?- 涓嶅啓 `is_test`銆?- 涓嶅啓浠讳綍璁粌/娴嬭瘯鏍囪銆?
+### 5.2 姣忔缁熻
 
 ```text
 clean_steps_stats_<job_id>.json
 ```
 
-每步包含：
-
+姣忔鍖呭惈锛?
 ```text
 step
 rows_before
@@ -226,27 +180,23 @@ elapsed_ms
 excluded_samples
 ```
 
-### 5.3 数据集变化图
+### 5.3 鏁版嵁闆嗗彉鍖栧浘
 
 ```text
 clean_dataset_change_<step>_<job_id>.png
 ```
 
-展示行数、标签分布、缺失/重复变化。
-
-### 5.4 指定列变化
-
+灞曠ず琛屾暟銆佹爣绛惧垎甯冦€佺己澶?閲嶅鍙樺寲銆?
+### 5.4 鎸囧畾鍒楀彉鍖?
 ```text
 clean_column_stats_<job_id>.json
 clean_column_distribution_<step>_<column>_<job_id>.png
 ```
 
-`chart_columns[]` 为空时只产数据集级变化和 stats，不伪造列级图。
-
+`chart_columns[]` 涓虹┖鏃跺彧浜ф暟鎹泦绾у彉鍖栧拰 stats锛屼笉浼€犲垪绾у浘銆?
 ### 5.5 manifest
 
-遵循 §3.9，并记录：
-
+閬靛惊 搂3.9锛屽苟璁板綍锛?
 ```text
 mode
 chain_config
@@ -258,26 +208,10 @@ output_checksum
 warnings
 ```
 
-不记录 `feature_schema`；模型特征 schema 由训练阶段写入模型包。
+涓嶈褰?`feature_schema`锛涙ā鍨嬬壒寰?schema 鐢辫缁冮樁娈靛啓鍏ユā鍨嬪寘銆?
+## 6 鐘舵€佹寔涔呭寲
 
-## 6 状态持久化
+- `job.kind=clean`锛屼簲鎬併€?- 浠诲姟璁板綍妯″紡銆佸鐞嗛摼銆佸浘琛ㄥ垪銆佽緭鍏ヨ緭鍑哄紩鐢ㄣ€侀敊璇棩蹇椼€?- preview 涓嶄骇涓昏〃锛沘pply 鎵嶄骇娓呮礂鍚庢暟鎹泦銆?- 杈撳嚭钀?`temp/outputs/<job_id>/`銆?- 鍚岃緭鍏ャ€佸悓閰嶇疆涓昏〃銆佺粺璁″拰鍥捐〃鏁板€间竴鑷淬€?- `elapsed_ms`銆佹墽琛屾椂闂村拰 job_id 涓嶄綔涓鸿法杩愯涓€鑷撮」銆?
+## 7 楠屾敹
 
-- `job.kind=clean`，五态。
-- 任务记录模式、处理链、图表列、输入输出引用、错误日志。
-- preview 不产主表；apply 才产清洗后数据集。
-- 输出落 `backend/var/outputs/<job_id>/`。
-- 同输入、同配置主表、统计和图表数值一致。
-- `elapsed_ms`、执行时间和 job_id 不作为跨运行一致项。
-
-## 7 验收
-
-- 上传标准 `collected_commits.csv`，preview 得到逐步统计和图表，无清洗后主表。
-- apply 得到 `clean_dataset.csv/xlsx`、统计、图表、manifest。
-- CSV UTF-8 BOM、XLSX 单 sheet、中文不乱码。
-- 操作注册表分组正确，顺序约束可校验。
-- 无 `szz_label`、`d5_exclude`、`time_split`、`feature_build`、模型特征选择。
-- 输出不含 `is_test` 和模型特征集。
-- 未打标保持空值。
-- 指定列后有前后分布图；无列时有数据集变化图。
-- 缺列、错类型、公式注入、未知操作、顺序冲突、禁止字段均返回 40001。
-- CLI/API 同参数等价。
+- 涓婁紶鏍囧噯 `collected_commits.csv`锛宲review 寰楀埌閫愭缁熻鍜屽浘琛紝鏃犳竻娲楀悗涓昏〃銆?- apply 寰楀埌 `clean_dataset.csv/xlsx`銆佺粺璁°€佸浘琛ㄣ€乵anifest銆?- CSV UTF-8 BOM銆乆LSX 鍗?sheet銆佷腑鏂囦笉涔辩爜銆?- 鎿嶄綔娉ㄥ唽琛ㄥ垎缁勬纭紝椤哄簭绾︽潫鍙牎楠屻€?- 鏃?`szz_label`銆乣d5_exclude`銆乣time_split`銆乣feature_build`銆佹ā鍨嬬壒寰侀€夋嫨銆?- 杈撳嚭涓嶅惈 `is_test` 鍜屾ā鍨嬬壒寰侀泦銆?- 鏈墦鏍囦繚鎸佺┖鍊笺€?- 鎸囧畾鍒楀悗鏈夊墠鍚庡垎甯冨浘锛涙棤鍒楁椂鏈夋暟鎹泦鍙樺寲鍥俱€?- 缂哄垪銆侀敊绫诲瀷銆佸叕寮忔敞鍏ャ€佹湭鐭ユ搷浣溿€侀『搴忓啿绐併€佺姝㈠瓧娈靛潎杩斿洖 40001銆?- CLI/API 鍚屽弬鏁扮瓑浠枫€?

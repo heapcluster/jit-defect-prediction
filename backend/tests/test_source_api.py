@@ -128,7 +128,7 @@ def test_cli_config_is_not_overwritten_by_unsupplied_flags(repository, tmp_path)
     src.write_bytes(fc.encode_table(fc.PREDICTIONS_COLUMNS, [{k: '' if v is None else v for k, v in row.items()} for row in records], 'csv'))
     cfg = tmp_path / 'config.json'
     cfg.write_text(json.dumps({'commit_hash': repository[3], 'top_n': {'files': 1, 'lines': 1}, 'patch_preview': False, 'format': 'xlsx'}))
-    result = subprocess.run([sys.executable, '-m', 'app.cli', 'localize', 'run', '--repo', str(repository[0]), '--allow-root', str(repository[0].parent), '--predictions', str(src), '--config', str(cfg), '--out', str(tmp_path / 'out')], capture_output=True, text=True, timeout=30)
+    result = subprocess.run([sys.executable, '-m', 'app.cli', 'localize', 'run', '--repo', str(repository[0]), '--allow-root', str(repository[0].parent), '--predictions', str(src), '--config', str(cfg), '--out', str(tmp_path / 'out')], capture_output=True, text=True, encoding='utf-8', timeout=30)
     assert result.returncode == 0, result.stderr
     data = json.loads(result.stdout)
     assert data['summary']['commits'] == 1 and data['summary']['patch_reason'] is None
@@ -144,10 +144,10 @@ def test_cli_sources_and_localize_are_db_independent(repository, tmp_path):
     env = {**os.environ, 'DB_HOST': '', 'DATABASE_URL': ''}
     base = [sys.executable, '-m', 'app.cli']
     args = ['--repo', str(repository[0]), '--allow-root', str(repository[0].parent)]
-    source = subprocess.run([*base, 'source', 'file', *args, '--commit', repository[1], '--path', 'src/代码 space.java'], env=env, capture_output=True, text=True, timeout=30)
+    source = subprocess.run([*base, 'source', 'file', *args, '--commit', repository[1], '--path', 'src/代码 space.java'], env=env, capture_output=True, text=True, encoding='utf-8', timeout=30)
     assert source.returncode == 0, source.stderr
     assert 'int value = 1' in json.loads(source.stdout)['content']
-    localized = subprocess.run([*base, 'localize', 'run', *args, '--predictions', str(pred), '--out', str(output)], env=env, capture_output=True, text=True, timeout=30)
+    localized = subprocess.run([*base, 'localize', 'run', *args, '--predictions', str(pred), '--out', str(output)], env=env, capture_output=True, text=True, encoding='utf-8', timeout=30)
     assert localized.returncode == 0, localized.stderr
     data = json.loads(localized.stdout)
     assert data['summary']['commits'] == 1

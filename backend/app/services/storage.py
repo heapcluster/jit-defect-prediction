@@ -382,7 +382,7 @@ def publish_asset(raw, extension, audit, created_batches):
     name = f"storage_asset_{job_id}.{extension}"
     batch = output_store.publish_output("storage", {name: raw}, inputs=[{"name": "uploaded_artifact", "sha256": fc.sha256(raw)}], config=scrub(audit), job_id=job_id)
     created_batches.append(batch["job_id"])
-    return f"backend/var/outputs/{batch['job_id']}/{name}"
+    return f"{config.OUTPUTS_REL}/{batch['job_id']}/{name}"
 
 
 def import_model(session, raw, meta, settings, created_batches):
@@ -446,11 +446,11 @@ def import_figure(session, raw, manifest, settings, created_batches):
         return [], {**dict.fromkeys(COUNTS, 0), "unchanged": 1}
     existing = session.get(ModelFigure, (meta["model_name"], meta["figure_type"]), with_for_update=True)
     path = None
-    if existing and existing.file_path.startswith("backend/var/outputs/"):
-        parts = existing.file_path.split("/")
-        if len(parts) == 5:
+    if existing and existing.file_path.startswith(config.OUTPUTS_REL + "/"):
+        parts = existing.file_path[len(config.OUTPUTS_REL) + 1:].split("/")
+        if len(parts) == 2 and all(parts):
             try:
-                published = output_store.read_output("storage", parts[3], parts[4])
+                published = output_store.read_output("storage", *parts)
                 if fc.sha256(published.read_bytes()) == fc.sha256(raw):
                     path = existing.file_path
             except AppError:

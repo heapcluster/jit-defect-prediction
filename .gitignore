@@ -45,8 +45,9 @@ model/
 data_model/evaluation/out/data_init.sql
 data_model/evaluation/out/schema.sql
 
-# 本地实跑产物（在线拉取/采集/清洗输出），不入库
-backend/var/
+# 过程数据唯一根目录：请求输入、缓存、执行日志、临时文件、在线拉取与采集/清洗/输出产物。
+# 仅存放非源码类临时数据，仓库不追踪；所有 run/export 输出落 temp/outputs/<job_id>/。
+temp/
 
 # ===== Python =====
 __pycache__/

@@ -19,7 +19,7 @@ from app.services import config_store, job_store, output_store
 from app.services import file_contracts as fc
 
 logger = logging.getLogger('backend.train')
-REQUEST_ROOT = config.REPO_ROOT / 'backend' / 'var' / 'train_inputs'
+REQUEST_ROOT = config.TEMP_ROOT / 'train_inputs'
 SYNC_MAX_ROWS = 2000
 SYNC_ALGOS = {'lr', 'nb', 'dt', 'knn', 'rf', 'et'}
 _executor_lock = threading.Lock()

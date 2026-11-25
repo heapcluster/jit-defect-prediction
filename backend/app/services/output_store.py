@@ -21,7 +21,7 @@ from app.services.file_contracts import (
 )
 from app.timeutil import iso_z, now_naive_utc
 
-OUTPUT_ROOT = config.REPO_ROOT / "backend" / "var" / "outputs"
+OUTPUT_ROOT = config.TEMP_ROOT / "outputs"
 MODULES = {"storage", "collect", "clean", "train", "predict", "evaluate", "explain", "localize", "datasets"}
 EXTENSIONS = {"csv", "xlsx", "json", "zip", "png", "md", "html", "diff"}
 

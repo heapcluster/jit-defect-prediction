@@ -1,29 +1,16 @@
-# 缺陷定位及修复（功能 8）
+# 缂洪櫡瀹氫綅鍙婁慨澶嶏紙鍔熻兘 8锛?
+瀹炵幇鐘舵€侊細宸插疄鐜帮紙瀹氫綅銆佹簮鐮佽鍙栥€佸缓璁笌鏂囦欢浜や粯锛涙棤鍙潬淇敼锛屽綋鍓嶄笉鐢熸垚淇琛ヤ竵锛夈€€鏈熸锛氫竴鏈?
+楠岃瘉鍙ｅ緞锛?026-11-23 鏈疆鍚庣鍏ㄩ噺 809 椤广€佸墠绔叏閲?253 椤规祴璇曢€氳繃锛汣LI/API 鍚岃緭鍏ョ粨鏋滀竴鑷达紝娴忚鍣ㄨ嚜鍔ㄥ寲宸叉鏌?1200/375px 鐨勬簮鐮併€侀珮浜€佽В閲婂尮閰嶅拰鎻愪氦绾у洖閫€銆傛祴璇曚负 AI 鐢熸垚銆佹湭缁忎汉宸ュ闃咃紝涓嶄唬琛ㄤ汉宸ラ獙鏀躲€?
+## 涓€鍙ヨ瘽姒傝堪
 
-实现状态：已实现（定位、源码读取、建议与文件交付；无可靠修改，当前不生成修复补丁）　期次：一期
+鐙珛鐨勫畾浣嶄笌淇寤鸿宸ュ叿锛氭秷璐?`predictions.csv` 涓庡叾鎻愪氦鐗堟湰鐨勬簮鐮侊紝鍙€夌粨鍚?`explanations.csv` 缁欏嚭琛岀骇鍙枒搴︺€佸畬鏁磋瘉鎹拰鍥涙寮忓缓璁紱婧愮爜娴忚鍙崟鐙娇鐢紝涓嶈嚜鍔ㄤ慨鏀逛唬鐮併€傚師濮嬫彁浜?Git diff 鏄彧璇昏緭鍏ヨ瘉鎹紝涓嶆槸淇琛ヤ竵锛涘綋鍓嶆棤鍙潬淇敼锛屼笉鐢熸垚 patch銆?
+## 1 鑱岃矗涓庝笉璐熻矗鑼冨洿
 
-验证口径：2026-11-23 本轮后端全量 809 项、前端全量 253 项测试通过；CLI/API 同输入结果一致，浏览器自动化已检查 1200/375px 的源码、高亮、解释匹配和提交级回退。测试为 AI 生成、未经人工审阅，不代表人工验收。
-
-## 一句话概述
-
-独立的定位与修复建议工具：消费 `predictions.csv` 与其提交版本的源码，可选结合 `explanations.csv` 给出行级可疑度、完整证据和四段式建议；源码浏览可单独使用，不自动修改代码。原始提交 Git diff 是只读输入证据，不是修复补丁；当前无可靠修改，不生成 patch。
-
-## 1 职责与不负责范围
-
-**负责**：
-
-- 用 `git ls-tree` / `git cat-file` 原语按限额读取指定提交的目录树、文件全文和行范围，支持路径搜索、分页与行跳转。
-- 综合必需预测文件中的提交风险、代码上下文与 diff 计算行级可疑度，输出排序、Top-N 截断和逐行证据说明；可选提交级解释仅补充上下文，不证明某行存在缺陷，也不是可调的解释映射权重。
-- 生成引用具体文件和行号的“问题说明 / 建议修改 / 风险提示 / 参考依据”四段式建议，可结合模板、LLM 与真实历史修复。
-- 当前无可靠修改，不生成修复补丁；`patch_preview=true` 仅记录 `summary.patch_reason="no_reliable_patch"`。缺少解释时按预测、代码与原始 diff 定位并标注证据不足，缺少预测文件则拒绝定位运行。
-
-**不负责**：
-
-- 自动应用补丁、修改工作区、自动提交、创建 PR 或提供完整 IDE 编辑能力。
-- 训练提交级或行级预测模型、重新计算 XAI、定义性能阈值；行级可疑度不得冒充独立训练的行级缺陷概率。
-- 在源码读取失败时影响已有提交级预测，或编造文件、行号、API、历史修复和模型证据。
-
-## 2 独立运行入口
+**璐熻矗**锛?
+- 鐢?`git ls-tree` / `git cat-file` 鍘熻鎸夐檺棰濊鍙栨寚瀹氭彁浜ょ殑鐩綍鏍戙€佹枃浠跺叏鏂囧拰琛岃寖鍥达紝鏀寔璺緞鎼滅储銆佸垎椤典笌琛岃烦杞€?- 缁煎悎蹇呴渶棰勬祴鏂囦欢涓殑鎻愪氦椋庨櫓銆佷唬鐮佷笂涓嬫枃涓?diff 璁＄畻琛岀骇鍙枒搴︼紝杈撳嚭鎺掑簭銆乀op-N 鎴柇鍜岄€愯璇佹嵁璇存槑锛涘彲閫夋彁浜ょ骇瑙ｉ噴浠呰ˉ鍏呬笂涓嬫枃锛屼笉璇佹槑鏌愯瀛樺湪缂洪櫡锛屼篃涓嶆槸鍙皟鐨勮В閲婃槧灏勬潈閲嶃€?- 鐢熸垚寮曠敤鍏蜂綋鏂囦欢鍜岃鍙风殑鈥滈棶棰樿鏄?/ 寤鸿淇敼 / 椋庨櫓鎻愮ず / 鍙傝€冧緷鎹€濆洓娈靛紡寤鸿锛屽彲缁撳悎妯℃澘銆丩LM 涓庣湡瀹炲巻鍙蹭慨澶嶃€?- 褰撳墠鏃犲彲闈犱慨鏀癸紝涓嶇敓鎴愪慨澶嶈ˉ涓侊紱`patch_preview=true` 浠呰褰?`summary.patch_reason="no_reliable_patch"`銆傜己灏戣В閲婃椂鎸夐娴嬨€佷唬鐮佷笌鍘熷 diff 瀹氫綅骞舵爣娉ㄨ瘉鎹笉瓒筹紝缂哄皯棰勬祴鏂囦欢鍒欐嫆缁濆畾浣嶈繍琛屻€?
+**涓嶈礋璐?*锛?
+- 鑷姩搴旂敤琛ヤ竵銆佷慨鏀瑰伐浣滃尯銆佽嚜鍔ㄦ彁浜ゃ€佸垱寤?PR 鎴栨彁渚涘畬鏁?IDE 缂栬緫鑳藉姏銆?- 璁粌鎻愪氦绾ф垨琛岀骇棰勬祴妯″瀷銆侀噸鏂拌绠?XAI銆佸畾涔夋€ц兘闃堝€硷紱琛岀骇鍙枒搴︿笉寰楀啋鍏呯嫭绔嬭缁冪殑琛岀骇缂洪櫡姒傜巼銆?- 鍦ㄦ簮鐮佽鍙栧け璐ユ椂褰卞搷宸叉湁鎻愪氦绾ч娴嬶紝鎴栫紪閫犳枃浠躲€佽鍙枫€丄PI銆佸巻鍙蹭慨澶嶅拰妯″瀷璇佹嵁銆?
+## 2 鐙珛杩愯鍏ュ彛
 
 ```bash
 python -m app.cli source tree --repo /path/to/repo --allow-root /path --commit <40hex> --path src
@@ -34,80 +21,51 @@ python -m app.cli localize run \
   --top-n 10 --patch-preview --out ./out
 ```
 
-| 入口 | 命令 / 端点 | 契约 |
+| 鍏ュ彛 | 鍛戒护 / 绔偣 | 濂戠害 |
 |---|---|---|
-| CLI | `source tree/file`、`localize run` | 无需数据库，但必须显式提供 `--allow-root`（可重复）；source 浏览需仓库与 40 位提交哈希，localize run 必需预测文件与对应源码，解释文件可选 |
-| 源码 API | `GET /api/source/tree`、`GET /api/source/file` | 按提交读取目录与文件，使用 ls-tree/cat-file，不读当前工作区替代版本 |
-| 定位 API | `POST /api/localize/run` | 同步返回前 20 行定位预览、建议、summary 和输出关联号；完整 rows 从证据 JSON 加载，不新增任务 kind |
-| 下载 | `GET /api/localize/outputs/{job_id}/{name}` | 下载已登记 localization CSV/XLSX、evidence JSON、suggestions Markdown 与 manifest；当前没有修复 patch |
-| 详情展示 | 提交详情源码/原始 diff 视图 | 仅做展示和外部编排；原始提交 diff 是只读证据，不是修复补丁 |
+| CLI | `source tree/file`銆乣localize run` | 鏃犻渶鏁版嵁搴擄紝浣嗗繀椤绘樉寮忔彁渚?`--allow-root`锛堝彲閲嶅锛夛紱source 娴忚闇€浠撳簱涓?40 浣嶆彁浜ゅ搱甯岋紝localize run 蹇呴渶棰勬祴鏂囦欢涓庡搴旀簮鐮侊紝瑙ｉ噴鏂囦欢鍙€?|
+| 婧愮爜 API | `GET /api/source/tree`銆乣GET /api/source/file` | 鎸夋彁浜よ鍙栫洰褰曚笌鏂囦欢锛屼娇鐢?ls-tree/cat-file锛屼笉璇诲綋鍓嶅伐浣滃尯鏇夸唬鐗堟湰 |
+| 瀹氫綅 API | `POST /api/localize/run` | 鍚屾杩斿洖鍓?20 琛屽畾浣嶉瑙堛€佸缓璁€乻ummary 鍜岃緭鍑哄叧鑱斿彿锛涘畬鏁?rows 浠庤瘉鎹?JSON 鍔犺浇锛屼笉鏂板浠诲姟 kind |
+| 涓嬭浇 | `GET /api/localize/outputs/{job_id}/{name}` | 涓嬭浇宸茬櫥璁?localization CSV/XLSX銆乪vidence JSON銆乻uggestions Markdown 涓?manifest锛涘綋鍓嶆病鏈変慨澶?patch |
+| 璇︽儏灞曠ず | 鎻愪氦璇︽儏婧愮爜/鍘熷 diff 瑙嗗浘 | 浠呭仛灞曠ず鍜屽閮ㄧ紪鎺掞紱鍘熷鎻愪氦 diff 鏄彧璇昏瘉鎹紝涓嶆槸淇琛ヤ竵 |
 
-所有 HTTP 端点（含 source 与文件下载）必须使用 `X-API-Key`。路径禁止绝对路径和 `..` 越界；Git 使用参数数组，仓库根目录复用 collect 的安全边界。CLI `--config` 读取定位配置 JSON；`--commit`、`--file-size-max`、`--top-files`、`--top-n`、`--patch-preview` / `--no-patch-preview`、`--format` 仅在显式提供时覆盖 JSON 对应项，不以未提供的 flag 默认值覆盖配置。CLI 不读取数据库保存的默认值。
+鎵€鏈?HTTP 绔偣锛堝惈 source 涓庢枃浠朵笅杞斤級蹇呴』浣跨敤 `X-API-Key`銆傝矾寰勭姝㈢粷瀵硅矾寰勫拰 `..` 瓒婄晫锛汫it 浣跨敤鍙傛暟鏁扮粍锛屼粨搴撴牴鐩綍澶嶇敤 collect 鐨勫畨鍏ㄨ竟鐣屻€侰LI `--config` 璇诲彇瀹氫綅閰嶇疆 JSON锛沗--commit`銆乣--file-size-max`銆乣--top-files`銆乣--top-n`銆乣--patch-preview` / `--no-patch-preview`銆乣--format` 浠呭湪鏄惧紡鎻愪緵鏃惰鐩?JSON 瀵瑰簲椤癸紝涓嶄互鏈彁渚涚殑 flag 榛樿鍊艰鐩栭厤缃€侰LI 涓嶈鍙栨暟鎹簱淇濆瓨鐨勯粯璁ゅ€笺€?
+## 3 杈撳叆濂戠害
 
-## 3 输入契约
+- 瀹氫綅 run 鐨勫繀濉緭鍏ヤ负 `predictions.csv`銆佸彲璇讳粨搴撲笌瀹氫綅閰嶇疆锛涙簮鐮佺増鏈敱棰勬祴琛屼腑鐨?40 浣嶆彁浜ゅ搱甯岀‘瀹氥€備粨搴撳繀椤昏兘璇诲彇瀵瑰簲 blob锛宐lobless 鍏嬮殕鏃犳硶鎯版€у彇鍥炴椂鏄庣‘澶辫触銆?- 蹇呴渶棰勬祴鏂囦欢閬靛惊 [`../file-contracts.md`](../file-contracts.md) 搂3.4锛屽彲閫夎В閲婃枃浠堕伒寰?搂3.7锛涗袱鑰呭彲鐩存帴涓婁紶鎴栦粠浜х墿搴撲笅杞藉悗鎸?`files[]` 鎻愪氦锛屾寜鎻愪氦銆佹ā鍨嬩笌鐗堟湰鍖归厤锛屼笉瑕佹眰 predict/explain 鏈嶅姟鍦ㄧ嚎銆?- 鐙珛 `source/tree` 涓?`source/file` 娴忚鍙渶浠撳簱涓庡畬鏁?40 浣嶆彁浜ゅ搱甯岋紝涓嶆帴鍙?ref 鎴栫煭鍝堝笇锛屼笉闇€瑕侀娴嬫枃浠讹紱tree 鎺ユ敹鍙€夌洰褰曚笌闈炵┖璺緞鎼滅储璇嶏紝绌烘悳绱㈢渷鐣ュ弬鏁帮紱file 鎺ユ敹鏂囦欢璺緞涓庡彲閫?1-based 琛岃寖鍥淬€?- 瀹氫綅閰嶇疆鍖呭惈琛岀骇鏉冮噸銆乀op-N銆乣file_size_max`銆佸缓璁潵婧愩€乣patch_preview`銆佹牸寮忥紝浠ュ強鍙€?`commit_hash` / `model_name` 棰勬祴鐩爣绛涢€夛紱瀹屾暣杈撳叆鐗堟湰鍜?checksum 鍏?manifest銆傚缓璁潵婧愪负 template/llm/history 鐨勯潪绌烘棤閲嶅瀛愰泦锛宲atch 璇锋眰涓嶄繚璇佷骇鍑鸿ˉ涓侊紝褰撳墠涓€寰嬫棤鍙潬 patch銆?- 涓婁紶鏈€澶?4 涓枃浠躲€佸悎璁?64MiB锛堝惈 companion manifest锛夛紱绛涢€夊悗鏈€澶?20 涓娴嬬洰鏍囷紝涓旈浼?`targets * top_n.files * top_n.lines <= 5000`锛屽惁鍒欒繑鍥?40001锛岄渶绛涢€夈€侀檷浣?Top-N 鎴栧垎鎵广€?- 缂洪娴嬫枃浠舵垨棰勬祴涓庢彁浜ゃ€佺増鏈笉鍖归厤鏃惰繑鍥?40001锛涗粎缂鸿В閲婃垨瑙ｉ噴鍚?`reason_code` 琛屾椂鎸夊凡鏈夐娴嬨€佷唬鐮佸拰 diff 璇佹嵁鏄惧紡闄嶇骇锛屼笉寰楁妸绌鸿础鐚В閲婃垚鏃犻闄┿€?
+## 4 杈撳嚭濂戠害
 
-- 定位 run 的必填输入为 `predictions.csv`、可读仓库与定位配置；源码版本由预测行中的 40 位提交哈希确定。仓库必须能读取对应 blob，blobless 克隆无法惰性取回时明确失败。
-- 必需预测文件遵循 [`../file-contracts.md`](../file-contracts.md) §3.4，可选解释文件遵循 §3.7；两者可直接上传或从产物库下载后按 `files[]` 提交，按提交、模型与版本匹配，不要求 predict/explain 服务在线。
-- 独立 `source/tree` 与 `source/file` 浏览只需仓库与完整 40 位提交哈希，不接受 ref 或短哈希，不需要预测文件；tree 接收可选目录与非空路径搜索词，空搜索省略参数；file 接收文件路径与可选 1-based 行范围。
-- 定位配置包含行级权重、Top-N、`file_size_max`、建议来源、`patch_preview`、格式，以及可选 `commit_hash` / `model_name` 预测目标筛选；完整输入版本和 checksum 入 manifest。建议来源为 template/llm/history 的非空无重复子集，patch 请求不保证产出补丁，当前一律无可靠 patch。
-- 上传最多 4 个文件、合计 64MiB（含 companion manifest）；筛选后最多 20 个预测目标，且预估 `targets * top_n.files * top_n.lines <= 5000`，否则返回 40001，需筛选、降低 Top-N 或分批。
-- 缺预测文件或预测与提交、版本不匹配时返回 40001；仅缺解释或解释含 `reason_code` 行时按已有预测、代码和 diff 证据显式降级，不得把空贡献解释成无风险。
+### 婧愮爜璇诲彇
 
-## 4 输出契约
-
-### 源码读取
-
-- tree 返回目录/文件条目及路径、类型、大小和模式，每次最多 1000 项，含 `truncated` 与 `skipped`（不支持的 gitlink）；file 返回文本、实际行范围、总行数、大小、编码和状态。
-- file 状态仅 `ok / binary / too_large / not_found`；仓库或提交不可达通过业务错误表达。非 ok 不强行解码、不返回伪造正文；超大文件整体拒绝，缩小行范围不能解决。
-- file 每次最多返回 2000 行；end 超过 EOF 或请求上限会夹取，start 超过 EOF 非法（空文件仅允许 start=1）。所有内容来自提交哈希对应版本，保证目录、文件、原始 diff、定位和建议版本一致。
-
-### 定位与建议文件
-
-| 输出 | 文件与内容 |
+- tree 杩斿洖鐩綍/鏂囦欢鏉＄洰鍙婅矾寰勩€佺被鍨嬨€佸ぇ灏忓拰妯″紡锛屾瘡娆℃渶澶?1000 椤癸紝鍚?`truncated` 涓?`skipped`锛堜笉鏀寔鐨?gitlink锛夛紱file 杩斿洖鏂囨湰銆佸疄闄呰鑼冨洿銆佹€昏鏁般€佸ぇ灏忋€佺紪鐮佸拰鐘舵€併€?- file 鐘舵€佷粎 `ok / binary / too_large / not_found`锛涗粨搴撴垨鎻愪氦涓嶅彲杈鹃€氳繃涓氬姟閿欒琛ㄨ揪銆傞潪 ok 涓嶅己琛岃В鐮併€佷笉杩斿洖浼€犳鏂囷紱瓒呭ぇ鏂囦欢鏁翠綋鎷掔粷锛岀缉灏忚鑼冨洿涓嶈兘瑙ｅ喅銆?- file 姣忔鏈€澶氳繑鍥?2000 琛岋紱end 瓒呰繃 EOF 鎴栬姹備笂闄愪細澶瑰彇锛宻tart 瓒呰繃 EOF 闈炴硶锛堢┖鏂囦欢浠呭厑璁?start=1锛夈€傛墍鏈夊唴瀹规潵鑷彁浜ゅ搱甯屽搴旂増鏈紝淇濊瘉鐩綍銆佹枃浠躲€佸師濮?diff銆佸畾浣嶅拰寤鸿鐗堟湰涓€鑷淬€?
+### 瀹氫綅涓庡缓璁枃浠?
+| 杈撳嚭 | 鏂囦欢涓庡唴瀹?|
 |---|---|
-| 行级定位 | `localization_localization_<job_id>.csv` 和 `.xlsx` 均生成（job_id 为 UUID）：严格遵循 §3.8 localization schema，行级与提交级降级均用 `level` 区分 |
-| 证据明细 | `localization_evidence_<job_id>.json`：`{rows,evidence,summary}`；rows 为完整行，evidence 按 commit_hash 收录原始 diff、文件/hunk/代码信号、预测/解释上下文、真实历史修复和不足原因 |
-| 修复建议 | `localization_suggestions_<job_id>.md`：严格遵循 §3.8 四段式，引用当前提交的具体文件与行号并标明来源；无可验证行时引用提交并注明不足 |
-| patch 请求限制 | 当前无可靠修改，不生成修复 `.diff`；`patch_preview=true` 记录 `summary.patch_reason="no_reliable_patch"`，false 时为 null；证据中的原始 Git diff 不是修复补丁 |
-| manifest | 各产物伴同 stem `.manifest.json`（CSV/XLSX 共用表格 stem）；满足 §3.9，记录仓库/提交、预测及可选解释输入 checksum、定位配置和全部产物 checksum |
+| 琛岀骇瀹氫綅 | `localization_localization_<job_id>.csv` 鍜?`.xlsx` 鍧囩敓鎴愶紙job_id 涓?UUID锛夛細涓ユ牸閬靛惊 搂3.8 localization schema锛岃绾т笌鎻愪氦绾ч檷绾у潎鐢?`level` 鍖哄垎 |
+| 璇佹嵁鏄庣粏 | `localization_evidence_<job_id>.json`锛歚{rows,evidence,summary}`锛況ows 涓哄畬鏁磋锛宔vidence 鎸?commit_hash 鏀跺綍鍘熷 diff銆佹枃浠?hunk/浠ｇ爜淇″彿銆侀娴?瑙ｉ噴涓婁笅鏂囥€佺湡瀹炲巻鍙蹭慨澶嶅拰涓嶈冻鍘熷洜 |
+| 淇寤鸿 | `localization_suggestions_<job_id>.md`锛氫弗鏍奸伒寰?搂3.8 鍥涙寮忥紝寮曠敤褰撳墠鎻愪氦鐨勫叿浣撴枃浠朵笌琛屽彿骞舵爣鏄庢潵婧愶紱鏃犲彲楠岃瘉琛屾椂寮曠敤鎻愪氦骞舵敞鏄庝笉瓒?|
+| patch 璇锋眰闄愬埗 | 褰撳墠鏃犲彲闈犱慨鏀癸紝涓嶇敓鎴愪慨澶?`.diff`锛沗patch_preview=true` 璁板綍 `summary.patch_reason="no_reliable_patch"`锛宖alse 鏃朵负 null锛涜瘉鎹腑鐨勫師濮?Git diff 涓嶆槸淇琛ヤ竵 |
+| manifest | 鍚勪骇鐗╀即鍚?stem `.manifest.json`锛圕SV/XLSX 鍏辩敤琛ㄦ牸 stem锛夛紱婊¤冻 搂3.9锛岃褰曚粨搴?鎻愪氦銆侀娴嬪強鍙€夎В閲婅緭鍏?checksum銆佸畾浣嶉厤缃拰鍏ㄩ儴浜х墿 checksum |
 
-命名统一为 `<module>_<artifact>_<job_id>.<ext>`。这里的 `job_id` 是同步结果关联号，不写入六类 job，也不新增 localize kind。提交级风险概率与行级 suspicion 必须在响应和界面分开展示；无可验证行时返回 commit 级结果及不足原因，file_path/line_number 为 null，不能编造行级数据。
+鍛藉悕缁熶竴涓?`<module>_<artifact>_<job_id>.<ext>`銆傝繖閲岀殑 `job_id` 鏄悓姝ョ粨鏋滃叧鑱斿彿锛屼笉鍐欏叆鍏被 job锛屼篃涓嶆柊澧?localize kind銆傛彁浜ょ骇椋庨櫓姒傜巼涓庤绾?suspicion 蹇呴』鍦ㄥ搷搴斿拰鐣岄潰鍒嗗紑灞曠ず锛涙棤鍙獙璇佽鏃惰繑鍥?commit 绾х粨鏋滃強涓嶈冻鍘熷洜锛宖ile_path/line_number 涓?null锛屼笉鑳界紪閫犺绾ф暟鎹€?
+## 5 鍙厤缃」
 
-## 5 可配置项
-
-| 配置 | 来源 | 默认 / 约束 |
+| 閰嶇疆 | 鏉ユ簮 | 榛樿 / 绾︽潫 |
 |---|---|---|
-| `localization.weights` | `user_config` 命名空间键 | 仅 `file_types`、`change`、`hunk`、`line_content`、`line_path`、`mix`；非负有限数，拒绝未知键；HTTP run 嵌套部分覆盖保留已保存默认值。解释仅为上下文，不提供行级证明或可调映射权重 |
-| `localization.top_n` | `user_config` 命名空间键 | `{files,lines}` 各为 1..1000 整数；出厂 5 文件/30 行，截断必须标记 |
-| `localization.file_size_max` | `user_config` 命名空间键 | 1..16MiB 的字节整数，出厂 1MiB；超限整体返回 too_large，不能用范围绕过，二进制单独识别 |
-| `localization.suggestion_sources` | `user_config` 命名空间键 | template/llm/history 的非空、无重复组合，出厂 template；LLM 失败回退模板并标来源 |
-| `collect.allow_roots` / `collect.protocol_whitelist` | `user_config` 共享安全键；CLI 显式安全参数 | 约束本地仓库与克隆来源；CLI 必须显式 `--allow-root`，不从数据库读取安全默认值 |
-| `patch_preview` / `format` / `commit_hash` / `model_name` | 单次 run 配置；源码视图为页面内状态 | patch 默认 true，但当前仅记录 no_reliable_patch，不生成或应用修复补丁；格式决定首选表格；提交/模型为可选预测目标筛选；源码展示状态仅保留于页面内 |
-| LLM 服务参数 | 部署安全环境 | 缺少凭证、超时或失败不影响模板回退，凭证不入库或 manifest，run 不接受任意 LLM 连接参数 |
+| `localization.weights` | `user_config` 鍛藉悕绌洪棿閿?| 浠?`file_types`銆乣change`銆乣hunk`銆乣line_content`銆乣line_path`銆乣mix`锛涢潪璐熸湁闄愭暟锛屾嫆缁濇湭鐭ラ敭锛汬TTP run 宓屽閮ㄥ垎瑕嗙洊淇濈暀宸蹭繚瀛橀粯璁ゅ€笺€傝В閲婁粎涓轰笂涓嬫枃锛屼笉鎻愪緵琛岀骇璇佹槑鎴栧彲璋冩槧灏勬潈閲?|
+| `localization.top_n` | `user_config` 鍛藉悕绌洪棿閿?| `{files,lines}` 鍚勪负 1..1000 鏁存暟锛涘嚭鍘?5 鏂囦欢/30 琛岋紝鎴柇蹇呴』鏍囪 |
+| `localization.file_size_max` | `user_config` 鍛藉悕绌洪棿閿?| 1..16MiB 鐨勫瓧鑺傛暣鏁帮紝鍑哄巶 1MiB锛涜秴闄愭暣浣撹繑鍥?too_large锛屼笉鑳界敤鑼冨洿缁曡繃锛屼簩杩涘埗鍗曠嫭璇嗗埆 |
+| `localization.suggestion_sources` | `user_config` 鍛藉悕绌洪棿閿?| template/llm/history 鐨勯潪绌恒€佹棤閲嶅缁勫悎锛屽嚭鍘?template锛汱LM 澶辫触鍥為€€妯℃澘骞舵爣鏉ユ簮 |
+| `collect.allow_roots` / `collect.protocol_whitelist` | `user_config` 鍏变韩瀹夊叏閿紱CLI 鏄惧紡瀹夊叏鍙傛暟 | 绾︽潫鏈湴浠撳簱涓庡厠闅嗘潵婧愶紱CLI 蹇呴』鏄惧紡 `--allow-root`锛屼笉浠庢暟鎹簱璇诲彇瀹夊叏榛樿鍊?|
+| `patch_preview` / `format` / `commit_hash` / `model_name` | 鍗曟 run 閰嶇疆锛涙簮鐮佽鍥句负椤甸潰鍐呯姸鎬?| patch 榛樿 true锛屼絾褰撳墠浠呰褰?no_reliable_patch锛屼笉鐢熸垚鎴栧簲鐢ㄤ慨澶嶈ˉ涓侊紱鏍煎紡鍐冲畾棣栭€夎〃鏍硷紱鎻愪氦/妯″瀷涓哄彲閫夐娴嬬洰鏍囩瓫閫夛紱婧愮爜灞曠ず鐘舵€佷粎淇濈暀浜庨〉闈㈠唴 |
+| LLM 鏈嶅姟鍙傛暟 | 閮ㄧ讲瀹夊叏鐜 | 缂哄皯鍑瘉銆佽秴鏃舵垨澶辫触涓嶅奖鍝嶆ā鏉垮洖閫€锛屽嚟璇佷笉鍏ュ簱鎴?manifest锛宺un 涓嶆帴鍙椾换鎰?LLM 杩炴帴鍙傛暟 |
 
-## 6 状态持久化
+## 6 鐘舵€佹寔涔呭寲
 
-- 同步定位结果、配置快照和输出关联号持久化；不新增第七种 job kind。统一六类五态规则不适用于 source/localize 同步调用。
-- 输出落盘 `backend/var/outputs/<job_id>/`，目录整体加入 gitignore；定位表、完整证据 JSON、建议与同 stem manifest 按提交和配置快照可复验，原始 diff 只在证据中，不另产修复补丁。
-- `localization.*` 落 `user_config`，重启恢复；每次运行固化权重版本、Top-N、建议来源、模型/特征版本和可选解释版本。
-- 源码不可用或提交不可达通过业务错误表达；文件不存在、过大、二进制有明确文件状态，LLM 失败记录模板回退与不足原因；这些失败不得修改 prediction 或解释文件。
-- 本模块只读 Git 对象并写独立输出目录；自动化断言证明没有 apply、checkout 写回、commit、push 或 PR 创建动作。
+- 鍚屾瀹氫綅缁撴灉銆侀厤缃揩鐓у拰杈撳嚭鍏宠仈鍙锋寔涔呭寲锛涗笉鏂板绗竷绉?job kind銆傜粺涓€鍏被浜旀€佽鍒欎笉閫傜敤浜?source/localize 鍚屾璋冪敤銆?- 杈撳嚭钀界洏 `temp/outputs/<job_id>/`锛岀洰褰曟暣浣撳姞鍏?gitignore锛涘畾浣嶈〃銆佸畬鏁磋瘉鎹?JSON銆佸缓璁笌鍚?stem manifest 鎸夋彁浜ゅ拰閰嶇疆蹇収鍙楠岋紝鍘熷 diff 鍙湪璇佹嵁涓紝涓嶅彟浜т慨澶嶈ˉ涓併€?- `localization.*` 钀?`user_config`锛岄噸鍚仮澶嶏紱姣忔杩愯鍥哄寲鏉冮噸鐗堟湰銆乀op-N銆佸缓璁潵婧愩€佹ā鍨?鐗瑰緛鐗堟湰鍜屽彲閫夎В閲婄増鏈€?- 婧愮爜涓嶅彲鐢ㄦ垨鎻愪氦涓嶅彲杈鹃€氳繃涓氬姟閿欒琛ㄨ揪锛涙枃浠朵笉瀛樺湪銆佽繃澶с€佷簩杩涘埗鏈夋槑纭枃浠剁姸鎬侊紝LLM 澶辫触璁板綍妯℃澘鍥為€€涓庝笉瓒冲師鍥狅紱杩欎簺澶辫触涓嶅緱淇敼 prediction 鎴栬В閲婃枃浠躲€?- 鏈ā鍧楀彧璇?Git 瀵硅薄骞跺啓鐙珛杈撳嚭鐩綍锛涜嚜鍔ㄥ寲鏂█璇佹槑娌℃湁 apply銆乧heckout 鍐欏洖銆乧ommit銆乸ush 鎴?PR 鍒涘缓鍔ㄤ綔銆?
+## 7 涓庡叾浠栨ā鍧楄竟鐣?
+- 涓?predict/explain 浠呬负 搂3.4/搂3.7 鏂囦欢鍏煎锛涢娴嬫枃浠跺繀闇€銆佽В閲婃枃浠跺彲閫夈€備笉璋冪敤瀹冧滑鐨勫湪绾挎湇鍔★紝鐙珛杩愯涓嶇瓑浜庡彲浠ョ渷鐣ュ繀闇€鏂囦欢锛屽叿浣撹В閲婂櫒瀹炵幇涔熶笉杩涘叆鏈ā鍧椼€?- 浠撳簱瀹夊叏瑙勫垯涓?collect 鍏辩敤閰嶇疆锛屼絾瀹氫綅鍙洿鎺ユ帴鏀朵换鎰忓厑璁告牴鐩綍鍐呯殑浠撳簱锛屼笉瑕佹眰鍏堟墽琛岄噰闆嗐€?- 棰勬祴涓庤В閲婃枃浠剁洿鎺ユ秷璐癸紝鏃犻渶瀵煎叆灞曠ず搴擄紱瀹氫綅缁撴灉涓嶆槧灏勫睍绀哄簱 schema锛屼粎浣滄枃浠朵氦浠樸€備骇鐗╁簱鏂囦欢缁忔墍灞炴ā鍧楃殑涓嬭浇绔偣鍙栧緱鍚庢寜 `files[]` 涓婁紶锛屼笉閫氳繃灞曠ず琛ㄤ紶閫掋€傚巻鍙蹭慨澶嶅彧鑳藉紩鐢ㄧ湡瀹炲瓨鍦ㄧ殑鎻愪氦銆?- extension 鐨勫鎴风銆佹彃浠跺拰 CI 澶嶇敤鏈ā鍧楄緭鍑轰笌婧愮爜鏈嶅姟锛屼笉澶嶅埗璇勫垎鏉冮噸銆佽瘉鎹鍒欐垨寤鸿鎻愮ず璇嶃€?- 椤甸潰灞備綔涓衡懁棰勬祴鐨勫瓙椤碉紝鍙粠棰勬祴缁撴灉/鎻愪氦璇︽儏甯﹀叆 commit/model锛涙ā鍧楁湰韬笉渚濊禆鈶ゅ湪绾匡紝浠嶅彲鐙珛鎻愪緵浠撳簱銆侀娴嬫枃浠朵笌鍙€夎В閲婃枃浠惰繍琛屻€?
+## 8 楠屾敹鏍囧噯
 
-## 7 与其他模块边界
-
-- 与 predict/explain 仅为 §3.4/§3.7 文件兼容；预测文件必需、解释文件可选。不调用它们的在线服务，独立运行不等于可以省略必需文件，具体解释器实现也不进入本模块。
-- 仓库安全规则与 collect 共用配置，但定位可直接接收任意允许根目录内的仓库，不要求先执行采集。
-- 预测与解释文件直接消费，无需导入展示库；定位结果不映射展示库 schema，仅作文件交付。产物库文件经所属模块的下载端点取得后按 `files[]` 上传，不通过展示表传递。历史修复只能引用真实存在的提交。
-- extension 的客户端、插件和 CI 复用本模块输出与源码服务，不复制评分权重、证据规则或建议提示词。
-- 页面层作为⑤预测的子页，可从预测结果/提交详情带入 commit/model；模块本身不依赖⑤在线，仍可独立提供仓库、预测文件与可选解释文件运行。
-
-## 8 验收标准
-
-自动化用例与临时 Git/表格输入见 `backend/tests/test_localization_core.py`、`backend/tests/test_source_api.py` 和 `frontend/tests/Localization.spec.js`；无 predict/explain 服务时可独立运行 CLI/API。验证为 AI 生成、未经人工审阅的自动化验证，不代表人工验收，不在此记录未核实的浏览器或测试数量。
-
-- 能按限额浏览指定提交的目录与文件，支持搜索、行范围和跳转；tree 至多 1000 项并标记 truncated/skipped，file 每次至多 2000 行，end 越界夹取、start 超 EOF 拒绝；自动化检查提交版本读取与路径安全。
-- 可疑行按 suspicion 排序并在提交版本源码标记，完整 rows 从 evidence JSON 加载；页面完成证据校验才确认新结果，hash/path/line 高亮绑定已确认快照，不随草稿变化；移动端树/源码单列，代码与表格内部滚动。证据可追溯文件、hunk、代码信号和可选解释上下文，提交级概率与行级可疑度区分明确。
-- 建议包含四段、可验证文件行或提交不足原因及真实参考来源；LLM 失败回退模板，缺解释时标明证据不足，缺预测文件则拒绝定位运行，无依据不编造。
-- 当前不生成修复 patch；patch 请求为 true 时记录 no_reliable_patch，原始提交 diff 仅为只读输入证据，不是修复补丁；自动化检查 Git 工作区、HEAD 和提交数不变，无自动提交或 PR 行为。
-- 无仓库或提交不可达明确报错，文件不存在、超大、二进制与 LLM 回退明确标注且不影响预测文件；超大文件不能用行范围绕过。权重六组、Top-N、文件上限与建议来源配置生效并重启恢复，HTTP 嵌套部分覆盖保留已保存默认项。
-- 承接 TODO/08：源码读取、版本一致、行级评分、解释上下文、四段建议、同步输出与失败场景见上述自动化用例；CLI/API 对齐同输入的定位数值与建议结构，不把自动化验证等同人工验收。
+鑷姩鍖栫敤渚嬩笌涓存椂 Git/琛ㄦ牸杈撳叆瑙?`backend/tests/test_localization_core.py`銆乣backend/tests/test_source_api.py` 鍜?`frontend/tests/Localization.spec.js`锛涙棤 predict/explain 鏈嶅姟鏃跺彲鐙珛杩愯 CLI/API銆傞獙璇佷负 AI 鐢熸垚銆佹湭缁忎汉宸ュ闃呯殑鑷姩鍖栭獙璇侊紝涓嶄唬琛ㄤ汉宸ラ獙鏀讹紝涓嶅湪姝よ褰曟湭鏍稿疄鐨勬祻瑙堝櫒鎴栨祴璇曟暟閲忋€?
+- 鑳芥寜闄愰娴忚鎸囧畾鎻愪氦鐨勭洰褰曚笌鏂囦欢锛屾敮鎸佹悳绱€佽鑼冨洿鍜岃烦杞紱tree 鑷冲 1000 椤瑰苟鏍囪 truncated/skipped锛宖ile 姣忔鑷冲 2000 琛岋紝end 瓒婄晫澶瑰彇銆乻tart 瓒?EOF 鎷掔粷锛涜嚜鍔ㄥ寲妫€鏌ユ彁浜ょ増鏈鍙栦笌璺緞瀹夊叏銆?- 鍙枒琛屾寜 suspicion 鎺掑簭骞跺湪鎻愪氦鐗堟湰婧愮爜鏍囪锛屽畬鏁?rows 浠?evidence JSON 鍔犺浇锛涢〉闈㈠畬鎴愯瘉鎹牎楠屾墠纭鏂扮粨鏋滐紝hash/path/line 楂樹寒缁戝畾宸茬‘璁ゅ揩鐓э紝涓嶉殢鑽夌鍙樺寲锛涚Щ鍔ㄧ鏍?婧愮爜鍗曞垪锛屼唬鐮佷笌琛ㄦ牸鍐呴儴婊氬姩銆傝瘉鎹彲杩芥函鏂囦欢銆乭unk銆佷唬鐮佷俊鍙峰拰鍙€夎В閲婁笂涓嬫枃锛屾彁浜ょ骇姒傜巼涓庤绾у彲鐤戝害鍖哄垎鏄庣‘銆?- 寤鸿鍖呭惈鍥涙銆佸彲楠岃瘉鏂囦欢琛屾垨鎻愪氦涓嶈冻鍘熷洜鍙婄湡瀹炲弬鑰冩潵婧愶紱LLM 澶辫触鍥為€€妯℃澘锛岀己瑙ｉ噴鏃舵爣鏄庤瘉鎹笉瓒筹紝缂洪娴嬫枃浠跺垯鎷掔粷瀹氫綅杩愯锛屾棤渚濇嵁涓嶇紪閫犮€?- 褰撳墠涓嶇敓鎴愪慨澶?patch锛沺atch 璇锋眰涓?true 鏃惰褰?no_reliable_patch锛屽師濮嬫彁浜?diff 浠呬负鍙杈撳叆璇佹嵁锛屼笉鏄慨澶嶈ˉ涓侊紱鑷姩鍖栨鏌?Git 宸ヤ綔鍖恒€丠EAD 鍜屾彁浜ゆ暟涓嶅彉锛屾棤鑷姩鎻愪氦鎴?PR 琛屼负銆?- 鏃犱粨搴撴垨鎻愪氦涓嶅彲杈炬槑纭姤閿欙紝鏂囦欢涓嶅瓨鍦ㄣ€佽秴澶с€佷簩杩涘埗涓?LLM 鍥為€€鏄庣‘鏍囨敞涓斾笉褰卞搷棰勬祴鏂囦欢锛涜秴澶ф枃浠朵笉鑳界敤琛岃寖鍥寸粫杩囥€傛潈閲嶅叚缁勩€乀op-N銆佹枃浠朵笂闄愪笌寤鸿鏉ユ簮閰嶇疆鐢熸晥骞堕噸鍚仮澶嶏紝HTTP 宓屽閮ㄥ垎瑕嗙洊淇濈暀宸蹭繚瀛橀粯璁ら」銆?- 鎵挎帴 TODO/08锛氭簮鐮佽鍙栥€佺増鏈竴鑷淬€佽绾ц瘎鍒嗐€佽В閲婁笂涓嬫枃銆佸洓娈靛缓璁€佸悓姝ヨ緭鍑轰笌澶辫触鍦烘櫙瑙佷笂杩拌嚜鍔ㄥ寲鐢ㄤ緥锛汣LI/API 瀵归綈鍚岃緭鍏ョ殑瀹氫綅鏁板€间笌寤鸿缁撴瀯锛屼笉鎶婅嚜鍔ㄥ寲楠岃瘉绛夊悓浜哄伐楠屾敹銆?

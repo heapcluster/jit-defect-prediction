@@ -11,6 +11,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+# 过程数据唯一根目录：请求输入、缓存、产出等运行时文件；仓库内不追踪。
+TEMP_ROOT = REPO_ROOT / "temp"
+OUTPUTS_REL = "temp/outputs"
 
 # ── 数据库连接：MySQL，分字段配置（口令单独一格、免转义）─────────────────────
 # 为什么要分字段：`mysql+pymysql://user:pwd@host/db` 里口令只要含 `@ : / # ? %` 就必须做

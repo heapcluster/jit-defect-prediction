@@ -1,7 +1,7 @@
 # JIT 缺陷预测系统 —— 唯一权威环境文件（Single Source of Truth）
 #
 # 位置：data_model/environment.yml（模型包根目录；模型线与后端线共用同一 conda 环境）
-# 用途：一次性创建全部依赖：数据与模型四条线（expert / semantic / fused / e2e）+ 后端线 + 测试工具。
+# 用途：一次性创建全部依赖：数据与模型两条线（expert / semantic）+ 后端线 + 测试工具。
 # 用法（二选一）：
 #   cd data_model && conda env create -f environment.yml
 #   仓库根目录：conda env create -f data_model/environment.yml
@@ -16,7 +16,7 @@
 #   · GPU：PyPI 的 torch==2.5.1 是 CPU 版。4060 上创建完环境后，必须再执行：
 #         pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu124
 #     验证：python -c "import torch; print(torch.cuda.is_available())"  -> True
-#   · 首次运行 semantic / e2e 会联网下载 microsoft/codebert-base（~500MB）；
+#   · 首次运行 semantic 会联网下载 microsoft/codebert-base（~500MB）；
 #     离线机先缓存并设 HF_HUB_OFFLINE=1。
 
 name: jit-defect-prediction
@@ -27,7 +27,7 @@ dependencies:
   - python=3.12
   - pip
   - pip:
-      # ===== 数据与模型：四条线共享的数值 / 经典 ML 底座（版本必须同源，跨线指标才可比）=====
+      # ===== 数据与模型：两条线共享的数值 / 经典 ML 底座（版本必须同源，跨线指标才可比）=====
       - pandas==3.0.5
       - numpy==2.5.3
       - scikit-learn==1.9.1
