@@ -1,0 +1,52 @@
+环境真实创建验证记录（change: env-single-source）
+================================================
+
+日期      2026-10-22
+平台      win-64 / conda 26.5.3 / Python 3.12.15
+清单      data_model/environment.yml（26 个 pip 包）
+
+1. 命令
+-------
+conda env create -f data_model/environment.yml -n jit-defect-prediction-verify -y
+
+说明：团队已有一个同名 `jit-defect-prediction` 环境在用，直接按文档命令创建会因前缀已存在而失败、
+强删又会中断他人使用，故本次只把环境名换成 `jit-defect-prediction-verify`，清单与依赖集合完全一致；
+干净机器上不加 `-n` 即文档命令。
+
+2. 结果：创建成功
+-----------------
+conda 事务（defaults/win-64）完成 → pip 依赖段完成 → 输出了激活提示
+（`To activate this environment, use: conda activate jit-defect-prediction-verify`）。
+环境体积约 1.8 GB。关键包版本（pip 安装结果）：
+
+  torch 2.5.1+cpu            transformers 4.46.1      tokenizers 0.20.1
+  huggingface-hub 0.26.2     safetensors 0.4.5        accelerate 1.1.1
+  matplotlib 3.10.1          GitPython 3.1.62         pytorch-tabnet 4.1.0
+  scikit-learn 1.9.1         xgboost 3.4.1            lightgbm 4.6.0
+  pandas 3.0.5               numpy 2.5.3              pytest 9.1.1 / pytest-cov 7.1.0
+
+3. 依赖导入（激活等效检查）
+---------------------------
+python -c "import torch, transformers, pandas, numpy, sklearn, xgboost, lightgbm, matplotlib,
+           accelerate, pytorch_tabnet, git, joblib"
+
+输出：
+  python 3.12.15
+  torch 2.5.1+cpu cuda False
+  transformers 4.46.1
+  all imports OK
+
+4. 测试（模型线 + 后端线，同一环境）
+-----------------------------------
+python -m pytest data_model/tests backend/tests -o addopts="" -q
+
+输出：197 passed, 17 warnings in 32.19s（退出码 0）
+
+5. 未覆盖 / 保留缺口
+--------------------
+- CUDA：本环境装的是 PyPI 的 CPU 轮子，`torch.cuda.is_available()` 为 False；
+  cu124 二次安装与 `True` 断言须在 RTX 4060 上执行（步骤见 data_model/ENVIRONMENT.md §3）。
+- 跨平台：未在 Linux/WSL 上重复创建。
+- 环境名：验证环境带 `-verify` 后缀，与文档命令仅差 `-n`，包集合相同。
+
+原始日志：evidence/env-create-verify.log
