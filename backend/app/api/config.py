@@ -21,7 +21,7 @@ class ConfigItem(BaseModel):
 
 class ConfigBatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    items: list[ConfigItem] = Field(min_length=1, max_length=23)
+    items: list[ConfigItem] = Field(min_length=1, max_length=25)
 
 
 class ConfigValue(BaseModel):

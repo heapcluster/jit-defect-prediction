@@ -47,3 +47,8 @@ def export_dataset(request: Request, dataset_id: str, session: DatabaseSession, 
     query_keys(request, {"format", "artifact", "model_name", "decision_threshold", "start_time", "end_time"})
     return ok(storage.export_dataset(session, dataset_id, format, artifact, model_name, decision_threshold,
                                     start_time=start_time, end_time=end_time))
+
+
+@router.delete("/{dataset_id}")
+def delete_dataset(dataset_id: str, session: DatabaseSession):
+    return ok(storage.delete_dataset(session, dataset_id))

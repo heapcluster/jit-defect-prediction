@@ -166,18 +166,8 @@ def test_predict_then_query_and_repeat_keeps_one_row(populated_api):
     assert match["risk_score"] == predicted["risk_score"]
 
 
-def test_week_month_and_closed_range_match_imported_data(populated_api):
+def test_closed_range_matches_imported_data(populated_api):
     client, _ = populated_api
-    weekly = client.get("/api/trends?granularity=week&model_name=integration_v2", headers=HEADERS)
-    monthly = client.get("/api/trends?granularity=month&model_name=integration_v2", headers=HEADERS)
-    assert weekly.status_code == monthly.status_code == 200
-    assert weekly.json()["data"]["series"] == [
-        {"period": "2026-W31", "commit_count": 2, "avg_risk": 0.5, "high_risk_count": 1}
-    ]
-    assert monthly.json()["data"]["series"] == [
-        {"period": "2026-07", "commit_count": 1, "avg_risk": 0.8, "high_risk_count": 1},
-        {"period": "2026-08", "commit_count": 1, "avg_risk": 0.2, "high_risk_count": 0},
-    ]
     selected = client.get(
         "/api/commits?start_time=2026-07-27&end_time=2026-08-02&model_name=integration_v2", headers=HEADERS
     ).json()["data"]
@@ -206,11 +196,9 @@ def test_missing_prediction_and_feature_keep_contract_shapes(populated_api, monk
 def test_empty_database_queries_are_not_errors(integration_db):
     with TestClient(create_app()) as client:
         listing = client.get("/api/commits", params={"model_name": "integration_v2"}, headers=HEADERS)
-        trends = client.get("/api/trends", params={"model_name": "integration_v2"}, headers=HEADERS)
-        assert listing.status_code == trends.status_code == 200
+        assert listing.status_code == 200
         assert listing.json()["data"]["items"] == []
         assert listing.json()["data"]["total"] == 0
-        assert trends.json()["data"]["series"] == []
 
 
 def test_auth_validation_and_failed_load_do_not_leak(populated_api, caplog):
@@ -218,7 +206,6 @@ def test_auth_validation_and_failed_load_do_not_leak(populated_api, caplog):
     for method, path, payload in (
         ("GET", "/api/commits", None),
         ("GET", f"/api/commits/{C1}", None),
-        ("GET", "/api/trends", None),
         ("POST", "/api/predict", {"commit_hash": C1}),
     ):
         response = client.request(method, path, json=payload)

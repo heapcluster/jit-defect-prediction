@@ -80,14 +80,14 @@ def _dataset_input(session, dataset_id):
     if not isinstance(dataset_id, str) or not dataset_id:
         fc.invalid('dataset_id 非法')
     storage.snapshot(session)
-    storage.require_dataset(session, dataset_id)
+    dataset = storage.require_dataset(session, dataset_id)
     members, _ = storage.bounded_rows(session, storage.member_query(dataset_id))
     if not members:
         fc.invalid('所选数据集没有提交成员')
     records = [storage.member_record(member) for member in members]
     content = fc.encode_table(fc.COLLECTED_COMMITS_COLUMNS, records, 'csv')
     rows, metadata = _call('parse_input', 'dataset_commits.csv', content)
-    metadata.update(feature_version='v1', feature_state='log_v1')
+    metadata.update(feature_version='v1', feature_state='log_v1', dataset_job_id=dataset.job_id)
     return rows, metadata, [{'name': 'dataset_commits.csv', 'sha256': fc.sha256(content), 'rows': len(rows)}], len(content)
 
 
@@ -133,11 +133,14 @@ def submit(session, raw_config, files):
     total = len(validated['steps']) + 1
     try:
         job = job_store.create(session, 'clean', params={'module': 'clean', 'input_ref': reference,
-            'input_sha256': digest, 'config': validated}, total=total)
+            'input_sha256': digest, 'config': validated}, total=total,
+            parents=[{'kind': 'collect', 'job_id': metadata['dataset_job_id']}]
+            if dataset_id and metadata.get('dataset_job_id') else None)
     except Exception:
         shutil.rmtree(_request_path(reference).parent)
         raise
     if len(rows) <= SYNC_MAX_ROWS and byte_count <= SYNC_MAX_BYTES:
+        session.commit()
         _execute(job['job_id'], job['retry_count'])
         dispatch()
         current = job_store.get(session, job['job_id'])

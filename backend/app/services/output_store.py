@@ -23,7 +23,7 @@ from app.timeutil import iso_z, now_naive_utc
 
 OUTPUT_ROOT = config.TEMP_ROOT / "outputs"
 MODULES = {"storage", "collect", "clean", "train", "predict", "evaluate", "explain", "localize", "datasets"}
-EXTENSIONS = {"csv", "xlsx", "json", "zip", "png", "md", "html", "diff"}
+EXTENSIONS = {"csv", "xlsx", "json", "zip", "pkl", "png", "md", "html", "diff"}
 
 
 def _batch_id(job_id: str) -> None:
@@ -33,7 +33,9 @@ def _batch_id(job_id: str) -> None:
 
 def _artifact_name(name: str) -> None:
     validate_upload_name(name)
-    if name.startswith(".") or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", name) or name.rsplit(".", 1)[-1] not in EXTENSIONS:
+    extension = name.rsplit(".", 1)[-1] if "." in name else ""
+    if (name.startswith(".") or name.endswith((".", " ")) or len(name) > 160
+            or any(char in name for char in '*?"<>|') or extension not in EXTENSIONS):
         invalid("产物名称或格式非法")
 
 
@@ -52,7 +54,8 @@ def backend_code_version() -> str:
 
 
 def publish_output(module: str, artifacts: dict[str, bytes], *, inputs: list, config: dict,
-                   job_id: str | None = None, code_version: str | None = None) -> dict:
+                   job_id: str | None = None, code_version: str | None = None,
+                   internal: set[str] | None = None) -> dict:
     job_id = job_id or "j-" + uuid4().hex
     _batch_id(job_id)
     if module not in MODULES or not artifacts:
@@ -63,17 +66,21 @@ def publish_output(module: str, artifacts: dict[str, bytes], *, inputs: list, co
             invalid("产物内容必须为字节")
     if sum(len(content) for content in artifacts.values()) > MAX_UNPACKED_BYTES:
         invalid("输出批次大小超限")
-    first = next(iter(artifacts))
+    internal = internal or set()
+    public = {name: content for name, content in artifacts.items() if name not in internal}
+    if not public:
+        invalid("输出批次没有可登记产物")
+    first = next(iter(public))
     manifest_name = first.rsplit(".", 1)[0] + ".manifest.json"
-    manifest_names = {name.rsplit('.', 1)[0] + '.manifest.json' for name in artifacts}
-    if manifest_names.intersection(artifacts):
+    manifest_names = {name.rsplit('.', 1)[0] + '.manifest.json' for name in public}
+    if manifest_names.intersection(public):
         invalid("产物与 manifest 名称冲突")
     for name in manifest_names:
         _artifact_name(name)
     version = code_version if code_version is not None else backend_code_version()
     if not isinstance(version, str) or not version:
         invalid("代码版本不能为空")
-    entries = [{"name": name, "sha256": sha256(content), "size_bytes": len(content)} for name, content in artifacts.items()]
+    entries = [{"name": name, "sha256": sha256(content), "size_bytes": len(content)} for name, content in public.items()]
     manifest = {"schema_version": "1.0", "module": module, "job_id": job_id, "inputs": inputs,
                 "config": config, "outputs": entries, "code_version": version,
                 "created_at": iso_z(now_naive_utc())}

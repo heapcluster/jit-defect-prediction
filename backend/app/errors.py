@@ -23,25 +23,27 @@ INTERNAL_ERROR_MESSAGE = "internal error"
 
 
 class AppError(Exception):
-    def __init__(self, code: int, message: str) -> None:
+    def __init__(self, code: int, message: str, detail: Any = None) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
+        self.detail = detail
 
 
 def ok(data: Any) -> dict:
     return {"code": 0, "message": "ok", "data": data}
 
 
-def error_payload(code: int, message: str) -> dict:
-    return {"code": code, "message": message, "data": None}
+def error_payload(code: int, message: str, detail: Any = None) -> dict:
+    return {"code": code, "message": message, "data": detail}
 
 
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _app_error(_: Request, exc: AppError) -> JSONResponse:
         return JSONResponse(
-            status_code=HTTP_BY_CODE[exc.code], content=error_payload(exc.code, exc.message)
+            status_code=HTTP_BY_CODE[exc.code],
+            content=error_payload(exc.code, exc.message, getattr(exc, "detail", None)),
         )
 
     @app.exception_handler(RequestValidationError)

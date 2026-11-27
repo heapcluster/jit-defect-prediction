@@ -1,19 +1,18 @@
 <template>
-  <div>
+  <div class="panel config-panel content-page">
+    <div class="section-heading">
+      <h2>模型性能</h2>
+    </div>
     <!-- 模型选择区：架构 → 模型级联 + 查看抽屉 -->
-    <el-form
-      :inline="true"
-      class="filters"
-    >
-      <el-form-item label="模型">
-        <LineModelCascade
-          v-model:line="selectedLine"
-          v-model:model="selectedModel"
-          :lines="lines"
-          model-placeholder="选择模型"
-        />
-      </el-form-item>
-      <el-form-item>
+    <FilterBar>
+      <span class="filter-label">模型</span>
+      <LineModelCascade
+        v-model:line="selectedLine"
+        v-model:model="selectedModel"
+        :lines="lines"
+        model-placeholder="选择模型"
+      />
+      <template #actions>
         <el-button
           type="primary"
           :disabled="!selectedModel"
@@ -21,36 +20,30 @@
         >
           查看
         </el-button>
-      </el-form-item>
-    </el-form>
+      </template>
+    </FilterBar>
 
     <!-- 查询栏：搜索 + 时间范围（表格按所选模型与 with_features=1 查询） -->
-    <el-form
-      :inline="true"
-      class="filters"
-    >
-      <el-form-item label="搜索">
-        <el-input
-          v-model="filters.q"
-          placeholder="哈希/作者/提交信息"
-          clearable
-          maxlength="64"
-          style="width: 200px"
-          @keyup.enter="load(1)"
-        />
-      </el-form-item>
-      <el-form-item label="时间范围">
-        <el-date-picker
-          v-model="timeRange"
-          type="daterange"
-          value-format="YYYY-MM-DD"
-          range-separator="至"
-          start-placeholder="开始"
-          end-placeholder="结束"
-          style="width: 240px"
-        />
-      </el-form-item>
-      <el-form-item>
+    <FilterBar>
+      <span class="filter-label">搜索</span>
+      <el-input
+        v-model="filters.q"
+        placeholder="哈希/作者/提交信息"
+        clearable
+        maxlength="64"
+        style="width: 200px"
+        @keyup.enter="load(1)"
+      />
+      <el-date-picker
+        v-model="timeRange"
+        type="daterange"
+        value-format="YYYY-MM-DD"
+        range-separator="至"
+        start-placeholder="开始"
+        end-placeholder="结束"
+        style="width: 240px"
+      />
+      <template #actions>
         <el-button
           type="primary"
           @click="load(1)"
@@ -60,8 +53,8 @@
         <el-button @click="reset">
           重置
         </el-button>
-      </el-form-item>
-    </el-form>
+      </template>
+    </FilterBar>
 
     <el-alert
       v-if="error"
@@ -120,7 +113,7 @@
         show-overflow-tooltip
       />
       <el-table-column
-        label="14 维特征"
+        label="特征详情"
         width="110"
       >
         <template #default="{ row }">
@@ -143,7 +136,7 @@
               :key="group.title"
               class="feat-group"
             >
-              <h4>{{ group.title }}</h4>
+              <h3>{{ group.title }}</h3>
               <div class="feat-list">
                 <span
                   v-for="f in group.fields"
@@ -158,7 +151,7 @@
         </template>
       </el-table-column>
       <el-table-column
-        label="SZZ 判断"
+        label="是否为缺陷"
         width="110"
       >
         <template #default="{ row }">
@@ -181,7 +174,7 @@
             type="info"
             size="small"
           >
-            未打标
+            未标注
           </el-tag>
         </template>
       </el-table-column>
@@ -229,6 +222,26 @@
           class="mb"
         />
 
+        <div class="mb batch-picker">
+          <span>评估批次：</span>
+          <el-select
+            v-model="selectedBatch"
+            style="width: 380px"
+            placeholder="选择评估批次"
+          >
+            <el-option
+              label="最新批次"
+              value=""
+            />
+            <el-option
+              v-for="batch in batches"
+              :key="batch.job_id"
+              :label="`${formatTime(batch.created_at)} · ${batch.job_id}`"
+              :value="batch.job_id"
+            />
+          </el-select>
+        </div>
+
         <el-alert
           v-if="metricsUnavailable"
           :title="'指标不可用：' + metricsUnavailable"
@@ -239,61 +252,28 @@
         />
         <el-alert
           v-if="missingFigures.length"
-          :title="'部分图不可用：' + missingFigures.map((f) => f.figure_type + '/' + f.reason).join('，')"
+          title="部分图表暂不可用"
           type="warning"
           show-icon
           :closable="false"
           class="mb"
         />
 
-        <div
+        <StatGrid
           v-if="metrics"
-          class="metrics"
-        >
-          <StatCard
-            label="AUC"
-            :value="fmt(metrics.auc)"
-          />
-          <StatCard
-            label="AP"
-            :value="fmt(metrics.ap)"
-          />
-          <StatCard
-            label="F1"
-            :value="fmt(metrics.f1)"
-          />
-          <StatCard
-            label="Precision"
-            :value="fmt(metrics.precision)"
-          />
-          <StatCard
-            label="Recall"
-            :value="fmt(metrics.recall)"
-          />
-          <StatCard
-            label="Accuracy"
-            :value="fmt(metrics.accuracy)"
-          />
-          <StatCard
-            label="样本数"
-            :value="metrics.n"
-          />
-          <StatCard
-            label="正样本占比"
-            :value="(metrics.pos_rate * 100).toFixed(1) + '%'"
-          />
-        </div>
+          :items="metricItems"
+        />
 
         <div
           v-for="fig in figureImages"
           :key="fig.figure_type"
           class="figure"
         >
-          <h4>{{ fig.title }}</h4>
+          <h3>{{ fig.title }}</h3>
           <img
             :src="fig.url"
             :alt="fig.title"
-          />
+          >
         </div>
       </div>
     </el-drawer>
@@ -309,7 +289,8 @@ import { FEATURE_GROUPS, featureLabel } from '../utils/features'
 import { errText, isRetryable } from '../utils/errors'
 import { formatTime } from '../utils/datetime'
 import LineModelCascade from '../components/LineModelCascade.vue'
-import StatCard from '../components/StatCard.vue'
+import FilterBar from '../components/FilterBar.vue'
+import StatGrid from '../components/StatGrid.vue'
 
 const lines = ref([])
 const selectedLine = ref('')
@@ -372,7 +353,13 @@ function reset() {
 }
 
 // 模型切换整列刷新；未选模型时 load 直接返回，不依赖默认模型
-watch(selectedModel, () => { if (selectedModel.value) load(1) })
+watch(selectedModel, () => {
+  requestId++
+  if (selectedModel.value) { load(1); return }
+  // 清空模型后必须同步清空旧结果，否则页面仍显示上一模型的风险分
+  items.value = []; total.value = 0; error.value = ''; loading.value = false
+  drawerVisible.value = false
+})
 
 // ── 查看抽屉 ──
 const drawerVisible = ref(false)
@@ -385,10 +372,20 @@ const figureImages = ref([])
 const drawerTitle = computed(() =>
   selectedModel.value ? `${selectedModel.value} 性能评估` : '性能评估'
 )
+const batches = ref([])
+const selectedBatch = ref('')
+const metricItems = computed(() => metrics.value ? [
+  { label: 'AUC', value: fmt(metrics.value.auc) },
+  { label: 'AP', value: fmt(metrics.value.ap) },
+  { label: 'F1', value: fmt(metrics.value.f1) },
+  { label: '精确率', value: fmt(metrics.value.precision) },
+  { label: '召回率', value: fmt(metrics.value.recall) },
+  { label: '准确率', value: fmt(metrics.value.accuracy) },
+  { label: '样本数', value: metrics.value.n },
+  { label: '正样本占比', value: `${(metrics.value.pos_rate * 100).toFixed(1)}%` }
+] : [])
 
-async function openDrawer() {
-  if (!selectedModel.value) return
-  drawerVisible.value = true
+async function loadFigures() {
   drawerLoading.value = true
   drawerError.value = ''
   metrics.value = null
@@ -396,12 +393,18 @@ async function openDrawer() {
   missingFigures.value = []
   figureImages.value = []
   try {
-    const data = await getFigures(selectedModel.value)
+    const data = await getFigures({
+      model_name: selectedModel.value,
+      job_id: selectedBatch.value || undefined
+    })
+    if (Array.isArray(data.batches)) batches.value = data.batches
     metrics.value = Object.fromEntries((data.metrics || []).map((row) => [row.metric, row.value]))
     metricsUnavailable.value = data.metrics_unavailable || ''
     missingFigures.value = data.missing || []
+    const usableFigures = (data.figures || []).filter(f => typeof f.file_path === 'string' && f.file_path)
+    missingFigures.value.push(...(data.figures || []).filter(f => !(typeof f.file_path === 'string' && f.file_path)).map(f => f.title || f.figure_type || '未命名图'))
     const urls = await Promise.all(
-      (data.figures || []).map(async (f) => ({
+      usableFigures.map(async (f) => ({
         figure_type: f.figure_type,
         title: f.title,
         url: await fetchFigureBlob(f.file_path)
@@ -409,10 +412,22 @@ async function openDrawer() {
     )
     figureImages.value = urls
   } catch (e) {
-    drawerError.value = errText(e)
+    drawerError.value = e?.code === 40400 ? '该模型暂无已登记的性能图或指标' : errText(e)
   } finally {
     drawerLoading.value = false
   }
+}
+
+watch(selectedBatch, (value, old) => {
+  if (drawerVisible.value && value !== old) loadFigures()
+})
+
+async function openDrawer() {
+  if (!selectedModel.value) return
+  drawerVisible.value = true
+  selectedBatch.value = ''
+  batches.value = []
+  await loadFigures()
 }
 
 function fmt(v) {
@@ -440,61 +455,53 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.filters {
-  margin-bottom: 4px;
-}
-.mb {
-  margin-bottom: 12px;
+.filter-label {
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-sm);
+  font-weight: 550;
 }
 .mp-table {
   margin-top: 8px;
-}
-.mono {
-  font-family: monospace;
 }
 .pager {
   margin-top: 16px;
   justify-content: flex-end;
 }
 .feat-group {
-  margin-bottom: 10px;
+  margin-bottom: var(--ui-space-3);
 }
-.feat-group h4 {
-  margin: 0 0 4px;
-  font-size: 12px;
-  color: #7c838c;
+.feat-group h3 {
+  margin: 0 0 var(--ui-space-1);
+  font-size: var(--ui-font-sm);
+  color: var(--ui-text-muted);
 }
 .feat-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--ui-space-1);
 }
 .feat-item {
-  font-size: 12px;
-  background: #f4f5f7;
-  border-radius: 4px;
-  padding: 2px 6px;
-}
-.metrics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 16px;
+  padding: 3px 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  background: var(--ui-surface-subtle);
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-sm);
 }
 .figure {
-  margin-bottom: 20px;
+  margin-bottom: var(--ui-space-5);
 }
-.figure h4 {
-  margin: 0 0 8px;
-  font-size: 14px;
+.figure h3 {
+  margin: 0 0 var(--ui-space-2);
+  font-size: var(--ui-font-base);
 }
 .figure img {
   display: block;
   max-width: 880px;
   width: 100%;
   margin: 0 auto;
-  border: 1px solid #e2e5ea;
-  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
 }
 .drawer-body {
   min-height: 200px;

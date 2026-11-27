@@ -235,7 +235,7 @@ def create_proper5(conn):
         INSERT INTO commit_feature VALUES ({','.join(['%s'] * (2 + len(METRICS) + 3))})
     """, [HASHES[0], "real-v1", *([1] * len(METRICS)), 1, None, None])
     execute(conn, "INSERT INTO prediction (commit_hash,model_name,risk_score,predicted_at) VALUES (%s,'rf_v1',0.98765,%s)", (HASHES[0], TIME))
-    execute(conn, "INSERT INTO model_figure VALUES ('rf_v1','roc','ROC','real.png',%s)", (TIME,))
+    execute(conn, "INSERT INTO model_figure VALUES ('','rf_v1','roc','rf_v1_roc.png','ROC','real.png',NULL,%s)", (TIME,))
 
 
 def test_empty_to_exact_canonical12(db, canonical_signature):

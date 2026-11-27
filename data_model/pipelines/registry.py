@@ -8,7 +8,7 @@
   · seed 是顶层参数（传给 build_model），不是超参。
 
 按最新契约只保留 expert / semantic 两线，每线 12 个注册项
-（8 个 DEFAULT_MODELS 默认启用，nb/dt/knn/mlp 注册但默认关闭）。
+（8 个 DEFAULT_MODELS 为默认口径，nb/dt/knn/mlp 默认不参训但同样可被显式选中）。
 两线都能从 collected_commits 二维表训练：expert 内部从绑定仓库现算 14 维，
 semantic 内部用预计算 npz 或绑定仓库的提交文本经冻结头 CodeBERT 编码为 768 维；
 内部来源缺失时训练前置拒绝（40001），不伪造向量。
@@ -139,7 +139,10 @@ def _schema(algo):
 
 
 def algorithms(line=None, enabled_only=False) -> list[dict]:
-    """注册目录：expert/semantic 两线各 12 项，每线 8 项默认启用。"""
+    """注册目录：expert/semantic 两线各 12 项，每线 8 项默认口径（enabled）。
+
+    enabled 只表达默认口径，不限制可选性：12 项都能被显式选中训练。
+    """
     if line is not None and line not in LINES:
         _invalid(f"Unknown line: {line}")
     config, model = _expert()
@@ -205,8 +208,6 @@ def validate_selection(line, algos, hyperparams) -> dict:
     for algo in algos:
         if algo not in catalog:
             _invalid(f"Unknown algorithm for line {line}: {algo}")
-        if not catalog[algo]["enabled"]:
-            _invalid(f"Algorithm {algo} is registered but disabled (default-off); not selectable")
     if not isinstance(hyperparams, dict):
         _invalid("hyperparams must be an object keyed by algorithm")
     normalized = {}

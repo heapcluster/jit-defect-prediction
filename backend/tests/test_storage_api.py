@@ -53,11 +53,12 @@ def storage_client(engine, tmp_path, monkeypatch):
         db.add(Model(model_name="fixture", line="expert", algo="rf", version_key="v2", feature_version="log-v2"))
         db.commit()
     monkeypatch.setattr(output_store, "OUTPUT_ROOT", tmp_path)
-    from app.api import datasets, storage
+    from app.api import datasets, figures, storage
     app = FastAPI()
     register_error_handlers(app)
     app.include_router(storage.router)
     app.include_router(datasets.router)
+    app.include_router(figures.router)
     def database():
         with Session(engine) as db:
             yield db
@@ -240,9 +241,9 @@ def test_figure_verification(storage_client, engine, case):
     assert response.status_code == (200 if case == "valid" else 400)
     if case == "valid":
         assert response.json()["data"]["items"][0]["target_tables"] == ["model_figure"]
-        # 新契约：model_figure 以 (model_name, figure_type) 为键，登记标题与相对路径
+        # 新契约：model_figure 以 (job_id, model_name, figure_type) 为键；导入图集批次 job_id 为空。
         with Session(engine) as db:
-            figure = db.get(ModelFigure, ("fixture", "roc"))
+            figure = db.get(ModelFigure, ("", "fixture", "roc"))
             assert figure is not None
             assert figure.title == "roc" and figure.file_path
             assert figure.generated_at is not None
@@ -290,7 +291,8 @@ def test_datasets_members_and_canonical_exports(storage_client):
     detail = storage_client.get(url, headers=HEADERS).json()["data"]
     assert detail["pos_rate"] == 1
     # 新契约：详情给出未打标计数与标签来源溯源，未打标不记入正负样本分母
-    assert detail["unlabeled_count"] == 0
+    # 夹具第二行 is_bug_inducing 为空，因此未打标计数为 1。
+    assert detail["unlabeled_count"] == 1
     assert detail["label_method_source"] == "not_stored"
     members = storage_client.get(url + "/commits", headers=HEADERS).json()["data"]
     assert members["total"] == 2
@@ -405,14 +407,12 @@ def test_unknown_file_does_not_abort_other_valid_files(storage_client):
 
 
 def test_figure_import_is_readable_through_figures_api(storage_client, monkeypatch):
-    from app.api.figures import figures
-    monkeypatch.setattr("app.api.figures._load_metrics", lambda: {"fixture": {"auc": 0.99}})
     output = io.BytesIO()
     Image.new("RGB", (2, 2)).save(output, format="PNG")
     raw = output.getvalue()
     response = upload(storage_client, [("roc.png", raw), ("roc.manifest.json", manifest("roc.png", raw, model_name="fixture", figure_type="roc"))])
     assert response.status_code == 200
-    view = figures("fixture")["data"]
+    view = storage_client.get("/api/figures", params={"model_name": "fixture"}, headers=HEADERS).json()["data"]
     assert len(view["figures"]) == 1
 
 

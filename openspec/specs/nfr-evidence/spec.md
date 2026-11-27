@@ -35,7 +35,7 @@
 
 ### Requirement: 证据留档与占位模型标注
 
-每次正式取证 SHALL 在 `docs/想到什么取什么/integration_test/execution_records/` 产出带日期的 Markdown 记录，含运行日期、模型来源标注（占位模型 / 真模型及 model_name）、命令与关键输出，并提交版本控制；占位模型证据 SHALL 显式标注「占位模型」，真 `.pkl` 交付后 SHALL 重跑并追加新证据，旧证据保留不删。
+每次正式取证 SHALL 在版本控制内按测试流程指定目录产出带日期的 Markdown 记录，含运行日期、模型来源标注（占位模型 / 真模型及 model_name）、命令与关键输出，并提交版本控制；占位模型证据 SHALL 显式标注「占位模型」，真 `.pkl` 交付后 SHALL 重跑并追加新证据，旧证据保留不删。
 
 #### Scenario: 证据文件含模型来源行
 
@@ -45,4 +45,4 @@
 #### Scenario: 真模型重跑追加
 
 - **WHEN** 真 `.pkl` 交付后重跑压测
-- **THEN** 新增一份带真模型标注的证据 md，原占位证据文件仍保留在 `docs/想到什么取什么/integration_test/execution_records/`
+- **THEN** 新增一份带真模型标注的证据 md，原占位证据文件仍保留

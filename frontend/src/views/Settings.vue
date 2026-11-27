@@ -1,175 +1,165 @@
 <template>
-  <section class="settings">
-    <div class="section-heading">
-      <h2>用户配置</h2>
-      <span>唯一配置源：user_config</span>
-    </div>
-    <p class="hint">
-      当前固定 Token 模式写入 global；恢复默认删除当前作用域配置，由后端回退 global / factory。
-      保存后风险展示重新分档，不改写已有 risk_score，不自动重新预测。
-    </p>
-    <el-alert
-      v-if="error"
-      :title="error"
-      type="error"
-      :closable="false"
-      show-icon
-      class="notice"
-    >
-      <el-button
-        v-if="readFailed"
-        data-testid="retry-config"
-        :disabled="busy"
-        @click="refresh"
-      >
-        重试
-      </el-button>
-    </el-alert>
-    <el-skeleton
-      v-if="!initialized && busy"
-      :rows="6"
-      animated
-    />
-    <template v-if="initialized">
+  <ToolWorkspace
+    hide-tabs
+    model-value="config"
+  >
+    <template #config>
       <el-alert
-        title="阈值校验：0 < risk_mid_threshold < risk_high_threshold < 1；decision_threshold 仅供后续预测 / 评估运行使用。primary_metric 必须属于 metrics_selected。最终校验由后端完成。"
-        type="info"
+        v-if="error"
+        :title="error"
+        type="error"
         :closable="false"
+        show-icon
         class="notice"
-      />
+      >
+        <el-button
+          v-if="readFailed || unauthorized"
+          data-testid="retry-config"
+          :disabled="busy"
+          @click="refresh"
+        >
+          重试
+        </el-button>
+      </el-alert>
+
       <el-form
+        v-if="initialized"
         label-position="top"
         :disabled="busy || unauthorized"
         @submit.prevent="save"
       >
-        <el-tabs v-model="activeGroup">
-          <el-tab-pane
-            v-for="group in groups"
-            :key="group"
-            :name="group"
-            :label="group === 'global' ? '全局' : group"
+        <header class="settings-intro">
+          <h2>风险分档阈值</h2>
+          <p>
+            预测分数达到高风险阈值即标为高风险，介于中、高阈值之间为中风险，低于中风险阈值为低风险。
+            保存后立即在数据收集、预测与评估页面生效。
+          </p>
+        </header>
+
+        <div class="threshold-grid">
+          <el-form-item
+            label="高风险阈值"
+            :for="inputId('risk_high_threshold')"
+            :error="validation.risk_high_threshold"
+            data-config-key="risk_high_threshold"
+            class="threshold-field"
           >
-            <p
-              v-if="group === 'clean' || group === 'train'"
-              class="hint"
-            >
-              目前仅支持空模板 {}；非空模板须等待对应操作/算法注册表实现。
+            <el-input-number
+              :id="inputId('risk_high_threshold')"
+              v-model="draft.risk_high_threshold"
+              :min="0.01"
+              :max="0.99"
+              :step="0.01"
+              :precision="2"
+              controls-position="right"
+              :aria-label="'高风险阈值'"
+              class="editor"
+            />
+            <p class="field-hint">
+              分数 ≥ {{ format(draft.risk_high_threshold) }} 判定为高风险
             </p>
-            <div class="field-grid">
-              <el-form-item
-                v-for="field in fields.filter(item => item.group === group)"
-                :key="field.key"
-                :label="field.label"
-                :for="inputId(field.key)"
-                :data-config-key="field.key"
-                :error="validation[field.key]"
-                class="config-field"
-              >
-                <div class="field-body">
-                  <code class="config-key">{{ field.key }}</code>
-                  <el-select
-                    v-if="Array.isArray(field.choices)"
-                    :id="inputId(field.key)"
-                    v-model="draft[field.key]"
-                    :aria-label="field.label"
-                    :multiple="field.value_type === 'list'"
-                    :disabled="field.choices.length === 0"
-                    filterable
-                    class="editor"
-                  >
-                    <el-option
-                      v-for="choice in field.choices"
-                      :key="String(choice)"
-                      :label="choice === '' ? '不指定（由后端回退）' : String(choice)"
-                      :value="choice"
-                    />
-                  </el-select>
-                  <el-input-number
-                    v-else-if="field.value_type === 'float' || field.value_type === 'int'"
-                    :id="inputId(field.key)"
-                    v-model="draft[field.key]"
-                    :aria-label="field.label"
-                    :step="field.value_type === 'int' ? 1 : 0.01"
-                    controls-position="right"
-                    class="editor"
-                  />
-                  <el-switch
-                    v-else-if="field.value_type === 'bool'"
-                    :id="inputId(field.key)"
-                    v-model="draft[field.key]"
-                    :aria-label="field.label"
-                  />
-                  <el-input
-                    v-else
-                    :id="inputId(field.key)"
-                    v-model="draft[field.key]"
-                    :aria-label="field.label"
-                    :type="isJson(field) ? 'textarea' : 'text'"
-                    :rows="isJson(field) ? 5 : undefined"
-                    :spellcheck="false"
-                    class="editor"
-                  />
-                  <p
-                    v-if="isJson(field)"
-                    class="hint json-hint"
-                  >
-                    JSON {{ field.value_type === 'object' ? '对象' : '数组' }}编辑器
-                  </p>
-                  <div class="field-footer">
-                    <span class="source">
-                      来源：<el-tag size="small">{{ field.source }}</el-tag>
-                    </span>
-                    <el-button
-                      data-testid="reset-config"
-                      size="small"
-                      :aria-label="`恢复默认：${field.label}`"
-                      :disabled="busy || unauthorized || readFailed || field.source === 'factory'"
-                      @click="resetField(field.key)"
-                    >
-                      恢复默认
-                    </el-button>
-                  </div>
-                  <time
-                    v-if="field.updated_at"
-                    class="hint updated-at"
-                  >{{ field.updated_at }}</time>
-                </div>
-              </el-form-item>
-            </div>
-          </el-tab-pane>
-        </el-tabs>
-        <div class="actions">
+          </el-form-item>
+
+          <el-form-item
+            label="中风险阈值"
+            :for="inputId('risk_mid_threshold')"
+            :error="validation.risk_mid_threshold"
+            data-config-key="risk_mid_threshold"
+            class="threshold-field"
+          >
+            <el-input-number
+              :id="inputId('risk_mid_threshold')"
+              v-model="draft.risk_mid_threshold"
+              :min="0.01"
+              :max="0.99"
+              :step="0.01"
+              :precision="2"
+              controls-position="right"
+              :aria-label="'中风险阈值'"
+              class="editor"
+            />
+            <p class="field-hint">
+              分数 ≥ {{ format(draft.risk_mid_threshold) }} 且低于高风险阈值时判定为中风险
+            </p>
+          </el-form-item>
+        </div>
+
+        <section
+          class="risk-scale"
+          aria-label="当前风险区间预览"
+        >
+          <div class="risk-scale__head">
+            <span>当前风险区间</span>
+            <span class="risk-scale__note">分数范围 0 – 1</span>
+          </div>
+          <div class="risk-scale__bar">
+            <span
+              class="risk-scale__band is-low"
+              :style="{ flexGrow: lowWeight }"
+            >
+              <strong>低风险</strong>
+              <small>0 – {{ format(draft.risk_mid_threshold) }}</small>
+            </span>
+            <span
+              class="risk-scale__band is-mid"
+              :style="{ flexGrow: midWeight }"
+            >
+              <strong>中风险</strong>
+              <small>{{ format(draft.risk_mid_threshold) }} – {{ format(draft.risk_high_threshold) }}</small>
+            </span>
+            <span
+              class="risk-scale__band is-high"
+              :style="{ flexGrow: highWeight }"
+            >
+              <strong>高风险</strong>
+              <small>{{ format(draft.risk_high_threshold) }} – 1</small>
+            </span>
+          </div>
+        </section>
+
+        <div class="settings-footer">
           <el-button
             data-testid="save-config"
+            class="run-button"
             type="primary"
             native-type="submit"
-            :disabled="busy || unauthorized || readFailed"
+            :disabled="busy || unauthorized || readFailed || !changed"
             :loading="saving"
           >
             保存修改
           </el-button>
-          <span
+          <p
             role="status"
             aria-live="polite"
-            class="hint"
-          >{{ status }}</span>
+            class="status-line"
+          >
+            {{ status || (changed ? '修改后点此保存，保存后立即生效' : '当前为已生效设置') }}
+          </p>
         </div>
       </el-form>
+      <el-skeleton
+        v-else
+        :rows="4"
+        animated
+        aria-label="正在读取设置"
+      />
     </template>
-  </section>
+  </ToolWorkspace>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { deleteConfigKey, putConfig } from '../api'
+import ToolWorkspace from '../components/ToolWorkspace.vue'
+import { putConfig } from '../api'
+import { errText } from '../utils/errors'
 import { applyConfiguration, configuration, loadConfiguration } from '../utils/thresholds'
 
 defineOptions({ name: 'ConfigurationSettings' })
 
-const draft = reactive({})
-const baseline = reactive({})
+const KEYS = ['risk_high_threshold', 'risk_mid_threshold']
+const draft = reactive({ risk_high_threshold: null, risk_mid_threshold: null })
+const baseline = reactive({ risk_high_threshold: null, risk_mid_threshold: null })
 const validation = reactive({})
-const activeGroup = ref('')
 const initialized = ref(false)
 const busy = ref(false)
 const saving = ref(false)
@@ -177,56 +167,34 @@ const unauthorized = ref(false)
 const readFailed = ref(false)
 const error = ref('')
 const status = ref('')
-const sensitiveKey = /secret|password|passwd|credential|token|api[_.-]?key|llm[_.-]?key|connection[_.-]?string/i
 
-function hasSensitiveValue(value) {
-  if (!value || typeof value !== 'object') return false
-  return Object.entries(value).some(([key, nested]) => sensitiveKey.test(key) || hasSensitiveValue(nested))
-}
-
-const fields = computed(() => configuration.items.flatMap(item => {
-  const meta = configuration.schema[item.config_key]
-  if (!meta || sensitiveKey.test(item.config_key) || hasSensitiveValue(item.value)) return []
-  return [{ ...meta, ...item, key: item.config_key }]
-}))
-const groups = computed(() => {
-  const values = [...new Set(fields.value.map(field => field.group))]
-  return values.includes('global') ? ['global', ...values.filter(group => group !== 'global')] : values
-})
 const inputId = key => `config-${key}`
-const isJson = field => !Array.isArray(field.choices) && (field.value_type === 'object' || field.value_type === 'list')
-const copy = value => JSON.parse(JSON.stringify(value))
-const encode = (field, value) => isJson(field) ? JSON.stringify(value, null, 2) : copy(value)
-const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b)
-
-function parse(field) {
-  const value = isJson(field) ? JSON.parse(draft[field.key]) : draft[field.key]
-  if (field.value_type === 'object' && (value === null || typeof value !== 'object' || Array.isArray(value))) {
-    throw new Error('须为 JSON 对象')
-  }
-  if (field.value_type === 'list' && !Array.isArray(value)) throw new Error('须为 JSON 数组')
-  if (hasSensitiveValue(value)) throw new Error('配置不能包含敏感字段')
+const format = value => (typeof value === 'number' && Number.isFinite(value) ? value.toFixed(2) : '—')
+const parsed = key => {
+  const value = draft[key]
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error('请填写 0 到 1 之间的数值')
+  if (!(value > 0 && value < 1)) throw new Error('阈值需在 0 到 1 之间')
   return value
 }
-
-function isChanged(field) {
-  try { return !equal(parse(field), baseline[field.key]) } catch { return true }
-}
-
-// 重读来源时保留其他字段的未提交草稿；已确认字段只使用响应值回填。
-function fill(confirmedKeys = []) {
-  for (const field of fields.value) {
-    const keep = Object.hasOwn(baseline, field.key) && !confirmedKeys.includes(field.key) && isChanged(field)
-    baseline[field.key] = copy(field.value)
-    if (!keep) draft[field.key] = encode(field, field.value)
-  }
-  if (!groups.value.includes(activeGroup.value)) activeGroup.value = groups.value[0] || ''
-  initialized.value = true
-}
+const changed = computed(() => KEYS.some(key => draft[key] !== baseline[key]))
+const lowWeight = computed(() => Math.max(Number(draft.risk_mid_threshold) || 0, 0.02))
+const midWeight = computed(() => Math.max((Number(draft.risk_high_threshold) || 0) - (Number(draft.risk_mid_threshold) || 0), 0.02))
+const highWeight = computed(() => Math.max(1 - (Number(draft.risk_high_threshold) || 0), 0.02))
 
 function showError(caught) {
-  error.value = caught.detail || caught.message || '配置请求失败'
+  error.value = caught.code === 40400 ? '设置不存在，请刷新后重试'
+    : caught.code === 40001 && caught.detail ? `${errText(caught)}：${caught.detail}` : errText(caught)
   if (caught.code === 40100) unauthorized.value = true
+}
+
+function fill() {
+  for (const key of KEYS) {
+    const value = configuration.items.find(item => item.config_key === key)?.value
+    if (typeof value === 'number') baseline[key] = value
+  }
+  draft.risk_high_threshold = baseline.risk_high_threshold
+  draft.risk_mid_threshold = baseline.risk_mid_threshold
+  initialized.value = true
 }
 
 async function read() {
@@ -235,9 +203,11 @@ async function read() {
     await loadConfiguration()
     fill()
     unauthorized.value = false
+    return true
   } catch (caught) {
     readFailed.value = true
     showError(caught)
+    return false
   }
 }
 
@@ -254,32 +224,36 @@ async function save() {
   error.value = ''
   status.value = ''
   for (const key of Object.keys(validation)) delete validation[key]
+
   const items = []
-  for (const field of fields.value) {
+  for (const key of KEYS) {
     try {
-      const value = parse(field)
-      if (!equal(value, baseline[field.key])) items.push({ config_key: field.key, value })
+      const value = parsed(key)
+      if (value !== baseline[key]) items.push({ config_key: key, value })
     } catch (caught) {
-      validation[field.key] = isJson(field) && caught instanceof SyntaxError ? 'JSON 格式无效' : caught.message
-      activeGroup.value = field.group
+      validation[key] = caught.message
     }
   }
+  const high = Number(draft.risk_high_threshold)
+  const mid = Number(draft.risk_mid_threshold)
+  if (!validation.risk_high_threshold && !validation.risk_mid_threshold && !(mid < high)) {
+    validation.risk_mid_threshold = '中风险阈值必须小于高风险阈值'
+  }
   if (Object.keys(validation).length) {
-    error.value = '请修正字段错误；整批尚未提交'
+    error.value = '请先修正标红项再保存'
     return
   }
   if (!items.length) {
-    status.value = '没有修改，无需保存'
+    status.value = '没有需要保存的修改'
     return
   }
+
   busy.value = true
   saving.value = true
   try {
     const confirmed = await putConfig(items)
     await applyConfiguration(confirmed)
-    fill(confirmed.items.map(item => item.config_key))
-    status.value = '已保存，后续操作使用新配置'
-    await read()
+    if (await read()) status.value = '设置已保存，已在所有页面生效'
   } catch (caught) {
     showError(caught)
   } finally {
@@ -288,127 +262,159 @@ async function save() {
   }
 }
 
-async function resetField(key) {
-  const field = fields.value.find(item => item.key === key)
-  if (busy.value || unauthorized.value || readFailed.value || field?.source === 'factory') return
-  busy.value = true
-  error.value = ''
-  status.value = ''
-  try {
-    const confirmed = await deleteConfigKey(key)
-    await applyConfiguration({ items: [{
-      ...configuration.items.find(item => item.config_key === key),
-      config_key: confirmed.config_key,
-      value: confirmed.value,
-      source: confirmed.fallback_source,
-      updated_at: null
-    }] })
-    fill([key])
-    delete validation[key]
-    status.value = `已恢复默认，回退来源：${confirmed.fallback_source}`
-    await read()
-  } catch (caught) {
-    showError(caught)
-  } finally {
-    busy.value = false
-  }
-}
-
 onMounted(refresh)
 </script>
 
 <style scoped>
-.settings {
-  max-width: 1120px;
-  min-width: 0;
-  margin: 0 auto;
-}
-.section-heading {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-}
-.section-heading h2 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-}
-.section-heading span,
-.hint {
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
-  line-height: 1.65;
-  overflow-wrap: anywhere;
-}
 .notice {
-  margin: 12px 0;
+  margin-bottom: var(--ui-space-4);
   overflow-wrap: anywhere;
 }
-.field-grid {
+.settings-intro {
+  max-width: 720px;
+  margin-bottom: var(--ui-space-5);
+}
+.settings-intro h2 {
+  margin: 0;
+  font-size: var(--ui-font-lg);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.settings-intro p {
+  margin: var(--ui-space-2) 0 0;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-sm);
+  line-height: 1.7;
+}
+.threshold-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  padding: 4px 0;
+  gap: var(--ui-space-4);
+  max-width: 720px;
 }
-.config-field {
+.threshold-field {
   min-width: 0;
   margin: 0;
-  padding: 16px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--el-border-radius-base);
 }
-.field-body,
+.threshold-field :deep(.el-form-item__label) {
+  padding-bottom: 6px;
+  color: var(--ui-text);
+  font-size: var(--ui-font-sm);
+  font-weight: 600;
+}
+.threshold-field :deep(.el-form-item__content) {
+  display: block;
+  min-width: 0;
+}
+.threshold-field :deep(.el-form-item__error) {
+  position: static;
+  padding-top: 4px;
+}
 .editor {
   width: 100%;
-  min-width: 0;
 }
-.config-key {
-  display: block;
-  margin-bottom: 10px;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-  overflow-wrap: anywhere;
+.field-hint {
+  margin: 8px 0 0;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-hint);
+  line-height: 1.55;
 }
-.json-hint {
-  margin: 4px 0;
+.risk-scale {
+  max-width: 720px;
+  margin-top: var(--ui-space-5);
+  padding: var(--ui-space-4);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-subtle);
 }
-.field-footer {
+.risk-scale__head {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 8px;
-  margin-top: 12px;
+  gap: var(--ui-space-3);
+  margin-bottom: var(--ui-space-3);
+  font-size: var(--ui-font-sm);
+  font-weight: 600;
 }
-.source {
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
+.risk-scale__note {
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-hint);
+  font-weight: 400;
 }
-.updated-at {
-  display: block;
-  margin-top: 4px;
+.risk-scale__bar {
+  display: flex;
+  gap: 2px;
+  height: 52px;
+  overflow: hidden;
+  border-radius: var(--ui-radius-sm);
 }
-.actions {
+.risk-scale__band {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 10px;
+  color: var(--ui-text);
+  font-size: var(--ui-font-hint);
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.risk-scale__band strong {
+  font-size: var(--ui-font-sm);
+  font-weight: 650;
+}
+.risk-scale__band small {
+  color: var(--ui-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.risk-scale__band.is-low {
+  background: var(--ui-success-bg);
+  color: var(--ui-success-text);
+}
+.risk-scale__band.is-mid {
+  background: var(--ui-warning-bg);
+  color: var(--ui-warning-text);
+}
+.risk-scale__band.is-high {
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-text);
+}
+.risk-scale__band.is-low small,
+.risk-scale__band.is-mid small,
+.risk-scale__band.is-high small {
+  color: inherit;
+  opacity: 0.75;
+}
+.settings-footer {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  margin-top: 16px;
+  gap: var(--ui-space-3);
+  margin-top: var(--ui-space-5);
+  padding-top: var(--ui-space-4);
+  border-top: 1px solid var(--ui-border);
 }
-:deep(.el-form-item__content),
-:deep(.el-tabs__content) {
-  min-width: 0;
+.settings-footer .run-button {
+  width: auto;
+  min-width: 144px;
 }
-:deep(.el-form-item__error) {
-  position: static;
+.settings-footer .status-line {
+  margin: 0;
 }
-@media (max-width: 640px) {
-  .field-grid {
+@media (max-width: 760px) {
+  .threshold-grid {
     grid-template-columns: minmax(0, 1fr);
   }
-  .config-field {
-    padding: 12px;
+  .settings-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .settings-footer .run-button {
+    width: 100%;
+  }
+  .risk-scale__band small {
+    display: none;
   }
 }
 </style>

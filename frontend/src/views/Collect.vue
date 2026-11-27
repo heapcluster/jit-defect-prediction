@@ -1,262 +1,314 @@
 <template>
-  <section class="collect">
-    <el-tabs
-      v-model="section"
-      data-testid="collect-tabs"
+  <section class="collect-tool">
+    <ToolWorkspace
+      hide-tabs
+      model-value="collect"
     >
-      <el-tab-pane
-        label="收集工具台"
-        name="tool"
-      >
-        <p class="hint">
-          指定 Git 仓库，交付提交、14 维特征与 SZZ 标签文件。下载无需导入；训练、预测不在本页运行。
-        </p>
-        <section
-          class="panel"
-          aria-labelledby="collect-input-title"
+      <template #collect>
+        <el-alert
+          v-if="error"
+          :title="error"
+          type="error"
+          :closable="false"
+          show-icon
+        />
+        <StepRail
+          :steps="railSteps"
+          :active="activeStep"
+        />
+        <StepSection
+          index="01"
+          title="选择来源"
+          :state="stepState(0)"
+          collapsible
+          :summary="source === 'git' ? repoName : (publicDraft.name.trim() || '开源数据集')"
         >
-          <h2 id="collect-input-title">
-            仓库与采集范围
-          </h2>
-          <el-alert
-            v-if="error"
-            :title="error"
-            type="error"
-            :closable="false"
-            show-icon
+          <template #extra>
+            <el-tag
+              v-if="sourceReady"
+              size="small"
+              type="success"
+            >
+              {{ source === 'git' ? '已连接' : '已解析' }}
+            </el-tag>
+          </template>
+          <ChoiceGroup
+            :model-value="source"
+            name="collect-source"
+            :options="sourceChoices"
+            :disabled="busy || auth || isRunning"
+            stack
+            @change="setSource"
           />
-          <form @submit.prevent="submit">
+          <div
+            v-if="source === 'git'"
+            class="source-fields"
+          >
             <div class="fields">
-              <label
-                class="wide"
-                for="collect-repo"
-              >仓库路径 / URL
-                <input
-                  id="collect-repo"
-                  v-model="draft.repo_source"
-                  :disabled="busy || auth"
-                  autocomplete="off"
-                  placeholder="允许根目录内的本地 Git 仓库，或白名单 URL"
-                >
-              </label>
-              <label for="collect-name">数据集名称
-                <input
-                  id="collect-name"
-                  v-model="draft.dataset_name"
-                  :disabled="busy || auth"
-                  autocomplete="off"
-                >
-              </label>
-              <label for="collect-branch">分支 / ref（留空使用 HEAD）
-                <input
-                  id="collect-branch"
-                  v-model="draft.branch"
-                  :disabled="busy || auth"
-                  autocomplete="off"
-                >
-              </label>
-              <label for="collect-start">开始时间（UTC，可选）
-                <input
-                  id="collect-start"
-                  v-model="draft.start_time"
-                  :disabled="busy || auth"
-                  placeholder="2026-01-01T00:00:00Z"
-                >
-              </label>
-              <label for="collect-end">结束时间（UTC，可选）
-                <input
-                  id="collect-end"
-                  v-model="draft.end_time"
-                  :disabled="busy || auth"
-                  placeholder="2026-12-31T23:59:59Z"
-                >
-              </label>
-              <label for="collect-dataset">已有数据集提交范围（可选）
-                <select
-                  id="collect-dataset"
-                  v-model="draft.dataset_id"
-                  :disabled="busy || auth || datasetsLoading"
-                >
-                  <option value="">不使用库中范围，可直接运行</option>
-                  <option
-                    v-for="item in datasets.items"
-                    :key="item.dataset_id"
-                    :value="item.dataset_id"
-                  >{{ item.name }} · {{ item.dataset_id }}</option>
-                </select>
-              </label>
-              <label for="collect-files">提交哈希清单（可选，CSV / XLSX）
-                <input
-                  id="collect-files"
-                  type="file"
-                  accept=".csv,.xlsx"
-                  :disabled="busy || auth"
-                  @change="selectFile"
-                >
-              </label>
+              <div class="field">
+                <span class="field-label">仓库路径或地址</span>
+                <div class="field-line">
+                  <el-input
+                    id="collect-repo"
+                    v-model="draft.repo_source"
+                    :disabled="busy || auth || isRunning"
+                    aria-label="仓库路径"
+                    autocomplete="off"
+                    placeholder="/path/to/repo 或 https://..."
+                    @input="checkRepo"
+                  />
+                  <span class="field-hint">本地路径或 URL</span>
+                </div>
+              </div>
+              <div class="field">
+                <span class="field-label">分支</span>
+                <div class="field-line">
+                  <el-select
+                    id="collect-branch"
+                    v-model="draft.branch"
+                    :placeholder="branchesLoading ? '正在读取分支…' : branches.length ? '请选择分支' : '先刷新分支'"
+                    :disabled="busy || auth || isRunning || !branches.length"
+                  >
+                    <el-option
+                      v-for="branch in branches"
+                      :key="branch"
+                      :label="branch"
+                      :value="branch"
+                    />
+                  </el-select>
+                  <el-button
+                    :loading="branchesLoading"
+                    :disabled="!draft.repo_source.trim() || busy || auth || isRunning"
+                    @click="loadBranches"
+                  >
+                    刷新分支
+                  </el-button>
+                </div>
+              </div>
+              <p
+                v-if="branchError"
+                class="validation"
+              >
+                {{ branchError }}
+              </p>
             </div>
-            <p class="hint">
-              清单仅含 commit_hash 列；不选清单按仓库范围运行。时间范围只限制输出，不截断历史特征所需前序提交。仓库允许根与协议由①用户配置管理，后端进行最终安全校验。
+            <InfoGrid
+              v-if="repoReady"
+              :items="repoInfo"
+            />
+          </div>
+          <div
+            v-else
+            class="source-fields"
+          >
+            <div class="fields">
+              <div class="field">
+                <span class="field-label">数据集名称</span>
+                <el-input
+                  id="public-name"
+                  v-model="publicDraft.name"
+                  :disabled="busy || auth || isRunning"
+                  aria-label="数据集名称"
+                  placeholder="数据集名称"
+                />
+              </div>
+              <div class="field">
+                <span class="field-label">公开数据集 URL</span>
+                <div class="field-line">
+                  <el-input
+                    id="public-url"
+                    v-model="publicDraft.source_url"
+                    :disabled="busy || auth || isRunning"
+                    aria-label="公开数据集 URL"
+                    placeholder="https://.../dataset.csv"
+                  />
+                  <el-button
+                    :loading="columnsLoading"
+                    :disabled="!publicDraft.source_url.trim() || busy || auth || isRunning"
+                    @click="loadPublicColumns"
+                  >
+                    读取字段
+                  </el-button>
+                </div>
+              </div>
+              <div class="field">
+                <span class="field-label">许可证（可选）</span>
+                <el-input
+                  id="public-license"
+                  v-model="publicDraft.license"
+                  :disabled="busy || auth || isRunning"
+                  aria-label="许可证"
+                  placeholder="如 Apache-2.0"
+                />
+              </div>
+              <p
+                v-if="columnsError"
+                class="validation"
+              >
+                {{ columnsError }}
+              </p>
+            </div>
+          </div>
+        </StepSection>
+
+        <StepSection
+          index="02"
+          :title="source === 'git' ? '配置范围' : '检查列名'"
+          :state="stepState(1)"
+          collapsible
+          :summary="source === 'git' ? rangeText : `${mappingCount} 项列映射`"
+        >
+          <div v-if="source === 'git'">
+            <div class="field">
+              <el-date-picker
+                id="collect-range"
+                v-model="dateRange"
+                type="daterange"
+                value-format="YYYY-MM-DD"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                aria-label="提交时间范围"
+                :editable="false"
+                :clearable="true"
+                :disabled="busy || auth || isRunning"
+              />
+            </div>
+            <p class="field-hint">
+              留空表示采集仓库全量历史提交；选择日期可只采集该区间。
             </p>
             <p
-              v-if="file"
-              class="file-note"
+              v-if="rangeError"
+              class="validation"
             >
-              {{ file.name }} · {{ file.size }} bytes <el-button
-                size="small"
-                :disabled="busy"
-                @click="file = null"
-              >
-                移除清单
-              </el-button>
+              {{ rangeError }}
             </p>
-            <details>
-              <summary>采集与标注设置</summary>
-              <div class="fields advanced">
-                <label for="collect-mode">采集模式
-                  <select
-                    id="collect-mode"
-                    v-model="draft.mode"
-                  ><option value="incremental">增量（按提交去重）</option><option value="full">全量</option></select>
-                </label>
-                <label for="collect-method">SZZ 方法
-                  <select
-                    id="collect-method"
-                    v-model="draft.szz_method"
-                  ><option value="szz">szz · 行级回溯</option><option value="szz_lite">szz_lite · 文件级回溯</option></select>
-                </label>
-                <label for="collect-ratio">时间序训练比例
-                  <input
-                    id="collect-ratio"
-                    v-model.number="draft.split_ratio"
-                    type="number"
-                    min="0.01"
-                    max="0.99"
-                    step="0.01"
-                  >
-                </label>
-                <label for="collect-head">期望 HEAD（可选，40 位哈希）<input
-                  id="collect-head"
-                  v-model="draft.head_expect"
-                ></label>
-                <label for="collect-from">起始提交（可选）<input
-                  id="collect-from"
-                  v-model="draft.start_commit"
-                ></label>
-                <label for="collect-to">结束提交（可选）<input
-                  id="collect-to"
-                  v-model="draft.end_commit"
-                ></label>
+          </div>
+          <div v-else>
+            <div class="fields mapping-fields">
+              <div
+                v-for="field in mappingFields"
+                :key="field.key"
+                class="field"
+                :class="{ 'field-invalid': mappingIssues.includes(field.label) }"
+              >
+                <span class="field-label">
+                  {{ field.label }}<span
+                    v-if="field.required"
+                    class="field-required"
+                  >*</span>
+                </span>
+                <el-select
+                  :id="`public-map-${field.key}`"
+                  v-model="publicDraft.mapping[field.key]"
+                  :aria-label="field.label"
+                  :placeholder="publicColumns.length ? '选择对应列' : '先读取字段'"
+                  filterable
+                  clearable
+                  :disabled="!publicColumns.length || busy || auth || isRunning"
+                >
+                  <el-option
+                    v-for="column in publicColumns"
+                    :key="column"
+                    :label="column"
+                    :value="column"
+                  />
+                </el-select>
               </div>
-              <label
-                class="checkbox"
-                for="collect-fetch"
-              ><input
-                id="collect-fetch"
-                v-model="draft.fetch_remote"
-                type="checkbox"
-              >拉取远端（关闭则使用本地快照）</label>
-              <p class="hint">
-                使用词首修复语义判据；未打标保持空值。切分只按时间序，不支持随机划分。
-              </p>
-            </details>
-            <div class="actions">
-              <el-button
-                data-testid="collect-run"
-                type="primary"
-                native-type="submit"
-                :loading="busy"
-                :disabled="busy || auth || isRunning"
-              >
-                运行收集
-              </el-button>
-              <el-button
-                data-testid="collect-save-defaults"
-                :loading="savingDefaults"
-                :disabled="savingDefaults || auth"
-                @click="saveDefaults"
-              >
-                保存默认分支与模式
-              </el-button>
-              <span class="hint">运行创建独立 collect 任务，不写入提交或数据集展示表。</span>
-              <span
-                role="status"
-                class="hint"
-              >{{ defaultsMessage }}</span>
+              <div class="field">
+                <span class="field-label">有缺陷取值</span>
+                <el-input
+                  id="public-label-yes"
+                  v-model="publicDraft.label_yes"
+                  aria-label="有缺陷"
+                  :disabled="!publicColumns.length || busy || auth || isRunning"
+                />
+              </div>
+              <div class="field">
+                <span class="field-label">无缺陷取值</span>
+                <el-input
+                  id="public-label-no"
+                  v-model="publicDraft.label_no"
+                  aria-label="无缺陷"
+                  :disabled="!publicColumns.length || busy || auth || isRunning"
+                />
+              </div>
             </div>
-          </form>
-        </section>
-        <section
-          v-if="collection.job"
-          class="panel"
-          data-testid="collect-job"
-          aria-live="polite"
-        >
-          <div class="heading">
-            <h2>收集任务</h2><el-tag :type="statusType">
-              {{ statusLabel }}
-            </el-tag>
+            <p
+              v-if="mappingIssues.length"
+              class="validation"
+            >
+              未匹配必填列：{{ mappingIssues.join('、') }}
+            </p>
           </div>
-          <p class="mono">
-            {{ collection.job.job_id }}
-          </p>
-          <el-progress
-            :percentage="percentage"
-            :status="collection.job.status === 'success' ? 'success' : undefined"
-          />
-          <p class="hint">
-            {{ collection.job.current_item || '等待执行' }} · {{ collection.job.done ?? 0 }} / {{ collection.job.total ?? 0 }} · 重试 {{ collection.job.retry_count ?? 0 }} 次
-          </p>
-          <el-alert
-            v-if="collection.job.error_log"
-            :title="collection.job.error_log"
-            type="error"
-            :closable="false"
-          />
-          <div class="actions">
-            <el-button
-              :disabled="jobLoading || auth"
-              @click="refreshJob"
-            >
-              刷新状态
-            </el-button>
-            <el-button
-              v-if="collection.job.status === 'failed'"
-              data-testid="collect-retry"
-              :disabled="jobLoading || auth"
-              @click="retry"
-            >
-              重试原任务
-            </el-button>
-            <el-button
-              v-if="isRunning"
-              data-testid="collect-cancel"
-              :disabled="jobLoading || auth"
-              @click="cancel"
-            >
-              取消任务
-            </el-button>
-          </div>
-        </section>
-        <section
-          v-if="result && collection.job?.status === 'success'"
-          class="panel"
-          aria-labelledby="collect-output-title"
+        </StepSection>
+
+        <StepSection
+          index="03"
+          title="确认导出文件名称"
+          :state="stepState(2)"
+          collapsible
+          :summary="datasetName.trim() || '尚未命名'"
         >
-          <h2 id="collect-output-title">
-            本次收集输出
-          </h2>
-          <dl class="stats">
-            <div><dt>样本</dt><dd>{{ result.summary?.rows }}</dd></div>
-            <div><dt>正样本</dt><dd>{{ result.summary?.positive_rows }}</dd></div>
-            <div><dt>负样本</dt><dd>{{ result.summary?.negative_rows }}</dd></div>
-            <div><dt>未打标</dt><dd>{{ result.summary?.unlabeled_rows }}</dd></div>
-          </dl>
-          <p class="mono">
-            HEAD {{ result.summary?.head_hash }}
-          </p>
-          <p class="hint">
-            commits 契约：元信息 + Kamei 14 维固定列序 + 标签 + 时间序划分；fix 不做 log。以下仅预览前 20 行，完整文件由下载按钮交付。
+          <div class="field">
+            <span class="field-label">数据集名称</span>
+            <el-input
+              id="collect-dataset-name"
+              v-model="datasetName"
+              aria-label="数据集名称"
+              placeholder="请输入数据集名称"
+              :disabled="!sourceReady || busy || auth || isRunning"
+            />
+          </div>
+          <InfoGrid :items="confirmInfo" />
+        </StepSection>
+        <StepSection
+          index="04"
+          title="运行"
+          :state="stepState(3)"
+          sticky
+        >
+          <el-button
+            class="run-button"
+            data-testid="collect-run"
+            type="primary"
+            size="large"
+            :loading="busy"
+            :disabled="!canRun || busy || auth || isRunning"
+            @click="submit"
+          >
+            开始收集
+          </el-button>
+        </StepSection>
+      </template>
+      <template #after>
+        <JobProgress
+          title="收集进度"
+          test-id="collect-job"
+          :job="collection.job"
+          :text="progressText"
+          retry-test-id="collect-retry"
+          cancel-test-id="collect-cancel"
+          :retry-disabled="jobLoading || auth"
+          :cancel-disabled="jobLoading || auth"
+          @retry="retry"
+          @cancel="cancel"
+        />
+        <section
+          class="panel"
+          data-pane="wide"
+          aria-label="收集结果"
+          data-testid="collect-result"
+        >
+          <div class="section-heading">
+            <h2>收集结果</h2>
+          </div>
+          <StatGrid :items="summaryStats" />
+          <p
+            v-for="warning in result?.summary?.warnings || []"
+            :key="warning"
+            class="validation"
+          >
+            {{ warning }}
           </p>
           <el-alert
             v-if="previewError"
@@ -264,486 +316,544 @@
             type="error"
             :closable="false"
           />
-          <div
-            v-if="collection.preview"
-            class="table-scroll"
-            data-testid="collect-preview"
+          <InfoGrid
+            v-if="result"
+            :items="[
+              { label: '保存状态', value: saveMessage || (saving ? '正在保存到数据集库' : '尚未保存') },
+              { label: '数据集库', value: '', key: 'dataset-save' }
+            ]"
           >
-            <table>
-              <thead>
-                <tr>
-                  <th
-                    v-for="column in collection.preview.columns"
-                    :key="column"
-                  >
-                    {{ column }}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="row in collection.preview.preview"
-                  :key="row.commit_hash"
-                >
-                  <td
-                    v-for="column in collection.preview.columns"
-                    :key="column"
-                  >
-                    {{ cell(row[column], column) }}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="actions">
-            <el-button
-              data-testid="collect-download-csv"
-              :disabled="downloading || auth || !artifact('csv')"
-              @click="download(artifact('csv'))"
-            >
-              下载 CSV
-            </el-button>
-            <el-button
-              :disabled="downloading || auth || !artifact('xlsx')"
-              @click="download(artifact('xlsx'))"
-            >
-              下载 XLSX
-            </el-button>
-            <el-button
-              :disabled="downloading || auth"
-              @click="download(result.manifest_name)"
-            >
-              下载 manifest
-            </el-button>
-          </div>
-          <ul class="output-list">
-            <li
-              v-for="item in result.outputs"
-              :key="item.name"
-            >
-              <span>{{ item.name }} · {{ item.size_bytes }} bytes</span><code>{{ item.sha256 }}</code>
-            </li>
-          </ul>
-          <div class="import-block">
-            <h3>可选导入展示库</h3>
-            <p class="hint">
-              仅在点击后提交 CSV 与同批 manifest。风险列表、趋势仍需预测结果，不会因收集完成而出现概率。
-            </p>
-            <div class="fields">
-              <label for="collect-import-name">登记数据集名称<input
-                id="collect-import-name"
-                v-model="importDraft.name"
-              ></label>
-              <label for="collect-import-source">登记来源仓库<input
-                id="collect-import-source"
-                v-model="importDraft.repo_source"
-              ></label>
-            </div>
-            <el-button
-              data-testid="collect-import"
-              :loading="importing"
-              :disabled="importing || auth"
-              @click="importResult"
-            >
-              导入提交与数据集
-            </el-button>
-            <p
-              role="status"
-              class="hint"
-            >
-              {{ importMessage }}
-            </p>
-          </div>
-        </section>
-      </el-tab-pane>
-      <el-tab-pane
-        label="已收集数据集"
-        name="datasets"
-      >
-        <p class="hint">
-          这里只展示已显式导入的资产；暂无数据不影响收集工具。<router-link to="/storage">
-            去①数据管理导入
-          </router-link>
-        </p>
-        <el-alert
-          v-if="datasetsError"
-          :title="datasetsError"
-          type="error"
-          :closable="false"
-        />
-        <el-button
-          :loading="datasetsLoading"
-          @click="loadDatasets"
-        >
-          刷新已导入数据集
-        </el-button>
-        <el-table
-          :data="datasets.items"
-          border
-          class="dataset-table"
-        >
-          <el-table-column
-            prop="name"
-            label="数据集名称"
-            min-width="170"
-          />
-          <el-table-column
-            prop="repo_source"
-            label="来源仓库"
-            min-width="230"
-            show-overflow-tooltip
-          />
-          <el-table-column
-            prop="branch"
-            label="分支"
-            min-width="100"
-          />
-          <el-table-column
-            prop="head_hash"
-            label="HEAD"
-            min-width="180"
-            show-overflow-tooltip
-          />
-          <el-table-column
-            prop="sample_count"
-            label="样本"
-            width="80"
-          />
-          <el-table-column
-            prop="pos_count"
-            label="正样本"
-            width="80"
-          />
-          <el-table-column
-            prop="neg_count"
-            label="负样本"
-            width="80"
-          />
-          <el-table-column
-            label="未打标"
-            width="80"
-          >
-            <template #default="{ row }">
-              {{ row.sample_count - row.pos_count - row.neg_count }}
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="status"
-            label="状态"
-            width="100"
-          />
-          <el-table-column
-            prop="created_at"
-            label="创建时间"
-            min-width="180"
-          />
-          <el-table-column
-            label="提交样本"
-            width="100"
-          >
-            <template #default="{ row }">
+            <template #dataset-save>
               <el-button
                 size="small"
-                @click="openMembers(row)"
+                :loading="saving"
+                :disabled="saving || auth"
+                @click="saveAutomatically"
               >
-                查看
+                保存到数据集库
               </el-button>
             </template>
-          </el-table-column>
-        </el-table>
-        <el-pagination
-          v-model:current-page="datasetPage"
-          :total="datasets.total"
-          :page-size="20"
-          layout="prev, pager, next, total"
-          @current-change="loadDatasets"
-        />
-      </el-tab-pane>
-    </el-tabs>
-    <el-dialog
-      v-model="membersOpen"
-      :title="membersTitle"
-      width="90%"
-    >
-      <el-alert
-        v-if="membersError"
-        :title="membersError"
-        type="error"
-        :closable="false"
-      />
-      <el-table
-        :data="members.items"
-        border
-      >
-        <el-table-column
-          prop="commit_hash"
-          label="提交"
-          min-width="180"
-          show-overflow-tooltip
-        />
-        <el-table-column
-          prop="message"
-          label="提交信息"
-          min-width="200"
-        />
-        <el-table-column
-          prop="committed_at"
-          label="UTC 时间"
-          min-width="180"
-        />
-        <el-table-column
-          label="标签"
-          width="100"
+          </InfoGrid>
+          <el-collapse v-model="openResultSections">
+            <el-collapse-item
+              title="提交预览"
+              name="preview"
+            >
+              <DataTable
+                v-if="collectRows.length"
+                test-id="collect-preview"
+                :columns="collectColumns"
+                :rows="collectRows"
+              />
+              <el-pagination
+                v-if="collection.preview?.total"
+                class="pagination"
+                background
+                layout="total, prev, pager, next"
+                :current-page="previewPage"
+                :page-size="previewSize"
+                :total="collection.preview.total"
+                hide-on-single-page
+                @current-change="loadPreview"
+              />
+            </el-collapse-item>
+          </el-collapse>
+        </section>
+        <section
+          class="panel"
+          data-pane="wide"
+          aria-label="结果文件"
+          data-testid="collect-files"
         >
-          <template #default="{ row }">
-            {{ cell(row.is_bug_inducing, 'is_bug_inducing') }}
-          </template>
-        </el-table-column>
-        <el-table-column
-          label="14 维特征"
-          min-width="280"
-        >
-          <template #default="{ row }">
-            <code>{{ JSON.stringify(Object.fromEntries(FEATURE_FIELDS.map(field => [field, row[field]]))) }}</code>
-          </template>
-        </el-table-column>
-      </el-table>
-      <el-pagination
-        v-model:current-page="membersPage"
-        :page-size="20"
-        :total="members.total"
-        layout="prev, pager, next, total"
-        @current-change="loadMembers"
-      />
-    </el-dialog>
+          <div class="section-heading">
+            <h2>结果文件</h2>
+          </div>
+          <OutputFiles
+            :items="collectFiles"
+            @download="item => download(item.name)"
+          />
+        </section>
+      </template>
+    </ToolWorkspace>
   </section>
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
-import { cancelJob, fetchCollectOutput, getCollectPreview, getDatasetCommits, getDatasets, getJob, getJobs, importStorageFiles, putConfigKey, retryJob, runCollect } from '../api'
+import { computed, onActivated, onDeactivated, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import ToolWorkspace from '../components/ToolWorkspace.vue'
+import DataTable from '../components/DataTable.vue'
+import ChoiceGroup from '../components/ChoiceGroup.vue'
+import InfoGrid from '../components/InfoGrid.vue'
+import JobProgress from '../components/JobProgress.vue'
+import OutputFiles from '../components/OutputFiles.vue'
+import StatGrid from '../components/StatGrid.vue'
+import StepRail from '../components/StepRail.vue'
+import StepSection from '../components/StepSection.vue'
+import { cancelJob, fetchCollectOutput, getCollectBranches, getCollectPreview, getCollectSourceColumns, getJob, getJobs, resaveCollect, retryJob, runCollect } from '../api'
 import { collection } from '../utils/collect'
-import { FEATURE_FIELDS } from '../utils/features'
-import { configuration, loadConfiguration } from '../utils/thresholds'
+import { saveBlob } from '../utils/download'
+import { scrollToResults } from '../utils/scroll'
+import { configuration } from '../utils/thresholds'
 
 defineOptions({ name: 'CollectTool' })
-
-const section = ref('tool')
-const draft = reactive({ repo_source: '', dataset_name: '', branch: '', start_time: '', end_time: '', start_commit: '', end_commit: '', head_expect: '', dataset_id: '', mode: 'incremental', fetch_remote: true, szz_method: 'szz', split_ratio: 0.7 })
+const route = useRoute(), router = useRouter()
+// 收集支持 Git 仓库与公开数据集 URL 两种模式，均交付同一 collected_commits 契约。
+const source = ref('git')
+const draft = reactive({ repo_source: '', branch: '', start_time: '', end_time: '' })
+const branches = ref([]), branchesLoading = ref(false), branchError = ref('')
+const dateRange = ref([])
+const repoError = ref('')
+const mappingFields = [
+  { key: 'commit_hash', label: '提交哈希', required: true },
+  { key: 'committed_at', label: '提交时间', required: true },
+  { key: 'is_bug_inducing', label: '缺陷标签', required: true },
+  { key: 'author_name', label: '作者' },
+  { key: 'message', label: '提交说明' },
+  { key: 'parent_hash', label: '父提交' }
+]
+const commonColumns = {
+  commit_hash: ['commit_hash', 'hash', 'commit', 'commit_id', 'sha'],
+  committed_at: ['committed_at', 'date', 'time', 'commit_time', 'timestamp'],
+  is_bug_inducing: ['is_bug_inducing', 'label', 'bug', 'buggy', 'is_bug', 'target'],
+  author_name: ['author', 'author_name', 'developer'],
+  message: ['message', 'msg', 'commit_message'],
+  parent_hash: ['parent_hash', 'parent', 'parents']
+}
+const publicDraft = reactive({
+  name: '', source_url: '', license: '', label_yes: '1', label_no: '0',
+  mapping: { commit_hash: '', committed_at: '', is_bug_inducing: '', author_name: '', message: '', parent_hash: '' }
+})
+const publicColumns = ref([]), mappingIssues = ref([])
+const columnsLoading = ref(false), columnsError = ref('')
+const publicReady = computed(() => Boolean(publicDraft.source_url.trim()) && Boolean(publicDraft.name.trim())
+  && publicColumns.value.length > 0 && !mappingIssues.value.length)
+const repoReady = computed(() => Boolean(draft.repo_source.trim()) && !repoError.value)
+const repoName = computed(() => draft.repo_source.trim().split(/[\\/]/).filter(Boolean).pop() || '仓库')
+const sourceReady = computed(() => source.value === 'git' ? repoReady.value : publicReady.value)
+const mappingCount = computed(() => Object.values(publicDraft.mapping).filter(Boolean).length)
+const sourceChoices = [
+  { key: 'git', label: 'Git 仓库', note: '从本地路径或仓库地址采集提交' },
+  { key: 'public', label: '开源数据集', note: '从公开数据集 URL 拉取已打标数据' }
+]
+const repoInfo = computed(() => [
+  { label: '仓库名称', value: repoName.value },
+  { label: '分支', value: draft.branch || '默认分支（HEAD）' },
+  { label: '仓库路径', value: draft.repo_source.trim(), mono: true, span: true }
+])
+const confirmInfo = computed(() => {
+  const rows = [
+    { label: '数据来源', value: source.value === 'git' ? 'Git 仓库' : '开源数据集' },
+    {
+      label: source.value === 'git' ? '仓库路径' : '数据 URL',
+      value: source.value === 'git' ? draft.repo_source.trim() : (publicDraft.source_url.trim() || '未填写'),
+      mono: true
+    }
+  ]
+  if (source.value === 'git') {
+    rows.push(
+      { label: '分支', value: draft.branch || '默认分支' },
+      { label: '提交时间', value: rangeText.value }
+    )
+  } else {
+    rows.push({ label: '列映射', value: `${mappingCount.value} 项` })
+  }
+  rows.push(
+    { label: '数据集名称', value: datasetName.value || '未命名' },
+    { label: '输出', value: '带标注的提交数据' },
+    { label: '保存方式', value: '任务成功后自动保存到数据集库', span: true }
+  )
+  return rows
+})
+const rangeText = computed(() => {
+  if (!draft.start_time && !draft.end_time) return '全量提交'
+  return `${draft.start_time || '不限'} 至 ${draft.end_time || '不限'}`
+})
+const datasetName = ref('')
+const rangeError = computed(() => source.value === 'git' && draft.start_time && draft.end_time && draft.start_time >= draft.end_time ? '结束日期必须晚于开始日期' : '')
+const canRun = computed(() => sourceReady.value
+  && (source.value !== 'git' || Boolean(draft.branch))
+  && Boolean(datasetName.value.trim()) && !rangeError.value)
+// 顶部步骤轨道跟随来源类型切换第二步文案，用户始终看到当前所处的配置环节。
+const railSteps = computed(() => [
+  { title: '选择来源', note: source.value === 'git' ? 'Git 仓库' : '开源数据集' },
+  { title: source.value === 'git' ? '配置范围' : '检查列名', note: source.value === 'git' ? '分支与时间' : '字段映射' },
+  { title: '命名输出', note: '数据集名称' },
+  { title: '运行', note: '开始采集' }
+])
+const activeStep = computed(() => {
+  if (isRunning.value) return 3
+  if (collection.job?.status === 'success') return 3
+  if (!sourceReady.value) return 0
+  if (source.value === 'git' ? !draft.branch : mappingIssues.value.length) return 1
+  return 2
+})
+function stepState(index) {
+  if (collection.job?.status === 'success') return 'done'
+  if (index < activeStep.value) return 'done'
+  return index === activeStep.value ? 'current' : 'upcoming'
+}
 const importDraft = reactive({ name: '', repo_source: '' })
-const file = ref(null), busy = ref(false), error = ref(''), auth = ref(false), jobLoading = ref(false)
-const savingDefaults = ref(false), defaultsMessage = ref('')
-const previewError = ref(''), downloading = ref(false), importing = ref(false), importMessage = ref('')
-const datasets = reactive({ items: [], total: 0 }), datasetsLoading = ref(false), datasetsError = ref(''), datasetPage = ref(1)
-const members = reactive({ items: [], total: 0 }), membersOpen = ref(false), membersTitle = ref(''), membersError = ref(''), membersPage = ref(1)
-let memberId = '', memberEpoch = 0, timer, mounted = true
+const busy = ref(false), error = ref(''), auth = ref(false), jobLoading = ref(false)
+const previewError = ref(''), downloading = ref(false), saving = ref(false), saveMessage = ref('')
+const previewPage = ref(1)
+const previewSize = 12
+const openResultSections = ref([])
+let timer, mounted = true, jobEpoch = 0, autoSaveJobId = '', lastNameDefault = ''
+let activated = false
 const result = computed(() => collection.job?.output_ref_json)
+const summaryStats = computed(() => {
+  const summary = result.value?.summary || {}
+  const value = key => result.value ? (summary[key] ?? 0) : '—'
+  return [
+    { label: '采集行数', value: value('rows') },
+    { label: '正样本', value: value('positive_rows') },
+    { label: '负样本', value: value('negative_rows') },
+    { label: '未标注', value: value('unlabeled_rows') }
+  ]
+})
 const isRunning = computed(() => ['queued', 'running'].includes(collection.job?.status))
-const statusLabel = computed(() => ({ queued: '排队中', running: '运行中', success: '成功', failed: '失败', cancelled: '已取消' })[collection.job?.status] || '')
-const statusType = computed(() => ({ success: 'success', failed: 'danger', cancelled: 'info' })[collection.job?.status] || 'primary')
-const percentage = computed(() => collection.job?.total ? Math.min(100, Math.floor(collection.job.done / collection.job.total * 100)) : 0)
-
+const progressText = computed(() => {
+  const status = collection.job?.status
+  if (!status) return '当前未开始，配置完成后开始收集'
+  if (status === 'queued') return '当前正在排队等待执行'
+  if (status === 'running') return '当前正在采集提交'
+  if (status === 'success') return '当前收集已完成'
+  if (status === 'failed') return '当前收集失败，可重试原任务'
+  if (status === 'cancelled') return '当前收集已取消'
+  return ''
+})
+function defaultDatasetName() {
+  if (source.value === 'public') {
+    const urlName = publicDraft.source_url.trim().split('/').filter(Boolean).pop() || ''
+    return publicDraft.name.trim() || urlName.replace(/\.[^.]+$/, '') || 'dataset'
+  }
+  const base = draft.repo_source.trim().split(/[\\/]/).filter(Boolean).pop() || 'collected'
+  const range = draft.start_time && draft.end_time ? `${draft.start_time.replace(/-/g, '')}-${draft.end_time.replace(/-/g, '')}` : 'full'
+  return `${base}-${range}`
+}
+function syncDefaultName() {
+  const next = defaultDatasetName()
+  if (!datasetName.value.trim() || datasetName.value === lastNameDefault) datasetName.value = next
+  lastNameDefault = next
+}
 function message(err) {
-  if (err.code === 40100) { auth.value = true; return '鉴权失败，请检查部署环境中的 API Key' }
+  if (err.code === 40100) { auth.value = true; return '登录已失效，请重新登录' }
   return err.code === 50000 ? '服务异常，请稍后重试' : err.detail || err.message || '请求失败，请重试'
 }
-function cell(value, column) { return value == null || value === '' ? column === 'is_bug_inducing' ? '未打标' : '' : value }
-function artifact(format) { return result.value?.outputs?.find(item => item.name.endsWith('.' + format))?.name }
-function selectFile(event) { file.value = event.target.files?.[0] || null; event.target.value = '' }
-
+function cell(value, column) { return value == null || value === '' ? column === 'is_bug_inducing' ? '未标注' : '' : value }
+const collectColumns = computed(() => (collection.preview?.columns || []).map(key => ({ key, label: key, mono: key === 'commit_hash' })))
+const collectRows = computed(() => (collection.preview?.preview || []).map(row => Object.fromEntries(
+  (collection.preview?.columns || []).map(key => [key, cell(row[key], key)])
+)))
+const collectFiles = computed(() => (result.value?.outputs || [])
+  .filter(item => item.name === `collected_commits_${collection.job?.job_id}.csv`)
+  .map(item => ({
+    ...item,
+    label: '已标注数据集',
+    testid: 'collect-download-csv',
+    disabled: downloading.value || auth.value
+  })))
 function configItem(key) { return configuration.items.find(item => item.config_key === key) }
 function normalizePath(path) {
   const parts = []
-  for (const part of path.split('/')) {
+  for (const part of path.replace(/\\/g, '/').split('/')) {
     if (part === '..') parts.pop()
     else if (part && part !== '.') parts.push(part)
   }
   return '/' + parts.join('/')
 }
-function sourceError(source) {
-  if (source.includes('://')) {
+function sourceError(sourceValue) {
+  if (sourceValue.includes('://')) {
     let url
-    try { url = new URL(source) } catch { return '仓库 URL 格式非法' }
-    if (!url.hostname || url.username || url.password || url.search || url.hash) return '仓库 URL 不允许凭证、查询参数或片段'
+    try { url = new URL(sourceValue) } catch { return '仓库地址不可用，请检查后重试' }
+    if (!url.hostname || url.username || url.password || url.search || url.hash) return '仓库地址不可用，请检查后重试'
     const policy = configItem('collect.protocol_whitelist')
-    if (policy && !policy.value.includes(url.protocol.slice(0, -1))) return '仓库协议不在白名单内'
+    if (policy && !policy.value.some(protocol => protocol === url.protocol.slice(0, -1))) return '仓库地址不可用，请检查后重试'
   } else {
-    if (!source.startsWith('/')) return '请输入绝对本地路径或仓库 URL'
+    // 允许 POSIX 绝对路径与 Windows 盘符路径；相对路径交由后端拒绝。
+    if (!/^(?:[a-zA-Z]:[\\/]|\/)/.test(sourceValue)) return '请输入本地仓库路径或仓库地址'
     const policy = configItem('collect.allow_roots')
-    const path = normalizePath(source)
+    const path = normalizePath(sourceValue)
     if (policy && !policy.value.some(root => {
       root = normalizePath(root)
       return root === '/' || path === root || path.startsWith(root + '/')
-    })) return '仓库路径不在允许根目录内'
+    })) return '仓库地址不可用，请检查后重试'
   }
   return ''
 }
-async function saveDefaults() {
-  if (savingDefaults.value || auth.value) return
-  savingDefaults.value = true; defaultsMessage.value = ''; error.value = ''
+// 后端没有仓库分支枚举接口；这里只做本地路径/URL 白名单校验，分支由用户手填。
+function checkRepo() {
+  repoError.value = sourceError(draft.repo_source.trim()) || ''
+}
+watch(() => draft.repo_source, () => {
+  draft.branch = ''
+  branches.value = []
+  branchError.value = ''
+  repoError.value = ''
+})
+watch(() => publicDraft.source_url, () => {
+  publicColumns.value = []
+  mappingIssues.value = []
+  columnsError.value = ''
+})
+watch(dateRange, value => {
+  const start = value?.[0] || '', end = value?.[1] || ''
+  if (start && end && end <= start) {
+    dateRange.value = [start, '']
+    return
+  }
+  draft.start_time = start
+  draft.end_time = end
+})
+watch([() => draft.start_time, () => draft.end_time], syncDefaultName)
+watch(() => publicDraft.mapping, evaluateMapping, { deep: true })
+watch(() => publicDraft.name, syncDefaultName)
+
+function setSource(next) {
+  if (source.value === next || busy.value || isRunning.value) return
+  source.value = next
+  repoError.value = ''
+  dateRange.value = []
+  draft.start_time = ''
+  draft.end_time = ''
+  datasetName.value = ''
+  lastNameDefault = ''
+  const query = { ...route.query }
+  if (next === 'public') query.source = 'public'
+  else delete query.source
+  router.replace({ path: '/collect', query, hash: route.hash })
+}
+function evaluateMapping() {
+  if (!publicColumns.value.length) {
+    mappingIssues.value = []
+    return
+  }
+  const lower = publicColumns.value.map(column => column.toLowerCase())
+  mappingIssues.value = mappingFields
+    .filter(field => field.required && !lower.includes((publicDraft.mapping[field.key] || '').toLowerCase()))
+    .map(field => field.label)
+}
+function autoMapColumns(columns) {
+  const lower = columns.map(column => column.toLowerCase())
+  for (const [key, candidates] of Object.entries(commonColumns)) {
+    const found = candidates.find(name => lower.includes(name))
+    publicDraft.mapping[key] = found ? columns[lower.indexOf(found)] : ''
+  }
+  evaluateMapping()
+}
+async function loadBranches() {
+  if (!draft.repo_source.trim()) return
+  branchesLoading.value = true
+  branchError.value = ''
   try {
-    await putConfigKey('page_prefs', { ...configItem('page_prefs')?.value,
-      collect_branch: draft.branch, collect_mode: draft.mode })
-    await loadConfiguration()
-    defaultsMessage.value = '页面默认值已保存（全局），已创建任务的参数不变'
-  } catch (err) { error.value = message(err) }
-  finally { savingDefaults.value = false }
+    const data = await getCollectBranches(draft.repo_source.trim())
+    branches.value = Array.isArray(data.branches) ? data.branches : []
+    draft.branch = data.default_branch && branches.value.includes(data.default_branch)
+      ? data.default_branch
+      : (branches.value[0] || '')
+    if (!branches.value.length) branchError.value = '未找到可用分支，请检查仓库 URL 或权限'
+  } catch (err) {
+    branches.value = []
+    draft.branch = ''
+    branchError.value = message(err)
+  } finally {
+    branchesLoading.value = false
+  }
+}
+async function loadPublicColumns() {
+  const sourceUrl = publicDraft.source_url.trim()
+  if (!sourceUrl) return
+  columnsLoading.value = true
+  columnsError.value = ''
+  try {
+    const data = await getCollectSourceColumns(sourceUrl)
+    publicColumns.value = Array.isArray(data.columns) ? data.columns : []
+    if (!publicColumns.value.length) columnsError.value = '远端文件没有可用列'
+    if (!publicDraft.name.trim()) {
+      const urlName = sourceUrl.split('/').filter(Boolean).pop() || ''
+      publicDraft.name = urlName.replace(/\.[^.]+$/, '') || 'dataset'
+    }
+    autoMapColumns(publicColumns.value)
+    syncDefaultName()
+  } catch (err) {
+    publicColumns.value = []
+    mappingIssues.value = []
+    columnsError.value = message(err)
+  } finally {
+    columnsLoading.value = false
+  }
 }
 
-async function submit() {
-  if (busy.value || auth.value || isRunning.value) return
-  error.value = ''
-  if ((!draft.repo_source.trim() && !draft.dataset_id) || !draft.dataset_name.trim()) {
-    error.value = '请填写仓库路径 / URL（或选择数据集范围）与数据集名称'; return
-  }
-  const config = Object.fromEntries(Object.entries(draft).filter(([, value]) => value !== ''))
-  config.dataset_name = draft.dataset_name.trim()
-  if (config.repo_source) {
-    config.repo_source = config.repo_source.trim()
-    const validation = sourceError(config.repo_source)
-    if (validation) { error.value = validation; return }
-  }
+async function startCollect(config, files) {
   busy.value = true
+  autoSaveJobId = ''
+  saveMessage.value = ''
   try {
-    const accepted = await runCollect(config, file.value ? [file.value] : [])
+    const accepted = await runCollect(config, files)
     if (!accepted?.job_id || !['queued', 'running', 'success'].includes(accepted.status)) throw new Error('收集响应不完整')
     collection.request = { ...config }
     collection.preview = null
+    openResultSections.value = []
     collection.job = accepted
+    scrollToResults()
     importDraft.name = config.dataset_name
-    importDraft.repo_source = config.repo_source || ''
-    importMessage.value = ''
+    importDraft.repo_source = config.repo_source || config.source_url || ''
+    autoSaveJobId = accepted.job_id
     await refreshJob()
   } catch (err) { error.value = message(err) }
   finally { busy.value = false }
 }
-
+async function submit() {
+  if (busy.value || auth.value || isRunning.value || !canRun.value) return
+  error.value = ''
+  if (source.value === 'public') {
+    if (!publicReady.value) {
+      error.value = '请先读取字段并完成必填列映射'
+      return
+    }
+    const config = {
+      source_type: 'public_dataset',
+      source_url: publicDraft.source_url.trim(),
+      dataset_name: datasetName.value.trim(),
+      field_mapping: { ...publicDraft.mapping },
+      label_mapping: { positive: publicDraft.label_yes.trim(), negative: publicDraft.label_no.trim() }
+    }
+    if (publicDraft.license.trim()) config.license = publicDraft.license.trim()
+    await startCollect(config, [])
+    return
+  }
+  if (!draft.branch || !branches.value.includes(draft.branch)) {
+    error.value = '请先刷新分支并选择可用分支'
+    return
+  }
+  // 只提交后端 collect.validate_config 认可的字段
+  const config = {
+    repo_source: draft.repo_source.trim(),
+    branch: draft.branch,
+    dataset_name: datasetName.value.trim()
+  }
+  if (draft.start_time) config.start_time = draft.start_time
+  if (draft.end_time) config.end_time = draft.end_time
+  await startCollect(config, [])
+}
+async function saveAutomatically() {
+  const id = collection.job?.job_id
+  if (!id || !result.value || saving.value) return
+  saving.value = true
+  saveMessage.value = ''
+  try {
+    const response = await resaveCollect(id)
+    if (!response?.dataset_id) throw new Error('保存响应不完整')
+    saveMessage.value = `已保存到数据集库：${importDraft.name.trim() || defaultDatasetName()}`
+  } catch (err) { saveMessage.value = '自动保存未成功：' + message(err) }
+  finally { saving.value = false }
+}
+// 提交预览按页读取全部采集结果，用户可翻页查看完整数据而不是只看前几条。
+async function loadPreview(page = 1) {
+  const id = collection.job?.job_id
+  if (!id) return
+  try {
+    const data = await getCollectPreview(id, { page, size: previewSize })
+    if (collection.job?.job_id !== id) return
+    collection.preview = data
+    previewPage.value = data.page || page
+    previewError.value = ''
+    openResultSections.value = (data.preview || []).length ? ['preview'] : []
+  } catch (err) { previewError.value = message(err) }
+}
 async function refreshJob() {
   if (!collection.job?.job_id || jobLoading.value || auth.value) return
   clearTimeout(timer)
-  const id = collection.job.job_id
+  const id = collection.job.job_id, epoch = ++jobEpoch
   jobLoading.value = true
   try {
     const job = await getJob(id)
-    if (collection.job?.job_id !== id) return
+    if (!mounted || epoch !== jobEpoch || collection.job?.job_id !== id) return
     if (job.job_id !== id || !['queued', 'running', 'success', 'failed', 'cancelled'].includes(job.status)) throw new Error('任务响应不完整')
     collection.job = job
-    if (job.status === 'success' && !collection.preview) {
-      try { collection.preview = await getCollectPreview(id); previewError.value = '' }
-      catch (err) { previewError.value = message(err) }
+    if (job.status === 'success' && !collection.preview) await loadPreview(1)
+    if (job.status === 'success' && id === autoSaveJobId) {
+      autoSaveJobId = ''
+      await saveAutomatically()
     }
-    if (mounted && ['queued', 'running'].includes(job.status)) timer = setTimeout(refreshJob, 1500)
-  } catch (err) { error.value = message(err) }
-  finally { jobLoading.value = false }
+  } catch (err) { if (epoch === jobEpoch && mounted) error.value = message(err) }
+  finally {
+    jobLoading.value = false
+    if (mounted && epoch === jobEpoch && ['queued', 'running'].includes(collection.job?.status)) timer = setTimeout(refreshJob, 1500)
+  }
 }
 async function retry() {
   try {
-    const data = await retryJob(collection.job.job_id)
-    collection.job = { ...collection.job, ...data }
+    const id = collection.job.job_id
+    await retryJob(id)
+    // 重试响应字段不完整，统一以任务详情为准
+    collection.job = await getJob(id)
     collection.preview = null
+    openResultSections.value = []
+    autoSaveJobId = id
+    saveMessage.value = ''
     await refreshJob()
   } catch (err) { error.value = message(err) }
 }
 async function cancel() {
   try {
-    const data = await cancelJob(collection.job.job_id)
-    collection.job = { ...collection.job, ...data }
+    const id = collection.job.job_id
+    await cancelJob(id)
+    jobEpoch++
     clearTimeout(timer)
+    collection.job = await getJob(id)
+    autoSaveJobId = ''
   } catch (err) { error.value = message(err) }
 }
 async function download(name) {
   downloading.value = true
   try {
-    const blob = await fetchCollectOutput(collection.job.job_id, name)
-    const url = URL.createObjectURL(blob)
-    try { const link = document.createElement('a'); link.href = url; link.download = name; link.click() }
-    finally { URL.revokeObjectURL(url) }
+    saveBlob(await fetchCollectOutput(collection.job.job_id, name), name)
   } catch (err) { error.value = message(err) }
   finally { downloading.value = false }
 }
-async function importResult() {
-  importMessage.value = ''
-  if (!importDraft.name.trim() || !importDraft.repo_source.trim()) { importMessage.value = '请填写登记数据集名称与来源仓库'; return }
-  importing.value = true
-  try {
-    const id = collection.job.job_id, name = artifact('csv'), manifest = result.value.manifest_name
-    const blobs = await Promise.all([fetchCollectOutput(id, name), fetchCollectOutput(id, manifest)])
-    const response = await importStorageFiles([new File([blobs[0]], name), new File([blobs[1]], manifest)], {
-      create_dataset: { name: importDraft.name.trim(), repo_source: importDraft.repo_source.trim(), head_hash: result.value.summary.head_hash }
-    })
-    if (!response?.items?.length || !response.summary) throw new Error('导入响应不完整')
-    if (response.summary.rejected || response.items.some(item => item.status === 'rejected')) {
-      importMessage.value = '存在拒绝项：' + response.items.flatMap(item => item.errors || []).join('；'); return
-    }
-    importMessage.value = '提交与数据集已入库，可供详情页与后续模块选用'
-    await loadDatasets()
-  } catch (err) { importMessage.value = message(err) }
-  finally { importing.value = false }
-}
-async function loadDatasets() {
-  datasetsLoading.value = true; datasetsError.value = ''
-  try {
-    const data = await getDatasets({ page: datasetPage.value, size: 20 })
-    if (!Array.isArray(data?.items) || typeof data.total !== 'number') throw new Error('数据集响应不完整')
-    Object.assign(datasets, data)
-  } catch (err) { datasetsError.value = message(err) }
-  finally { datasetsLoading.value = false }
-}
-async function openMembers(row) {
-  memberId = row.dataset_id; membersTitle.value = row.name; membersPage.value = 1
-  membersOpen.value = true; await loadMembers()
-}
-async function loadMembers() {
-  const epoch = ++memberEpoch
-  membersError.value = ''; members.items = []
-  try {
-    const data = await getDatasetCommits(memberId, { page: membersPage.value, size: 20 })
-    if (epoch === memberEpoch) Object.assign(members, data)
-  } catch (err) { if (epoch === memberEpoch) membersError.value = message(err) }
-}
-onMounted(async () => {
-  const prefs = configItem('page_prefs')?.value || {}
-  draft.branch = prefs.collect_branch ?? ''
-  draft.mode = prefs.collect_mode ?? 'incremental'
-  loadDatasets()
+onActivated(async () => {
+  mounted = true; jobEpoch++
+  // 二次进入只续接任务进度，保留本页已填写的来源与命名。
+  if (activated) { await refreshJob(); return }
+  activated = true
+  if (route.query.source === 'public') {
+    const query = { ...route.query }
+    delete query.source
+    router.replace({ path: '/collect', query, hash: route.hash })
+  }
   if (!collection.job) {
     try { const data = await getJobs({ kind: 'collect', page: 1, size: 1 }); collection.job = data.items?.[0] || null }
     catch (err) { error.value = message(err) }
   }
-  if (collection.request) { importDraft.name = collection.request.dataset_name; importDraft.repo_source = collection.request.repo_source || '' }
+  if (collection.request) {
+    importDraft.name = collection.request.dataset_name || ''
+    importDraft.repo_source = collection.request.repo_source || collection.request.source_url || ''
+    if (!datasetName.value) datasetName.value = importDraft.name
+    lastNameDefault = datasetName.value
+  }
+  syncDefaultName()
   await refreshJob()
 })
-onUnmounted(() => { mounted = false; clearTimeout(timer); memberEpoch++ })
+onDeactivated(() => { mounted = false; clearTimeout(timer) })
 </script>
 
 <style scoped>
-.collect { min-width: 0; }
-.panel { border: 1px solid var(--el-border-color-light); border-radius: var(--el-border-radius-base); padding: 18px; margin: 18px 0; }
-h2 { margin: 0 0 16px; font-size: 16px; }
-h3 { font-size: 14px; margin: 0 0 12px; }
-.hint { color: var(--el-text-color-secondary); font-size: 13px; line-height: 1.65; }
-.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 16px 0; }
-.fields label { display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--el-text-color-regular); min-width: 0; }
-.wide { grid-column: 1 / -1; }
-input:not([type="checkbox"]), select { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid var(--el-border-color); border-radius: var(--el-border-radius-base); padding: 8px 10px; background: var(--el-fill-color-blank); color: var(--el-text-color-primary); font: inherit; }
-input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 2px; }
-input:disabled { background: var(--el-fill-color-light); }
-.checkbox { display: flex; align-items: center; gap: 8px; font-size: 14px; }
-summary { cursor: pointer; font-size: 14px; padding: 10px 0; }
-.actions, .heading { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
-.heading h2 { margin: 0; }
-.mono, code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; overflow-wrap: anywhere; }
-.stats { display: flex; flex-wrap: wrap; gap: 28px; margin: 16px 0; }
-.stats dt { color: var(--el-text-color-secondary); font-size: 13px; }
-.stats dd { margin: 6px 0 0; font-variant-numeric: tabular-nums; font-size: 20px; }
-.table-scroll { overflow-x: auto; max-width: 100%; }
-table { border-collapse: collapse; font-size: 12px; white-space: nowrap; }
-th, td { border: 1px solid var(--el-border-color-light); padding: 10px; text-align: left; max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
-th { background: var(--el-fill-color-light); }
-.output-list { padding: 0; list-style: none; font-size: 12px; }
-.output-list li { display: grid; gap: 5px; border-bottom: 1px solid var(--el-border-color-lighter); padding: 10px 0; overflow-wrap: anywhere; }
-.import-block { border-top: 1px solid var(--el-border-color-light); margin-top: 22px; padding-top: 18px; }
-.dataset-table { margin: 16px 0; max-width: 100%; }
-.file-note { font-size: 13px; overflow-wrap: anywhere; }
-@media (max-width: 640px) { .fields { grid-template-columns: minmax(0, 1fr); } .panel { padding: 14px; } .stats { gap: 18px; } .actions > .el-button { margin-left: 0; } }
+.collect-tool { min-width: 0; }
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ui-space-4) var(--ui-space-5); }
+.field-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.field-line :deep(.el-input),
+.field-line :deep(.el-select) { flex: 1; min-width: 0; }
+.field-hint { font-size: var(--ui-font-hint); color: var(--ui-text-muted); white-space: nowrap; }
+.field-required { margin-left: 2px; color: var(--el-color-danger); }
+.field :deep(.el-date-editor) { width: 100%; }
+.field-invalid :deep(.el-select__wrapper),
+.field-invalid :deep(.el-input__wrapper) {
+  box-shadow: 0 0 0 1px var(--el-color-danger) inset;
+}
+@media (max-width: 768px) {
+  .fields { grid-template-columns: minmax(0, 1fr); }
+}
+.pagination { margin-top: 16px; justify-content: flex-end; }
 </style>

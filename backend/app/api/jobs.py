@@ -23,8 +23,9 @@ DatabaseSession = Annotated[Session, Depends(get_db)]
 
 @router.get("/api/jobs")
 def list_jobs(session: DatabaseSession, kind: str | None = None, status: str | None = None,
+              chain_id: str | None = None,
               page: int = Query(default=1, ge=1), size: int = Query(default=20, ge=1, le=100)) -> dict:
-    return ok(job_store.list_jobs(session, kind=kind, status=status, page=page, size=size))
+    return ok(job_store.list_jobs(session, kind=kind, status=status, chain_id=chain_id, page=page, size=size))
 
 
 @router.get("/api/jobs/{job_id}")

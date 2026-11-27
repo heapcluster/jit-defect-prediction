@@ -1,17 +1,17 @@
 <template>
-  <div class="stat">
-    <div class="k">
+  <div class="ui-metric">
+    <div class="ui-metric__label">
       {{ label }}
     </div>
     <div
-      class="v"
+      class="ui-metric__value"
       :style="valueColor ? { color: valueColor } : null"
     >
       {{ value }}
     </div>
     <div
       v-if="hint"
-      class="h"
+      class="ui-metric__hint"
     >
       {{ hint }}
     </div>
@@ -19,7 +19,7 @@
 </template>
 
 <script setup>
-// 概览指标卡：一屏内先给数字，再给表格细节（页面引导性的主要载体之一）
+// 概览指标卡：与 JobResultPanel 的 .stat 瓦片共用同一套圆角、间距与字体层级。
 defineProps({
   label: { type: String, required: true },
   value: { type: [String, Number], default: '—' },
@@ -29,32 +29,37 @@ defineProps({
 </script>
 
 <style scoped>
-.stat {
+.ui-metric {
+  display: flex;
   flex: 1 1 0;
   min-width: 0;
-  border: 1px solid #e2e5ea;
-  border-radius: 8px;
-  padding: 12px 14px;
-  background: #fff;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: linear-gradient(180deg, var(--ui-surface) 0%, var(--ui-surface-subtle) 100%);
+  box-shadow: var(--ui-shadow-sm);
 }
-.k {
-  font-size: 12px;
-  color: #7c838c;
+.ui-metric__label {
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-sm);
+  font-weight: 550;
   white-space: nowrap;
 }
-.v {
+.ui-metric__value {
+  color: var(--ui-text);
+  font-family: var(--ui-font-mono);
   font-size: 24px;
   font-weight: 700;
-  font-family: monospace;
+  font-variant-numeric: tabular-nums;
   line-height: 1.25;
-  margin-top: 2px;
   overflow-wrap: anywhere;
 }
-.h {
-  font-size: 12px;
-  color: #9aa1ab;
-  margin-top: 2px;
+.ui-metric__hint {
   overflow: hidden;
+  color: var(--ui-text-muted);
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

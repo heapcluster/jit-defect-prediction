@@ -96,31 +96,68 @@ def _read_source(source):
     return name, content
 
 
-def load_public(*, name, source, license_id, out, mapping=None, sample_size=None):
-    if not isinstance(license_id, str) or not license_id.strip() or license_id.strip().lower() in {'other', 'other-open', 'unknown'}:
-        fc.invalid('必须提供已确认的明确许可证，不能把 Other 当作授权')
+def _label_values(value):
+    if value in (None, ""):
+        return set()
+    if isinstance(value, str):
+        return {value}
+    if isinstance(value, (list, tuple)):
+        return {str(item) for item in value}
+    fc.invalid('标签映射的正/负样本值须为字符串或字符串数组')
+
+
+def _label_sets(label_mapping):
+    """把页面 `{positive, negative}` 或值级 `{源值: 1/0}` 统一成两个源值集合。"""
+    mapping = label_mapping or {}
+    if not isinstance(mapping, dict):
+        fc.invalid('标签映射必须为 JSON 对象')
+    if set(mapping) <= {'positive', 'negative'}:
+        return _label_values(mapping.get('positive')), _label_values(mapping.get('negative'))
+    positive = {str(key) for key, value in mapping.items() if str(value) in ('1', '1.0')}
+    negative = {str(key) for key, value in mapping.items() if str(value) in ('0', '0.0')}
+    if len(positive) + len(negative) != len(mapping):
+        fc.invalid('标签映射的取值只能是 1 / 0')
+    return positive, negative
+
+
+def normalize_public(*, name, source, license_id=None, mapping=None, label_mapping=None,
+                     sample_size=None, content=None, filename=None):
+    """拉取公开数据集并归一化为 collected_commits；不发布、不写库，供 CLI 与 collect 任务共用。"""
     if not isinstance(name, str) or not name.strip():
         fc.invalid('数据集名称为空')
-    destination = Path(out)
-    if destination.exists() or destination.is_symlink():
-        fc.invalid('公开数据目录已存在，不覆盖已有数据')
-    filename, content = _read_source(source)
+    if license_id is not None and (
+        not isinstance(license_id, str) or len(license_id) > 128 or any(ord(c) < 32 for c in license_id)
+    ):
+        fc.invalid('许可证名称非法')
+    if filename is None:
+        filename, content = _read_source(source)
     columns, raw_rows = fc.read_table(filename, content)
     mapping = mapping or {column: column for column in columns}
-    if not isinstance(mapping, dict) or any(not isinstance(key, str) or not isinstance(value, str) for key, value in mapping.items()):
+    if not isinstance(mapping, dict) or any(not isinstance(key, str) or not isinstance(value, str)
+                                            for key, value in mapping.items()):
         fc.invalid('字段映射必须为目标列到来源列的 JSON 对象')
     for key in REQUIRED:
         if key not in mapping or mapping[key] not in columns:
             fc.invalid(f'公开数据缺少必需字段：{key}')
     if any(value not in columns for value in mapping.values()):
         fc.invalid('映射引用不存在的来源列')
+    positive, negative = _label_sets(label_mapping)
+    if not positive or not negative:
+        fc.invalid('标签映射必须同时提供正样本值与负样本值')
     records = []
     for index, row in enumerate(raw_rows, 1):
-        record = {key: row[value] for key, value in mapping.items()}
-        if not record['commit_hash'].strip():
+        record = {key: row.get(value, '') for key, value in mapping.items()}
+        if not str(record['commit_hash']).strip():
             fc.invalid(f'第 {index} 行 commit_hash 为空')
-        if record['is_bug_inducing'] not in ('0', '1', ''):
-            fc.invalid(f'第 {index} 行 is_bug_inducing 不是二值标签；请核验语义')
+        label = str(record.get('is_bug_inducing', '')).strip()
+        if label in positive:
+            record['is_bug_inducing'] = '1'
+        elif label in negative:
+            record['is_bug_inducing'] = '0'
+        elif label == '':
+            record['is_bug_inducing'] = ''
+        else:
+            fc.invalid(f'第 {index} 行标签值无法映射；请检查标签映射')
         timestamp = parse_time(record['committed_at'])
         if timestamp:
             record['committed_at'] = timestamp.isoformat().replace('+00:00', 'Z')
@@ -129,16 +166,20 @@ def load_public(*, name, source, license_id, out, mapping=None, sample_size=None
         fc.invalid('公开数据为空')
     selected, layers = stratified_sample(records, len(records) if sample_size is None else sample_size)
     sampled = len(selected) < len(records)
-    metadata = {'name': name, 'source': str(source), 'license': license_id.strip(),
-                'acquired_at': datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
-                'source_bytes': len(content), 'source_sha256': fc.sha256(content), 'source_rows': len(records),
-                'rows': len(selected), 'sampled': sampled, 'sampling_method': 'month-stratified-proportional-equidistant',
-                'layers': layers, 'mapping': mapping, 'label_semantics': 'binary: 1=bug-inducing; 0=non-inducing; empty=unlabeled'}
+    metadata = {
+        'name': name, 'source': str(source), 'license': (license_id or '').strip(),
+        'acquired_at': datetime.now(UTC).isoformat().replace('+00:00', 'Z'),
+        'source_bytes': len(content), 'source_sha256': fc.sha256(content), 'source_rows': len(records),
+        'rows': len(selected), 'sampled': sampled,
+        'sampling_method': 'month-stratified-proportional-equidistant',
+        'layers': layers, 'mapping': mapping, 'label_mapping': label_mapping or {},
+        'label_semantics': 'binary: 1=bug-inducing; 0=non-inducing; empty=unlabeled',
+    }
     report = analyze(records)
-    columns = list(fc.COLLECTED_COMMITS_COLUMNS)
+    output_columns = list(fc.COLLECTED_COMMITS_COLUMNS)
     normalized_rows = []
     for row in selected:
-        record = {column: '' for column in columns}
+        record = {column: '' for column in output_columns}
         record.update(row)
         record['label_method'] = record.get('label_method') or 'third_party'
         record['label_source'] = 'public_dataset'
@@ -146,15 +187,30 @@ def load_public(*, name, source, license_id, out, mapping=None, sample_size=None
         record['repo_name'] = record.get('repo_name') or name
         record['repo_url'] = record.get('repo_url') or str(source) if '://' in str(source) else record.get('repo_url', '')
         normalized_rows.append(record)
-    normalized = fc.encode_table(columns, normalized_rows, 'csv')
+    return {'columns': output_columns, 'rows': normalized_rows, 'records': records,
+            'metadata': metadata, 'report': report, 'content': content, 'source_name': filename,
+            'source_sha256': fc.sha256(content)}
+
+
+def load_public(*, name, source, license_id, out, mapping=None, label_mapping=None, sample_size=None):
+    if not isinstance(license_id, str) or not license_id.strip() or license_id.strip().lower() in {'other', 'other-open', 'unknown'}:
+        fc.invalid('必须提供已确认的明确许可证，不能把 Other 当作授权')
+    destination = Path(out)
+    if destination.exists() or destination.is_symlink():
+        fc.invalid('公开数据目录已存在，不覆盖已有数据')
+    normalized = normalize_public(name=name, source=source, license_id=license_id,
+                                  mapping=mapping, label_mapping=label_mapping, sample_size=sample_size)
+    content, records = normalized['content'], normalized['records']
+    metadata, report = normalized['metadata'], normalized['report']
+    normalized_bytes = fc.encode_table(normalized['columns'], normalized['rows'], 'csv')
     def encode(value):
         return json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True).encode('utf-8')
-    local_files = {'normalized.csv': normalized, 'records.json': encode({'records': records}),
-                   'metadata.json': encode(metadata), 'field_mapping.json': encode(mapping),
-                   'quality.json': encode(report), 'source_' + filename: content}
+    local_files = {'normalized.csv': normalized_bytes, 'records.json': encode({'records': records}),
+                   'metadata.json': encode(metadata), 'field_mapping.json': encode(metadata['mapping']),
+                   'quality.json': encode(report), 'source_' + normalized['source_name']: content}
     destination.parent.mkdir(parents=True, exist_ok=True)
     job_id = 'j-' + uuid4().hex
-    artifacts = {f'collected_commits_{job_id}.csv': normalized,
+    artifacts = {f'collected_commits_{job_id}.csv': normalized_bytes,
                  f'collect_public_metadata_{job_id}.json': encode(metadata),
                  f'collect_public_quality_{job_id}.json': encode(report),
                  f'collect_public_quality_{job_id}.md': markdown(name, report).encode('utf-8')}
@@ -164,8 +220,9 @@ def load_public(*, name, source, license_id, out, mapping=None, sample_size=None
             for local_name, raw in local_files.items():
                 (Path(temporary) / local_name).write_bytes(raw)
             result = output_store.publish_output('collect', artifacts, job_id=job_id,
-                inputs=[{'name': filename, 'sha256': fc.sha256(content), 'rows': len(records)}],
-                config={'name': name, 'license': license_id, 'mapping': mapping, 'sample_size': sample_size},
+                inputs=[{'name': normalized['source_name'], 'sha256': normalized['source_sha256'], 'rows': len(records)}],
+                config={'name': name, 'license': license_id, 'mapping': metadata['mapping'],
+                        'label_mapping': metadata['label_mapping'], 'sample_size': sample_size},
                 code_version=source_version())
             published = True
             os.rename(temporary, destination)
@@ -183,12 +240,14 @@ def main(argv=None):
     parser.add_argument('--license', required=True)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--mapping', type=Path)
+    parser.add_argument('--label-mapping', type=Path)
     parser.add_argument('--sample-size', type=int)
     args = parser.parse_args(argv)
     try:
         mapping = fc.read_json(args.mapping.read_bytes()) if args.mapping else None
+        label_mapping = fc.read_json(args.label_mapping.read_bytes()) if args.label_mapping else None
         result = load_public(name=args.name, source=args.source, license_id=args.license, out=args.out,
-                             mapping=mapping, sample_size=args.sample_size)
+                             mapping=mapping, label_mapping=label_mapping, sample_size=args.sample_size)
         print(json.dumps(result, ensure_ascii=False))
         return 0
     except (ValueError, OSError, fc.AppError) as error:

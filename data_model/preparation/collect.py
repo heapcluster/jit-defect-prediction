@@ -37,11 +37,13 @@ GIT_TIMEOUT = 180
 CACHE_VERSION = "collect-json-v1"
 SZZ_VERSION = "d4-backtracking-nullable-v1"
 PHASES = ("validate", "repository", "commits", "szz", "features", "split")
-FIELDS = {"repo_source", "branch", "dataset_name", "start_time", "end_time", "start_commit",
-          "end_commit", "mode", "fetch_remote", "head_expect", "dedup", "szz_method", "split_ratio", "format"}
-DEFAULTS = {"branch": None, "start_time": None, "end_time": None, "start_commit": None,
-            "end_commit": None, "mode": "incremental", "fetch_remote": True, "head_expect": None,
-            "dedup": "commit_hash", "szz_method": "szz_v1", "split_ratio": 0.7, "format": "csv"}
+FIELDS = {"source_type", "repo_source", "branch", "dataset_name", "start_time", "end_time", "start_commit",
+          "end_commit", "mode", "fetch_remote", "head_expect", "dedup", "szz_method"}
+DEFAULTS = {"source_type": "git_repo", "branch": None, "start_time": None, "end_time": None,
+            "start_commit": None, "end_commit": None, "mode": "incremental", "fetch_remote": True,
+            "head_expect": None, "dedup": "commit_hash", "szz_method": "szz_v1",
+            # 切分比例不属于用户配置；内核保留固定默认以便输出 is_test 边界。
+            "split_ratio": 0.7}
 
 
 class CollectError(ValueError):
@@ -153,8 +155,13 @@ def _url(source: str, protocols: list[str]) -> tuple[str, list[str]]:
     return canonical, [f"http.curloptResolve={host}:{port}:{','.join('[' + a + ']' if ':' in a else a for a in addresses)}"]
 
 
-def validate_config(raw: dict, *, allow_roots: list[str], protocol_whitelist: list[str]) -> dict:
-    """Strict API-table validation. Resolve dataset_id in the caller, then remove it."""
+def validate_config(raw: dict, *, allow_roots: list[str], protocol_whitelist: list[str],
+                    require_branch: bool = True) -> dict:
+    """Strict API-table validation. Resolve dataset_id in the caller, then remove it.
+
+    ``require_branch`` 仅供只读源码读取（reader/CLI source）复用配置校验；
+    采集入口始终要求显式分支。
+    """
     roots = _roots(allow_roots)
     if not isinstance(protocol_whitelist, list) or any(p not in ("https", "git") for p in protocol_whitelist):
         _invalid("协议白名单仅支持 https/git")
@@ -169,14 +176,12 @@ def validate_config(raw: dict, *, allow_roots: list[str], protocol_whitelist: li
             _invalid(f"{key} 含控制字符")
     if type(result["fetch_remote"]) is not bool:
         _invalid("fetch_remote 须为 bool")
+    if result["source_type"] != "git_repo":
+        _invalid("Git 模式 source_type 只能为 git_repo；公开数据集请使用公开模式")
     for key, choices in (("mode", ("full", "incremental")), ("dedup", ("commit_hash",)),
-                         ("szz_method", ("szz_v1", "szz_lite")), ("format", ("csv", "xlsx"))):
+                         ("szz_method", ("szz_v1", "szz_lite"))):
         if not isinstance(result[key], str) or result[key] not in choices:
             _invalid(f"{key} 非法")
-    ratio = result["split_ratio"]
-    if type(ratio) not in (int, float) or not 0 < ratio < 1 or not math.isfinite(ratio):
-        _invalid("split_ratio 须为 (0,1) 内的有限数值")
-    result["split_ratio"] = float(ratio)
     branch = result["branch"]
     if branch is not None:
         if (not isinstance(branch, str) or not branch or len(branch) > 255
@@ -184,6 +189,8 @@ def validate_config(raw: dict, *, allow_roots: list[str], protocol_whitelist: li
                 or any(part.startswith((".", "-")) or part.endswith((".", ".lock")) or not part
                        for part in branch.split("/")) or ".." in branch or "//" in branch):
             _invalid("branch 须为安全 Git ref 或提交哈希")
+    elif require_branch:
+        _invalid("branch 必填；请从 GET /api/collect/branches 选择")
     for key in ("start_commit", "end_commit", "head_expect"):
         if result[key] is not None:
             result[key] = _hash(result[key], key)
@@ -208,6 +215,160 @@ def validate_config(raw: dict, *, allow_roots: list[str], protocol_whitelist: li
             raise CollectError(40400, "仓库不存在")
         result["repo_source"] = str(path)
     return result
+
+
+PUBLIC_FIELDS = {"source_type", "source_url", "license", "field_mapping", "label_mapping", "dataset_name"}
+
+
+def _public_module():
+    source = str(BASE.parent)
+    if source not in sys.path:
+        sys.path.insert(0, source)
+    return importlib.import_module("preparation.public_load")
+
+
+def validate_public_config(raw, *, protocol_whitelist: list[str]) -> dict:
+    """公开数据集模式的严格配置校验；不含 Git 分支字段。"""
+    if not isinstance(raw, dict) or set(raw) - PUBLIC_FIELDS:
+        _invalid("公开数据集配置包含未知字段")
+    if raw.get("source_type") != "public_dataset":
+        _invalid("source_type 必须为 public_dataset")
+    if "https" not in protocol_whitelist:
+        _invalid("公开数据集需要 https 协议白名单")
+    source = raw.get("source_url")
+    if not isinstance(source, str) or not source:
+        _invalid("source_url 必填")
+    canonical, _network = _url(source, ["https"])
+    name = raw.get("dataset_name")
+    if not isinstance(name, str) or not name.strip() or len(name) > 255 or any(ord(c) < 32 for c in name):
+        _invalid("dataset_name 必填且不超过 255 字符")
+    license_id = raw.get("license")
+    if license_id is not None and (
+        not isinstance(license_id, str) or len(license_id) > 128 or any(ord(c) < 32 for c in license_id)
+    ):
+        _invalid("license 须为不超过 128 字符的字符串")
+    mapping = raw.get("field_mapping")
+    if not isinstance(mapping, dict) or not mapping:
+        _invalid("field_mapping 必填且为 JSON 对象")
+    labels = raw.get("label_mapping")
+    if not isinstance(labels, dict) or not labels:
+        _invalid("label_mapping 必填且为 JSON 对象")
+    return {"source_type": "public_dataset", "source_url": canonical, "license": license_id,
+            "dataset_name": name.strip(), "field_mapping": mapping, "label_mapping": labels}
+
+
+def _repo_name(url: str) -> str:
+    path = urlsplit(url).path.rstrip("/")
+    name = Path(unquote(path)).name
+    if name.endswith(".git"):
+        name = name[:-4]
+    return name or "repo"
+
+
+def list_branches(repo_source, *, allow_roots: list[str], protocol_whitelist: list[str], progress=None) -> dict:
+    """枚举远端分支（URL 走 ls-remote，本地仓库读 refs）；空列表按 40001 拒绝。"""
+    roots = _roots(allow_roots)
+    if not isinstance(protocol_whitelist, list) or any(p not in ("https", "git") for p in protocol_whitelist):
+        _invalid("协议白名单仅支持 https/git")
+    if not isinstance(repo_source, str) or not repo_source.strip():
+        _invalid("repo_source 必填")
+    runner = GitRunner(protocol_whitelist, progress)
+    branches: list[str] = []
+    default = None
+    if "://" in repo_source:
+        canonical, network = _url(repo_source, protocol_whitelist)
+        runner.network_config = network
+        with tempfile.TemporaryDirectory(prefix="collect-branches-") as temporary:
+            output = runner(Path(temporary), "ls-remote", "--symref", canonical)
+        for line in output.splitlines():
+            if line.startswith("ref: "):
+                ref, _, _sha = line[5:].partition("\t")
+                if ref.startswith("refs/heads/"):
+                    default = ref[len("refs/heads/"):]
+            elif "\trefs/heads/" in line:
+                branches.append(line.split("\trefs/heads/", 1)[1].strip())
+        repo_name = _repo_name(canonical)
+    else:
+        if "::" in repo_source or not Path(repo_source).is_absolute():
+            _invalid("仓库须为绝对本地路径或 https/git URL")
+        try:
+            path = Path(repo_source).resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise CollectError(40001, "仓库路径非法") from exc
+        if not _within(path, roots):
+            _invalid("仓库路径越过允许根目录")
+        if not path.is_dir():
+            raise CollectError(40400, "仓库不存在")
+        output = runner(path, "for-each-ref", "--format=%(refname:short)", "refs/heads", "refs/remotes")
+        for item in output.splitlines():
+            name = item.strip()
+            if not name or name.endswith("/HEAD"):
+                continue
+            if name.startswith("origin/"):
+                name = name[len("origin/"):]
+            if name and name not in branches:
+                branches.append(name)
+        try:
+            default = runner(path, "symbolic-ref", "--quiet", "--short", "HEAD").strip() or None
+        except CollectError:
+            default = None
+        repo_name = path.name
+    branches = sorted(dict.fromkeys(branches))
+    if not branches:
+        _invalid("未找到可用分支，请检查仓库 URL 或权限")
+    return {"repo_name": repo_name, "branches": branches,
+            "default_branch": default if default in branches else branches[0]}
+
+
+def source_columns(source_url, *, protocol_whitelist: list[str]) -> dict:
+    """抓取公开数据集 URL 并返回列名，供页面字段映射下拉使用。"""
+    if not isinstance(source_url, str) or not source_url.strip():
+        _invalid("source_url 必填")
+    if "https" not in protocol_whitelist:
+        _invalid("公开数据集需要 https 协议白名单")
+    canonical, _network = _url(source_url, ["https"])
+    module = _public_module()
+    try:
+        name, content = module._read_source(canonical)
+        columns, _rows = module.fc.read_table(name, content)
+    except module.fc.AppError as error:
+        raise CollectError(error.code, str(error)) from error
+    return {"columns": columns}
+
+
+def run_public(config, *, protocol_whitelist: list[str], progress=None) -> dict:
+    """公开数据集 URL 拉取并归一化为 collected_commits；与 Git 模式返回同构。"""
+    cfg = validate_public_config(config, protocol_whitelist=protocol_whitelist)
+    if progress:
+        progress("fetch", 1, 5)
+    module = _public_module()
+    try:
+        normalized = module.normalize_public(
+            name=cfg["dataset_name"], source=cfg["source_url"], license_id=cfg.get("license"),
+            mapping=cfg["field_mapping"], label_mapping=cfg["label_mapping"])
+    except module.fc.AppError as error:
+        raise CollectError(error.code, str(error)) from error
+    if progress:
+        progress("normalize", 4, 5)
+    rows = normalized["rows"]
+    labeled = [row for row in rows if row.get("is_bug_inducing") in ("0", "1")]
+    summary = {
+        "rows": len(rows), "labeled_rows": len(labeled),
+        "positive_rows": sum(1 for row in labeled if row["is_bug_inducing"] == "1"),
+        "negative_rows": sum(1 for row in labeled if row["is_bug_inducing"] == "0"),
+        "unlabeled_rows": len(rows) - len(labeled), "head_hash": None,
+    }
+    audit = {
+        "deduplicated": 0, "skipped": {"merges": 0, "outside_output_range": 0}, "stage_errors": [],
+        "head_check": None, "fetch": {"remote": True, "source": cfg["source_url"]},
+        "cache": {"hit": False, "strategy": "none"},
+        "szz": {"method": "third_party", "enabled": False},
+        "boundary": {"start": None, "end": None},
+    }
+    return {"rows": rows, "summary": summary, "audit": audit, "config": cfg,
+            "metadata": normalized["metadata"],
+            "inputs": [{"name": normalized["source_name"], "sha256": normalized["source_sha256"],
+                        "rows": len(normalized["records"])}]}
 
 
 class GitRunner:
@@ -485,7 +646,12 @@ def run(config: dict, *, allow_roots: list[str], protocol_whitelist: list[str],
         phase = value
         checkpoint()
     checkpoint()
-    cfg = validate_config(config, allow_roots=allow_roots, protocol_whitelist=protocol_whitelist)
+    # 后端会把 validate_config 的结果快照再次交给 run；该快照含内核派生字段
+    # split_ratio，它不属于用户配置，重新校验前剔除。
+    raw_config = config
+    if isinstance(raw_config, dict):
+        raw_config = {key: value for key, value in raw_config.items() if key != "split_ratio"}
+    cfg = validate_config(raw_config, allow_roots=allow_roots, protocol_whitelist=protocol_whitelist)
     roots = _roots(allow_roots)
     selected = None
     deduplicated = 0
@@ -706,7 +872,7 @@ def _publish(result: dict, out: Path, format: str, *, version: str | None = None
     contracts, outputs = _file_services()
     outputs.OUTPUT_ROOT = out.resolve()  # CLI process only; API never calls this helper.
     job_id = str(uuid4())
-    artifacts = {f"collect_commits_{job_id}.{format}": encode_rows(result["rows"], format),
+    artifacts = {f"collected_commits_{job_id}.{format}": encode_rows(result["rows"], format),
                  f"collect_summary_{job_id}.json": _json(result["summary"]),
                  f"collect_audit_{job_id}.json": _json(result["audit"])}
     for item in result["inputs"]:
@@ -752,8 +918,7 @@ def main(argv=None) -> int:
             result = run({"repo_source": args.repo, "branch": args.branch, "dataset_name": args.name,
                           "start_time": args.start, "end_time": args.end, "start_commit": args.start_commit,
                           "end_commit": args.end_commit, "head_expect": args.head_expect, "mode": args.mode,
-                          "fetch_remote": args.fetch_remote == "true", "szz_method": args.szz_method,
-                          "split_ratio": args.split_ratio, "format": args.format},
+                          "fetch_remote": args.fetch_remote == "true", "szz_method": args.szz_method},
                          allow_roots=args.allow_root, protocol_whitelist=args.protocol,
                          cache_dir=args.out.resolve() / ".collect-cache")
             published = _publish(result, args.out, args.format)

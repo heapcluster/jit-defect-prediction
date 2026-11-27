@@ -1,108 +1,182 @@
-# 鏁版嵁搴撳瓨鍌ㄤ笌瀵煎叆瀵煎嚭 API锛坰torage锛?
-涓€鍙ヨ瘽锛氭妸绗﹀悎鏉冨▉ schema 鐨勪氦鎹㈡枃浠舵寜鍐呭鑷姩璇嗗埆骞跺箓绛?upsert 鍒?12 琛紝鍚屾椂鎸夎〃瀵煎嚭 CSV/XLSX 涓?manifest锛屾壙鎷呭睍绀哄鍏ャ€侀厤缃拰璧勪骇鐧昏鑰岄潪妯″潡闂存暟鎹紶閫掋€?
-瀹炵幇鐘舵€侊細宸插疄鐜般€€鏈熸锛氫竴鏈?
-W2 宸插疄鐜版枃浠跺鍏ャ€佹ā鍨嬪寘/PNG 鐧昏銆?2 琛ㄥ鍑哄拰浜х墿涓嬭浇銆傛ā鍨嬪寘鍙仛缁撴瀯/checksum 鏍￠獙涓庝笉閫忔槑鐧昏锛屼笉鎵ц鏉冮噸锛涘凡鍔犺浇妯″瀷绂佹琚柊鍖呴噸鏍囷紝鍚庣画鍔犺浇绠＄悊鐢?W6 瀹屾垚銆?
-鏂囦欢濂戠害鍞竴鏉冨▉锛歔../file-contracts.md](../file-contracts.md) 搂3.1鈥撀?.9锛涜〃瀛楁浠?[../database/README.md](../database/README.md) 涓庡悇琛ㄦ枃妗ｄ负鍑嗐€?
-## 1. 鑱岃矗涓庝笉璐熻矗鑼冨洿
+﻿# 存储登记与导出 API（storage）
 
-- 璐熻矗 `commit / commit_feature / model / prediction / model_figure / user / user_config / job / algorithm / model_artifact / dataset / dataset_commit` 12 琛ㄧ殑瀵煎叆銆佸鍑恒€佸睍绀烘煡璇㈡敮鎸佷笌璧勪骇鐧昏銆?- 瀵煎叆鎸夋枃浠?schema 鑷姩璇嗗埆鐩爣锛屼笉瑕佹眰璋冪敤鏂规寚瀹氳〃锛涜嚜鐒堕敭骞傜瓑 upsert锛岄噸澶嶅鍏ヤ笉浜х敓閲嶅琛屻€?- 閰嶇疆鍜?job 鐘舵€佷粛鎸佷箙鍖栵紱妯″瀷鍖呯櫥璁板悗娲剧敓 model 琛岋紝鏂囦欢鏈綋缁х画钀借緭鍑虹洰褰曘€?- 涓嶈礋璐ｉ噰闆嗐€佹竻娲椼€佽缁冦€侀娴嬨€佽瘎浼般€佽В閲婃垨瀹氫綅璁＄畻锛屼篃涓嶈姹備换浣曟ā鍧楀厛瀵煎叆鎵嶈兘杩愯銆?
-## 2. 绔偣濂戠害
+一句话：把模块产物文件（提交表、清洗表、预测表、模型文件、图）按 schema 自动登记进关系库供展示（内部能力），按数据链路汇总历史产物并支持整链删除，或把库中表导出为 CSV/XLSX 文件。
 
-### GET /api/storage/tables
+实现状态：已实现　期次：一期
 
-鍝嶅簲 `{items:[{name,columns,filters}]}`锛岃〃涓庡垪鍙栬嚜鐪熷疄 12 琛ㄥ畾涔夛紱鍓嶇浠ヨ鍏冩暟鎹覆鏌撳彲鐢ㄨ〃鍙婇€傜敤绛涢€夛紝涓嶅彟閫犵櫧鍚嶅崟銆傛墍鏈夌鐐瑰惈涓嬭浇鍧囪姹?X-API-Key锛屼笂浼犻壌鏉冨拰璇锋眰鎬诲ぇ灏忓湪 multipart 瑙ｆ瀽鍓嶆牎楠屻€?
+前端入口：`/storage` 产物中心（见 [`../web_page/storage.md`](../web_page/storage.md)）；历史产物查看、选择、下载、删除与数据集成员在此页，**页面不提供文件导入**。`POST /api/storage/import` 仅作内部自动登记，见第 2 节。`/api/storage/export` 仅由数据集 CSV 下载复用，页面不再提供按表导出入口。
+
+表结构见 [`../database/`](../database/)；数据集读写见 [datasets.md](datasets.md)。
+
+## 1. 职责与不负责范围
+
+- 负责内部自动登记：清洗成功后按 schema 识别产物文件、校验列/行/manifest/checksum、幂等 upsert、刷新数据集统计；该入口不对页面开放。
+- 负责按 `job.chain_id` / `parent_job_ids` 汇总数据链路，并提供整链删除。
+- 负责按表白名单导出 CSV/XLSX：每次导出按 `format` 只生成一份文件，manifest 作为内部校验记录随批次生成，不与核心文件混排。
+- 不负责解析业务语义（不做 SZZ、清洗、训练）；不修改模块产物本身；不把内部登记当作模块运行前置。
+
+## 2. 端点契约
+
 ### POST /api/storage/import
 
-鍚屾 `multipart/form-data`锛歚files[]` 涓婁紶涓€涓垨澶氫釜浜ゆ崲鏂囦欢锛宍config` 涓哄彲閫?JSON part銆?
-| config 瀛楁 | 蹇呭～ | 濂戠害 |
-|---|---|---|
-| `dataset_id` | 鍚?| 瀵煎叆 collected_commits / clean_dataset 鏃跺叧鑱旀棦鏈?dataset锛涗笉瀛樺湪杩斿洖 40400 |
-| `create_dataset` | 鍚?| `{name,repo_source,branch,head_hash}`锛岄渶瑕佹柊鏁版嵁闆嗘椂涓?collected_commits / clean_dataset 鍚屼紶 |
-| `model_artifact_status` | 鍚?| 妯″瀷鍖呯櫥璁板垵濮嬬姸鎬侊紝浠呭厑璁?`available` / `retired`锛岄粯璁?available |
-| `register_figures` | 鍚?| 榛樿 true锛沞valuate 鍥惧強 manifest 鍙櫥璁?model_figure |
+内部自动登记接口：由数据清洗服务在清洗成功后调用，用于把清洗产物登记为数据集。**页面不提供文件上传入口，也不向用户暴露此端点。**
 
-鍝嶅簲 `data`锛歚{items[],summary}`銆傛瘡涓枃浠堕」涓?`{name,schema,target_tables[],status,inserted,updated,unchanged,rejected,errors[]}`锛泂ummary 姹囨€诲悇鐘舵€佹暟銆傚崟鏂囦欢澶辫触涓嶅奖鍝嶅叾浠栧悎娉曟枃浠讹紝浣嗗悓涓€鏂囦欢鐨勫琛ㄥ啓鍏ュ繀椤诲湪涓€涓簨鍔″唴瀹屾垚銆?
-鑷姩璇嗗埆瑙勫垯锛?
-| 杈撳叆 | 鏉冨▉ schema | 鐩爣涓庣害鏉?|
+`multipart/form-data`：
+
+| part | 必填 | 契约 |
 |---|---|---|
-| collected_commits / clean_dataset | 搂3.1銆伮?.2 | dataset + dataset_commit锛涗笉鍐?commit_feature |
-| train_testset | 搂3.3 | 娴嬭瘯闆嗭紝鎸夋彁浜よ嚜鐒堕敭鐧昏 dataset_commit锛涙瘡琛屽甫鐪熸爣绛?|
-| predictions | 搂3.4 | prediction锛屾寜 `(commit_hash,model_name)` upsert锛沗is_bug_inducing` 閫忎紶鐪熸爣绛?|
-| model_package | 搂3.3 | 鏍￠獙鍚庣櫥璁?model_artifact 骞舵淳鐢?model锛沜hecksum 涓嶇鎷掔粷 |
-| evaluate 鍥惧強 manifest | 搂3.6銆伮?.9 | 鎸夋ā鍨嬩笌 figure_type 鐧昏 model_figure锛岃矾寰勫彧鎸囧厑璁歌緭鍑烘牴鍐呮枃浠?|
-| metrics/confusion/report銆乪xplanations銆乴ocalization/suggestions/patch | 搂3.6鈥撀?.8 | 12 琛ㄦ棤瀵瑰簲缁撴灉琛紝杩斿洖 40001 `unsupported_storage_schema`锛屼笉鍋囪瀵煎叆 |
+| `files[]` | 是 | ≤100 个；单文件 ≤64MiB，批次合计 ≤64MiB |
+| `config` | 否 | JSON 文本，默认 `{}` |
+
+`config` 只允许 `dataset_id`、`create_dataset`、`model_artifact_status`、`register_figures`；`dataset_id` 与 `create_dataset` 互斥。
+
+识别四类文件：
+
+| 类型 | 扩展名 | 要求 |
+|---|---|---|
+| 提交表 | `.csv` / `.xlsx` | 列匹配 `collected_commits` 或 `clean_dataset`（取缺列最少者），必填 `commit_hash,repo_name,is_bug_inducing,label_source,source_type` |
+| 预测表 | `.csv` / `.xlsx` | 列严格等于 `predictions`，且 `model_version` / `feature_version` 与库中模型一致 |
+| 模型文件 | `.pkl` / `.zip` | 训练产物为单个 `.pkl` + 侧车 `train_<algo>_meta_<job_id>.json`；外部交付 ZIP 含 `model_meta.json`、`feature_order.txt`、`checksum.sha256` 与至少一个非空 `.pkl`；`line` 与特征维度匹配 |
+| 图 | `.png` | `figure_type ∈ roc/pr/confusion/calibration/effort_unaware/effort_aware/feat_importance`，需同名已验证 manifest，模型须已登记；历史 `effort` 别名写入时归一为 `effort_unaware` |
+
+配对的 `<stem>.manifest.json` 必须存在且 `outputs` 中同名条目的 sha256 与上传内容一致。
+
+`create_dataset` 字段：`name`（≤128，必填）、`source_type`（固定 `git_repo`，必填）、`source_url`、`repo_name`、`repo_source`、`branch`、`head_hash`。公开数据集只能由 collect 任务创建，storage 不再接受 `public_dataset`。
+
+响应：
+
+```json
+{"items": [{"name": "a.csv", "schema": "collected_commits", "target_tables": ["commit"], "status": "imported", "inserted": 1, "updated": 0, "unchanged": 0, "rejected": 0, "errors": []}], "summary": {"inserted": 1, "updated": 0, "unchanged": 0, "rejected": 0}}
+```
+
+单个文件失败不影响其他文件；全部 rejected 才整体 40001。
 
 ### GET /api/storage/export
 
-鏌ヨ鍙傛暟锛歚table=<12琛ㄤ箣涓€>`锛堝繀濉級銆乣format=csv|xlsx`锛堥粯璁?csv锛夛紱鍙€?`dataset_id/model_name/start_time/end_time/limit` 鍙帴鍙楄琛ㄩ€傜敤鐨勭瓫閫夛紝鏈煡銆侀噸澶嶆垨涓嶉€傜敤鍙傛暟鎷掔粷銆傚悓姝ヨ繑鍥?`data:{job_id,table,format,outputs[],manifest_name,columns,preview,row_count,total}`锛沺review 鏈€澶?0琛岋紝limit 璇锋眰鐢熸垚棰勮鎵规锛屽畬鏁翠笅杞介噸鏂拌姹備笉甯?limit銆俲ob_id 鍙綔瀵煎嚭鎵规鏍囪瘑锛屼笉鏂板 job kind銆俹utputs 鍚富琛ㄤ笌 manifest 鐨勫悕绉般€佸瓧鑺傛暟鍙?checksum銆?
+| 参数 | 必填 | 契约 |
+|---|---|---|
+| `table` | 是 | 必须是 ORM 中的表名（`Base.metadata.tables`） |
+| `format` | 否 | `csv`（默认）/ `xlsx` |
+| `dataset_id` / `model_name` | 否 | 仅对含对应列/关联的表生效 |
+| `start_time` / `end_time` | 否 | 按表映射的时间列过滤 |
+| `limit` | 否 | 1..100000 |
+
+超过 100000 行且未给 `limit` → 40001。响应：
+
+```json
+{"job_id": "...", "module": "storage", "outputs": [{"name": "...", "sha256": "...", "size_bytes": 1}], "manifest_name": "...", "format": "csv", "filters": {}, "columns": [], "preview": [], "row_count": 0, "total": 0}
+```
+
+`job` / `user_config` 的 JSON 列会 scrub，命中 traceback/SQL 关键字替换为 `[redacted]`。
+
+### GET /api/storage/tables
+
+返回表目录：
+
+```json
+{"items": [{"name": "commit", "columns": ["..."], "filters": ["limit", "dataset_id", "start_time", "end_time"]}]}
+```
+
+### GET /api/storage/lineage
+
+按数据链路汇总历史产物；链路关系只来自 `job.chain_id` 与 `job.parent_job_ids`，不按文件名猜测。
+
+
+| 参数 | 必填 | 契约 |
+|---|---|---|
+| `kind` | 否 | `collect` / `clean` / `train` / `predict_batch` / `evaluate` / `explain`，过滤链内节点类型 |
+| `status` | 否 | 五态之一 |
+| `search` | 否 | 名称 / 任务编号关键字 |
+| `start_time` / `end_time` | 否 | 按链内任务创建时间过滤 |
+| `page` / `size` | 否 | 默认 1 / 20，`size` 上限 100 |
+
+响应：
+
+```json
+{"items": [{
+  "chain_id": "j-collect01",
+  "title": "repo-A · 2026-11-26",
+  "created_at": "2026-11-26T08:00:00Z",
+  "node_count": 5,
+  "kinds": {"collect": 1, "clean": 1, "train": 1, "predict_batch": 1, "evaluate": 1},
+  "nodes": [{
+    "job_id": "j-train01", "kind": "train", "status": "success",
+    "parent_job_ids": [{"kind": "clean", "job_id": "j-clean01"}],
+    "model_names": ["lr_21513c90_v1"], "dataset_id": null,
+    "created_at": "2026-11-26T08:10:00Z", "finished_at": "2026-11-26T08:12:00Z",
+    "artifacts": [{"name": "train_lr_model_j-train01.pkl", "size_bytes": 4096}]
+  }]
+}], "total": 1, "page": 1}
+```
+
+- 训练多算法或同清洗结果训练多模型时，`nodes` 保留分叉，不做线性化。
+- 缺少 `parent_job_ids` 的孤立任务单独成链，`title` 标注“未关联”，不伪造上下游。
+
+### DELETE /api/storage/chains/{chain_id}
+
+整链删除，必须带 `?confirm=true`，否则 40001。
+
+
+删除范围：`chain_id` 命中的全部 `job` 行与其已发布产物、`model_artifact.train_job_id` 命中的模型（含 `model` 行与 `.pkl`）、`dataset.job_id` 命中的数据集（含 `dataset_commit`）。
+
+共享保护：
+
+- 链内模型被链外 `prediction` / `model_figure` 引用，或链内数据集被链外任务引用时，返回 40001，`data.references` 列出引用方，不执行任何删除。
+- 链内资产只被链内任务引用时正常删除。
+
+响应：
+
+```json
+{"chain_id": "j-collect01", "jobs": 5, "artifacts": 12, "models": 1, "datasets": 1}
+```
+
 ### GET /api/storage/outputs/{job_id}/{name}
 
-涓嬭浇瀵煎嚭涓昏〃鎴?manifest锛涘彧鍏佽瀵煎嚭鎵规鐧昏鐨勫熀纭€鏂囦欢鍚嶃€?
-### 閿欒鐮?
-| 涓氬姟鐮?| HTTP | 鍦烘櫙 |
+下载已发布产物；跨模块、未登记、checksum 不符均 40400。
+
+### 错误码
+
+| 业务码 | HTTP | 场景 |
 |---|---|---|
-| 40001 | 400 | schema 鏃犳硶璇嗗埆銆佸垪/绫诲瀷闈炴硶銆佽嚜鐒堕敭鍐茬獊銆佹棤鐩爣琛ㄣ€乧hecksum 澶辫触銆侀潪娉?table/format銆佸叕寮忔敞鍏?|
-| 40100 | 401 | 缂哄け鎴栭敊璇殑 `X-API-Key`锛屽寘鎷鍑轰笅杞?|
-| 40400 | 404 | dataset銆佸鍑烘壒娆℃垨鏂囦欢涓嶅瓨鍦?|
-| 50000 | 500 | 鏁版嵁搴撴垨鏈鏈熸湇鍔￠敊璇紱浜嬪姟鍥炴粴锛屼笉鍥炴樉 SQL/杩炴帴涓?|
+| 40001 | 400 | 文件数/大小/列/行/manifest/checksum/公式注入/ZIP 结构非法、schema 歧义、自然键重复、版本不一致、导出参数非法、缺 `confirm=true`、链路资产被外部引用 |
+| 40100 | 401 | 鉴权失败 |
+| 40400 | 404 | 模型/数据集/批次/文件不存在或不可用 |
+| 50000 | 500 | 未预期异常 |
 
-## 3. 杈撳叆濂戠害
+## 3. 输入契约
 
-鎵€鏈変氦鎹㈠垪鍙帴鍙?[../file-contracts.md](../file-contracts.md) 搂3.1鈥撀?.8锛屼笉鑳介€氳繃澧炲姞鍒悕缁曡繃璇嗗埆銆傚叧閿?schema 閫愬瓧寮曠敤濡備笅銆?
-搂3.1 collected_commits锛?
-| 鍒?| 绫诲瀷 | 蹇呭～ | 鍚箟 |
-|---|---|---|---|
-| commit_hash | string(40 hex) | 鏄?| 鎻愪氦鏍囪瘑锛堝皬鍐欙級 |
-| repo_name | string | 鏄?| 浠撳簱鍚嶆垨鏁版嵁闆嗗悕 |
-| repo_url | string | 鍚?| 鏉ユ簮 URL |
-| author_name / author_email | string | 鍚?| 浣滆€?|
-| committed_at | datetime | 鍚?| 鎻愪氦鏃堕棿 UTC |
-| message | string | 鍚?| 鎻愪氦淇℃伅 |
-| parent_hash | string(40) | 鍚?| 鐖舵彁浜?|
-| is_bug_inducing | int 绌哄彲 | 鏄?| 缂洪櫡鏍囩 1/0/绌?|
-| label_method | string | 鍚?| `szz_v1` / `szz_lite` / `third_party` |
-| label_source | string | 鏄?| `git_szz` / `public_dataset` |
-| labeled_at | datetime | 鍚?| 鎵撴爣鏃堕棿 |
-| fix_commit_hash | string(40) | 鍚?| SZZ 鍥炴函淇鎻愪氦 |
-| source_type | string | 鏄?| `git_repo` / `public_dataset` |
+- CSV 必须 UTF-8/BOM；XLSX 单 sheet、禁宏与外部链接、禁公式。
+- 列名 `[a-z][a-z0-9_]*` 且唯一，≤100 列、≤100000 行。
+- 同名模型文件 checksum 不同且模型已加载时返回 40001，要求换 `model_name`。
 
-搂3.2 clean_dataset锛氬垪鍚?搂3.1锛屽彲杩藉姞 `derive_basic_fields` 鍩虹灞曠ず鍒楋紱涓嶅緱鍚?Kamei 14 缁存ā鍨嬬壒寰併€乣is_test` 鎴栬缁冩祴璇曞垝鍒嗐€傚繀浼?`steps_stats.json` 涓庡垪缁熻/鍒嗗竷鍥撅紝浣嗙粺璁″拰 png 涓嶆槧灏勪负鏁版嵁搴撹〃銆?
-搂3.4 predictions锛?
-| 鍒?| 绫诲瀷 | 蹇呭～ | 鍚箟 |
-|---|---|---|---|
-| commit_hash | string(40) | 鏄?| 鎻愪氦 |
-| model_name | string | 鏄?| 妯″瀷 |
-| risk_score | float [0,1] | 鏄?| 姒傜巼锛? 浣嶅皬鏁帮級 |
-| predicted_label | int 0/1 | 鏄?| 鎸?decision_threshold 鐨勪簩鍒嗙被鏍囩 |
-| decision_threshold | float | 鏄?| 鏈鍒ゅ畾闃堝€?|
-| model_version / feature_version | string | 鏄?| 鐗堟湰鍏冧俊鎭?|
-| predicted_at | datetime | 鏄?| 棰勬祴鏃堕棿 |
-| is_bug_inducing | int 绌哄彲 | 鍚?| 閫忎紶鐪熸爣绛撅紙鏉ヨ嚜 搂3.3 `train_testset`锛屼緵 evaluate 绠楁€ц兘锛?|
+## 4. 输出契约
 
-搂3.5 `labels.csv` 宸插簾姝細鐪熸爣绛剧粺涓€鐢?搂3.3 `train_testset` 鎻愪緵骞剁敱 predict 閫忎紶杩?搂3.4 `predictions.csv`锛泂torage 涓嶅啀瀵煎叆鐙珛鏍囩鏂囦欢锛屽鍏?predictions 鏃舵寜 hash 鍚屾鍏堕€忎紶鏍囩锛屾湭鎵撴爣淇濇寔 NULL銆?
-搂3.3锛?*鈥渮ip 鍐呭惈锛氭潈閲嶆枃浠跺潎涓?`.pkl`锛坄expert`=Kamei 14 缁淬€乣semantic`=鍐荤粨澶?CodeBERT 768 缁达級銆乣feature_order.txt`銆乣feature_schema.json`銆乣model_meta.json`锛坢odel_name/line/algo/feature_set/version_key/feature_version/trained_at/瓒呭弬蹇収/鍒掑垎 mode/绉嶅瓙锛夈€乣checksum.sha256`銆俙fused` / `e2e` 鍙婂叾 safetensors 浜х墿宸插彇娑堛€俻redict/explain MUST 鏍￠獙 checksum 涓庣壒寰佸垪瀹藉悗鍐嶅姞杞姐€傗€?* storage 鐧昏鍓嶅悓鏍锋牎楠?checksum銆?
-瀹夊叏瑕佹眰锛氶檺鍒跺ぇ灏忋€佹墿灞曞悕涓庨瓟鏁般€乑IP 瑙ｅ帇澶у皬鍜岃矾寰勩€佸垪 schema銆佸叕寮忔敞鍏ワ紱瀛樺偍璺緞闄愬畾鍏佽杈撳嚭鏍癸紝鏂囦欢鍚嶄笉鎷兼帴 shell銆傛晱鎰熼厤缃€丄PI Key銆佸彛浠ゅ拰 LLM Key 涓嶅厑璁搁€氳繃 import 鍐欏叆 user_config銆?
-## 4. 杈撳嚭濂戠害
+- 内部登记结果按文件逐条返回计数：`inserted/updated/unchanged/rejected`。
+- 导出产物命名 `{module}_{artifact}_{job_id}.{format}`；每次请求只生成所选 `format` 的一份文件，manifest 作为内部校验记录随附，`.index.json` 不可下载。
+- 幂等：同一 `create_dataset` 得到同一 `dataset_id`（uuid5）；重复登记不产生重复数据集。
 
-瀵煎叆鍙繑鍥?JSON 缁熻骞跺啓鏁版嵁搴擄紝涓嶅垱寤烘柊鐨勪氦鎹㈡枃浠讹紱杈撳叆鏂囦欢鍘熸湁 manifest 涓嶅弬涓庤鐩栨牎楠屾椂涓嶅緱浼€犲鍏ュ洖鎵ф枃浠躲€?
-瀵煎嚭鏂囦欢鍛藉悕锛?
-| 鏂囦欢 | 鍛藉悕 | 鍐呭 |
-|---|---|---|
-| 琛ㄤ富鏂囦欢 | `storage_<table>_<job_id>.csv`锛屾垨 `.xlsx` | table 瀵瑰簲鏁版嵁搴撹〃濂戠害鐨勫瓧娈碉紝鎸夎〃瀹氫箟椤哄簭瀵煎嚭锛涗笉鍙﹂€犱氦鎹㈠垪鍚?|
-| manifest | `storage_<table>_<job_id>.manifest.json` | 涓ユ牸閲囩敤 搂3.9锛宮odule=`storage`锛宑onfig 璁板綍 table/format锛宨nputs 璁板綍瀵煎嚭杩囨护鏉′欢锛宱utputs 璁板綍 checksum |
+## 5. 可配置项
 
-褰撳鍑哄唴瀹圭敤浜庢ā鍧椾氦鎹㈡椂锛屽繀椤婚€夋嫨骞舵弧瓒冲搴?搂3.x锛岃€屼笉鏄妸鏁版嵁搴撳唴閮ㄥ瓧娈垫敼鍚嶅悗鍐掑厖浜ゆ崲鏂囦欢锛歝ommit + commit_feature 鐨勭粍鍚堝鍑轰娇鐢?搂3.1锛宲rediction 鐨勪氦鎹㈠鍑轰娇鐢?搂3.4銆傚崟琛ㄥ師濮嬪鍑哄彧鐢ㄤ簬瀛樺偍绠＄悊锛屼笉瀹ｇО鍙洿鎺ヤ綔涓烘ā鍧楄緭鍏ャ€?
-CSV 榛樿 UTF-8 BOM锛孹LSX 鍗?sheet锛岀┖鏍囩鍜岀己棰勬祴淇濇寔绌哄€硷紱鍏紡娉ㄥ叆杞箟銆傚鍑烘槸鍚屾鎵规锛屾棤鐙珛 job kind锛屼絾鏂囦欢浠嶈惤缁熶竴杈撳嚭鐩綍骞跺繀浼?manifest銆?
-## 5. 鍙厤缃」
+`collect.allow_roots` 限制本地路径；`model_artifact_status` 默认 `available`（另一值 `retired`）；`register_figures` 默认 true。
 
-- storage 鏈韩娌℃湁鏂板涓氬姟璁＄畻閰嶇疆锛泃able銆乫ormat銆乨ataset 鍏宠仈鍜岃祫浜х櫥璁伴€夐」闅忚姹傜粰鍑哄苟杩涘叆瀹¤/manifest銆?- 鍏ㄥ眬鍙婃ā鍧楀懡鍚嶇┖闂撮厤缃粺涓€缁?[config.md](config.md) 璇诲啓锛沗.env` 浠呮彁渚涘嚭鍘傞粯璁ゃ€?- 鏁版嵁搴撹繛鎺ャ€丄PI Key 涓庡叾浠栧瘑閽ュ彧璧伴儴缃茬幆澧冿紝绂佹閫氳繃閰嶇疆瀵煎叆鎴栧鍑烘帴鍙ｈ鍙栥€?- 瀵煎嚭琛屼笂闄愩€佹枃浠跺ぇ灏忎笌涓婁紶闄愬埗浣跨敤缁熶竴瀹夊叏绛栫暐锛屼笉寰椾负鍗曡〃缁曡繃銆?
-## 6. 鐘舵€佹寔涔呭寲
+## 6. 状态持久化
 
-- 瀵煎叆浠ュ崟鏂囦欢浜嬪姟淇濊瘉澶氳〃鍘熷瓙鎬э紱鑷劧閿?upsert 骞傜瓑锛屽け璐ュ洖婊氳鏂囦欢鍏ㄩ儴鍐欏叆骞惰繑鍥炲彲璇?errors銆?- 12 琛ㄦ寔涔呬繚瀛樺睍绀烘暟鎹€佺敤鎴烽厤缃€佸叚绫?job 鍜岃祫浜э紱鏈嶅姟閲嶅惎鍚庨厤缃笌浠诲姟鐘舵€佹仮澶嶃€?- storage import/export 涓嶆柊澧?job kind锛涘鍑?job_id 鏄枃浠舵壒娆℃爣璇嗭紝涓嶈兘鐢ㄤ簬 `/api/jobs/{id}`銆?- 瀵煎嚭钀?`temp/outputs/<job_id>/`锛坓itignore锛夛紱妯″瀷鍖呭彲鐧昏璺緞鍜?checksum锛屼絾鏉冮噸鏂囦欢鍐呭涓嶅叆搴撱€?
-## 7. 楠屾敹
+- 内部登记写 `dataset`、`dataset_commit`、`commit`、`commit_feature`、`prediction`、`model`、`model_artifact`、`model_figure`；登记不写 `job`。因此登记资产没有 `chain_id`，不进入链路视图；只能在数据集 / 模型查询中查看。
+- 整链删除会删除链内 `job` 行及其产物，并联动删除链内模型与数据集；共享引用检查通过后才提交，失败整体回滚。
+- 每个文件独立事务；失败回滚并清理已发布资产。
+- 登记后回填数据集 `sample_count/pos_count/neg_count/time_start/time_end`。
 
-fixtures锛歚tests/fixtures/files/storage/`锛屽寘鍚悇鏉冨▉ schema銆侀噸澶嶆壒娆′笌闈炴硶鏂囦欢锛屼笉瑕佹眰浠讳綍涓氬姟妯″潡鍏堣繍琛屻€?
-- **姝ｅ父**锛歝ollected_commits銆乧lean_dataset銆乼rain_testset銆乸redictions銆佹ā鍨嬪寘鍒嗗埆鑷姩璇嗗埆鍒扮洰鏍囪〃锛涢噸澶嶅鍏?inserted/updated/unchanged 缁熻鍚堢悊锛岃鏁颁笉閲嶅锛?2 琛ㄥ潎鍙鍑哄苟甯?搂3.9 manifest銆?- **杈圭晫**锛氱┖鏍囩銆佺┖棰勬祴銆乧reate_dataset銆佸悓浜嬪姟澶氳〃鍐欏叆銆侀噸澶?model_name 鐗堟湰鍧囦繚鎸佽嚜鐒堕敭涓?NULL 璇箟锛汣SV BOM/XLSX 鍙墦寮€銆傛棫 `labels.csv` 蹇呴』琚嫆缁濓紙40001锛夛紝涓嶅緱璇嗗埆涓烘爣绛捐緭鍏ャ€?- **闈炴硶**锛氭湭鐭?schema銆佹棤鐩爣琛ㄣ€侀敊鍒椼€乧hecksum 澶辫触銆佸叕寮忔敞鍏ャ€侀潪娉?table/format銆佹晱鎰熼厤缃鍏ュ潎杩斿洖 40001锛涗簨鍔″け璐ユ棤閮ㄥ垎鍐欏叆銆?- 妯″潡鍦ㄧ┖搴撲粛鑳界嫭绔嬭繍琛岋紱瀵煎叆鍚?commits/trends 绛夊睍绀虹鐐瑰彲璇伙紱瀵煎嚭 checksum銆佸懡鍚嶅拰涓嬭浇閴存潈閫氳繃銆?
-## 8. 杈圭晫
+## 7. 验收
 
-storage 鏄彲閫夊睍绀轰笌鎸佷箙鍖栧眰锛屼笉鏄ā鍧楅棿鎬荤嚎銆備笟鍔℃ā鍧楅棿浠呬緷 搂3.x 鏂囦欢 schema 鍏煎锛涙暟鎹簱鏈夋暟鎹笉鏄换浣?run 绔偣鐨勫墠缃紝dataset_id 涔熷彧鏄究鍒╅€夋嫨銆傛ā鍨嬭鐢?model_artifact 娲剧敓锛岄厤缃笌 job 鍗曟簮浠嶇敱瀵瑰簲琛ㄦ壙鎷呫€?
+- 内部自动登记可识别四类文件；列不符、缺 manifest、checksum 不符被拒。
+- 重复登记幂等，计数正确（unchanged）。
+- 导出列与库表一致，时间与过滤条件正确，超限被拒。
+- 下载跨模块或篡改文件失败。
+- 依次跑收集 → 清洗 → 训练 → 预测 → 评估后，`GET /api/storage/lineage` 返回同一条链且父子关系逐级正确；训练多算法时分叉仍属同一链。
+- `DELETE /api/storage/chains/{chain_id}` 缺 `confirm=true` 返回 40001；链内资产被外部引用时返回 40001 并列出引用方；确认后链内任务、产物、模型与数据集一并清除。
+
+## 8. 边界
+
+storage 是可选展示层：模块之间只交换文件，数据库为空不影响任何模块独立运行；内部登记失败也不改变已发布产物。
+
+

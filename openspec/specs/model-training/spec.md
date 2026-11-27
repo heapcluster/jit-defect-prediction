@@ -1,7 +1,7 @@
 # model-training Specification
 
 ## Purpose
-把带标签样本集训练成可用的 JIT 缺陷预测模型：按 `committed_at` 时间序切分，`expert`、`semantic`、`fused` 三条分类器线各按默认集合训练 8 个分类器，产出 Effort-unaware 与 Effort-aware 两类评估指标，全部结果可复现。模型线总览见 `docs/README.md`。
+把带标签样本集训练成可用的 JIT 缺陷预测模型：按 `committed_at` 时间序切分，`expert`、`semantic` 两条分类器线各按默认集合训练 8 个分类器，产出 Effort-unaware 与 Effort-aware 两类评估指标，全部结果可复现。模型线总览见 `docs/overview.md` 与 `docs/project-structure.md`。
 
 ## Requirements
 
@@ -35,14 +35,14 @@
 
 ### Requirement: MUST 训练 8 个分类器
 
-`expert`、`semantic`、`fused` 三线默认集合 MUST 逐字一致，包含 `lr`、`rf`、`xgb`、`lgbm`、`et`、`svm`、`mlp_deep`、`tabnet`，覆盖经典机器学习与神经网络两类；`e2e` 线另有一个端到端模型。为兼容旧产物保留的额外名字不算默认训练集合。
+`expert`、`semantic` 两线默认集合 MUST 逐字一致，包含 `lr`、`rf`、`xgb`、`lgbm`、`et`、`svm`、`mlp_deep`、`tabnet`，覆盖经典机器学习与神经网络两类；为兼容旧产物保留的额外名字不算默认训练集合。
 
 #### Scenario: 模型数量达标
 - **WHEN** 训练流程完成
-- **THEN** 三条分类器线各产出 8 个模型结果，每个模型有独立 `model_name` 与评估指标
+- **THEN** 两条分类器线各产出 8 个模型结果，每个模型有独立 `model_name` 与评估指标
 
 #### Scenario: 默认集合被改回子集（边界场景）
-- **WHEN** 任一分类器线的默认训练集合少于 8 个，或三线集合不一致
+- **WHEN** 任一分类器线的默认训练集合少于 8 个，或两线集合不一致
 - **THEN** 一致性检查失败，MUST NOT 把部分训练结果当作完整交付
 
 ### Requirement: MUST 产出两类评估指标

@@ -1,10 +1,10 @@
-# 提交查询 API（commits）
+﻿# 提交查询 API（commits）
 
-一句话：只读查询已导入的提交、Kamei 特征、SZZ 标签和所选模型预测，为风险列表与详情提供稳定分页数据，不在查询中执行任何业务计算。
+一句话：只读查询已导入的提交、Kamei 特征、SZZ 标签和所选模型预测，为提交详情提供稳定分页数据，不在查询中执行任何业务计算。
 
 实现状态：部分　期次：一期
 
-展示数据来自 [storage.md](storage.md) 的可选导入；特征与标签语义引用 [../file-contracts.md](../file-contracts.md) §3.1，预测语义引用 §3.4。
+展示数据来自 [storage.md](storage.md) 的可选导入；特征与标签语义引用 collected_commits 列契约，预测语义引用 predictions 列契约。
 
 ## 1. 职责与不负责范围
 
@@ -37,7 +37,7 @@
 
 ### GET /api/commits/{commit_hash}
 
-路径 hash 归一小写；可选 `model_name`、`dataset_id`。响应 `data` 含提交元信息、`commit_feature` 特征与 §3.1 标签，以及 `prediction` 对象：
+路径 hash 归一小写；可选 `model_name`、`dataset_id`。响应 `data` 含提交元信息、`commit_feature` 特征与 collected_commits 列契约 标签，以及 `prediction` 对象：
 
 `{model_name,risk_score,predicted_label,decision_threshold,model_version,feature_version,predicted_at,stale}`。
 
@@ -56,7 +56,7 @@
 
 无文件输入。查询仅接受上述参数，未知参数返回 40001。`dataset_id` 只是展示筛选；`model_name` 必须显式给出，不再有默认值或回退规则。
 
-特征 JSON 的语义见 `database/commit_feature.md`：Kamei 14 维固定列序，值为 log 变换结果（fix 为 0/1）；`is_bug_inducing` 为 1/0/null，NULL 不得当负样本。预测 JSON 对应 §3.4 的模型、概率、标签、阈值与版本字段，不重算风险。
+特征 JSON 的语义见 `database/commit_feature.md`：Kamei 14 维固定列序，值为 log 变换结果（fix 为 0/1）；`is_bug_inducing` 为 1/0/null，NULL 不得当负样本。预测 JSON 对应 predictions 列契约 的模型、概率、标签、阈值与版本字段，不重算风险。
 
 ## 4. 输出契约
 
@@ -74,17 +74,20 @@
 
 - 只读 commit、commit_feature、prediction、dataset_commit，不写业务行、不创建 job、不写输出文件。
 - storage 导入完成后新数据可见，服务重启不改变查询结果；预测版本变化只通过已导入元数据反映 stale。
-- 查询缓存若存在必须按数据版本和默认模型失效，缓存不是权威来源。
+- 查询缓存若存在必须按数据版本和当前显式选择的模型失效，缓存不是权威来源。
 
 ## 7. 验收
 
-fixtures：`tests/fixtures/files/commits/`，由 §3.1/§3.4 正常、边界、非法样例导入构造，另用非法样例验证导入拒绝后的空态。
+fixtures：`tests/fixtures/files/commits/`，由 collected_commits 列契约/predictions 列契约 正常、边界、非法样例导入构造，另用非法样例验证导入拒绝后的空态。
 
 - **正常**：模型/数据集/时间/q/风险筛选与分页正确，with_features 返回 14 维，详情版本字段完整，同分跨页不重不漏。
-- **边界**：无预测详情 prediction=null、空标签 null、空数据集、风险范围端点、默认模型回退均符合契约。
+- **边界**：无预测详情 prediction=null、空标签 null、空数据集、风险范围端点、未显式选择模型时的空态均符合契约；不回退到默认模型。
 - **非法**：分页越界、非法 hash/时间/风险范围/未知参数返回 40001；不存在详情返回 40400；任何查询均不触发生产计算。
 - 详情解释由独立端点获取，commits 响应无解释/定位字段；storage 未导入时本接口为空不影响 run 独立验收。
 
 ## 8. 边界
 
-commits 是展示读模型，不是模块间数据通道。它消费的是已导入表，而业务模块之间只依 §3.x 文件 schema 兼容；数据库为空不阻止任何上传文件运行，dataset_id 也不构成上游服务前置。
+commits 是展示读模型，不是模块间数据通道。它消费的是已导入表，而业务模块之间只依约定文件的 schema 兼容；数据库为空不阻止任何上传文件运行，dataset_id 也不构成上游服务前置。
+
+
+

@@ -1,18 +1,18 @@
 # dataset / dataset_commit
 
-`实现状态：目标契约　期次：一期`
+`实现状态：已实现（一期单版本）　期次：一期 / 二期多版本`
 
-> 旧口径把公开数据集排除在库外、把 14 维特征和 `is_test` 作为收集交付；本文已按最新板块 2 重写。本轮只修改 docs，`infra/schema.sql` 与 ORM 后续按本文同步。
+> 旧口径把公开数据集排除在库外、把 14 维特征和 `is_test` 作为收集交付；本文已按最新板块 2 重写，`infra/schema.sql` 与 ORM 已按本文同步。
 
 **一句话**：数据集元数据表 + 数据集成员二维表；板块 2 收集完成后默认把带缺陷标签的提交二维表写入这两张表，供页面展示、查询和导出。
 
 ## 1 职责
 
 - `dataset`：记录一次收集任务产出的数据集元信息，包括来源类型、来源地址、许可证、标签来源、统计信息与任务关联。
-- `dataset_commit`：保存该数据集的二维表成员行，即板块 2 对外导出的 `collected_commits.csv/xlsx` 的逐行落库结果。
+- `dataset_commit`：保存该数据集的二维表成员行，即板块 2 对外导出的 `collected_commits.csv` 的逐行落库结果；XLSX 仅按下载请求从这些行即时生成。
 - 这里保存的是**已打标二维表**，不是特征表；Kamei 14 维、`is_test` 和训练/测试切分不属于板块 2，`commit_feature` 不在本模块写入路径中。
 
-## 2 dataset 字段（目标契约）
+## 2 dataset 字段（当前契约）
 
 | 字段 | 类型 | 空值/默认 | 含义 |
 |---|---|---|---|
@@ -44,11 +44,12 @@
 口径：
 
 - `dataset_id` 每次收集任务生成一个；同一配置重复运行可生成新版本，不在本轮强制覆盖。
+- `job_id` 是数据链路的链根依据：选择 `dataset_id` 启动清洗 / 训练时，父任务取该字段；产物库按链路展示与整链删除依赖它。
 - `pos_count + neg_count + unlabeled_count = sample_count`。
 - 未打标 `is_bug_inducing=null` 只计入 `unlabeled_count`，MUST NOT 计入负样本。
 - `repo_source` 旧字段在本契约中被 `source_type + source_url + repo_name` 替代；DDL 迁移时保留兼容映射或重命名，按板块 1 迁移规则处理。
 
-## 3 dataset_commit 字段（目标契约）
+## 3 dataset_commit 字段（当前契约）
 
 `dataset_commit` 从“成员关联表”升级为“二维表成员表”。
 
@@ -83,15 +84,17 @@
 - 标签一致：保留一行，重复计数写 summary。
 - 标签冲突：导入失败或生成质量报告后拒绝入库，MUST NOT 静默保留一个。
 
+**范式取舍（有意偏离 BCNF）**：`dataset_commit` 冗余了 `commit` 表的 `repo_name` / `author_name` / `author_email` / `committed_at` / `message` / `parent_hash`，以及 `dataset` 表的 `source_type`。这些不是规范化缺陷，而是**采集时点快照**语义：数据集成员必须能独立还原当时的提交信息，不受 `commit` 表后续刷新影响；导出 `collected_commits.csv` 也直接读这些列而不跨表 join。同理 `dataset` 的 `pos_count + neg_count + unlabeled_count = sample_count` 是可重算的派生统计，为列表查询性能保留。上述冗余由写入侧保证一致，不建跨表触发器。
+
 ## 4 与文件契约的关系
 
-板块 2 对外文件为：
+板块 2 对外核心文件只有一份：
 
 ```text
-collected_commits_<job_id>.csv / .xlsx
+collected_commits_<job_id>.csv
 ```
 
-数据库保存内容必须与该二维表逐行一致。
+XLSX 仅由下载 / 导出端点按请求从同一数据源即时生成，不作为 collect 预生成产物。数据库保存内容必须与该二维表逐行一致。
 
 字段映射：
 
@@ -129,7 +132,7 @@ collected_commits_<job_id>.csv / .xlsx
 | 读取 | `GET /api/datasets` | 数据集列表 |
 | 读取 | `GET /api/datasets/{id}/commits` | 二维表成员分页展示 |
 | 读取 | `GET /api/datasets/{id}/export` | 导出 CSV/XLSX |
-| 读取 | 页面“已收集数据集” | 只读展示保存结果 |
+| 读取 | `/storage` 产物库 | 查看数据集、成员并按需删除 |
 
 ## 7 不写入的内容
 
@@ -148,7 +151,7 @@ collected_commits_<job_id>.csv / .xlsx
 ## 8 验收
 
 - Git 仓库采集完成后，`dataset` 与 `dataset_commit` 可查询到二维表内容。
-- 公开数据集导入完成后同样入库，并记录 `source_type=public_dataset`、`label_source=public_dataset`、许可证和来源说明。
+- 公开数据集经 collect 任务 URL 拉取后入库，并记录 `source_type=public_dataset`、`label_source=public_dataset`、许可证和来源说明；storage 不再创建公开数据集。
 - 数据库行内容与导出的 `collected_commits.csv/xlsx` 逐列一致。
 - 未打标样本入库为 NULL，导出为空，不显示为 0。
 - 同数据集重复提交不产生重复成员；标签冲突不静默覆盖。

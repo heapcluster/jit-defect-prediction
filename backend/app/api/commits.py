@@ -1,4 +1,4 @@
-"""查询接口 1–2：风险列表与提交详情（docs/api/commits.md）。
+"""查询接口 1–2：提交列表与提交详情（docs/api/commits.md）。
 
 本文件只做入参校验与响应编排；查询与字段组装收在 `app/services/commits.py`，
 时间格式收在 `app/timeutil.py`，哈希校验收在 `app/validate.py`。
@@ -103,7 +103,11 @@ def list_commits(
                 raise AppError(40400, "dataset not found")
             label_filter = label_filter & (DatasetCommit.dataset_id == dataset_id)
         label_method_expr = (
-            select(DatasetCommit.label_method).where(label_filter).limit(1).scalar_subquery()
+            select(DatasetCommit.label_method)
+            .where(label_filter)
+            .correlate(Commit)
+            .limit(1)
+            .scalar_subquery()
         )
         stmt = (
             select(Prediction, Commit, CommitFeature, label_method_expr)

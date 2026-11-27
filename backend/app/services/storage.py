@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from PIL import Image, UnidentifiedImageError
-from sqlalchemy import case, func, select
+from sqlalchemy import case, delete, func, select
 from sqlalchemy.engine import Row
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -27,6 +27,7 @@ from app.models import (
     CommitFeature,
     Dataset,
     DatasetCommit,
+    Job,
     Model,
     ModelArtifact,
     ModelFigure,
@@ -38,7 +39,9 @@ from app.services import file_contracts as fc
 from app.timeutil import iso_z, now_naive_utc, parse_time_param
 
 MAX_ROWS = fc.MAX_ROWS
-FIGURE_TYPES = {"roc", "pr", "confusion", "calibration", "effort", "feat_importance"}
+FIGURE_TYPES = {"roc", "pr", "confusion", "calibration", "effort_unaware", "effort_aware", "feat_importance"}
+# 历史导入使用合并的 effort 类型；写入时归一，读取层再兼容。
+FIGURE_ALIASES = {"effort": "effort_unaware"}
 TABLES = {name: table for name, table in Base.metadata.tables.items()}
 COUNTS = ("inserted", "updated", "unchanged", "rejected")
 
@@ -132,8 +135,9 @@ def import_config(raw):
             fc.invalid("create_dataset has unknown fields")
         text(dataset.get("name"), "name", 128)
         source_type = text(dataset.get("source_type"), "source_type", 16)
-        if source_type not in ("git_repo", "public_dataset"):
-            fc.invalid("source_type requires git_repo or public_dataset")
+        # 公开数据集只能由 collect 任务创建；storage 只登记 Git 仓库数据集。
+        if source_type != "git_repo":
+            fc.invalid("source_type requires git_repo; public datasets must be collected via /api/collect/run")
         text(dataset.get("source_url"), "source_url", 512, True)
         text(dataset.get("repo_name"), "repo_name", 128, True)
         text(dataset.get("repo_source"), "repo_source", 255, True)
@@ -219,14 +223,55 @@ def table_rows(kind, rows, manifest):
                 item[field] = text(row[field], field, maximum)
             item.update(risk_score=number(row["risk_score"], "risk_score", True), predicted_at=utc(row["predicted_at"], "predicted_at"))
             threshold = parse_threshold(row["decision_threshold"])
-            if binary(row["predicted_label"], "predicted_label") != int(item["risk_score"] >= threshold):
+            predicted_label = binary(row["predicted_label"], "predicted_label")
+            if predicted_label != int(item["risk_score"] >= threshold):
                 fc.invalid("predicted_label disagrees with risk_score/decision_threshold")
-            binary(row.get("is_bug_inducing", ""), "is_bug_inducing", True)
+            item.update(predicted_label=predicted_label, decision_threshold=threshold,
+                        is_bug_inducing=binary(row.get("is_bug_inducing", ""), "is_bug_inducing", True))
         validated.append(item)
     return validated
 
 
+def model_meta(meta, order=None):
+    """校验模型侧车元数据（训练 .pkl 的 _meta_ 与外部 ZIP 的 model_meta.json 共用）。"""
+    try:
+        json.dumps(meta, allow_nan=False)
+    except ValueError:
+        fc.invalid("model metadata numerics must be finite")
+    for field, maximum in (("model_name", 64), ("line", 16), ("algo", 64), ("version_key", 64), ("feature_version", 32)):
+        text(meta.get(field), field, maximum)
+    line = meta["line"]
+    algos = {"lr", "rf", "xgb", "lgbm", "et", "svm", "mlp_deep", "tabnet", "nb", "dt", "knn", "mlp"}
+    if line not in ("expert", "semantic") or meta["algo"] not in algos:
+        fc.invalid("illegal model line/algo architecture")
+    declared_order = meta.get("feature_order", meta.get("text_columns"))
+    effective_order = declared_order if order is None else order
+    if effective_order is not None:
+        try:
+            effective_order = list(effective_order)
+        except TypeError:
+            fc.invalid("feature order requires an ordered column list")
+        if not effective_order or len(set(effective_order)) != len(effective_order) or any(
+                not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_]*", field) for field in effective_order):
+            fc.invalid("feature_order requires unique plain ordered column names")
+        if line == "expert" and effective_order != list(config.FEATURE_COLUMNS) or line == "semantic" and len(effective_order) != 768:
+            fc.invalid("model feature order/width does not match its architecture")
+        if declared_order is not None and declared_order != effective_order:
+            fc.invalid("feature order disagrees with model metadata")
+    meta["trained_at"] = utc(meta.get("trained_at"), "trained_at")
+    for field in ("hyperparams_snapshot", "hyperparams", "split"):
+        if field in meta and not isinstance(meta[field], dict):
+            fc.invalid(f"{field} requires an explicit object snapshot")
+    if "seed" in meta and (type(meta["seed"]) is not int or not 0 <= meta["seed"] <= 4294967295):
+        fc.invalid("seed requires a nonnegative integer")
+    return meta
+
+
 def model_package(name, raw):
+    """外部交付 ZIP：含 model_meta.json / feature_order.txt / checksum.sha256 与权重。
+
+    训练自产模型不再打包 ZIP；此入口只服务外部交付导入与解释模块的 ZIP 上传。
+    """
     members = fc.read_zip(name, raw)
     if not {"model_meta.json", "feature_order.txt", "checksum.sha256"} <= members.keys():
         fc.invalid("model package requires model_meta.json, feature_order.txt and checksum.sha256")
@@ -242,33 +287,9 @@ def model_package(name, raw):
         order = members["feature_order.txt"].decode("utf-8").splitlines()
     except UnicodeDecodeError:
         fc.invalid("model package metadata/order must be UTF-8")
-    meta = fc.read_json(members["model_meta.json"])
-    try:
-        json.dumps(meta, allow_nan=False)
-    except ValueError:
-        fc.invalid("model metadata numerics must be finite")
-    for field, maximum in (("model_name", 64), ("line", 16), ("algo", 64), ("version_key", 64), ("feature_version", 32)):
-        text(meta.get(field), field, maximum)
-    line = meta["line"]
-    algos = {"lr", "rf", "xgb", "lgbm", "et", "svm", "mlp_deep", "tabnet", "nb", "dt", "knn", "mlp"}
-    if line not in ("expert", "semantic") or meta["algo"] not in algos:
-        fc.invalid("illegal model line/algo architecture")
-    if not order or len(set(order)) != len(order) or any(not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_]*", field) for field in order):
-        fc.invalid("feature_order.txt requires unique plain ordered column names")
-    if line == "expert" and order != list(config.FEATURE_COLUMNS) or line == "semantic" and len(order) != 768:
-        fc.invalid("model feature order/width does not match its architecture")
-    declared_order = meta.get("feature_order", meta.get("text_columns"))
-    if declared_order is not None and declared_order != order:
-        fc.invalid("feature order disagrees with model metadata")
     if not any(key.endswith(".pkl") and content for key, content in members.items()):
         fc.invalid("model package is missing opaque architecture weights")
-    meta["trained_at"] = utc(meta.get("trained_at"), "trained_at")
-    for field in ("hyperparams_snapshot", "hyperparams", "split"):
-        if field in meta and not isinstance(meta[field], dict):
-            fc.invalid(f"{field} requires an explicit object snapshot")
-    if "seed" in meta and (type(meta["seed"]) is not int or not 0 <= meta["seed"] <= 4294967295):
-        fc.invalid("seed requires a nonnegative integer")
-    return meta
+    return model_meta(fc.read_json(members["model_meta.json"]), order)
 
 
 def upsert(session, cls, values):
@@ -370,7 +391,11 @@ def import_table(session, kind, rows, settings, manifest):
                 fc.invalid("prediction references a missing registered Model/Commit; import those objects first")
             if model.version_key != values["model_version"] or not model.feature_version or model.feature_version != values["feature_version"]:
                 fc.invalid("prediction model_version/feature_version disagrees with registered Model")
-            status = upsert(session, Prediction, {column.name: values[column.name] for column in Prediction.__table__.columns})
+            # 只写入导入契约提供的列；job_id/output_name 由预测任务维护，导入时保持为空。
+            status = upsert(session, Prediction, {
+                column.name: values[column.name] for column in Prediction.__table__.columns
+                if column.name in values
+            })
         counts[status] += 1
     if kind != "predictions":
         refresh_datasets(session, [row["commit_hash"] for row in rows])
@@ -385,7 +410,31 @@ def publish_asset(raw, extension, audit, created_batches):
     return f"{config.OUTPUTS_REL}/{batch['job_id']}/{name}"
 
 
-def import_model(session, raw, meta, settings, created_batches):
+def register_model_file(session, pkl_name, raw, meta_name, meta_raw, settings=None):
+    """登记训练自产 .pkl 与侧车元数据；权重路径直接指向 .pkl，不做 ZIP 解包。"""
+    if not isinstance(pkl_name, str) or not pkl_name.endswith(".pkl"):
+        fc.invalid("训练模型登记要求 .pkl 权重文件")
+    if not isinstance(meta_name, str) or not meta_name.endswith(".json"):
+        fc.invalid("训练模型登记要求侧车 .json 元数据")
+    if not raw or len(raw) > fc.MAX_UPLOAD_BYTES or not meta_raw or len(meta_raw) > fc.MAX_UPLOAD_BYTES:
+        fc.invalid("模型权重或侧车元数据为空或超出大小限制")
+    try:
+        meta = model_meta(fc.read_json(meta_raw))
+    except UnicodeDecodeError:
+        fc.invalid("模型侧车元数据必须为 UTF-8")
+    created_batches = []
+    try:
+        tables, counts = import_model(session, raw, meta, settings or {}, created_batches, extension="pkl")
+        session.commit()
+    except Exception:
+        session.rollback()
+        for job_id in created_batches:
+            output_store.discard_output("storage", job_id)
+        raise
+    return tables, counts
+
+
+def import_model(session, raw, meta, settings, created_batches, extension="zip"):
     model_name = meta["model_name"]
     model = session.get(Model, model_name, with_for_update=True)
     artifact = session.scalar(select(ModelArtifact).where(ModelArtifact.model_name == model_name).with_for_update())
@@ -407,7 +456,7 @@ def import_model(session, raw, meta, settings, created_batches):
         return ["model_artifact", "model"], {**dict.fromkeys(COUNTS, 0), "updated" if changed else "unchanged": 1}
     audit = {key: serialize(value) for key, value in meta.items()}
     audit["opaque_registration"] = True
-    path = publish_asset(raw, "zip", audit, created_batches)
+    path = publish_asset(raw, extension, audit, created_batches)
     values = {field: meta[field] for field in fields}
     values.update(artifact_id=artifact.artifact_id if artifact else str(uuid5(NAMESPACE_URL, model_name)), weight_path=path,
                   checksum_sha256=fc.sha256(raw), size_bytes=len(raw), status=status,
@@ -423,8 +472,9 @@ def validate_figure(raw, manifest):
     text(settings.get("model_name"), "figure.model_name", 64)
     text(settings.get("figure_type"), "figure_type", 32)
     text(settings.get("title", settings.get("figure_type")), "figure.title", 128)
-    if settings.get("figure_type") not in FIGURE_TYPES:
-        fc.invalid("unsupported figure_type; use roc/pr/confusion/calibration/effort/feat_importance")
+    kind = FIGURE_ALIASES.get(settings.get("figure_type"), settings.get("figure_type"))
+    if kind not in FIGURE_TYPES:
+        fc.invalid("unsupported figure_type; use roc/pr/confusion/calibration/effort_unaware/effort_aware/feat_importance")
     try:
         if not raw.startswith(b"\x89PNG\r\n\x1a\n"):
             raise ValueError
@@ -444,7 +494,8 @@ def import_figure(session, raw, manifest, settings, created_batches):
         fc.invalid("figure references a missing registered model")
     if not settings.get("register_figures", True):
         return [], {**dict.fromkeys(COUNTS, 0), "unchanged": 1}
-    existing = session.get(ModelFigure, (meta["model_name"], meta["figure_type"]), with_for_update=True)
+    figure_type = FIGURE_ALIASES.get(meta["figure_type"], meta["figure_type"])
+    existing = session.get(ModelFigure, ("", meta["model_name"], figure_type), with_for_update=True)
     path = None
     if existing and existing.file_path.startswith(config.OUTPUTS_REL + "/"):
         parts = existing.file_path[len(config.OUTPUTS_REL) + 1:].split("/")
@@ -455,10 +506,12 @@ def import_figure(session, raw, manifest, settings, created_batches):
                     path = existing.file_path
             except AppError:
                 pass  # Missing/tampered prior assets are replaced, never loaded.
-    path = path or publish_asset(raw, "png", {"model_name": meta["model_name"], "figure_type": meta["figure_type"]}, created_batches)
-    result = upsert(session, ModelFigure, {"model_name": meta["model_name"], "figure_type": meta["figure_type"],
+    path = path or publish_asset(raw, "png", {"model_name": meta["model_name"], "figure_type": figure_type}, created_batches)
+    result = upsert(session, ModelFigure, {"job_id": "", "model_name": meta["model_name"],
+        "figure_type": figure_type,
+        "figure_name": f"{meta['model_name']}_{figure_type}.png"[:128],
         "title": text(meta.get("title", meta["figure_type"]), "title", 128), "file_path": path,
-        "generated_at": utc(manifest["created_at"], "manifest.created_at")})
+        "testset_ref": None, "generated_at": utc(manifest["created_at"], "manifest.created_at")})
     return ["model_figure"], {**dict.fromkeys(COUNTS, 0), result: 1}
 
 
@@ -640,6 +693,14 @@ def require_dataset(session, dataset_id):
     return dataset
 
 
+def delete_dataset(session, dataset_id):
+    dataset = require_dataset(session, dataset_id)
+    session.execute(delete(DatasetCommit).where(DatasetCommit.dataset_id == dataset_id))
+    session.delete(dataset)
+    session.commit()
+    return {"dataset_id": dataset_id, "deleted": True}
+
+
 def list_datasets(session, page, size, status=None, q=None):
     snapshot(session)
     query = select(Dataset)
@@ -661,6 +722,156 @@ def member_query(dataset_id, start_time=None, end_time=None):
     if end:
         query = query.where(DatasetCommit.committed_at <= end)
     return query.order_by(DatasetCommit.committed_at, DatasetCommit.commit_hash)
+
+
+def _json(value):
+    if not value:
+        return {}
+    try:
+        decoded = json.loads(value)
+    except (TypeError, ValueError):
+        return {}
+    return decoded if isinstance(decoded, dict) else {}
+
+
+def lineage(session, *, kind=None, status=None, search=None, start_time=None, end_time=None, page=1, size=20):
+    """按 `job.chain_id` 汇总数据链路；链路关系只来自已落库字段，不按文件名猜测。"""
+    if kind is not None and kind not in job_store.KINDS:
+        fc.invalid("kind 非法")
+    if status is not None and status not in job_store.STATUSES:
+        fc.invalid("status 非法")
+    if page < 1 or not 1 <= size <= 100:
+        fc.invalid("page/size 非法")
+    start, end = time_filters(start_time, end_time)
+    jobs = session.scalars(select(Job).order_by(Job.created_at.asc(), Job.job_id.asc())).all()
+    groups: dict[str, list[Job]] = {}
+    for job in jobs:
+        groups.setdefault(job.chain_id or job.job_id, []).append(job)
+    entries = []
+    for chain_id, rows in groups.items():
+        created = min(row.created_at for row in rows)
+        if start and created < start or end and created > end:
+            continue
+        matched = rows
+        if kind is not None:
+            matched = [row for row in matched if row.kind == kind]
+        if status is not None:
+            matched = [row for row in matched if row.status == status]
+        if not matched:
+            continue
+        title = None
+        for row in rows:
+            params = _json(row.params_json)
+            settings = params.get("config") if isinstance(params.get("config"), dict) else params
+            title = settings.get("dataset_name") or settings.get("repo_name") or settings.get("source_url")
+            if title:
+                break
+        if not title:
+            title = "未关联 · " + chain_id[:8] if len(rows) == 1 else chain_id
+        if search:
+            needle = search.lower()
+            haystack = [chain_id, str(title)] + [row.job_id for row in rows]
+            if not any(needle in str(item).lower() for item in haystack):
+                continue
+        ids = [row.job_id for row in rows]
+        model_map: dict[str, list[str]] = {}
+        for model_name, train_job_id in session.execute(
+            select(ModelArtifact.model_name, ModelArtifact.train_job_id).where(ModelArtifact.train_job_id.in_(ids))
+        ).all():
+            model_map.setdefault(train_job_id, []).append(model_name)
+        dataset_map = {
+            job_id: dataset_id
+            for dataset_id, job_id in session.execute(
+                select(Dataset.dataset_id, Dataset.job_id).where(Dataset.job_id.in_(ids))
+            ).all()
+        }
+        kinds: dict[str, int] = {}
+        for row in rows:
+            kinds[row.kind] = kinds.get(row.kind, 0) + 1
+        nodes = []
+        for row in matched:
+            reference = _json(row.output_ref_json)
+            artifacts = [
+                {"name": item.get("name"), "size_bytes": item.get("size_bytes")}
+                for item in reference.get("outputs", [])
+                if isinstance(item, dict) and item.get("name")
+            ]
+            nodes.append({
+                "job_id": row.job_id,
+                "kind": row.kind,
+                "status": row.status,
+                "parent_job_ids": json.loads(row.parent_job_ids) if row.parent_job_ids else [],
+                "model_names": model_map.get(row.job_id, []),
+                "dataset_id": dataset_map.get(row.job_id),
+                "created_at": iso_z(row.created_at),
+                "finished_at": iso_z(row.finished_at),
+                "artifacts": artifacts,
+            })
+        entries.append({
+            "chain_id": chain_id,
+            "title": title,
+            "created_at": iso_z(created),
+            "node_count": len(rows),
+            "kinds": kinds,
+            "nodes": nodes,
+        })
+    entries.sort(key=lambda item: item["created_at"] or "", reverse=True)
+    total = len(entries)
+    window = entries[(page - 1) * size:(page - 1) * size + size]
+    return {"items": window, "total": total, "page": page}
+
+
+def delete_chain(session, chain_id):
+    """整链删除：先做共享引用检查，通过后删除链内任务、产物、模型与数据集。"""
+    rows = session.scalars(select(Job).where(Job.chain_id == chain_id)).all()
+    if not rows:
+        raise AppError(40400, "链路不存在")
+    ids = {row.job_id for row in rows}
+    artifacts = sum(
+        len(_json(row.output_ref_json).get("outputs", []))
+        for row in rows
+    )
+    models = session.scalars(select(ModelArtifact).where(ModelArtifact.train_job_id.in_(ids))).all()
+    datasets = session.scalars(select(Dataset).where(Dataset.job_id.in_(ids))).all()
+    model_names = {model.model_name for model in models}
+    dataset_ids = {dataset.dataset_id for dataset in datasets}
+    references = []
+    if model_names:
+        for prediction in session.scalars(select(Prediction).where(Prediction.model_name.in_(model_names))).all():
+            if prediction.job_id not in ids:
+                references.append({"kind": "prediction", "model_name": prediction.model_name, "job_id": prediction.job_id})
+        for figure in session.scalars(select(ModelFigure).where(ModelFigure.model_name.in_(model_names))).all():
+            if figure.job_id not in ids:
+                references.append({"kind": "model_figure", "model_name": figure.model_name, "job_id": figure.job_id})
+    if dataset_ids:
+        for job in session.scalars(select(Job).where(Job.job_id.notin_(ids))).all():
+            text = job.params_json or ""
+            for dataset_id in dataset_ids:
+                if dataset_id in text:
+                    references.append({"kind": "job", "job_id": job.job_id, "dataset_id": dataset_id})
+    if references:
+        raise AppError(40001, "链路资产被链路外任务引用，未执行删除", {"references": references})
+    for row in rows:
+        module = _json(row.output_ref_json).get("module") or ("predict" if row.kind == "predict_batch" else row.kind)
+        try:
+            output_store.discard_output(module, row.job_id)
+        except AppError:
+            pass  # 已清理或历史批次不阻塞整链删除
+    session.execute(delete(ModelFigure).where(ModelFigure.job_id.in_(ids)))
+    session.execute(delete(Prediction).where(Prediction.job_id.in_(ids)))
+    for model in models:
+        session.delete(model)
+    if model_names:
+        session.execute(delete(Model).where(Model.model_name.in_(model_names)))
+    if dataset_ids:
+        session.execute(delete(DatasetCommit).where(DatasetCommit.dataset_id.in_(dataset_ids)))
+        for dataset in datasets:
+            session.delete(dataset)
+    for row in rows:
+        session.delete(row)
+    session.commit()
+    return {"chain_id": chain_id, "jobs": len(ids), "artifacts": artifacts,
+            "models": len(models), "datasets": len(datasets)}
 
 
 def member_record(member, feature=None, with_features=True):

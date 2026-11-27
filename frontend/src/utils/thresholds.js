@@ -12,6 +12,7 @@ export const configuration = reactive({
 })
 
 // 仅接受服务端确认的生效项，不根据草稿、.env 或本地常量推算回退值。
+// 视觉主题只由 ui.css 设计令牌决定，配置中心不再覆盖背景色与主题色。
 export async function applyConfiguration(data) {
   if (!Array.isArray(data?.items)) throw new Error('配置响应不完整，请重试')
   const merged = new Map((data.schema ? [] : configuration.items).map(item => [item.config_key, item]))

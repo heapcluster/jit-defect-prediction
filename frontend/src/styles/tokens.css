@@ -1,0 +1,257 @@
+:root {
+  /* ---------- Layer 1: primitives (raw values; no component should use these directly) ---------- */
+  --p-neutral-0: #ffffff;
+  --p-neutral-25: #fbfcfb;
+  --p-neutral-50: #f6f8f6;
+  --p-neutral-100: #eef1ee;
+  --p-neutral-200: #e2e7e2;
+  --p-neutral-300: #cbd4ce;
+  --p-neutral-400: #94a3a0;
+  --p-neutral-500: #64716b;
+  --p-neutral-600: #4b5953;
+  --p-neutral-700: #34413c;
+  --p-neutral-800: #1c2723;
+  --p-neutral-900: #101815;
+  --p-neutral-950: #0a1412;
+
+  --p-teal-50: #e8f3f0;
+  --p-teal-100: #c6dedb;
+  --p-teal-200: #a3cbc7;
+  --p-teal-300: #6aaea9;
+  --p-teal-500: #2a9c91;
+  --p-teal-600: #0f766e;
+  --p-teal-700: #115e59;
+  --p-teal-800: #0d4f4a;
+
+  --p-red-50: #fef2f4;
+  --p-red-600: #be123c;
+  --p-red-700: #8c1029;
+  --p-green-50: #effaf2;
+  --p-green-600: #15803d;
+  --p-green-700: #14532d;
+  --p-amber-50: #fff7ed;
+  --p-amber-600: #b45309;
+  --p-amber-700: #7c3f00;
+  --p-blue-50: #eef4ff;
+  --p-blue-600: #2563eb;
+
+  --p-neutral-a4: rgb(148 163 184 / 4%);
+  --p-neutral-a6: rgb(148 163 184 / 6%);
+  --p-neutral-a8: rgb(148 163 184 / 8%);
+  --p-neutral-a10: rgb(148 163 184 / 10%);
+  --p-neutral-a14: rgb(148 163 184 / 14%);
+  --p-neutral-a45: rgb(16 24 21 / 45%);
+  --p-teal-a12: rgb(15 118 110 / 12%);
+  --p-teal-a18: rgb(15 118 110 / 18%);
+  --p-teal-a26: rgb(15 118 110 / 26%);
+  --p-teal-a32: rgb(94 211 198 / 32%);
+  --p-teal-a92: rgb(15 118 110 / 92%);
+
+  --p-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --p-font-mono: ui-monospace, SFMono-Regular, Menlo, "Cascadia Code", Consolas, monospace;
+
+  --p-space-1: 4px;
+  --p-space-2: 8px;
+  --p-space-3: 12px;
+  --p-space-4: 16px;
+  --p-space-5: 24px;
+  --p-space-6: 32px;
+  --p-space-7: 40px;
+
+  --p-radius-1: 4px;
+  --p-radius-2: 6px;
+  --p-radius-3: 8px;
+  --p-radius-4: 12px;
+  --p-radius-5: 16px;
+
+  --p-shadow-1: 0 1px 2px rgb(16 24 21 / 5%);
+  --p-shadow-2: 0 8px 24px rgb(16 24 21 / 8%);
+  --p-shadow-3: 0 18px 48px rgb(16 24 21 / 14%);
+
+  --p-duration-1: 120ms;
+  --p-duration-2: 180ms;
+  --p-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+:root {
+  /* ---------- Layer 2: semantic aliases (purpose, not appearance) ---------- */
+  /* Compatibility aliases: legacy names still used by views keep their meaning. */
+  --ui-color-slate-50: var(--p-neutral-50);
+  --ui-color-slate-100: var(--p-neutral-100);
+  --ui-color-slate-200: var(--p-neutral-200);
+  --ui-color-slate-300: var(--p-neutral-300);
+  --ui-color-slate-500: var(--p-neutral-500);
+  --ui-color-slate-700: var(--p-neutral-700);
+  --ui-color-slate-900: var(--p-neutral-900);
+  --ui-color-blue-600: var(--p-teal-600);
+  --ui-color-blue-700: var(--p-teal-700);
+  --ui-color-red-600: var(--p-red-600);
+  --ui-color-green-600: var(--p-green-600);
+  --ui-color-amber-600: var(--p-amber-600);
+
+  --ui-bg: var(--p-neutral-50);
+  --ui-surface: var(--p-neutral-0);
+  --ui-surface-subtle: var(--p-neutral-25);
+  --ui-surface-raised: var(--p-neutral-0);
+  --ui-text: var(--p-neutral-900);
+  --ui-text-muted: var(--p-neutral-500);
+  --ui-text-inverse: var(--p-neutral-0);
+  --ui-border: var(--p-neutral-200);
+  --ui-border-strong: var(--p-neutral-300);
+
+  --ui-primary: var(--p-teal-600);
+  --ui-primary-hover: var(--p-teal-700);
+  --ui-primary-soft: var(--p-teal-50);
+  --ui-primary-contrast: var(--p-neutral-0);
+  --ui-fill-color-light: var(--p-neutral-100);
+
+  --ui-success: var(--p-green-600);
+  --ui-success-bg: var(--p-green-50);
+  --ui-success-text: var(--p-green-700);
+  --ui-warning: var(--p-amber-600);
+  --ui-warning-bg: var(--p-amber-50);
+  --ui-warning-text: var(--p-amber-700);
+  --ui-danger: var(--p-red-600);
+  --ui-danger-bg: var(--p-red-50);
+  --ui-danger-text: var(--p-red-700);
+  --ui-info: var(--p-blue-600);
+  --ui-info-bg: var(--p-blue-50);
+
+  --ui-focus-ring: var(--p-teal-a18);
+  --ui-shadow-sm: var(--p-shadow-1);
+  --ui-shadow-md: var(--p-shadow-2);
+  --ui-shadow-lg: var(--p-shadow-3);
+
+  /* Dark shell only: never used for content surface. */
+  --ui-sidebar-bg: var(--p-neutral-950);
+  --ui-sidebar-border: var(--p-neutral-a14);
+  --ui-sidebar-text: var(--p-neutral-400);
+  --ui-sidebar-text-strong: var(--p-neutral-100);
+  --ui-sidebar-active-bg: var(--p-teal-a26);
+  --ui-tooltip-bg: var(--p-neutral-900);
+
+  --ui-font-sans: var(--p-font-sans);
+  --ui-font-sm: 12px;
+  --ui-font-base: 13px;
+  --ui-font-md: 14px;
+  --ui-font-hint: 12px;
+  --ui-font-lg: 16px;
+  --ui-font-xl: 22px;
+  --ui-font-2xl: 28px;
+  --ui-font-mono: var(--p-font-mono);
+
+  --ui-space-1: var(--p-space-1);
+  --ui-space-2: var(--p-space-2);
+  --ui-space-3: var(--p-space-3);
+  --ui-space-4: var(--p-space-4);
+  --ui-space-5: var(--p-space-5);
+  --ui-space-6: var(--p-space-6);
+  --ui-space-7: var(--p-space-7);
+
+  --ui-radius-sm: var(--p-radius-1);
+  --ui-radius-md: var(--p-radius-2);
+  --ui-radius-lg: var(--p-radius-3);
+  --ui-radius-xl: var(--p-radius-4);
+  --ui-duration-fast: var(--p-duration-1);
+  --ui-duration-normal: var(--p-duration-2);
+  --ui-ease: var(--p-ease-standard);
+}
+
+:root {
+  /* ---------- Layer 3: component tokens ---------- */
+  --ui-sidebar-width: 248px;
+  --ui-sidebar-padding: 20px 12px 16px;
+  --ui-nav-height: 38px;
+  --ui-nav-group-color: var(--p-neutral-600);
+  --ui-nav-active-bar: var(--p-teal-300);
+  --ui-brand-mark-bg: var(--p-teal-a92);
+  --ui-brand-mark-border: var(--p-teal-a32);
+  --ui-brand-mark-text: var(--p-teal-50);
+  --ui-brand-title: var(--p-neutral-100);
+  --ui-brand-subtitle: var(--p-neutral-400);
+  --ui-status-dot: var(--p-green-600);
+
+  --ui-topbar-bg: var(--p-neutral-0);
+  --ui-topbar-height: 76px;
+  --ui-topbar-padding: 18px 28px 14px;
+  --ui-breadcrumb-color: var(--ui-text-muted);
+  --ui-next-step-radius: var(--p-radius-2);
+  --ui-next-step-height: 32px;
+
+  --ui-main-padding: 20px 28px 36px;
+  --ui-panel-bg: var(--ui-surface);
+  --ui-panel-border: var(--ui-border);
+  --ui-panel-radius: var(--p-radius-3);
+  --ui-panel-padding: var(--p-space-5);
+  --ui-panel-shadow: none;
+
+  --ui-entry-button-height: var(--p-space-7);
+  --ui-entry-button-min-width: calc(var(--p-space-7) * 4.5);
+  --ui-entry-button-padding-inline: var(--p-space-4);
+  --ui-entry-button-font-size: var(--ui-font-md);
+  --ui-entry-button-bg: var(--ui-surface);
+  --ui-entry-button-border: var(--ui-border-strong);
+  --ui-entry-button-text: var(--ui-text);
+  --ui-entry-button-hover-bg: var(--ui-primary-soft);
+  --ui-entry-button-hover-text: var(--ui-primary);
+
+  --ui-toolbar-height: 36px;
+  --ui-toolbar-gap: var(--p-space-4);
+  --ui-input-height: 34px;
+  --ui-button-height: 34px;
+
+  --ui-picker-min-height: 38px;
+  --ui-picker-padding: 0 var(--p-space-4);
+  --ui-picker-radius: var(--p-radius-3);
+  --ui-picker-border: var(--ui-border-strong);
+  --ui-picker-bg: var(--ui-surface);
+  --ui-picker-text: var(--ui-text);
+  --ui-picker-hover-bg: var(--ui-primary-soft);
+  --ui-picker-hover-border: var(--ui-primary);
+  --ui-picker-hover-text: var(--ui-primary);
+  --ui-picker-active-scale: 0.99;
+  --ui-picker-gap: var(--p-space-2);
+
+  --ui-table-padding: 7px 10px;
+  --ui-table-header-bg: var(--p-neutral-50);
+  --ui-table-header-text: var(--p-neutral-600);
+  --ui-table-row-hover-bg: var(--p-teal-50);
+  --ui-table-empty-padding: var(--p-space-6);
+
+  --ui-step-marker-size: 24px;
+  --ui-step-rail-padding: var(--p-space-3) var(--p-space-4);
+  --ui-step-rail-bg: var(--ui-surface-subtle);
+
+  --ui-kpi-bg: var(--ui-surface);
+  --ui-kpi-accent: var(--ui-primary);
+  --ui-kpi-radius: var(--p-radius-3);
+
+  --ui-check-radius: var(--p-radius-2);
+  --ui-check-active-shadow: 0 0 0 1px var(--ui-primary) inset;
+  --ui-check-active-focus-shadow: 0 0 0 1px var(--ui-primary) inset, 0 0 0 3px var(--ui-focus-ring);
+}
+
+:root {
+  /* Element Plus bridge: component library consumes only semantic tokens. */
+  --el-color-primary: var(--ui-primary);
+  --el-color-primary-light-3: var(--p-teal-300);
+  --el-color-primary-light-5: var(--p-teal-200);
+  --el-color-primary-light-7: var(--p-teal-100);
+  --el-color-primary-light-8: var(--p-teal-50);
+  --el-color-primary-light-9: var(--p-teal-50);
+  --el-color-success: var(--ui-success);
+  --el-color-warning: var(--ui-warning);
+  --el-color-danger: var(--ui-danger);
+  --el-border-radius-base: var(--ui-radius-sm);
+  --el-border-radius-small: var(--p-radius-1);
+  --el-font-size-base: var(--ui-font-base);
+  --el-text-color-primary: var(--ui-text);
+  --el-text-color-regular: var(--ui-color-slate-700);
+  --el-text-color-secondary: var(--ui-text-muted);
+  --el-border-color: var(--ui-border);
+  --el-border-color-light: var(--ui-border);
+  --el-border-color-lighter: var(--p-neutral-100);
+  --el-fill-color-blank: var(--ui-surface);
+  --el-fill-color-light: var(--p-neutral-50);
+  --el-bg-color: var(--ui-surface);
+}

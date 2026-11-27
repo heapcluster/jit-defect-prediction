@@ -1,19 +1,29 @@
-# 鏁版嵁娓呮礂涓庨澶勭悊 API锛坈lean锛?
-瀹炵幇鐘舵€侊細鐩爣濂戠害銆€鏈熸锛氫竴鏈?
-> 鏃?API 鍙ｅ緞鍖呭惈 `commits.csv`銆乣szz_label`銆乣d5_exclude`銆乣time_split`銆乣is_test`銆乣feature_build`銆並amei 14 缁存ā鍨嬬壒寰侊紱鏈枃宸插簾姝€傛湰杞彧淇敼璁捐鏂囨。銆?
-鏂囦欢濂戠害鍞竴鏉冨▉锛歔`../file-contracts.md`](../file-contracts.md) 搂3.1銆伮?.2銆伮?.9锛涘叕鍏卞彛寰勮 [README.md](README.md)銆?
-## 1 鑱岃矗涓庝笉璐熻矗鑼冨洿
+﻿# 数据清洗与预处理 API（clean）
 
-- 璐熻矗鎿嶄綔娉ㄥ唽琛ㄣ€佸鐞嗛摼鏍￠獙銆乸review/apply銆佹瘡姝ユ暟鎹泦鍙樺寲缁熻銆佹寚瀹氬垪鍙樺寲缁熻銆佸浘琛ㄥ拰娓呮礂鍚庢暟鎹泦鏂囦欢浜や粯銆?- 杈撳叆涓烘澘鍧?2 鐨?`collected_commits.csv/xlsx`銆?- 涓嶆墽琛?SZZ銆丏5銆丟it 鎷夊彇銆?- 涓嶇敓鎴?`is_test`锛屼笉鍋氳缁?娴嬭瘯鍒囧垎銆?- 涓嶇敓鎴愭垨閫夋嫨妯″瀷鐗瑰緛锛汯amei 14 缁淬€佽涔夊悜閲忋€佽瀺鍚堢壒寰併€佺鍒扮鏂囨湰鐗瑰緛鍧囧湪璁粌闃舵澶勭悊銆?- 涓嶅仛璁粌渚?`log_transform` / `standardize` / `categorical_encode` / `feature_select`銆?- 涓嶈缁冩ā鍨嬨€佷笉璇勪及銆佷笉瑙ｉ噴銆佷笉瀹氫綅銆?- 涓嶈姹傛暟鎹簱鏈変笂娓告暟鎹紱涓嶅啓 `dataset` / `dataset_commit`銆?
-## 2 绔偣濂戠害
+设计状态：目标契约。页面按四步组织，不提供“对比图配置”；结果区用 `steps_stats` 展示每步前后差异与字段级变化。清洗后主表只落一份规范 CSV，XLSX 在下载时按需生成；分页预览为全量数据分页，不生成 PNG 变化图。
+
+collected_commits 列契约、clean_dataset 列契约、manifest 契约；页面设计见 [`../web_page/clean.md`](../web_page/clean.md)。
+
+## 1 职责与不负责范围
+
+- 负责操作注册表、处理链校验、preview/apply、每步数据变化统计、关键特征变化图与清洗后数据集文件交付。
+- Web 页面输入为「数据收集保存的数据集」：`GET /api/datasets` 筛选 `status=ready`、schema 符合 `collected_commits`、来源为 Git 仓库收集结果的数据集后，传 `dataset_id` 给清洗任务。
+- API / CLI 仍可上传 `collected_commits.csv` 主表与同名 manifest，保持模块独立运行能力。
+- 不执行 SZZ、D5、Git 拉取；不生成 `is_test`、不做训练/测试切分。
+- 不生成或选择模型特征；Kamei 14 维、语义向量、融合特征、端到端文本特征归训练阶段，训练侧变换（`log_transform` / `standardize` / `categorical_encode` / `feature_select`）不在本模块。
+- 不训练模型、不评估、不解释、不定位；不写 `dataset` / `dataset_commit`，自动入库走 storage。
+
+## 2 端点契约
 
 ### GET /api/clean/operations
 
-鏃犺姹傚弬鏁般€傚搷搴?`data.operations[]`锛屾瘡涓搷浣滃寘鍚細
+无请求参数。响应 `data.operations[]` 与 `data.features[]`。
+
+每个操作包含：
 
 ```text
 op
-group = cleaning | preprocessing
+group = clean | preprocess        # clean=常用清洗操作；preprocess=预处理操作
 name
 description
 input_schema
@@ -21,12 +31,15 @@ output_schema
 params_schema[]
 order_constraints[]
 supports_preview
+default_enabled
 ```
 
-涓€鏈熸搷浣滐細
+`group=clean` 渲染为页面的“常用清洗操作”，`group=preprocess` 渲染为“预处理操作”。操作名与参数标签必须由前端中文化后展示，不暴露 `op` 与参数 key。
 
-娓呮礂锛?
+一期操作：
+
 ```text
+常用清洗操作：
 schema_validate
 duplicate_drop
 merge_commit_filter
@@ -36,11 +49,8 @@ unlabeled_handle
 outlier_filter
 label_validate
 text_clean
-```
 
-閫氱敤棰勫鐞嗭細
-
-```text
+预处理操作：
 type_convert
 date_normalize
 text_normalize
@@ -50,22 +60,29 @@ derive_basic_fields
 
 ### POST /api/clean/run
 
-`multipart/form-data`銆?
-鏂囦欢锛?
-| part | 蹇呭～ | 璇存槑 |
-|---|---|---|
-| `files[]` | 鏄?| `collected_commits.csv/xlsx` |
-| 鍚屽悕 manifest | 鍚?| 鎻愪緵鏃舵牎楠?checksum 涓庢潵婧?|
+`multipart/form-data`。
 
-`config` JSON part锛?
-| 瀛楁 | 蹇呭～ | 濂戠害 |
-|---|---|---|
-| `mode` | 鏄?| `preview` / `apply` |
-| `steps[]` | 鏄?| 鏈夊簭鏁扮粍锛歚{op,enabled,params}` |
-| `chart_columns[]` | 鍚?| 闇€瑕佸墠鍚庡彉鍖栧浘鐨勫垪/鍩虹鐗瑰緛锛涘彲涓虹┖ |
-| `format` | 鍚?| `csv` / `xlsx`锛岄粯璁?`csv` |
+`config` JSON part（必填）：
 
-绂佹瀛楁锛?
+| 字段 | 必填 | 契约 |
+|---|---|---|
+| `mode` | 是 | `preview` / `apply`；Web 页面固定 `apply`，API / CLI 可继续使用 `preview` |
+| `steps[]` | 是 | 有序数组：`{op, enabled, params}`；`schema_validate` 必须首项且启用 |
+| `output_name` | 否 | 数据集 / 导出文件名称，1–64 字符，允许中文；禁止 `/ \ : * ? " < > \|`、控制字符，且不能以点开头或结尾；不填时沿用 `clean_dataset_<job_id>` |
+| `dataset_id` | 否 | 数据收集保存的数据集 id；Web 页面必传；与上传文件二选一 |
+| `template` | 否 | 处理链模板名，需已存在于 `user_config` 的 `clean.chain_templates`；命中后与显式 `steps` 合并，显式字段优先 |
+
+变更说明：`format` 从运行配置移除；清洗任务只落规范 CSV，XLSX 在下载端点按 `format=xlsx` 即时生成。`chart_columns` 已移除；后端只在 `steps_stats` 中记录前后差异，不生成 PNG 变化图。
+
+文件 part（可选，最多 2 个）：
+
+| part | 必填 | 说明 |
+|---|---|---|
+| `files[]` | 否 | `collected_commits.csv` 主表；与 `dataset_id` 二选一 |
+| `files[]` | 否 | 与主表同名的 `.manifest.json`，提供时校验 checksum 与来源 |
+
+禁止字段（出现即 `40001`）：
+
 ```text
 repo_source
 feature_file
@@ -82,8 +99,8 @@ seed
 is_test
 ```
 
-鏀跺埌绂佹瀛楁杩斿洖 40001锛屽苟鎻愮ず妯″瀷鐗瑰緛涓庤缁冨垏鍒嗗睘浜庤缁冮樁娈点€?
-鍝嶅簲锛?
+响应：
+
 ```json
 {
   "code": 0,
@@ -95,44 +112,60 @@ is_test
 }
 ```
 
-灏忔枃浠跺彲鍚屾瀹屾垚锛涘ぇ鏂囦欢璧板紓姝?job銆傚悓 kind 鍚屾椂鏈€澶氫竴涓?running銆?
+小表（≤ 同步阈值）同步执行，直接返回终态并附带 `mode`、`outputs`、`summary`、`error_log`；大表走异步 job，只返回 `job_id` 与 `status`。同 kind 同时最多一个 running。
+
 ### GET /api/clean/preview/{job_id}
 
-浠?apply 鎴愬姛鎻愪緵锛?
+仅成功 apply 任务提供清洗后主表分页预览。
+
+| 参数 | 必填 | 契约 |
+|---|---|---|
+| `page` | 否 | 页码，默认 1 |
+| `size` | 否 | 每页行数，默认 20，范围 1–100 |
+
+响应：
+
 ```json
 {
   "columns": [],
-  "preview": []
+  "preview": [],
+  "total": 0,
+  "page": 1,
+  "size": 20
 }
 ```
 
-鏈€澶氬墠 20 琛岋紱绌烘爣绛捐繑鍥?`null`銆俻review 妯″紡娌℃湁涓昏〃锛岃繑鍥?40001銆?
+- 支持分页浏览全量清洗后数据；单页默认 20 行。
+- 展示全部列，前端表格内部横向滚动，不压缩列。
+- 空标签返回 `null`；预览文件按任务登记的 `.csv` 产物定位，兼容自定义 `output_name`。
+- preview 模式没有清洗后主表，返回 `40001`。
+
 ### GET /api/clean/outputs/{job_id}/{name}
 
-涓嬭浇宸茬櫥璁颁骇鐗┿€傚厑璁稿悕绉帮細
+下载清洗后核心数据集。`name` 必须出现在 manifest `outputs[]` 的核心主表条目中，禁止路径分隔符与 `..`。
 
-```text
-clean_dataset_<job_id>.csv
-clean_dataset_<job_id>.xlsx
-clean_steps_stats_<job_id>.json
-clean_column_stats_<job_id>.json
-clean_dataset_change_<step>_<job_id>.png
-clean_column_distribution_<step>_<column>_<job_id>.png
-clean_dataset_<job_id>.manifest.json
-```
-
-`name` 蹇呴』鍑虹幇鍦?manifest `outputs[]`锛岀姝㈣矾寰勫垎闅旂鍜?`..`銆?
-### 閿欒鐮?
-| 涓氬姟鐮?| HTTP | 鍦烘櫙 |
+| 参数 | 必填 | 契约 |
 |---|---|---|
-| 40001 | 400 | 鏈煡鎿嶄綔銆侀『搴忓啿绐併€佺姝㈠瓧娈点€侀潪娉?schema銆佸叕寮忔敞鍏?|
-| 40100 | 401 | 缂哄け鎴栭敊璇?`X-API-Key` |
-| 40400 | 404 | job 鎴栬緭鍑轰笉瀛樺湪 |
-| 50000 | 500 | 鏈鏈熼敊璇紱杩愯鏈熷け璐ュ啓鑴辨晱鏃ュ織 |
+| `format` | 否 | `csv`（默认）/ `xlsx`；只影响本次下载响应 |
 
-## 3 杈撳叆濂戠害
+- `format=csv`：直接返回规范主表 `clean_dataset_<job_id>.csv` 或 `<output_name>.csv`。
+- `format=xlsx`：从同一规范 CSV 即时生成单 sheet XLSX 并返回；不写入产物目录、不登记为新产物。
+- 响应 `Content-Disposition` 文件名为 `<output_name>_<job_id>.<ext>`；`output_name` 必须做文件名安全清洗。
+- `clean_steps_stats`、manifest 属于内部记录，不作为结果文件下载项；结果区从 `steps_stats` 读取前后差异。
 
-涓昏〃涓ユ牸寮曠敤 [`../file-contracts.md`](../file-contracts.md) 搂3.1锛?
+### 错误码
+
+| 业务码 | HTTP | 场景 |
+|---|---|---|
+| 40001 | 400 | 未知操作、顺序冲突、禁止字段、非法 schema、公式注入、文件名非法、`format` 非法 |
+| 40100 | 401 | 缺失或错误 `X-API-Key` |
+| 40400 | 404 | job 或输出不存在、清洗模板不存在 |
+| 50000 | 500 | 未预期异常；运行期失败写脱敏日志 |
+
+## 3 输入契约
+
+主表列严格引用 collected_commits 列契约：
+
 ```text
 commit_hash, repo_name, repo_url, author_name, author_email,
 committed_at, message, parent_hash,
@@ -140,78 +173,138 @@ is_bug_inducing, label_method, label_source,
 labeled_at, fix_commit_hash, source_type
 ```
 
-鏍￠獙锛?
-- `commit_hash` 40 浣嶅皬鍐?hex銆?- `is_bug_inducing` 鍙兘 1 / 0 / 绌恒€?- `label_source` 鍙兘 `git_szz` / `public_dataset`銆?- CSV UTF-8/UTF-8 BOM锛沊LSX 鍗?sheet銆?- 涓嶅厑璁稿叕寮忔敞鍏ュ崟鍏冩牸銆?- 涓嶈姹?14 缁寸壒寰佸垪銆?- 涓嶅厑璁?`is_test` 鍒楄繘鍏ワ紱鑻ヨ緭鍏ュ寘鍚?`is_test`锛屽拷鐣ュ苟鍦?manifest 璁板綍鏉ユ簮璀﹀憡銆?
-## 4 澶勭悊閾捐鍒?
-- `schema_validate` 蹇呴』绗竴姝ヤ笖涓嶅彲鍏抽棴銆?- 娓呮礂鎿嶄綔蹇呴』鍏堜簬閫氱敤棰勫鐞嗘搷浣溿€?- `date_normalize` 蹇呴』鍏堜簬浠讳綍鍩轰簬鏃堕棿鐨勫熀纭€娲剧敓銆?- `derive_basic_fields` 鍙兘娲剧敓鍩虹鍒楋紝涓嶅緱鐢熸垚妯″瀷鐗瑰緛銆?- 涓嶅厑璁?SZZ銆丏5銆佹椂闂村垏鍒嗐€佹ā鍨嬬壒寰佺敓鎴愭垨璁粌渚у彉鎹綔涓烘湰妯″潡鎿嶄綔銆?
-## 5 杈撳嚭濂戠害
+校验：
 
-### 5.1 娓呮礂鍚庢暟鎹泦
+- `commit_hash` 40 位小写 hex。
+- `is_bug_inducing` 只能 1 / 0 / 空。
+- `label_source` 只能 `git_szz` / `public_dataset`。
+- CSV UTF-8/UTF-8 BOM；上传 XLSX 单 sheet。
+- 不允许公式注入单元格。
+- 不要求 14 维特征列。
+- 不允许 `is_test` 列进入；若输入包含 `is_test`，忽略并在 manifest 记录来源警告。
 
-apply 妯″紡浜у嚭锛?
+`dataset_id` 输入时，后端按数据集成员生成规范 CSV，再走同一解析与校验流程。Web 页面只传数据收集保存的数据集 id。
+
+## 4 处理链约束
+
+- `schema_validate` 必须第一步且不可关闭。
+- 清洗操作必须先于通用预处理操作。
+- `date_normalize` 必须先于任何基于时间的基础派生。
+- `derive_basic_fields` 只能派生基础列，不得生成模型特征。
+- 不允许 SZZ、D5、时间切分、模型特征生成或训练侧变换作为本模块操作。
+- 页面不提供对比图配置；后端只记录每步前后差异与字段级变化，不生成 PNG 变化图。
+
+## 5 输出契约
+
+### 5.1 清洗后数据集
+
+用户可见核心产物只有一份：
+
 ```text
 clean_dataset_<job_id>.csv
-clean_dataset_<job_id>.xlsx
 ```
 
-鍒楋細
-
-- 淇濈暀 搂3.1 鍘熷鍒楋紝鎸夋竻娲楃粨鏋滄洿鏂般€?- 鍙拷鍔?`derive_basic_fields` 鐢熸垚鐨勫熀纭€鍒椼€?- 涓嶇敓鎴?Kamei 14 缁淬€佽涔夊悜閲忋€佽瀺鍚堢壒寰佹垨妯″瀷杈撳叆鐗瑰緛銆?- 涓嶅啓 `is_test`銆?- 涓嶅啓浠讳綍璁粌/娴嬭瘯鏍囪銆?
-### 5.2 姣忔缁熻
+填写 `output_name` 时：
 
 ```text
-clean_steps_stats_<job_id>.json
+<output_name>.csv
 ```
 
-姣忔鍖呭惈锛?
+- 保留 collected_commits 列契约 原始列，按清洗结果更新。
+- 可追加 `derive_basic_fields` 生成的基础列：`message_length`、`parent_count`、`commit_hour`。
+- 不生成 Kamei 14 维、语义向量、融合特征或模型输入特征。
+- 不写 `is_test`，不写任何训练/测试标记。
+- CSV UTF-8 BOM；XLSX 只在下载时按需生成，不预生成、不登记。
+
+### 5.2 每步统计
+
+内部记录：
+
+```text
+clean_steps_stats_<job_id>.json   # 或 <名称>_steps_stats.json
+```
+
+数组元素字段：
+
 ```text
 step
+enabled
 rows_before
 rows_after
 removed_rows
 modified_rows
-label_dist_before
-label_dist_after
-missing_before
-missing_after
-duplicate_before
-duplicate_after
+modified_samples[]          # {commit_hash, changes{field: {before, after}}}
+label_dist_before / label_dist_after   # {positive, negative, null}
+missing_before / missing_after
+duplicate_before / duplicate_after
 elapsed_ms
-excluded_samples
+excluded_samples[]
+warnings[]
 ```
 
-### 5.3 鏁版嵁闆嗗彉鍖栧浘
+### 5.3 前后差异展示
+
+Web 页面不传 `chart_columns`，API / CLI 也不再接受该字段。后端在 `clean_steps_stats` 中记录每步的行数、删除行数、修改行数、标签分布、缺失与重复变化，以及 `modified_samples[]` 的字段级前后值；页面据此渲染差异表，不生成 PNG 变化图。
+
+### 5.4 manifest
+
+由 `output_store` 统一生成，产物必伴同名 manifest 并登记 checksum：
 
 ```text
-clean_dataset_change_<step>_<job_id>.png
+schema_version
+module
+job_id
+inputs[]        # name / sha256 / rows
+config          # 归一化后的处理链配置（含 output_name）
+outputs[]       # 本批次全部产物：核心 CSV / steps_stats / manifest
+code_version
+created_at
 ```
 
-灞曠ず琛屾暟銆佹爣绛惧垎甯冦€佺己澶?閲嶅鍙樺寲銆?
-### 5.4 鎸囧畾鍒楀彉鍖?
+manifest 与主产物同茎：未填名称时为 `clean_dataset_<job_id>.manifest.json`，填了名称为 `<名称>.manifest.json`。
+
+任务 `output_ref_json` 另带 `mode`、`summary`、`columns`、`manifest_name`，供 jobs 接口与页面读取；`outputs` 中含统计、图与 manifest，页面结果文件区只展示核心 CSV：
+
 ```text
-clean_column_stats_<job_id>.json
-clean_column_distribution_<step>_<column>_<job_id>.png
+summary = {input_rows, output_rows, label_dist, enabled_steps, warnings}
 ```
 
-`chart_columns[]` 涓虹┖鏃跺彧浜ф暟鎹泦绾у彉鍖栧拰 stats锛屼笉浼€犲垪绾у浘銆?
-### 5.5 manifest
+训练页的时间切分滑杆依赖本产物登记提交时间范围与分布，目标契约追加：
 
-閬靛惊 搂3.9锛屽苟璁板綍锛?
 ```text
-mode
-chain_config
-chart_columns
-derived_columns
-column_schema
-input_checksum
-output_checksum
-warnings
+summary.time_range = {min, max}          # 最早、最晚提交时间（UTC）
+summary.time_bins  = [{start, end, count}]  # 时间分桶与样本数，供滑杆实时计算两侧比例
 ```
 
-涓嶈褰?`feature_schema`锛涙ā鍨嬬壒寰?schema 鐢辫缁冮樁娈靛啓鍏ユā鍨嬪寘銆?
-## 6 鐘舵€佹寔涔呭寲
+当前实现尚未产出这两项，属待补契约；缺失时训练页时间滑杆不可用并退回手填边界，不影响比例切分。
 
-- `job.kind=clean`锛屼簲鎬併€?- 浠诲姟璁板綍妯″紡銆佸鐞嗛摼銆佸浘琛ㄥ垪銆佽緭鍏ヨ緭鍑哄紩鐢ㄣ€侀敊璇棩蹇椼€?- preview 涓嶄骇涓昏〃锛沘pply 鎵嶄骇娓呮礂鍚庢暟鎹泦銆?- 杈撳嚭钀?`temp/outputs/<job_id>/`銆?- 鍚岃緭鍏ャ€佸悓閰嶇疆涓昏〃銆佺粺璁″拰鍥捐〃鏁板€间竴鑷淬€?- `elapsed_ms`銆佹墽琛屾椂闂村拰 job_id 涓嶄綔涓鸿法杩愯涓€鑷撮」銆?
-## 7 楠屾敹
+### 5.5 自动入库
 
-- 涓婁紶鏍囧噯 `collected_commits.csv`锛宲review 寰楀埌閫愭缁熻鍜屽浘琛紝鏃犳竻娲楀悗涓昏〃銆?- apply 寰楀埌 `clean_dataset.csv/xlsx`銆佺粺璁°€佸浘琛ㄣ€乵anifest銆?- CSV UTF-8 BOM銆乆LSX 鍗?sheet銆佷腑鏂囦笉涔辩爜銆?- 鎿嶄綔娉ㄥ唽琛ㄥ垎缁勬纭紝椤哄簭绾︽潫鍙牎楠屻€?- 鏃?`szz_label`銆乣d5_exclude`銆乣time_split`銆乣feature_build`銆佹ā鍨嬬壒寰侀€夋嫨銆?- 杈撳嚭涓嶅惈 `is_test` 鍜屾ā鍨嬬壒寰侀泦銆?- 鏈墦鏍囦繚鎸佺┖鍊笺€?- 鎸囧畾鍒楀悗鏈夊墠鍚庡垎甯冨浘锛涙棤鍒楁椂鏈夋暟鎹泦鍙樺寲鍥俱€?- 缂哄垪銆侀敊绫诲瀷銆佸叕寮忔敞鍏ャ€佹湭鐭ユ搷浣溿€侀『搴忓啿绐併€佺姝㈠瓧娈靛潎杩斿洖 40001銆?- CLI/API 鍚屽弬鏁扮瓑浠枫€?
+清洗成功后自动登记数据集：内部自动调用 `POST /api/storage/import`，把核心 CSV 与 manifest 登记为数据集，名称使用 `output_name`；页面不提供文件导入入口。该链路不属于 clean API 的契约，失败不影响结果文件下载；失败时页面提供手动重存入口。
+
+## 6 状态持久化
+
+- `job.kind=clean`，五态（queued / running / success / failed / cancelled）。
+- 任务记录模式、处理链、默认变化图策略、输入输出引用、内部记录引用与错误日志。
+- `output_ref_json.outputs` 登记本批次全部产物（核心 CSV、统计、图、manifest）；页面只展示核心 CSV。
+- preview 不产主表；apply 才产清洗后数据集。
+- 输出落 `temp/outputs/<job_id>/`，批次不可覆盖。
+- 相同输入、相同配置下，主表与前后差异统计一致；`elapsed_ms`、执行时间和 `job_id` 不作为跨运行一致项。
+
+## 7 验收
+
+- Web 页面只传 `dataset_id`、`mode=apply`、`steps[]`、`output_name`；不传 `chart_columns` 与 `format`，API / CLI 也不再接受 `chart_columns`。
+- 前端用 `steps_stats` 展示每步前后差异与字段级变化，不生成 PNG 变化图。
+- 分页预览可浏览全量清洗后数据，默认每页 12 行，展示所有列。
+- apply 只落一份规范 CSV；下载 CSV 直接返回该文件，下载 Excel 按请求即时生成且不落盘。
+- 结果文件区只有一个「清洗后数据集」逻辑文件；内部记录不展示、不作为下载项。
+- CSV UTF-8 BOM、XLSX 单 sheet、中文不乱码；中文 `output_name` 可下载。
+- 操作注册表 `group=clean` / `group=preprocess` 分组正确，顺序约束可校验。
+- 无 `szz_label`、`d5_exclude`、`time_split`、`feature_build`、模型特征选择。
+- 输出不含 `is_test` 和模型特征集；未打标保持空值。
+- 缺列、错类型、公式注入、未知操作、顺序冲突、禁止字段、非法 `output_name` 均返回 `40001`。
+- CLI 与 API 同参数等价（CLI 额外支持 `--output-name` 与 `--chart-columns`）。
+
+
+
+

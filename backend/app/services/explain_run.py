@@ -705,6 +705,21 @@ def submit(session, raw_config, files):
         directory.rmdir()
         fc.invalid("解释重试输入快照超限")
     (directory / "request.json").write_bytes(serialized)
+    model_name = prepared["config"].get("model_name")
+    artifact = session.scalar(select(ModelArtifact).where(ModelArtifact.model_name == model_name)) if model_name else None
+    parents = []
+    if artifact and artifact.train_job_id:
+        parents.append({"kind": "train", "job_id": artifact.train_job_id})
+    # 预测核对表带 manifest 时，把预测任务接入链路父节点。
+    for name, content in files:
+        if not name.endswith(".manifest.json"):
+            continue
+        manifest = fc.read_json(content)
+        parent_job = manifest.get("job_id")
+        module = manifest.get("module")
+        if isinstance(parent_job, str) and parent_job and parent_job not in {p["job_id"] for p in parents}:
+            parents.append({"kind": "predict_batch" if module == "predict" else str(module), "job_id": parent_job})
+    parents = parents or None
     try:
         job = job_store.create(
             session,
@@ -716,11 +731,13 @@ def submit(session, raw_config, files):
                 "config": prepared["config"],
             },
             total=len(prepared["rows"]),
+            parents=parents,
         )
     except Exception:
         shutil.rmtree(directory)
         raise
     if len(prepared["rows"]) <= SYNC_MAX_ROWS:
+        session.commit()
         _execute(job["job_id"], job["retry_count"])
         dispatch()
         current = job_store.get(session, job["job_id"])

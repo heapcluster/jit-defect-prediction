@@ -1,7 +1,7 @@
 # model-delivery Specification
 
 ## Purpose
-把模型产物交付给后端：expert 在线权重与 14 维列序随包交付，四线评估图和测试集预测由 `data_model/evaluation/` 生成，数据库结构与当前 `docs/database/` 五表一致。运行时预测与离线测试集导入分开验收。
+把模型产物交付给后端：expert 在线权重与 14 维列序随包交付，两线评估图和测试集预测由 `data_model/evaluation/` 生成，数据库结构与当前 `docs/database/` 12 张表一致。运行时预测与离线测试集导入分开验收。
 
 ## Requirements
 
@@ -35,7 +35,7 @@ expert 在线模型 MUST 序列化为 `.pkl` 落 `data_model/pipelines/expert/mo
 
 #### Scenario: 名字与旧版本冲突（边界场景）
 - **WHEN** 新模型沿用了已有 `model_name`（如重训后仍叫 `xgb_v1`）
-- **THEN** MUST 换新序号（`xgb_v2`）；MUST NOT 覆盖旧名字 —— 覆盖会让 `prediction` 表里新旧结果混作一批，趋势看板无法解释
+- **THEN** MUST 换新序号（`xgb_v2`）；MUST NOT 覆盖旧名字 —— 覆盖会让 `prediction` 表里新旧结果混作一批，评估记录无法解释
 
 ### Requirement: 全量预测结果文件 MUST 对应契约一表三字段
 
@@ -53,7 +53,7 @@ expert 在线模型 MUST 序列化为 `.pkl` 落 `data_model/pipelines/expert/mo
 
 在线 expert 权重的解释依赖及其版本 SHALL 记录于 `data_model/environment.yml`。逐模型解释与预测性能应按当前验收阈值实测；不支持解释的模型返回明确的空归因，不得伪造贡献值。
 
-> 解释输出字段与空归因展示见 `docs/api/predict.md` 和 `docs/web_page/commit_detail.md`。
+> 解释输出字段与空归因展示见 `docs/api/predict.md` 和 `docs/web_page/predict_detail.md`。
 
 #### Scenario: 交付清单完整
 - **WHEN** 后端线接收 A 方案交付

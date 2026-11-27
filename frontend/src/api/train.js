@@ -11,10 +11,6 @@ export function runTrain(config, files = []) {
   return request.post('/train/run', form, { timeout: SYNC_TIMEOUT })
 }
 
-export function getTrainCompare(jobId) {
-  return request.get('/train/compare', { params: { job_id: jobId } })
-}
-
 export function fetchTrainOutput(jobId, name) {
   return fetchBinary(`/api/train/outputs/${encodeURIComponent(jobId)}/${encodeURIComponent(name)}`)
 }

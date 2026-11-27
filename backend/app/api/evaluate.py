@@ -1,3 +1,4 @@
+import json
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
@@ -21,11 +22,17 @@ def metrics(request: Request):
 
 @router.post('/run')
 async def run_evaluate(request: Request, config: Annotated[str, Form()] = '{}',
+                       prediction_job_id: Annotated[str | None, Form()] = None,
                        files: Annotated[list[UploadFile] | None, File(alias='files[]')] = None):
     query_keys(request, set())
     form = await request.form()
-    if set(form) - {'config', 'files[]'} or len(form.getlist('config')) > 1:
+    if set(form) - {'config', 'files[]', 'prediction_job_id'} or len(form.getlist('config')) > 1:
         fc.invalid('未知或重复的表单字段')
+    if prediction_job_id:
+        # 页面按文档把预测任务作为独立 part 提交；合并进 config 供服务层统一校验。
+        settings = fc.read_json(config.encode('utf-8'))
+        settings['prediction_job_id'] = prediction_job_id
+        config = json.dumps(settings, ensure_ascii=False)
     uploaded, remaining = [], fc.MAX_UPLOAD_BYTES
     for file in files or []:
         content = await file.read(remaining + 1)

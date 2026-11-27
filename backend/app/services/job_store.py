@@ -6,6 +6,7 @@ returned by start and pass it to every progress/terminal update.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from contextlib import contextmanager
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -18,6 +19,8 @@ from sqlalchemy.orm import Session
 from app.errors import AppError
 from app.models import Job
 from app.timeutil import iso_z, now_naive_utc
+
+logger = logging.getLogger("backend.jobs")
 
 KINDS = ("collect", "clean", "train", "predict_batch", "evaluate", "explain")
 STATUSES = ("queued", "running", "success", "failed", "cancelled")
@@ -94,7 +97,9 @@ def _decode(value):
 
 def _record(job: Job) -> dict:
     return {
-        "job_id": job.job_id, "kind": job.kind, "status": job.status,
+        "job_id": job.job_id, "chain_id": job.chain_id,
+        "parent_job_ids": _decode(job.parent_job_ids) or [],
+        "kind": job.kind, "status": job.status,
         "params_json": _decode(job.params_json), "total": job.total, "done": job.done,
         "current_item": job.current_item, "created_at": iso_z(job.created_at),
         "started_at": iso_z(job.started_at), "finished_at": iso_z(job.finished_at),
@@ -114,10 +119,11 @@ def _transaction(session: Session, *, write=True):
         raise
     except SQLAlchemyError as exc:
         session.rollback()
+        logger.exception("job transaction failed")
         number = getattr(getattr(exc, "orig", None), "args", (None,))[0]
         if number in (1213, 1205):
             raise AppError(40001, "任务状态冲突，请稍后重试") from None
-        raise AppError(50000, "internal error") from None
+        raise AppError(50000, "internal error") from exc
 
 
 def _fresh(session: Session, job_id: str) -> Job:
@@ -164,13 +170,36 @@ def _active(job: Job, attempt: int) -> None:
         raise AppError(40001, "任务已停止或执行批次已失效")
 
 
-def create(session: Session, kind: str, *, params=None, total=0, start_immediately=False) -> dict:
+def chain_for(session: Session, parents) -> tuple[str | None, list[dict]]:
+    """Resolve chain root and direct parents from validated upstream jobs."""
+    resolved, seen, rows = [], set(), []
+    for parent in parents or []:
+        job_id = parent.get("job_id") if isinstance(parent, dict) else None
+        if not job_id or job_id in seen:
+            continue
+        row = session.get(Job, job_id)
+        if row is None:
+            continue
+        seen.add(job_id)
+        rows.append(row)
+        resolved.append({"kind": row.kind, "job_id": row.job_id})
+    if not rows:
+        return None, []
+    root = min(rows, key=lambda row: (row.created_at, row.job_id))
+    return (root.chain_id or root.job_id), resolved
+
+
+def create(session: Session, kind: str, *, params=None, total=0, start_immediately=False, parents=None) -> dict:
     if kind not in KINDS or not isinstance(total, int) or total < 0:
         raise AppError(40001, "参数非法：kind/total")
     if params is not None and not isinstance(params, dict):
         raise AppError(40001, "参数非法：params")
     with _transaction(session):
-        job = Job(job_id=str(uuid4()), kind=kind, status="queued", params_json=_dump(params),
+        job_id = str(uuid4())
+        chain_id, parent_job_ids = chain_for(session, parents)
+        job = Job(job_id=job_id, chain_id=chain_id or job_id,
+                  parent_job_ids=_dump(parent_job_ids) if parent_job_ids else None,
+                  kind=kind, status="queued", params_json=_dump(params),
                   total=total, done=0, retry_count=0, created_at=now_naive_utc())
         session.add(job)
         session.flush()
@@ -189,7 +218,7 @@ def get(session: Session, job_id: str) -> dict:
         return _record(_fresh(session, job_id))
 
 
-def list_jobs(session: Session, *, kind=None, status=None, page=1, size=20) -> dict:
+def list_jobs(session: Session, *, kind=None, status=None, chain_id=None, page=1, size=20) -> dict:
     if kind is not None and kind not in KINDS or status is not None and status not in STATUSES:
         raise AppError(40001, "参数非法：kind/status")
     if page < 1 or not 1 <= size <= 100:
@@ -199,6 +228,8 @@ def list_jobs(session: Session, *, kind=None, status=None, page=1, size=20) -> d
         conditions.append(Job.kind == kind)
     if status is not None:
         conditions.append(Job.status == status)
+    if chain_id is not None:
+        conditions.append(Job.chain_id == chain_id)
     with _transaction(session, write=False):
         total = session.scalar(select(func.count()).select_from(Job).where(*conditions)) or 0
         rows = session.scalars(select(Job).where(*conditions).order_by(Job.created_at.desc(), Job.job_id.asc())

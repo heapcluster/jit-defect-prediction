@@ -30,8 +30,7 @@ def source_rows():
 
 
 def settings(mode='preview'):
-    return {'mode': mode, 'steps': [{'op': 'schema_validate'}, {'op': 'derive_basic_fields'}],
-            'chart_columns': ['is_bug_inducing']}
+    return {'mode': mode, 'steps': [{'op': 'schema_validate'}, {'op': 'derive_basic_fields'}]}
 
 
 def post(client, mode='preview', config=None, files=None):
@@ -49,7 +48,7 @@ def clean_client(client, tmp_path, monkeypatch):
         monkeypatch.setattr(module, 'dispatch', lambda: None)
         monkeypatch.setattr(output_store, 'OUTPUT_ROOT', tmp_path / 'outputs')
         def validate(raw):
-            if set(raw) - {'mode', 'steps', 'chart_columns', 'format'} or raw.get('mode') not in ('preview', 'apply'):
+            if set(raw) - {'mode', 'steps', 'format'} or raw.get('mode') not in ('preview', 'apply'):
                 raise AppError(40001, 'invalid config')
             return {'format': 'csv', **raw}
         def parse(name, content, manifest=None):
@@ -62,10 +61,9 @@ def clean_client(client, tmp_path, monkeypatch):
         def run(rows, config, **kwargs):
             kwargs['progress']('schema_validate', 1, 2)
             return {'rows': rows, 'config': {**config, 'feature_version': 'v1'},
-                    'summary': {'input_rows': len(rows), 'output_rows': len(rows)}, 'steps_stats': [], 'column_stats': {}}
+                    'summary': {'input_rows': len(rows), 'output_rows': len(rows)}, 'steps_stats': []}
         def artifacts(result, job_id):
-            output = {f'clean_steps_stats_{job_id}.json': b'[]', f'clean_column_stats_{job_id}.json': b'{}',
-                      f'clean_column_distribution_is_bug_inducing_{job_id}.png': b'\x89PNG\r\n\x1a\nfixture'}
+            output = {f'clean_steps_stats_{job_id}.json': b'[]'}
             if result['config']['mode'] == 'apply':
                 output = {f'clean_dataset_{job_id}.{fmt}': fc.encode_table(fc.CLEAN_DATASET_COLUMNS, result['rows'], fmt) for fmt in ('csv', 'xlsx')} | output
             return output
@@ -93,7 +91,7 @@ def test_small_run_terminal_outputs_no_business_mutation(clean_client, mode):
     job = client.get('/api/jobs/' + job_id, headers=HEADERS).json()['data']
     assert job['kind'] == 'clean' and job['status'] == 'success'
     outputs = job['output_ref_json']['outputs']
-    assert any(item['name'].endswith('.png') for item in outputs)
+    assert not any(item['name'].endswith('.png') or item['name'].endswith('_column_stats.json') for item in outputs)
     assert any(item['name'].endswith('.csv') for item in outputs) == (mode == 'apply')
     for item in outputs:
         url = f'/api/clean/outputs/{job_id}/{item["name"]}'
@@ -229,15 +227,15 @@ def test_cancel_during_artifact_build_never_publishes(clean_client, monkeypatch)
 
 def test_clean_templates_persist_and_run_without_overwriting_snapshot(clean_client):
     client, _, _, _ = clean_client
-    template = {'steps': [{'op': 'schema_validate'}], 'chart_columns': ['is_bug_inducing']}
+    template = {'steps': [{'op': 'schema_validate'}]}
     saved = client.put('/api/config/clean.chain_templates', json={'value': {'AI template': template}}, headers=HEADERS)
     assert saved.status_code == 200
     response = post(client, config={'mode': 'preview', 'template': 'AI template'})
     assert response.status_code == 200 and response.json()['data']['status'] == 'success'
     job = client.get('/api/jobs/' + response.json()['data']['job_id'], headers=HEADERS).json()['data']
     assert job['params_json']['config']['steps'][0]['op'] == 'schema_validate'
-    assert client.put('/api/config/clean.chain_templates', json={'value': {'AI template': template | {'chart_columns': []}}}, headers=HEADERS).status_code == 200
-    assert client.get('/api/jobs/' + job['job_id'], headers=HEADERS).json()['data']['params_json']['config']['chart_columns'] == ['is_bug_inducing']
+    assert client.put('/api/config/clean.chain_templates', json={'value': {'AI template': {'steps': []}}}, headers=HEADERS).status_code == 200
+    assert 'chart_columns' not in client.get('/api/jobs/' + job['job_id'], headers=HEADERS).json()['data']['params_json']['config']
 
 
 def test_clean_upload_body_guard_precedes_parser(clean_client, monkeypatch):

@@ -6,7 +6,7 @@
       type="primary"
       @click="$router.push('/')"
     >
-      回到风险列表
+      回到模型预测
     </el-button>
   </div>
 </template>

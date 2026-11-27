@@ -52,12 +52,15 @@ CREATE TABLE IF NOT EXISTS commit_feature (
 );
 
 CREATE TABLE IF NOT EXISTS model_figure (
+	job_id VARCHAR(36) NOT NULL DEFAULT '',
 	model_name VARCHAR(64) NOT NULL,
 	figure_type VARCHAR(32) NOT NULL,
+	figure_name VARCHAR(128) NOT NULL DEFAULT '',
 	title VARCHAR(128) NOT NULL,
 	file_path VARCHAR(255) NOT NULL,
+	testset_ref VARCHAR(64),
 	generated_at DATETIME NOT NULL,
-	PRIMARY KEY (model_name, figure_type),
+	PRIMARY KEY (job_id, model_name, figure_type),
 	FOREIGN KEY(model_name) REFERENCES model (model_name)
 );
 
@@ -65,13 +68,20 @@ CREATE TABLE IF NOT EXISTS prediction (
 	commit_hash CHAR(40) NOT NULL,
 	model_name VARCHAR(64) NOT NULL,
 	risk_score DECIMAL(6, 5) NOT NULL,
+	-- 目标契约要求非空；当前写入代码尚未提供，暂可空以免破坏现有预测路径
+	predicted_label TINYINT NULL,
+	decision_threshold DECIMAL(4, 3) NULL DEFAULT 0.500,
 	predicted_at DATETIME NOT NULL,
 	model_version VARCHAR(64) NULL,
 	feature_version VARCHAR(32) NULL,
+	is_bug_inducing TINYINT NULL,
+	job_id VARCHAR(36) NULL,
+	output_name VARCHAR(128) NULL,
 	PRIMARY KEY (commit_hash, model_name),
 	FOREIGN KEY(commit_hash) REFERENCES commit (commit_hash),
 	FOREIGN KEY(model_name) REFERENCES model (model_name),
-	INDEX ix_prediction_model_risk (model_name, risk_score)
+	INDEX ix_prediction_model_risk (model_name, risk_score),
+	INDEX ix_prediction_job (job_id)
 );
 
 -- ── 重构新增 7 表（契约见 docs/database/{user,user_config,job,algorithm,model_artifact,dataset}.md）──
@@ -111,8 +121,11 @@ CREATE TABLE IF NOT EXISTS job (
 	retry_count INT NOT NULL DEFAULT 0,
 	output_ref_json TEXT,
 	created_at DATETIME NOT NULL,
+	chain_id VARCHAR(36) NOT NULL DEFAULT '',
+	parent_job_ids TEXT,
 	PRIMARY KEY (job_id),
-	INDEX ix_job_kind_status (kind, status)
+	INDEX ix_job_kind_status (kind, status),
+	INDEX ix_job_chain (chain_id)
 );
 
 CREATE TABLE IF NOT EXISTS algorithm (
@@ -164,6 +177,14 @@ CREATE TABLE IF NOT EXISTS dataset (
 	status VARCHAR(16) NOT NULL DEFAULT 'collecting',
 	job_id VARCHAR(36),
 	created_at DATETIME NOT NULL,
+	label_source VARCHAR(32) NOT NULL DEFAULT 'git_szz',
+	szz_method VARCHAR(32),
+	license VARCHAR(128),
+	source_note TEXT,
+	unlabeled_count INT NOT NULL DEFAULT 0,
+	summary_path VARCHAR(512),
+	manifest_path VARCHAR(512),
+	quality_report_path VARCHAR(512),
 	PRIMARY KEY (dataset_id),
 	FOREIGN KEY(job_id) REFERENCES job (job_id)
 );

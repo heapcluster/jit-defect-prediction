@@ -1,17 +1,17 @@
 # db-schema Specification
 
 ## Purpose
-把 `docs/database/` 的五张表及 14 维特征列序落地为可执行建库与实时同步入库，为查询接口、在线预测和模型图集提供数据落点。
+把 `docs/database/` 的 12 张表及 14 维特征列序落地为可执行建库与实时同步入库，为查询接口、在线预测和模型图集提供数据落点。
 
 ## Requirements
 
 ### Requirement: 建表字段逐字对齐契约
 
-系统 SHALL 按 `docs/database/` 建立 `commit`、`model`、`commit_feature`、`prediction`、`model_figure` 五张表；`commit_label` 已并入 `commit_feature.is_bug_inducing`，MUST NOT 再建独立表。列名逐字一致、一律 snake_case、时间字段统一 UTC 且以 `_at` 结尾；`commit_hash` SHALL 为主键，`committed_at` SHALL 建索引；五张表 SHALL 由 `infra/schema.sql` 与后端 ORM 的等价结构建立。
+系统 SHALL 按 `docs/database/` 建立 12 张表：`commit`、`commit_feature`、`prediction`、`model`、`model_artifact`、`model_figure`、`dataset`、`dataset_commit`、`job`、`algorithm`、`user`、`user_config`；`commit_label` 已并入 `commit_feature.is_bug_inducing`，MUST NOT 再建独立表。列名逐字一致、一律 snake_case、时间字段统一 UTC 且以 `_at` 结尾；`commit_hash` SHALL 为主键，`committed_at` SHALL 建索引；12 张表 SHALL 由 `infra/schema.sql` 与后端 ORM 的等价结构建立。
 
 #### Scenario: 列名逐字对齐
 
-- **WHEN** 将建库产物的列名与类型同 `docs/database/` 五张表及 14 维列序逐字段比对
+- **WHEN** 将建库产物的列名与类型同 `docs/database/` 12 张表及 14 维列序逐字段比对
 - **THEN** 无缺列、无改名列、无自造列
 
 #### Scenario: 重复提交被唯一索引拒绝
@@ -21,12 +21,12 @@
 
 ### Requirement: 一条命令建库
 
-系统 SHALL 提供单条命令在干净 clone 的环境下完成建库，并 SHALL 把该命令与「数据由实时同步产出、需先配置本地历史索引（`SOURCE_REPO`）」的前提写进 `docs/README.md`。
+系统 SHALL 提供单条命令在干净 clone 的环境下完成建库，并 SHALL 把该命令与「数据由实时同步产出、需先配置本地历史索引（`SOURCE_REPO`）」的前提写进仓库根 `README.md`。
 
 #### Scenario: 干净环境建库
 
 - **WHEN** 在完成 `conda env create -f data_model/environment.yml` 与 `.env` 配置的环境执行建库命令
-- **THEN** 五张表创建完成，命令退出码为 0
+- **THEN** 12 张表创建完成，命令退出码为 0
 
 #### Scenario: 连接配置错误
 
@@ -73,5 +73,5 @@
 
 #### Scenario: 空库首启（边界场景）
 
-- **WHEN** 干净环境首次启动、五表为空
+- **WHEN** 干净环境首次启动、12 张表为空
 - **THEN** 查询端点返回空列表（`code=0`）而非 50000；用户从界面触发同步后，提交按「现算特征 → 预测 → 逐条落库」进来，MUST NOT 预先批量灌库

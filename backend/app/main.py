@@ -30,7 +30,6 @@ from app.api import (
     storage_catalog,
     sync,
     train,
-    trends,
 )
 from app.api import config as config_api
 from app.auth import MISSING_OR_INVALID_TOKEN
@@ -123,7 +122,8 @@ def _startup_sync_if_enabled() -> None:
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
-    db.get_engine()
+    # 启动即补齐历史库结构（create_all + 幂等列/索引升级），避免旧库缺列导致任务恢复失败。
+    db.init_db()
     with db.SessionLocal() as session:
         job_store.recover_running(session)
     model_registry.load_models()
@@ -177,7 +177,6 @@ def create_app() -> FastAPI:
     app.include_router(source.router)
     app.include_router(commits.router)
     app.include_router(models.router)
-    app.include_router(trends.router)
     app.include_router(predict.router)
     app.include_router(sync.router)
     app.include_router(figures.router)

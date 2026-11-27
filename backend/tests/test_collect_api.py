@@ -34,7 +34,7 @@ def collect_client(client, tmp_path, monkeypatch):
         def validate(settings, **policy):
             if set(settings) - {'repo_source', 'dataset_name', 'fetch_remote', 'format', 'branch'}:
                 raise CollectError(40001, 'unknown configuration')
-            return {'format': 'csv', 'fetch_remote': False, **settings}
+            return {'format': 'csv', 'fetch_remote': False, 'branch': 'main', **settings}
 
         def run(settings, **kwargs):
             kwargs['progress']('features', 3, 5)
@@ -47,8 +47,11 @@ def collect_client(client, tmp_path, monkeypatch):
                 'labeled_rows': 0, 'positive_rows': 0, 'negative_rows': 0, 'unlabeled_rows': 1},
                 'audit': {'deduplicated': 0}, 'config': {**settings, 'feature_version': 'v1'},
                 'inputs': [{'name': 'repository_snapshot.json', 'sha256': 'a' * 64, 'rows': 1}]}
-        fake = SimpleNamespace(CollectError=CollectError, validate_config=validate, run=run,
-                               encode_rows=module._core().encode_rows)
+        fake = SimpleNamespace(
+            CollectError=CollectError, validate_config=validate, run=run,
+            list_branches=lambda *args, **kwargs: {'repo_name': 'fixture', 'branches': ['main'], 'default_branch': 'main'},
+            encode_rows=module._core().encode_rows,
+        )
         monkeypatch.setattr(module, '_core', lambda: fake)
     return client, module, fake, tmp_path
 

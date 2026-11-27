@@ -171,6 +171,7 @@ class SourceReader:
                 {"repo_source": self.repo_source, "dataset_name": "source", "fetch_remote": False},
                 allow_roots=self.allow_roots,
                 protocol_whitelist=self.protocol_whitelist,
+                require_branch=False,
             )
             roots = collect._roots(self.allow_roots)
             source = cfg["repo_source"]

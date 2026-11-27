@@ -1,7 +1,12 @@
 """AI-generated W6 model management tests; not human-reviewed."""
+import io
+import json
+import zipfile
+
 import pytest
 from app import db, model_registry
 from app.models import Base, ModelArtifact
+from app.services import file_contracts as fc
 from app.services import output_store, storage, train_run
 from sqlalchemy import select
 
@@ -10,11 +15,26 @@ from tests.test_train_real import train_rows
 
 
 def lr_package(seed=42):
+    """训练内核现产 pkl + 侧车 meta；测试按外部交付 ZIP 契约打包，避免依赖已下线的训练 ZIP。"""
     core = train_run._core()
     cfg = core.validate_config({'line': 'expert', 'algos': ['lr'], 'split': {'ratio': 0.7}, 'seed': seed, 'decision_threshold': 0.5})
     result = core.run(train_rows(), cfg, metadata={'repo': str(TEST_REPO)})
     name = result['models'][0]['model_name']
-    return name, result['models'][0]['feature_version'], core.artifacts(result, 'pkg')['train_lr_model_package_pkg.zip']
+    artifacts = core.artifacts(result, 'pkg')
+    meta = artifacts['train_lr_meta_pkg.json']
+    members = {
+        'model_meta.json': meta,
+        'feature_order.txt': '\n'.join(json.loads(meta)['feature_order']).encode('utf-8'),
+        'weights.pkl': artifacts['train_lr_model_pkg.pkl'],
+    }
+    members['checksum.sha256'] = '\n'.join(
+        f'{fc.sha256(raw)}  {member}' for member, raw in members.items()
+    ).encode('utf-8')
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w') as archive:
+        for member, raw in members.items():
+            archive.writestr(member, raw)
+    return name, result['models'][0]['feature_version'], buffer.getvalue()
 
 
 @pytest.fixture

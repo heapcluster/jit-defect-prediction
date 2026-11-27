@@ -1,15 +1,15 @@
-# 模型清单与生命周期 API（models）
+﻿# 模型清单与生命周期 API（models）
 
-一句话：提供架构到模型的只读级联清单，以及模型状态、加载、卸载和重载，所有加载都以模型包校验为前提；不管理默认模型。
+一句话：提供架构到模型的只读级联清单，以及模型状态、加载、卸载和重载，所有加载都以模型文件校验为前提；不管理默认模型。
 
 实现状态：已实现　期次：一期
 
-模型包契约见 [../file-contracts.md](../file-contracts.md) §3.3；默认配置见 [config.md](config.md)，训练交付见 [train.md](train.md)。
+模型文件契约见本文 §3 与 [train.md](train.md) 的训练产物契约；默认配置见 [config.md](config.md)。
 
 ## 1. 职责与不负责范围
 
 - 负责可用模型清单、工件状态与运行时状态、显式加载/卸载/重载与加载失败原因。
-- 模型名单的登记源为 model_artifact，model 行由工件派生；独立文件运行可直接上传模型包，不要求先登记。
+- 模型名单的登记源为 model_artifact，model 行由工件派生；独立文件运行可直接上传模型文件（训练产物为 `.pkl`，外部交付包可为 ZIP），不要求先登记。
 - 不负责训练、预测计算、解释或评估；GET 清单不触发加载，页面刷新不隐式重载模型。
 - 不通过扫描未知目录建立第二份模型名单，不加载 checksum 或特征元数据不符的包。
 
@@ -36,7 +36,7 @@
 
 ### POST /api/models/{name}/load
 
-无请求体；从已登记工件加载 name。响应 `{model_name,runtime_state,load_error}`。加载前校验 §3.3 包；失败返回明确状态，不破坏上一个可用模型。
+无请求体；从已登记工件加载 name。响应 `{model_name,runtime_state,load_error}`。加载前校验模型文件（`.pkl` 或外部交付 ZIP）与侧车元数据、checksum、特征列宽；失败返回明确状态，不破坏上一个可用模型。
 
 ### POST /api/models/{name}/unload
 
@@ -54,22 +54,23 @@
 
 | 业务码 | HTTP | 场景 |
 |---|---|---|
-| 40001 | 400 | line/操作非法、模型不可用、重复非法状态流转、包校验失败、调用已废止的 default 端点 |
+| 40001 | 400 | line/操作非法、模型不可用、重复非法状态流转、模型文件校验失败、调用已废止的 default 端点 |
 | 40100 | 401 | 缺失或错误的 `X-API-Key` |
 | 40400 | 404 | model_name 或登记工件不存在 |
 | 50000 | 500 | 未预期内部错误；可预期加载失败以 runtime_state/load_error 表达 |
 
 ## 3. 输入契约
 
-管理输入为模型标识和登记工件；独立预测/解释运行则可直接上传 §3.3 模型包。§3.3 逐字规定：
+管理输入为模型标识和登记工件；独立预测 / 解释 / 定位运行也可直接上传模型文件：训练产物为单个 `.pkl`，外部交付可为 ZIP。默认契约如下：
 
-> zip 内含：权重文件均为 `.pkl`（`expert`=Kamei 14 维、`semantic`=冻结头 CodeBERT 768 维）、`feature_order.txt`、`model_meta.json`（model_name/line/algo/feature_set/version_key/feature_version/trained_at/超参快照/划分 mode/种子）、`checksum.sha256`。`fused` / `e2e` 及其 safetensors 产物已取消。predict/explain MUST 校验 checksum 与特征列宽后再加载。
+> 训练产物：`train_<algo>_model_<job_id>.pkl` + 侧车 `train_<algo>_meta_<job_id>.json`（feature_order / feature_schema / 超参 / 划分 / 种子），checksum 由 manifest 登记。
+> 外部交付 ZIP：内含权重文件 `.pkl`（`expert`=Kamei 14 维、`semantic`=冻结头 CodeBERT 768 维）、`feature_order.txt`、`model_meta.json`（model_name/line/algo/feature_set/version_key/feature_version/trained_at/超参快照/划分 mode/种子）、`checksum.sha256`。`fused` / `e2e` 及其 safetensors 产物已取消。predict/explain/source MUST 校验 checksum 与特征列宽后再加载。
 
 models 加载执行相同校验，并限制 ZIP 路径穿越、文件数量、解压大小和反序列化资源。登记路径必须位于允许资产根内，文件名不拼接 shell。模型版本、line、algo 和 feature_version 必须与登记一致。
 
 ## 4. 输出契约
 
-只输出 JSON 清单与状态，不生成新的模型文件或 manifest。模型包及其同名 manifest 由 train run 产生并经 `GET /api/train/outputs/{job_id}/{name}` 下载；models 不复制工件、不另建输出目录。
+只输出 JSON 清单与状态，不生成新的模型文件或 manifest。训练产出的 `.pkl` 及其同名 manifest 经 `GET /api/train/outputs/{job_id}/{name}` 下载；models 不复制工件、不另建输出目录。
 
 GET /api/models 只返回选择器所需字段；版本、状态和 checksum 经 status 获取。所有错误原因脱敏，不泄露绝对路径、堆栈或密钥。
 
@@ -89,13 +90,16 @@ GET /api/models 只返回选择器所需字段；版本、状态和 checksum 经
 
 ## 7. 验收
 
-fixtures：`tests/fixtures/files/models/`，包含合法模型包、损坏包、checksum 不符包和元数据不匹配包。
+fixtures：`tests/fixtures/files/models/`，包含合法模型文件、损坏文件、checksum 不符文件和元数据不匹配文件。
 
-- **正常**：两线清单、状态查询、load/unload/reload/default 全路径通过；设置默认后重启仍生效，predict/commits/trends 缺省模型一致。
-- **边界**：空模型线、懒加载、默认模型回退、加载失败保留旧实例、retired 资产追溯均符合状态语义。
-- **非法**：路径穿越、checksum 不符、列宽/版本不符、未登记模型、卸载默认模型、非法 line 均返回 40001/40400，旧模型不受影响。
+- **正常**：两线清单、状态查询、load/unload/reload、selection 回显全路径通过；selection 只回显，不参与 predict/commits 等运行入口的模型缺省。
+- **边界**：空模型线、懒加载、未选择模型时的空态、加载失败保留旧实例、retired 资产追溯均符合状态语义；不回退到默认模型。
+- **非法**：路径穿越、checksum 不符、列宽/版本不符、未登记模型、卸载未加载模型、非法 line 均返回 40001/40400，旧模型不受影响。
 - 只写文件未登记不出现在管理清单，但可作为 predict/explain run 的显式上传输入；任何 GET 不触发计算或加载。
 
 ## 8. 边界
 
-models 是模型资产管理面，不是模块间文件总线。train 通过 §3.3 交付，predict/explain 可独立校验并加载包；model_artifact 登记只提供可选展示与管理便利，数据库不是文件预测的前置。
+models 是模型资产管理面，不是模块间文件总线。train 交付 `.pkl` 权重与侧车元数据，predict/explain/source 可独立校验并加载模型文件；model_artifact 登记只提供可选展示与管理便利，数据库不是文件预测的前置。
+
+
+

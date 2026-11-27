@@ -12,7 +12,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 from datetime import date
 from pathlib import Path
 
@@ -88,7 +87,7 @@ def auto_checks() -> list[dict]:
         )(c.get("/api/models").json()["data"]),
     )
     add(
-        "风险列表降序且概率在 [0,1]",
+        "提交列表降序且概率在 [0,1]",
         lambda c: (
             lambda d: (
                 all(0 <= i["risk_score"] <= 1 for i in d["items"])
@@ -135,15 +134,6 @@ def auto_checks() -> list[dict]:
         )
 
     add("预测概率区间与 14 维特征", check_predict)
-    add(
-        "趋势周期格式",
-        lambda c: (
-            lambda d: (
-                all(re.fullmatch(r"\d{4}-W\d{2}", s["period"]) for s in d["series"]),
-                f"periods={len(d['series'])}",
-            )
-        )(c.get("/api/trends", params={"granularity": "week"}).json()["data"]),
-    )
 
     def check_figures(c):  # noqa: ANN001
         first = c.get("/api/models").json()["data"]["lines"][0]["models"][0]

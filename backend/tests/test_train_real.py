@@ -96,23 +96,22 @@ def test_real_train_packages_register_and_autoload(real_train):
     job = client.get('/api/jobs/' + job_id, headers=HEADERS).json()['data']
     for sub in job['output_ref_json']['models']:
         assert sub['status'] == 'success' and sub['register_status'] == 'registered' and sub['load_status'] == 'loaded'
-        zip_name = f'train_{sub["algo"]}_model_package_{job_id}.zip'
-        blob = client.get(f'/api/train/outputs/{job_id}/{zip_name}', headers=HEADERS).content
-        members = fc.read_zip(zip_name, blob)
-        assert {'model_meta.json', 'feature_order.txt', 'feature_schema.json', 'checksum.sha256'} <= members.keys()
-        assert members['feature_order.txt'].decode().splitlines() == list(fc.FEATURE_COLUMNS)
-        meta = json.loads(members['model_meta.json'])
+        # 新契约：训练直接交付 .pkl 权重与侧车 .json 元数据，不再打模型 ZIP。
+        pkl_name = f'train_{sub["algo"]}_model_{job_id}.pkl'
+        meta_name = f'train_{sub["algo"]}_meta_{job_id}.json'
+        pkl = client.get(f'/api/train/outputs/{job_id}/{pkl_name}', headers=HEADERS).content
+        assert pkl
+        meta = json.loads(client.get(f'/api/train/outputs/{job_id}/{meta_name}', headers=HEADERS).content)
+        assert meta['feature_order'] == list(fc.FEATURE_COLUMNS)
         assert meta['line'] == 'expert' and meta['algo'] == sub['algo'] and meta['seed'] == 42
         assert meta['feature_set'] == 'kamei14'
         with db.SessionLocal() as session:
             artifact = session.scalar(select(ModelArtifact).where(ModelArtifact.model_name == sub['model_name']))
-            assert artifact is not None and artifact.checksum_sha256 == fc.sha256(blob)
+            assert artifact is not None and artifact.checksum_sha256 == fc.sha256(pkl)
             assert session.get(Model, sub['model_name']) is not None
         from app import model_registry
         assert model_registry.get_model(sub['model_name']).model is not None
     assert_train_testset(client, job_id, result)
-    compare = client.get('/api/train/compare', params={'job_id': job_id}, headers=HEADERS).json()['data']
-    assert compare['primary_metric'] == 'auc' and len(compare['models']) == 2
 
 
 def test_real_cli_api_parity(real_train, tmp_path):
@@ -131,8 +130,7 @@ def test_real_cli_api_parity(real_train, tmp_path):
         env=env, capture_output=True, text=True, cwd=str(ROOT / 'data_model'))
     assert proc.returncode == 0, proc.stderr
     registered = json.loads(proc.stdout)
-    cli_comparison = json.loads((out / registered['job_id'] / f'train_comparison_{registered["job_id"]}.json').read_bytes())
-    cli_sub = cli_comparison['models'][0]
+    cli_sub = registered['models'][0]
     assert cli_sub['model_name'] == api_sub['model_name'] and cli_sub['version_key'] == api_sub['version_key']
     for metric in ('auc', 'f1', 'precision', 'recall', 'accuracy'):
         assert cli_sub['metrics'][metric] == pytest.approx(api_sub['metrics'][metric], abs=1e-9)

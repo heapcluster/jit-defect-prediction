@@ -15,7 +15,6 @@ import {
   getFigures,
   getModels,
   getSyncStatus,
-  getTrends,
   postPredict,
   postSync
 } from '../src/api/index'
@@ -47,15 +46,6 @@ describe('api 层与后端契约的映射', () => {
     const spy = vi.spyOn(request, 'get').mockResolvedValue({})
     await getCommitDetail('abc123')
     expect(spy.mock.calls[0][0]).toBe('/commits/abc123')
-  })
-
-  it('GET /trends 带粒度与模型', async () => {
-    const spy = vi.spyOn(request, 'get').mockResolvedValue({ series: [] })
-    await getTrends({ granularity: 'week', model_name: 'xgb_v1' })
-    const [url, config] = spy.mock.calls[0]
-    expect(url).toBe('/trends')
-    expect(config.params.granularity).toBe('week')
-    expect(config.params.model_name).toBe('xgb_v1')
   })
 
   it('POST /predict 的请求体是 commit_hash + model_name', async () => {

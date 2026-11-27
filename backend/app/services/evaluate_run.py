@@ -9,17 +9,26 @@ import sys
 import threading
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app import config, db
 from app.errors import AppError
-from app.models import Job
+from app.models import Job, Model, ModelFigure
 from app.services import config_store, job_store, output_store
 from app.services import file_contracts as fc
+from app.timeutil import now_naive_utc
 
 logger = logging.getLogger('backend.evaluate')
 REQUEST_ROOT = config.TEMP_ROOT / 'evaluate_inputs'
 SYNC_MAX_ROWS = 5000
+_FIGURE_TITLES = {
+    'roc': 'ROC',
+    'pr': 'PR',
+    'confusion': 'Confusion',
+    'calibration': 'Calibration',
+    'effort_unaware': 'Effort-unaware',
+    'effort_aware': 'Effort-aware',
+}
 _executor_lock = threading.Lock()
 _wakeup = threading.Event()
 _worker = None
@@ -88,16 +97,46 @@ def _save_request(value):
     return directory.name + '/request.json', fc.sha256(content)
 
 
+def _prediction_input(session, job_id):
+    """从已保存的批量预测任务读取核心 predictions 文件，作为评估输入。"""
+    job = job_store.get(session, job_id)
+    if job['kind'] != 'predict_batch' or job['status'] != 'success':
+        raise AppError(40400, '预测结果不存在或未成功')
+    reference = job['output_ref_json'] or {}
+    names = [item.get('name') for item in reference.get('outputs', [])
+             if isinstance(item.get('name'), str) and item['name'].endswith('.csv')]
+    name = next((item for item in names if item.startswith('predict_predictions_')),
+                names[0] if names else None)
+    if name is None:
+        raise AppError(40400, '预测结果文件未登记')
+    path = output_store.read_output('predict', job_id, name)
+    return name, path.read_bytes(), (reference.get('summary') or {})
+
+
 def submit(session, raw_config, files):
     settings = fc.read_json(raw_config.encode('utf-8'))
     settings.pop('dataset_id', None)
-    defaults = {'threshold': config_store.get_value('decision_threshold', session),
-                'metrics': config_store.get_value('metrics_selected', session),
+    prediction_job_id = settings.pop('prediction_job_id', None)
+    defaults = {'metrics': config_store.get_value('metrics_selected', session),
                 'primary_metric': config_store.get_value('primary_metric', session),
                 'effort_enabled': config_store.get_value('effort_enabled', session)}
     merged = {**defaults, **settings}
     cfg = _call('validate_config', merged)
+    # 输出名称由用户在 05 步确认；缺省带短批次后缀，避免多次运行同名覆盖。
+    cfg['figure_zip_name'] = cfg.get('figure_zip_name') or f'evaluate_figures_{uuid4().hex[:8]}'
+    cfg['metrics_name'] = cfg.get('metrics_name') or f'metrics_evaluate_{uuid4().hex[:8]}'
     predictions, effort, inputs = None, None, []
+    testset_ref = None
+    if prediction_job_id is not None:
+        if not isinstance(prediction_job_id, str) or not prediction_job_id:
+            fc.invalid('prediction_job_id 非法')
+        if files:
+            fc.invalid('prediction_job_id 与上传预测文件只能二选一')
+        name, content, pred_summary = _prediction_input(session, prediction_job_id)
+        files = [(name, content)]
+        testset_ref = pred_summary.get('testset_ref')
+    elif not files:
+        fc.invalid('必须选择已保存的预测结果或上传 predictions 文件')
     if sum(len(c) for _, c in files) > fc.MAX_UPLOAD_BYTES:
         fc.invalid('评估上传合计不超过 64MiB')
     for name, content in files:
@@ -117,14 +156,18 @@ def submit(session, raw_config, files):
             fc.invalid('评估文件须为 predictions 或 train_testset（clean_dataset schema）effort 来源；labels.csv 已废止')
     if predictions is None:
         fc.invalid('必须上传 predictions 文件')
-    reference, digest = _save_request({'predictions': predictions, 'effort': effort, 'config': cfg, 'inputs': inputs})
+    reference, digest = _save_request({'predictions': predictions, 'effort': effort, 'config': cfg,
+                                       'inputs': inputs, 'testset_ref': testset_ref,
+                                       'prediction_job_id': prediction_job_id})
     try:
         job = job_store.create(session, 'evaluate', params={'module': 'evaluate', 'input_ref': reference,
-            'input_sha256': digest, 'config': cfg}, total=len(predictions) + 1)
+            'input_sha256': digest, 'config': cfg}, total=len(predictions) + 1,
+            parents=[{'kind': 'predict_batch', 'job_id': prediction_job_id}] if prediction_job_id else None)
     except Exception:
         shutil.rmtree(_request_path(reference).parent)
         raise
     if len(predictions) <= SYNC_MAX_ROWS:
+        session.commit()
         _execute(job['job_id'], job['retry_count'])
         dispatch()
         current = job_store.get(session, job['job_id'])
@@ -161,14 +204,35 @@ def _execute(job_id, attempt):
                                           done=max(done, job['done']), current_item=phase)
 
         result = _call('run', request['predictions'], request['config'], effort=request.get('effort'), progress=progress)
+        summary = result['summary']
+        summary['testset_ref'] = request.get('testset_ref')
+        summary['prediction_job_id'] = request.get('prediction_job_id')
         artifacts = _call('artifacts', result, job_id)
         with db.SessionLocal() as session:
             job_store.assert_running(session, job_id, attempt=attempt)
+            internal = {f"evaluate_metrics_{job_id}.csv", f"evaluate_confusion_{job_id}.csv"}
             reference = output_store.publish_output('evaluate', artifacts, inputs=request['inputs'],
                 config=job_store.sanitize(result['config']), job_id=job_id,
-                code_version=output_store.backend_code_version() + '+' + _call('code_version'))
+                code_version=output_store.backend_code_version() + '+' + _call('code_version'),
+                internal=internal)
             published = True
-            reference.update(summary=result['summary'])
+            # 逐图登记：同一批次内每个 figure_type 至多一条，file_path 指向已发布产物。
+            model_name = summary.get('model_name')
+            if model_name and session.get(Model, model_name) is not None:
+                generated = now_naive_utc().replace(microsecond=0)
+                session.execute(delete(ModelFigure).where(ModelFigure.job_id == job_id))
+                for kind in (result.get('figures') or {}):
+                    session.add(ModelFigure(
+                        job_id=job_id,
+                        model_name=model_name,
+                        figure_type=kind,
+                        figure_name=f'evaluate_{job_id}_{kind}.png',
+                        title=_FIGURE_TITLES.get(kind, kind),
+                        file_path=f"{config.OUTPUTS_REL}/{job_id}/evaluate_{job_id}_{kind}.png",
+                        testset_ref=summary.get('testset_ref'),
+                        generated_at=generated,
+                    ))
+            reference.update(summary=summary)
             job_store.finish(session, job_id, attempt=attempt, output_ref=reference)
             finished = True
         return True

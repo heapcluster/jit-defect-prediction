@@ -2,7 +2,7 @@
 
 ## Purpose
 
-规定批量同步的当前 HTTP 入口和异步状态口径；参数与响应字段以 `docs/api/sync.md` 为准。
+规定批量同步的当前 HTTP 入口和异步状态口径；参数与响应字段见下列 Requirements。
 
 ## Requirements
 

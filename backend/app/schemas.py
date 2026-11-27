@@ -1,6 +1,6 @@
 """Pydantic 响应模型：让 OpenAPI/Swagger 携带响应字段，供镜像比对。
 
-口径对齐 docs/api/*（commits / models / predict / sync / trends / figures / health）；
+口径对齐 docs/api/*（commits / models / predict / sync / figures / health）；
 PR、质量、反馈、运行时配置等已下线模块的 schema 一并删除。
 """
 
@@ -73,15 +73,20 @@ class FixReferences(BaseModel):
 
 class CommitItem(BaseModel):
     commit_hash: str
+    repo_name: str | None = None
     author_name: str
     committed_at: str
     message: str
     risk_score: float
     model_name: str
-    # 仅 with_features=1 时返回：Kamei 14 维 log 变换值（可负）
-    features: dict[str, float | int] | None = None
+    predicted_label: int
+    predicted_at: str
     # SZZ 真标签：1 / 0 / null（未打标）
     is_bug_inducing: int | None = None
+    label_method: str | None = None
+    labeled_at: str | None = None
+    # 仅 with_features=1 时返回：Kamei 14 维 log 变换值（可负）
+    features: dict[str, float | int] | None = None
 
 
 class CommitsData(BaseModel):
@@ -97,8 +102,20 @@ class CommitsResponse(BaseModel):
     data: CommitsData
 
 
+class PredictionDetail(BaseModel):
+    model_name: str
+    risk_score: float
+    predicted_label: int
+    decision_threshold: float
+    model_version: str | None = None
+    feature_version: str | None = None
+    predicted_at: str
+    stale: bool
+
+
 class DetailData(BaseModel):
     commit_hash: str
+    repo_name: str | None = None
     author_name: str
     committed_at: str
     message: str
@@ -106,36 +123,17 @@ class DetailData(BaseModel):
     model_name: str | None
     predicted_at: str | None
     features: dict[str, float | int] | None
-    explanation: list[ExplanationItem]
     summary: str | None = None
     is_bug_inducing: int | None = None
-    localization: Localization | None = None
-    fix_references: FixReferences | None = None
+    label_method: str | None = None
+    labeled_at: str | None = None
+    prediction: PredictionDetail | None = None
 
 
 class DetailResponse(BaseModel):
     code: int
     message: str
     data: DetailData
-
-
-class SeriesItem(BaseModel):
-    period: str
-    commit_count: int
-    avg_risk: float
-    high_risk_count: int
-
-
-class TrendsData(BaseModel):
-    granularity: str
-    model_name: str | None
-    series: list[SeriesItem]
-
-
-class TrendsResponse(BaseModel):
-    code: int
-    message: str
-    data: TrendsData
 
 
 class PredictData(BaseModel):
@@ -193,6 +191,7 @@ class FigureData(BaseModel):
     figure_type: str
     effort_kind: str | None = None
     title: str
+    figure_name: str | None = None
     file_path: str
     checksum_sha256: str | None = None
     source_job_id: str | None = None
@@ -215,10 +214,18 @@ class MetricsData(BaseModel):
     pos_rate: float
 
 
+class FigureBatch(BaseModel):
+    job_id: str | None = None
+    created_at: str | None = None
+    testset_ref: str | None = None
+    figures_count: int = 0
+
+
 class FiguresData(BaseModel):
     model_name: str
     line: str
     source_job_id: str | None = None
+    batches: list[FigureBatch] = Field(default_factory=list)
     metrics: list[MetricRow] = Field(default_factory=list)
     metrics_unavailable: str | None = None
     figures: list[FigureData] = Field(default_factory=list)

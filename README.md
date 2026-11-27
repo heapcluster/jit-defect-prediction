@@ -1,8 +1,8 @@
 # 即时软件缺陷预测（JIT Defect Prediction）Web 系统
 
-基于提交级特征（Kamei 14 项）预测代码变更引入缺陷的风险，顶级导航为数据管理、收集、清洗、训练、预测、评估、解释、定位及修复八个功能 tab。风险列表、趋势和提交详情归入预测，模型性能归入评估；工具间通过文件交换，不要求按顺序运行。
+基于提交级特征（Kamei 14 项）预测代码变更引入缺陷的风险，顶级导航为数据存储、数据收集、数据清洗、模型训练、模型预测、预测评估与设置七个 tab。提交详情、解释与定位归入预测页，模型性能归入评估页；工具间通过文件交换，不要求按顺序运行。
 
-本文件是**仓库唯一入口**：容器怎么起、本机怎么跑、测试怎么执行、文档去哪找，都从这里出发。
+本文件是**仓库唯一入口**：容器怎么起、本机怎么跑、测试怎么执行、文档去哪找，都从这里出发。系统范围、页面、数据流与口径的总纲见 [docs/overview.md](docs/overview.md)。
 
 ## 技术栈
 
@@ -18,7 +18,7 @@
 | `frontend/` | Vue 3 单页应用与 vitest 用例 |
 | `data_model/` | 数据准备、训练、评测 |
 | `infra/` | 建表 DDL、CI 路径选择、nginx 配置，见 [infra/deployment.md](infra/deployment.md) |
-| `docs/` | 技术文档（api / database / common / function_point / test / web_page） |
+| `docs/` | 技术文档（overview / api / database / function_point / web_page / common），总纲见 [docs/overview.md](docs/overview.md) |
 | `openspec/` | 现行规格与活跃变更提案（历史归档不入库） |
 | `temp/` | 唯一过程数据根：请求输入、缓存、运行日志、临时文件和 `outputs/<job_id>/` 产物；Git 不追踪，不存源码 |
 
@@ -91,7 +91,7 @@ python -m pytest -q infra/tests                                # CI 契约与建
 ## 五、约定与边界
 
 - **建表**：唯一真源是 `infra/schema.sql`；`data_model/evaluation/out/schema.sql` 副本已下线，不再生成。
-- **模型性能指标**：`data_model/evaluation/out/model_metrics.csv` 是 25 个模型在测试集上的指标，**必须入库**（前端「模型性能看板」抽屉依赖）。
-- **测试代码**：唯一真源在各端 `tests/` 与 `backend/scripts/`；`docs/想到什么取什么/` 只放文档与证据，不存放代码副本。
+- **模型性能指标**：`data_model/evaluation/out/model_metrics.csv` 是 16 个交付模型（expert 8 + semantic 8）在测试集上的指标，**必须入库**（前端「模型性能页」抽屉依赖）。
+- **测试代码**：唯一真源在各端 `tests/` 与 `backend/scripts/`；文档目录只放文档与证据，不存放代码副本。
 - **密钥与权重**：`.env`、`*.pkl`、数据集、`data_model/data/camel` 克隆一律不入库；模型清单（`feature_order.txt` / `manifest.txt` / `load_manifest.txt`）必须入库。
 - MySQL 建库授权、真实权重、浏览器截图及运行日志须由实际操作者留证；本文件不宣称这些步骤已在当前机器通过。

@@ -1,161 +1,206 @@
-# 缂洪櫡鏁版嵁鏀堕泦 API锛坈ollect锛?
-瀹炵幇鐘舵€侊細鐩爣濂戠害銆€鏈熸锛氫竴鏈?
-> 鏃ф帴鍙ｅ彛寰勫寘鍚?14 缁寸壒寰併€?0/30 鍒囧垎鍜屸€滃彲閫夊鍏ュ簱鈥濓紱鏈枃宸插簾姝€傛柊鎺ュ彛鍙礋璐ｆ敹闆?Git 浠撳簱鎴栧鍏ュ叕寮€鏍囨敞鏁版嵁闆嗭紝浜у嚭甯︽爣绛句簩缁磋〃锛岄粯璁や繚瀛樻暟鎹簱锛屽苟鎻愪緵棰勮鍜屼笅杞姐€傛湰杞彧淇敼璁捐鏂囨。銆?
-鏂囦欢濂戠害鍞竴鏉冨▉锛歔../file-contracts.md](../file-contracts.md) 搂3.1銆伮?.9锛涘叕鍏遍壌鏉冦€佸寘缁滃拰浠诲姟鍙ｅ緞瑙?[README.md](README.md)銆?
-## 1 鑱岃矗涓庝笉璐熻矗鑼冨洿
+﻿# 数据收集 API（collect）
 
-- 璐熻矗 Git 浠撳簱鎷夊彇/璇诲彇銆佹彁浜ら噰闆嗐€丼ZZ 鎵撴爣锛屾垨鍏紑鏍囨敞鏁版嵁闆嗗鍏ャ€佸瓧娈垫槧灏勩€佹爣绛惧綊涓€鍖栧拰璐ㄩ噺鏍￠獙銆?- 璐熻矗鐢熸垚 `collected_commits.csv/xlsx`銆乻ummary銆乵anifest 鍜屽叕寮€鏁版嵁闆嗚川閲忔姤鍛娿€?- 璐熻矗榛樿淇濆瓨鏁版嵁闆嗗埌 `dataset` / `dataset_commit`銆?- 涓嶈礋璐?14 缁寸壒寰併€佽缁?娴嬭瘯鍒囧垎銆佹竻娲椼€佽缁冦€侀娴嬨€佽瘎浼般€佽В閲娿€佸畾浣嶅拰淇銆?- 涓嶆妸鏁版嵁搴撴垨鐜鍙橀噺涓殑鍥哄畾浠撳簱褰撲綔杩愯鍓嶆彁銆?
-## 2 绔偣濂戠害
+一句话：从 Git 仓库枚举分支并采集提交，或从公开数据集 URL 拉取已打标数据，统一交付一份核心「已标注数据集」文件；Excel 在下载时按需生成，不预生成冗余文件。
 
-### POST /api/collect/run
+设计状态：目标契约（已实现）。仓库分支枚举、公开数据集 URL 拉取与下载时格式转换均按本文执行。
 
-`multipart/form-data`銆傝姹傚寘鍚?`config` JSON part锛屽叕寮€鏁版嵁闆嗘垨鎻愪氦娓呭崟鍙斁 `files[]`銆?
-鍝嶅簲锛?
+输入输出 schema 见 collected_commits 列契约；内部记录见 manifest 契约；功能点职责见 [`../function_point/collect.md`](../function_point/collect.md)。
+
+## 1. 职责与不负责范围
+
+- 负责仓库范围解析、远端分支枚举、提交采集、SZZ 打标、标签边界处理和核心数据集发布。
+- 负责公开数据集 URL 拉取、许可证记录、字段映射与标签映射，并按同一 `collected_commits` 契约发布。
+- 负责把 summary / audit / quality / manifest 作为内部记录写入任务引用，用于校验与复现；不把它们包装成用户结果文件。
+- 不负责清洗、特征工程、训练、预测、评估、解释与定位；不写 `commit` / `commit_feature` 业务表（导入走 storage）。
+- Web 页面暴露 Git 仓库与公开数据集两种模式；提交清单与 `dataset_id` 入口可作为 API / CLI 兼容能力保留，不进入页面。
+
+## 2. 端点契约
+
+### GET /api/collect/branches
+
+枚举 Git 仓库的远端分支，供 `/collect` 的分支下拉使用。
+
+| 参数 | 必填 | 契约 |
+|---|---|---|
+| `repo_source` | 是 | 绝对本地路径或 `https`/`git` URL；一期支持公开仓库或服务端已配置凭据的仓库；本地路径须在 `collect.allow_roots` 内；不允许账号密码、query、hash |
+
+响应：
+
 ```json
 {
   "code": 0,
   "message": "ok",
   "data": {
-    "job_id": "j-123",
-    "status": "queued"
+    "repo_name": "repo-x",
+    "branches": ["main", "develop", "release/1.2"],
+    "default_branch": "main"
   }
 }
 ```
 
-鍒涘缓 `job.kind=collect`銆傚悓 kind 鍚屾椂鏈€澶氫竴涓?running锛屽啿绐佽繑鍥?40001銆?
-#### 2.1 `config` 鍏叡瀛楁
+约束：
 
-| 瀛楁 | 蹇呭～ | 绫诲瀷 | 濂戠害 |
-|---|---|---|---|
-| `source_type` | 鏄?| string | `git_repo` / `public_dataset` |
-| `dataset_name` | 鏄?| string | 鏁版嵁闆嗘樉绀哄悕 |
-| `save_to_db` | 鍚?| bool | 榛樿 `true` |
-| `format` | 鍚?| string | `csv` / `xlsx`锛岄粯璁?`csv`锛汚PI 鍙悓鎵逛氦浠樺弻鏍煎紡 |
+- 分支列表不能为空；空列表返回 `40001`，页面提示“未找到可用分支，请检查仓库 URL 或权限”。
+- `default_branch` 仅供展示排序参考；前端默认选中返回列表第一项，不插入“HEAD”之类的虚拟项。
+- 刷新失败不返回空数组冒充成功；页面保持分支下拉禁用并允许重试刷新。
 
-#### 2.2 Git 浠撳簱妯″紡 `source_type=git_repo`
+### POST /api/collect/source-columns
 
-| 瀛楁 | 蹇呭～ | 绫诲瀷 | 濂戠害 |
-|---|---|---|---|
-| `repo_source` | 鏄?| string | 鏈湴璺緞椤诲湪鍏佽鏍圭洰褰曞唴锛沀RL 鍗忚椤诲湪鐧藉悕鍗曞唴 |
-| `branch` | 鍚?| string | 鍒嗘敮/ref锛岄粯璁?HEAD |
-| `start_time` / `end_time` | 鍚?| datetime | ISO 8601 UTC 闂尯闂?|
-| `start_commit` / `end_commit` | 鍚?| string(40 hex) | 鍙鍑烘彁浜よ寖鍥?|
-| `mode` | 鍚?| string | `full` / `incremental`锛岄粯璁?`incremental` |
-| `fetch_remote` | 鍚?| bool | 榛樿 `true` |
-| `head_expect` | 鍚?| string(40 hex) | HEAD 涓嶇鍒欐嫆缁?|
-| `dedup` | 鍚?| string | 褰撳墠浠?`commit_hash` |
-| `szz_method` | 鍚?| string | `szz_v1` / `szz_lite`锛岄粯璁?`szz_v1` |
-| `commit_list` | 鍚?| file | 浠呭惈 `commit_hash` 鐨?CSV/XLSX锛岀敤浜庡湀瀹氳寖鍥?|
+抓取公开数据集 URL 并返回列名，供字段映射下拉使用。
 
-Git 妯″紡绂佹浼犲叆 `split_ratio`銆乣feature_version`銆乣is_test` 绛夊瓧娈碉紱鏀跺埌鍗宠繑鍥?40001銆?
-#### 2.3 鍏紑鏁版嵁闆嗘ā寮?`source_type=public_dataset`
+请求 JSON：`{source_url}`。响应 `data:{columns:[...]}`。
 
-| 瀛楁 | 蹇呭～ | 绫诲瀷 | 濂戠害 |
-|---|---|---|---|
-| `source_url` | 鍚?| string | 涓庝笂浼犳枃浠朵簩閫変竴锛沀RL 鍗忚椤诲湪鐧藉悕鍗曞唴 |
-| `license` | 鏄?| string | SPDX 鎴栧師濮嬭鍙瘉璇存槑 |
-| `source_note` | 鏄?| string | 璁烘枃銆侀」鐩富椤点€佷笅杞藉湴鍧€绛夋潵婧愯鏄?|
-| `field_mapping` | 鏄?| object | `commit_hash`銆乣committed_at`銆乣is_bug_inducing` 鐨勬簮瀛楁鏄犲皠 |
-| `label_mapping` | 鏄?| object | 鍘熷鏍囩鍊煎埌 `1/0/null` 鐨勬槧灏?|
-| `dataset_format` | 鍚?| string | `csv` / `json` / `zip`锛屾寜涓婁紶鏂囦欢鑷姩璇嗗埆鏃跺彲鐪佺暐 |
-| `files[]` | 鍚?| file | CSV/JSON/ZIP 鏁版嵁闆嗘枃浠讹紱涓?`source_url` 浜岄€変竴 |
+- 仅接受 `https`，按 `collect.protocol_whitelist` 校验；不允许账号密码、query、hash。
+- 抓取失败或内容不是 CSV/XLSX 返回 `40001`；远端不可达返回 `40400`。
 
-`field_mapping` 绀轰緥锛?
-```json
-{
-  "commit_hash": "sha",
-  "committed_at": "date",
-  "is_bug_inducing": "bug"
-}
-```
+### POST /api/collect/run
 
-`label_mapping` 绀轰緥锛?
-```json
-{
-  "1": 1,
-  "true": 1,
-  "bug": 1,
-  "0": 0,
-  "false": 0,
-  "clean": 0
-}
-```
+`multipart/form-data`，不接受 query 参数。
 
-鍏紑鏁版嵁闆嗘ā寮忎笉鎵ц SZZ锛涙爣绛炬潵婧愯涓?`public_dataset`銆?
+| part | 必填 | 契约 |
+|---|---|---|
+| `config` | 否 | JSON 文本，默认 `{}`；只允许 1 份 |
+| `files[]` | 否 | 提交清单 CSV，最多 1 个，单文件 ≤64MiB |
+
+`config` 字段：
+
+| 字段 | 必填 | 契约 |
+|---|---|---|
+| `source_type` | 否 | `git_repo`（默认）/ `public_dataset`；公开数据集模式忽略 Git 分支字段 |
+| `repo_source` | Git 模式条件必填 | 绝对本地路径或 `https`/`git` URL；本地路径须在配置 `collect.allow_roots` 内 |
+| `source_url` | 公开数据集模式必填 | 仅 `https`，不允许账号密码、query、hash |
+| `license` | 否 | 公开数据集许可证，≤128 字符 |
+| `field_mapping` | 公开数据集模式必填 | 提交哈希 / 提交时间 / 提交信息 / 作者等列映射 |
+| `label_mapping` | 公开数据集模式必填 | 正样本值、负样本值映射为 1 / 0，其余为未标注 |
+| `dataset_name` | 是 | ≤255 字符；同时作为数据集名称与下载文件基础名 |
+| `branch` | Git 模式必填 | 安全 git ref，≤255；必须存在于 `GET /api/collect/branches` 返回的列表中；不允许留空 |
+| `start_time` / `end_time` | 否 | 带时区 ISO8601，start ≤ end；按提交 `committed_at` 过滤；留空表示全量；结束日期包含当天 |
+| `start_commit` / `end_commit` / `head_expect` | 否 | 40 位 hash |
+| `mode` | 否 | `full` / `incremental`，默认 `incremental` |
+| `fetch_remote` | 否 | bool，默认 true |
+| `dedup` | 否 | 仅支持 `commit_hash` |
+| `szz_method` | 否 | `szz_v1` / `szz_lite` |
+| `dataset_id` | 否 | API / CLI 兼容入口；Web 页面不暴露 |
+
+变更说明：`format` 从运行配置移除；收集任务不再同时落 CSV 与 XLSX。`split_ratio` 不属于收集阶段，禁止在 collect 配置中出现。
+
+未知字段返回 `40001`。输入三态：上传清单 → 哈希列表；`dataset_id` → 已登记成员（未登记 40400，空成员 40001）；两者皆空 → 按 Git 仓库范围全量采集。
+
+响应 `data:{job_id,status}`，`status` 恒为 `queued`。
+
 ### GET /api/collect/preview/{job_id}
 
-杩斿洖 `{columns, preview}`銆?
-- `columns` 蹇呴』涓?file-contracts 搂3.1 閫愬瓧涓€鑷淬€?- `preview` 鏈€澶氬墠 20 琛屻€?- 鏈墦鏍囧瓧娈佃繑鍥?`null`銆?- 鍙厑璁搁瑙堝凡鐧昏銆乧hecksum 鏍￠獙閫氳繃鐨?CSV銆?
-### GET /api/collect/outputs/{job_id}/{name}
+读取 `collected_commits_<job_id>.csv`，返回数据集预览前 20 行：
 
-涓嬭浇鏈浠诲姟鐧昏鐨勪骇鐗╂枃浠躲€?
-鍏佽鐨勫熀纭€鍚嶇О锛?
-```text
-collected_commits_<job_id>.csv
-collected_commits_<job_id>.xlsx
-collect_summary_<job_id>.json
-collect_quality_<job_id>.json
-collect_quality_<job_id>.md
-collected_commits_<job_id>.manifest.json
+```json
+{"columns": ["..."], "preview": [{"commit_hash": "...", "...": null}]}
 ```
 
-`name` 蹇呴』鍑虹幇鍦?manifest `outputs[]`锛岀姝㈣矾寰勫垎闅旂鍜?`..`銆?
+空串转 `null`；列不一致返回 `40001`；批次或文件未登记返回 `40400`。页面标题为“数据集预览”，不叫“提交预览”。
+
 ### POST /api/collect/resave/{job_id}
 
-褰撴枃浠跺凡鐢熸垚浣嗘暟鎹簱淇濆瓨澶辫触鏃讹紝鐢ㄥ凡淇濈暀浜х墿閲嶆柊鍐欏叆 `dataset` 鍜?`dataset_commit`銆?
-- 鎴愬姛杩斿洖 `{job_id, dataset_id, status:"success"}`銆?- 杈撳叆浜х墿 checksum 涓嶇杩斿洖 40001銆?- 涓嶉噸鏂版墽琛屼粨搴撴媺鍙栨垨 SZZ銆?
-### 閿欒鐮?
-| 涓氬姟鐮?| HTTP | 鍦烘櫙 |
+把成功的 collect 核心产物登记为数据集（幂等）：
+
+- 前置：任务 `kind=collect` 且 `success`，产物含 `collected_commits_<job_id>.csv`。
+- 校验登记大小与 SHA-256、列契约，不符返回 `40001`。
+- `dataset_id = uuid5(NAMESPACE_URL, "collect-resave:" + job_id)`；dataset 状态 `ready`。
+- 响应 `data:{job_id,dataset_id,status:"success"}`。
+
+### GET /api/collect/outputs/{job_id}/{name}
+
+下载核心数据集文件。
+
+| 参数 | 必填 | 契约 |
 |---|---|---|
-| 40001 | 400 | 鍙傛暟銆佽矾寰勩€佸崗璁€丠EAD銆佸瓧娈垫槧灏勩€佹爣绛炬槧灏勩€佹枃浠舵牸寮忋€佸悓 kind 鍐茬獊 |
-| 40100 | 401 | 缂哄け鎴栭敊璇殑 `X-API-Key`锛屽寘鎷笅杞?|
-| 40400 | 404 | job 鎴栫櫥璁拌緭鍑轰笉瀛樺湪 |
-| 50000 | 500 | 鏈鏈熸湇鍔￠敊璇紱杩愯鏈熷け璐ュ啓鑴辨晱 error_log |
+| `name` | 是 | 产物名；页面固定为 `collected_commits_<job_id>` 或等价逻辑名 |
+| `format` | 否 | `csv`（默认）/ `xlsx`；仅影响本次下载响应 |
 
-## 3 杈撳嚭濂戠害
+- `format=csv`：直接返回规范主表 `collected_commits_<job_id>.csv`。
+- `format=xlsx`：从同一规范 CSV 即时生成单 sheet XLSX 并返回；不写入产物目录、不登记为新产物、不生成同名 manifest。
+- 响应 `Content-Disposition` 文件名为 `<dataset_name>_<job_id>.<ext>`；`dataset_name` 必须做文件名安全清洗。
+- summary / audit / quality / manifest 不通过该端点作为用户结果文件下载。
 
-### 3.1 浜岀淮琛?
-`collected_commits_<job_id>.csv/xlsx`锛屽瓧娈典弗鏍奸伒寰?file-contracts 搂3.1銆?
-鍏抽敭绾︽潫锛?
-- 涓嶅惈 Kamei 14 缁淬€?- 涓嶅惈 `is_test`銆?- `is_bug_inducing` 鏈墦鏍囦繚鎸佺┖銆?- `label_source` 蹇呭～锛歚git_szz` / `public_dataset`銆?- `source_type` 蹇呭～锛歚git_repo` / `public_dataset`銆?
-### 3.2 缁熻淇℃伅
+### 错误码
 
-`collect_summary_<job_id>.json` 鑷冲皯鍖呭惈锛?
+| 业务码 | HTTP | 场景 |
+|---|---|---|
+| 40001 | 400 | 表单 / 未知字段、清单格式或哈希非法、配置非法、分支不存在、产物列或 checksum 不一致 |
+| 40100 | 401 | 鉴权失败 |
+| 40400 | 404 | 数据集未登记、仓库不存在、输出批次 / 文件不存在 |
+| 50000 | 500 | 未预期异常 |
+
+## 3. 输入契约
+
+- 提交清单：单列 `commit_hash`，值 40 位十六进制。
+- `dataset_id` 输入：使用已登记成员，缺失 `repo_source`/`branch` 时回填数据集值。
+- 仓库范围：Web 页面固定选择 `branch`；API / CLI 还可用 `start_time/end_time`、`start_commit/end_commit`、`head_expect` 定位范围。
+- 公开数据集：`source_type=public_dataset` 时从 `source_url` 拉取 CSV/XLSX，按 `field_mapping` / `label_mapping` 归一化为 `collected_commits`；`label_source=public_dataset`，不跑 SZZ。
+
+### SZZ 判据（与实现同源）
+
+- 修复提交判据（D4）：提交信息同时命中缺陷编号与修复语义词（词首边界）。
+- 两套方法：`szz` 行级回溯（标准 SZZ，输出 `szz_v1`）；`szz_lite` 文件级回溯（输出 `szz_lite`），二者结果差异必须量化出示。
+- 回溯未命中的修复提交（D5）不入样本集、不记 0，只在统计中单列。
+- 正样本比例异常区间：`ABNORMAL_LOW=0.40`、`ABNORMAL_HIGH=0.60`；落在区间先复核打标逻辑。
+
+## 4. 输出契约
+
+用户可见核心产物只有一份：
+
 ```text
-source_type, source_url, dataset_name, label_source,
-total_rows, positive_rows, negative_rows, unlabeled_rows,
-duplicate_rows, skipped_rows, save_db_status, dataset_id
+collected_commits_<job_id>.csv
 ```
 
-Git 妯″紡棰濆鍚?`repo`銆乣branch`銆乣head_hash`銆乣time_start`銆乣time_end`銆乣szz_method`銆?
-鍏紑鏁版嵁闆嗘ā寮忛澶栧惈 `license`銆乣source_note`銆乣field_mapping`銆乣label_mapping`銆?
-### 3.3 璐ㄩ噺鎶ュ憡
-
-鍏紑鏁版嵁闆嗘ā寮忓繀浜э細
+内部记录（用于复现与任务审计，已登记在产物批次中，但不在收集页结果文件区展示）：
 
 ```text
+<stem>.manifest.json
+collect_summary_<job_id>.json
+collect_audit_<job_id>.json
 collect_quality_<job_id>.json
 collect_quality_<job_id>.md
+collect_repository_snapshot_<job_id>.json   # 内核提供快照时
 ```
 
-鍐呭瑙?function_point/collect.md 搂4.3銆?
-### 3.4 manifest
+`summary`：`rows, labeled_rows, positive_rows, negative_rows, unlabeled_rows, head_hash`。
 
-涓讳骇鐗╁悓鍚?manifest锛岄伒寰?file-contracts 搂3.9锛屽苟璁板綍锛?
-```text
-source_type, label_source, license, source_url,
-save_db_status, dataset_id
-```
+`audit`：`deduplicated, skipped{merges,outside_output_range}, stage_errors[], head_check, fetch, cache{hit,strategy}, szz{...}, boundary`。
 
-## 4 鏁版嵁搴撲繚瀛樿涔?
-- `save_to_db=true` 鏃讹紝鏂囦欢鐢熸垚鍚庡啓鍏?`dataset` 鍜?`dataset_commit`銆?- 鎴愬姛鍚庡搷搴旀垨 job 鐨?`output_ref_json` 蹇呴』鍚?`dataset_id`銆?- 鏂囦欢鐢熸垚鎴愬姛浣嗕繚瀛樺け璐ワ細
-  - job 鐘舵€佷负 `failed`锛?  - `error_log` 鍐欐槑淇濆瓨澶辫触鍘熷洜锛?  - 鏂囦欢浜х墿浠嶅彲涓嬭浇锛?  - 鍙皟鐢?`POST /api/collect/resave/{job_id}`銆?- `save_to_db=false` 鏃讹紝job 鎴愬姛浠呰〃绀烘枃浠朵氦浠樻垚鍔燂紝鏁版嵁闆嗗垪琛ㄤ笉鏂板璁板綍銆?
-## 5 鍙厤缃」
+`quality.checks`：`missing_rate, duplicate_rows, skipped_rows, label_conflicts, time_anomalies, field_mapping, anomaly_samples, handling_note`。
 
-- `collect.allow_roots`锛氭湰鍦颁粨搴撳拰鍏紑鏁版嵁鏂囦欢鍏佽鏍圭洰褰曘€?- `collect.protocol_whitelist`锛氬厑璁哥殑 URL 鍗忚銆?- `default_dataset`锛氫粎浣滃睍绀哄拰渚垮埄閫夋嫨锛屼笉鏄繍琛屽墠鎻愩€?- 鍗曟杩愯閰嶇疆锛氭潵婧愮被鍨嬨€佷粨搴?鏁版嵁闆嗘潵婧愩€佽寖鍥淬€丼ZZ 鏂规硶銆佸瓧娈垫槧灏勩€佹爣绛炬槧灏勩€佷繚瀛樺紑鍏炽€佽緭鍑烘牸寮忋€?- 鎵€鏈夊崟娆￠厤缃畬鏁村啓鍏?`job.params_json` 涓?manifest锛涘嚟璇佷笉寰楀啓鍏ャ€?
-## 6 鐘舵€佹寔涔呭寲
+禁止把 XLSX 作为 collect 任务的预生成产物；禁止把 summary / audit / quality / manifest 暴露到“结果文件”区。
 
-- `job.kind=collect`锛屼簲鎬?`queued / running / success / failed / cancelled`銆?- 闃舵锛氭媺鍙?瀵煎叆銆侀噰闆?鏄犲皠銆丼ZZ 鎴栨爣绛惧綊涓€鍖栥€佺敓鎴愪簩缁磋〃銆佷繚瀛樻暟鎹簱銆佺敓鎴愬鍑烘枃浠躲€?- 鍚?kind 浜掓枼锛涢噸鍚仐鐣?running 缃?failed锛涘け璐ュ彲閲嶈瘯锛岃繍琛屼腑鍙彇娑堛€?- 杈撳嚭钀?`temp/outputs/<job_id>/`銆?- 淇濆瓨鏁版嵁搴撳け璐ヤ笉鍒犻櫎鏂囦欢浜х墿銆?
-## 7 楠屾敹
+## 5. 可配置项
 
-- Git 浠撳簱妯″紡锛氭湰鍦颁粨搴撴垨鍚堟硶 URL 鍙骇鍑?搂3.1 浜岀淮琛ㄣ€乻ummary銆乵anifest锛涙湭鎵撴爣涓虹┖锛涙棤 14 缁村拰 `is_test`銆?- 鍏紑鏁版嵁闆嗘ā寮忥細閫氳繃瀛楁/鏍囩鏄犲皠浜у嚭鍚?schema 浜岀淮琛紱涓嶆墽琛?SZZ锛涜川閲忔姤鍛婁笌 manifest 瀹屾暣銆?- 榛樿淇濆瓨鏁版嵁搴撴垚鍔熸椂锛宍GET /api/datasets` 鍙煡璇㈠埌鏂版暟鎹泦銆?- 淇濆瓨澶辫触鏃舵枃浠朵粛鍙笅杞斤紝`resave` 鍙仮澶嶅叆搴撱€?- CSV/XLSX 涓枃涓嶄贡鐮侊紝checksum 涓?manifest 涓€鑷淬€?- 闈炴硶璺緞銆佸崗璁€佸瓧娈垫槧灏勩€佹爣绛炬槧灏勩€丠EAD銆佹枃浠舵牸寮忓潎杩斿洖 40001 涓斾笉浜у崐鎴愬搧銆?
+- `collect.allow_roots`：本地仓库允许根目录。
+- `collect.protocol_whitelist`：允许的 URL 协议。
+- `collect` 默认模式来自配置中心 `page_prefs`；分支不从配置中心取默认值，页面必须刷新后选择。
+- `SYNC_FETCH=0` 时跳过 `git fetch`，直接用本地 HEAD（离线演示）。
+
+## 6. 状态持久化
+
+- 任务 `kind=collect`，五态；进度阶段按“校验来源 / 拉取提交 / 缺陷标注 / 生成数据集 / 完成导出”呈现。
+- `params` 记录 `input_ref`、`input_sha256`、归一化 `config`、已选 `branch`。
+- `output_ref_json.outputs` 登记本批次全部产物（核心 CSV、manifest、summary / audit / quality、公开数据 metadata、仓库快照）；页面结果文件区只展示核心 CSV，其余内部记录不在用户界面混排。下载端点仍按 `outputs` 中的登记项校验，未登记文件不可下载。
+- 失败 `error_log` 为脱敏文本（≤2000 字符），不含内部路径。
+- 产物落 `temp/outputs/<job_id>/`，不可覆盖；`resave` 只登记数据集，不修改产物。
+
+## 7. 验收
+
+- 本地仓库路径、远端 URL、上传清单、`dataset_id` 四种入口都能独立跑通。
+- 分支列表来自仓库；未知分支被拒绝；页面不提供手填分支。
+- 产物列严格符合 collected_commits 列契约；未打标保持 null；SZZ 边界内标签不外溢。
+- 任务只落一份规范 CSV；下载 CSV 直接返回该文件，下载 Excel 按请求即时生成且不落盘。
+- 结果文件区只展示一个「已标注数据集」逻辑文件。
+- 内部记录仅用于审计，不与核心文件混排。
+- 非法清单、非法范围、非法 `repo_source`、跨模块产物下载均被拒绝。
+- 同一仓库与参数重复运行，`summary` 计数一致（job_id 与耗时除外）。
+- 公开数据集 URL 拉取、字段 / 标签映射与 Git 模式产物同契约；存储导入不再创建 `public_dataset`。
+
+## 8. 边界
+
+collect 是数据入口而不是流水线调度器：它不感知清洗 / 训练是否存在。数据集只是可选展示与入参来源，未 `resave` 也不影响产物下载与其他模块直接吃文件运行。
+
+
+

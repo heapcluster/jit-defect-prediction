@@ -2,7 +2,7 @@
 
 `实现状态：部分　期次：一期`
 
-W2 已实现模型包结构/checksum 校验、不透明 ZIP 路径登记与同事务 model 元数据派生；不自动加载或执行上传权重。加载校验和模型管理由后续 W6 完成。
+W2 已实现模型结构 / checksum 校验、权重路径登记与同事务 model 元数据派生；训练目标产物为每个算法一个独立 `.pkl`，外部交付导入仍可为 ZIP。不自动加载或执行上传权重。加载校验和模型管理由后续 W6 完成。
 
 **一句话**：模型工件登记表，一行对应一份可加载权重；是模型名单的**唯一登记源**，`model` 表行由它派生，`model_registry` 只读登记结果并校验 checksum。
 
@@ -35,7 +35,7 @@ W2 已实现模型包结构/checksum 校验、不透明 ZIP 路径登记与同�
 
 | 方向 | 谁 | 用途 |
 |---|---|---|
-| 写入 | 训练服务（TODO/04）、离线交付导入脚本 | 工件登记 |
+| 写入 | 训练服务、离线交付导入脚本 | 工件登记 |
 | 读取 | `model_registry`（加载 / 懒加载 / checksum 校验）、模型管理 API（状态 / 加载 / 卸载 / 重载） | 模型生命周期 |
 | 展示 | 模型管理页（工件状态 / 大小 / 训练任务）、级联选择器（经 `model` 表） | 资产可见可管 |
 
@@ -44,8 +44,10 @@ W2 已实现模型包结构/checksum 校验、不透明 ZIP 路径登记与同�
 - **派生规则**：登记 / 更新工件时同事务 upsert `model` 行（model_name / line / algo / version_key / trained_at / feature_version）；`retired` 工件对应的 `model` 行保留但级联选择器过滤为不可选。
 - **加载契约**：`model_registry` 启动与懒加载都从本表取路径并校验文件存在与 `checksum_sha256`；缺失或不符 → `status=load_failed` 并保留原因，MUST NOT 静默跳过或扫目录兜底。
 - **失败隔离**：训练失败 MUST NOT 覆盖已有 `available` 工件；新工件校验通过才置 `available`。
+- **链路关联**：训练自产工件 MUST 写 `train_job_id`；预测 / 解释任务据此把 `model_name` 解析为训练父任务，产物库链路视图与整链删除都依赖该字段，外部交付导入可为空。
 - 模型状态三态：`available`（可用）/ `load_failed`（加载失败）/ `retired`（已下线）。
 - 在线 expert 权重列序以 `data_model/pipelines/expert/models/feature_order.txt` 为准，登记时核对 `feature_version` 与列序一致。
+- **范式取舍（有意偏离 BCNF）**：`line` / `algo` / `version_key` / `trained_at` / `feature_version` 同时存在于 `model` 与 `model_artifact`，其中 `model` 行由本表派生。冗余是为了让加载契约只读本表即可完成（不跨表 join），且工件元数据是登记时点快照，不被后续 `model` 行变更影响。一致性由"同事务 upsert `model` 行"的派生规则保证。
 
 ## 验收
 

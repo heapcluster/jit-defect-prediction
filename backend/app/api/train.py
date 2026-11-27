@@ -44,13 +44,6 @@ async def run_train(request: Request, config: Annotated[str, Form()] = '{}',
     return ok(await run_in_threadpool(submit))
 
 
-@router.get('/api/train/compare')
-def compare(request: Request, job_id: str):
-    query_keys(request, {'job_id'})
-    with train_run.db.SessionLocal() as session:
-        return ok(train_run.compare(session, job_id))
-
-
 @router.get('/api/train/outputs/{job_id}/{name}')
 def download_train(request: Request, job_id: str, name: str):
     query_keys(request, set())

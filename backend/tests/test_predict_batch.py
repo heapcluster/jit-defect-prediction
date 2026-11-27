@@ -58,8 +58,13 @@ def test_batch_uploaded_zip_delivers_predictions(batch):
         assert len(row['risk_score'].split('.')[-1]) <= 5
         assert row['predicted_label'] == str(int(float(row['risk_score']) >= 0.5))
     assert any(row['is_bug_inducing'] == '' for row in rows) or all(row['is_bug_inducing'] != '' for row in rows)
-    summary = json.loads(client.get(f'/api/predict/outputs/{job_id}/predict_summary_{job_id}.json', headers=HEADERS).content)
+    job = client.get('/api/jobs/' + job_id, headers=HEADERS).json()['data']
+    summary = job['output_ref_json']['summary']
     assert summary['model_name'] == name and summary['failed_count'] == 0
+    # 预测只交付结果表，不再生成说明文件；预览按页返回全量行数。
+    assert not any(item['name'].startswith('predict_summary_') for item in job['output_ref_json']['outputs'])
+    preview = client.get(f'/api/predict/preview/{job_id}', headers=HEADERS).json()['data']
+    assert preview['total'] == len(train_rows()) and preview['page'] == 1
 
 
 def test_batch_registered_model_without_zip(batch):

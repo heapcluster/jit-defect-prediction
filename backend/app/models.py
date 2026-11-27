@@ -90,8 +90,9 @@ class CommitFeature(Base):
 class Prediction(Base):
     __tablename__ = "prediction"
     __table_args__ = (
-        # 列表/趋势按「某模型 + 风险排序」取数；没有这条复合索引时是全表扫 + filesort
+        # 列表/详情按「某模型 + 风险排序」取数；没有这条复合索引时是全表扫 + filesort
         Index("ix_prediction_model_risk", "model_name", "risk_score"),
+        Index("ix_prediction_job", "job_id"),
     )
 
     commit_hash: Mapped[str] = mapped_column(
@@ -101,22 +102,34 @@ class Prediction(Base):
         String(64), ForeignKey("model.model_name"), primary_key=True
     )
     risk_score: Mapped[float] = mapped_column(DECIMAL(6, 5))
+    # 目标契约要求非空；现有写入代码尚未提供，暂可空以免破坏预测路径
+    predicted_label: Mapped[int | None] = mapped_column(TINYINT, nullable=True)
+    decision_threshold: Mapped[float | None] = mapped_column(
+        DECIMAL(4, 3), nullable=True, default=0.5
+    )
     predicted_at: Mapped[object] = mapped_column(DATETIME)
     model_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
     feature_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # 从训练测试集透传的真标签；新提交预测允许为空
+    is_bug_inducing: Mapped[int | None] = mapped_column(TINYINT, nullable=True)
+    job_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    output_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
 
 class ModelFigure(Base):
-    """模型性能图索引：`(model_name, figure_type)` 联合主键。"""
+    """评估图索引：按 `(job_id, model_name, figure_type)` 区分评估批次。"""
 
     __tablename__ = "model_figure"
 
+    job_id: Mapped[str] = mapped_column(String(36), primary_key=True, default="")
     model_name: Mapped[str] = mapped_column(
         String(64), ForeignKey("model.model_name"), primary_key=True
     )
     figure_type: Mapped[str] = mapped_column(String(32), primary_key=True)
+    figure_name: Mapped[str] = mapped_column(String(128), default="")
     title: Mapped[str] = mapped_column(String(128))
     file_path: Mapped[str] = mapped_column(String(255))
+    testset_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)
     generated_at: Mapped[object] = mapped_column(DATETIME)
 
 
@@ -150,9 +163,14 @@ class Job(Base):
     """统一任务表：collect/clean/train/predict_batch/evaluate/explain 五态生命周期。"""
 
     __tablename__ = "job"
-    __table_args__ = (Index("ix_job_kind_status", "kind", "status"),)
+    __table_args__ = (
+        Index("ix_job_kind_status", "kind", "status"),
+        Index("ix_job_chain", "chain_id"),
+    )
 
     job_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    chain_id: Mapped[str] = mapped_column(String(36), nullable=False, default="")
+    parent_job_ids: Mapped[str | None] = mapped_column(Text, nullable=True)
     kind: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="queued")
     params_json: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -230,6 +248,14 @@ class Dataset(Base):
         String(36), ForeignKey("job.job_id"), nullable=True
     )
     created_at: Mapped[object] = mapped_column(DATETIME)
+    label_source: Mapped[str] = mapped_column(String(32), nullable=False, default="git_szz")
+    szz_method: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    license: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    source_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    unlabeled_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    summary_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    manifest_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    quality_report_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
 
 class DatasetCommit(Base):
@@ -269,7 +295,7 @@ INDEX_ASSERTIONS = (
     # 测试集评估看板：检验集筛选 + 四线分组 + 图索引
     ("commit_feature", ("is_test",), False),
     ("model", ("line",), False),
-    ("model_figure", ("model_name", "figure_type"), True),
+    ("model_figure", ("job_id", "model_name", "figure_type"), True),
     # 重构新增 7 表（契约见 docs/database/）
     ("user", ("user_id",), True),
     ("user_config", ("user_id", "config_key"), True),

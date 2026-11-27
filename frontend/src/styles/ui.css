@@ -1,0 +1,1383 @@
+/* Design tokens live in ./tokens.css (primitive → semantic → component).
+   This file owns layout and component rules only; it must not redefine raw values. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+html,
+body,
+#app {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font-family: var(--ui-font-sans);
+  font-size: var(--ui-font-base);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.ui-page {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.ui-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ui-space-4);
+  margin-bottom: var(--ui-space-4);
+}
+
+.ui-page-header h2 {
+  margin: 0;
+  font-size: var(--ui-font-xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.ui-page-header p {
+  margin: var(--ui-space-1) 0 0;
+  color: var(--ui-text-muted);
+  line-height: 1.6;
+}
+
+.panel,
+.ui-panel {
+  min-width: 0;
+  padding: var(--ui-panel-padding);
+  border: 1px solid var(--ui-panel-border);
+  border-radius: var(--ui-panel-radius);
+  background: var(--ui-panel-bg);
+  box-shadow: var(--ui-panel-shadow);
+}
+
+.panel + .panel,
+.ui-panel + .ui-panel {
+  margin-top: var(--ui-space-4);
+}
+
+.panel h2,
+.ui-panel h2 {
+  margin: 0 0 var(--ui-space-4);
+  font-size: var(--ui-font-lg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+
+.panel h3,
+.ui-panel h3 {
+  margin: 0 0 var(--ui-space-3);
+  font-size: var(--ui-font-base);
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.ui-panel-title {
+  margin: 0 0 var(--ui-space-4);
+  font-size: var(--ui-font-base);
+  font-weight: 650;
+}
+
+.ui-stack {
+  display: grid;
+  gap: var(--ui-space-4);
+}
+
+.ui-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ui-space-4);
+}
+
+.ui-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ui-space-4);
+  margin: var(--ui-space-4) 0;
+}
+
+/* 表单字段栅格：设置页与数据存储页共用，标签统一置于控件上方 */
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ui-space-4);
+}
+
+.field-grid .el-form-item {
+  display: block;
+  margin-bottom: 0;
+}
+
+.field-grid .el-form-item__label {
+  display: block;
+  padding: 0 0 6px;
+  color: var(--ui-text);
+  font-size: var(--ui-font-sm);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+@media (max-width: 768px) {
+  .field-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ui-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  color: var(--ui-color-slate-700);
+  font-size: var(--ui-font-sm);
+  font-weight: 500;
+}
+
+.ui-field--wide {
+  grid-column: 1 / -1;
+}
+
+.ui-field small,
+.ui-field .ui-hint {
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-hint);
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.fields .el-date-editor,
+.ui-field .el-date-editor {
+  width: 100%;
+}
+
+.ui-actions,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2);
+  margin-top: var(--ui-space-4);
+}
+
+.ui-actions > .el-button + .el-button,
+.actions > .el-button + .el-button {
+  margin-left: 0;
+}
+
+.panel > details,
+.ui-panel > details {
+  margin-top: var(--ui-space-4);
+  padding-top: var(--ui-space-4);
+  border-top: 1px solid var(--ui-border);
+}
+
+.panel summary,
+.ui-panel summary {
+  cursor: pointer;
+  color: var(--ui-color-slate-700);
+  font-size: var(--ui-font-sm);
+  font-weight: 600;
+}
+
+.panel summary:focus-visible,
+.ui-panel summary:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
+}
+
+.ui-actions--between {
+  justify-content: space-between;
+}
+
+.ui-actions--end {
+  justify-content: flex-end;
+}
+
+.ui-note {
+  margin: 0;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-hint);
+  line-height: 1.6;
+}
+
+.ui-status {
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-hint);
+}
+
+.ui-detail {
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-hint);
+}
+
+.ui-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2);
+  margin-bottom: var(--ui-space-4);
+}
+
+.ui-section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  margin: 0 0 var(--ui-space-3);
+  font-size: var(--ui-font-base);
+  font-weight: 650;
+}
+
+.ui-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--ui-space-4);
+}
+
+.ui-kpi {
+  padding: var(--ui-space-4);
+  border: 1px solid var(--ui-border);
+  border-top: 2px solid var(--ui-kpi-accent);
+  border-radius: var(--ui-kpi-radius);
+  background: var(--ui-kpi-bg);
+}
+
+.ui-kpi dt {
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-sm);
+}
+
+.ui-kpi dd {
+  margin: var(--ui-space-2) 0 0;
+  font-size: var(--ui-font-2xl);
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  line-height: 1.1;
+}
+
+/* ---------- 工具页通用分块（数据收集 / 数据清洗 / 模型训练共用） ----------
+   单源定义：页面只写页面特有样式，不再各自复制步骤块、信息卡、统计卡与分区标题。 */
+.step-block + .step-block {
+  margin-top: 26px;
+  padding-top: var(--ui-space-5);
+  border-top: 1px dashed var(--ui-border);
+}
+
+.step-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  margin-bottom: var(--ui-space-4);
+}
+
+.step-heading h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+  line-height: 1.4;
+}
+
+.step-heading .el-tag {
+  margin-left: auto;
+}
+
+.step-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ui-step-marker-size);
+  height: var(--ui-step-marker-size);
+  flex: 0 0 var(--ui-step-marker-size);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--p-radius-1);
+  background: var(--ui-surface-subtle);
+  color: var(--ui-text-muted);
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-font-hint);
+  font-weight: 700;
+  transition: background-color var(--ui-duration-normal) var(--ui-ease), border-color var(--ui-duration-normal) var(--ui-ease), color var(--ui-duration-normal) var(--ui-ease);
+}
+
+/* 步骤三态：current 是唯一强调项，done 用实心品牌色收口，upcoming 保持中性。 */
+.step-block.is-current > .step-heading .step-index {
+  border-color: var(--ui-primary);
+  background: var(--ui-primary);
+  color: var(--ui-text-inverse);
+  box-shadow: 0 0 0 4px var(--ui-focus-ring);
+}
+
+.step-block.is-done > .step-heading .step-index {
+  border-color: var(--ui-primary-soft);
+  background: var(--ui-primary-soft);
+  color: var(--ui-primary-hover);
+}
+
+.step-block.is-current > .step-heading h3 {
+  color: var(--ui-text);
+}
+
+.step-block.is-upcoming > .step-heading h3 {
+  color: var(--ui-text-muted);
+}
+
+/* 已完成步骤折叠后只保留一行标题与摘要，减少长表单的纵向噪音 */
+.step-block.is-collapsed {
+  margin-top: var(--ui-space-4);
+  padding-top: var(--ui-space-4);
+}
+
+.step-block.is-collapsed .step-heading {
+  margin-bottom: 0;
+}
+
+/* 主操作固定在配置面板底部，滚动查看参数时按钮始终可见 */
+.step-block.is-sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  margin-top: var(--ui-space-4);
+  padding: var(--ui-space-3) 0 var(--ui-space-1);
+  border-top: 1px solid var(--ui-border);
+  background: var(--ui-surface);
+  box-shadow: 0 -12px 20px -18px var(--p-neutral-a45);
+}
+
+/* ---------- 步骤轨道：页面顶部的横向进度指引 ---------- */
+.step-rail {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin: 0 0 var(--ui-space-5);
+  padding: var(--ui-step-rail-padding);
+  overflow-x: auto;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-panel-radius);
+  background: var(--ui-step-rail-bg);
+  scrollbar-width: thin;
+}
+
+.step-rail__item {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--ui-space-3);
+  min-width: 116px;
+  padding: 0 var(--ui-space-3);
+  color: var(--ui-text-muted);
+}
+
+.step-rail__item:first-child {
+  padding-left: 0;
+}
+
+.step-rail__item:last-child {
+  flex: 0 1 auto;
+  padding-right: 0;
+}
+
+.step-rail__marker {
+  display: grid;
+  width: var(--ui-step-marker-size);
+  height: var(--ui-step-marker-size);
+  flex: 0 0 var(--ui-step-marker-size);
+  place-items: center;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--p-radius-1);
+  background: var(--ui-surface);
+  color: var(--ui-text-muted);
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-font-hint);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.step-rail__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.step-rail__title {
+  overflow: hidden;
+  font-size: var(--ui-font-sm);
+  font-weight: 550;
+  text-overflow: ellipsis;
+}
+
+.step-rail__note {
+  color: var(--ui-text-muted);
+  font-size: 11px;
+}
+
+.step-rail__line {
+  width: 28px;
+  flex: 1 1 28px;
+  height: 1px;
+  min-width: 16px;
+  margin: 0 var(--ui-space-2);
+  background: var(--ui-border-strong);
+}
+
+.step-rail__item.is-done {
+  color: var(--ui-text);
+}
+
+.step-rail__item.is-done .step-rail__marker {
+  border-color: var(--ui-primary);
+  background: var(--ui-primary);
+  color: var(--ui-text-inverse);
+}
+
+.step-rail__item.is-current .step-rail__marker {
+  border-color: var(--ui-primary);
+  background: var(--ui-surface);
+  color: var(--ui-primary);
+  box-shadow: 0 0 0 3px var(--ui-focus-ring);
+}
+
+.step-rail__item.is-current .step-rail__title {
+  color: var(--ui-text);
+  font-weight: 700;
+}
+
+.step-rail__item.is-current .step-rail__note {
+  color: var(--ui-primary);
+}
+
+@media (max-width: 1100px) {
+  .step-rail__line {
+    display: none;
+  }
+
+  .step-rail__item {
+    min-width: 120px;
+  }
+
+  .step-rail__note {
+    display: none;
+  }
+}
+
+.section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ui-space-4);
+  margin-bottom: var(--ui-space-3);
+  padding-bottom: var(--ui-space-2);
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.section-heading h2 {
+  margin: 0;
+  color: var(--ui-text);
+  font-size: var(--ui-font-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.progress-text {
+  margin: var(--ui-space-3) 0 0;
+  color: var(--ui-text);
+  font-size: var(--ui-font-md);
+  line-height: 1.5;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  color: var(--ui-text);
+  font-size: var(--ui-font-md);
+}
+
+.field > .field-label,
+.ui-field > .field-label {
+  color: var(--ui-text);
+  font-size: var(--ui-font-sm);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.field > .el-select,
+.field > .el-input,
+.field > .el-date-editor,
+.ui-field > .el-select,
+.ui-field > .el-input,
+.ui-field > .el-date-editor {
+  width: 100%;
+}
+
+.info-card {
+  margin-top: var(--ui-space-4);
+  padding: var(--ui-space-3) var(--ui-space-4);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-subtle);
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--ui-space-5);
+}
+
+.info-grid.cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.info-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+  padding: 6px 0;
+  font-size: var(--ui-font-hint);
+  line-height: 1.5;
+  text-align: left;
+}
+
+.info-row.span-two {
+  grid-column: 1 / -1;
+}
+
+.info-label {
+  color: var(--ui-text-muted);
+}
+
+.info-value {
+  color: var(--ui-text);
+  overflow-wrap: anywhere;
+}
+
+.mono {
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-font-hint);
+}
+
+.status-line {
+  margin: var(--ui-space-3) 0 0;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-hint);
+}
+
+.validation {
+  margin: var(--ui-space-2) 0;
+  color: var(--el-color-danger);
+  font-size: var(--ui-font-hint);
+  overflow-wrap: anywhere;
+}
+
+.run-button {
+  width: 100%;
+  height: var(--ui-space-7);
+  font-size: var(--ui-font-md);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.actions,
+.heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.heading h2 {
+  margin: 0;
+}
+
+/* ---------- 选择卡片：全站唯一的单选 / 多选卡片骨架 ----------
+   数据清洗的处理项、模型训练的算法、预测评估的指标、数据收集的来源共用同一结构：
+   勾选 + 序号 + 标题 + 徽标 + 摘要 + 参数区。页面只提供内容，不再各自定义卡片样式。 */
+.check-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--ui-space-3);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.check-item {
+  --check-indent: 26px;
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px var(--ui-space-2);
+  padding: 10px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-check-radius);
+  background: var(--ui-surface);
+  transition: border-color var(--ui-duration-fast) var(--ui-ease), background-color var(--ui-duration-fast) var(--ui-ease), box-shadow var(--ui-duration-fast) var(--ui-ease);
+}
+
+.check-item:hover:not(.is-locked) {
+  border-color: var(--ui-border-strong);
+}
+
+.check-item.is-active {
+  border-color: var(--ui-primary);
+  background: var(--ui-primary-soft);
+  box-shadow: var(--ui-check-active-shadow);
+}
+
+.check-item.is-active:focus-within {
+  box-shadow: var(--ui-check-active-focus-shadow);
+}
+
+.check-item.is-locked {
+  border-style: dashed;
+  background: var(--ui-surface-subtle);
+}
+
+.check-label {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: var(--ui-space-2);
+  font-size: var(--ui-font-sm);
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.check-title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--ui-space-2);
+  overflow-wrap: anywhere;
+  font-size: var(--ui-font-sm);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.check-note {
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-hint);
+  font-weight: 400;
+}
+
+.check-badge {
+  margin-left: auto;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--ui-surface);
+  color: var(--ui-primary-hover);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.check-summary {
+  flex: 1 1 100%;
+  padding-left: var(--check-indent);
+  margin: 0;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-hint);
+  line-height: 1.55;
+}
+
+.check-body {
+  flex: 1 1 100%;
+  min-width: 0;
+  padding-left: var(--check-indent);
+}
+
+.check-params {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--ui-border);
+}
+
+.check-params .param-row {
+  display: grid;
+  gap: 6px;
+}
+
+.check-params .param-name {
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-hint);
+}
+
+.check-params .el-select,
+.check-params .el-input-number {
+  width: 100%;
+}
+
+.check-label--stack .check-title {
+  display: grid;
+  gap: 2px;
+}
+
+.check-label--stack .check-note {
+  margin-left: 0;
+}
+
+.save-card {
+  margin: 20px 0;
+}
+
+.el-collapse-item__header {
+  font-size: var(--ui-font-md);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.el-collapse-item__content {
+  font-size: var(--ui-font-md);
+}
+
+@media (max-width: 768px) {
+  .check-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .info-grid,
+  .info-grid.cols-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .info-row.span-two {
+    grid-column: auto;
+  }
+}
+
+/* 列表/记录工具栏：左侧计数，右侧刷新；与记录卡片列表共用 */
+.records-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-4);
+}
+
+.records-count {
+  margin: 0;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-md);
+  line-height: 1.5;
+}
+
+.records-count strong {
+  color: var(--ui-text);
+  font-size: var(--ui-font-lg);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.records-pagination {
+  justify-content: center;
+  margin-top: var(--ui-space-4);
+}
+
+.ui-empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-7) var(--ui-space-5);
+  border: 1px dashed var(--ui-border-strong);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-subtle);
+  text-align: center;
+}
+
+.ui-empty strong {
+  font-size: var(--ui-font-base);
+}
+
+.ui-empty p {
+  max-width: 520px;
+  margin: 0;
+  color: var(--ui-text-muted);
+}
+
+.ui-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-panel-radius);
+  background: var(--ui-surface);
+}
+
+.ui-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--ui-font-sm);
+}
+
+.ui-table th,
+.ui-table td {
+  padding: var(--ui-table-padding);
+  border-bottom: 1px solid var(--ui-border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.ui-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--ui-table-header-bg);
+  color: var(--ui-table-header-text);
+  font-size: var(--ui-font-sm);
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--ui-border-strong);
+}
+
+.ui-table tbody tr {
+  transition: background 120ms ease;
+}
+
+.ui-table tr:last-child td {
+  border-bottom: none;
+}
+
+.file-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--ui-space-3);
+  margin-top: var(--ui-space-3);
+}
+
+.file-card {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  min-width: 0;
+  padding: var(--ui-space-3);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface);
+}
+
+.file-kind {
+  display: grid;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-primary-soft);
+  color: var(--ui-primary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.file-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.file-copy strong {
+  overflow: hidden;
+  color: var(--ui-text);
+  font-size: var(--ui-font-sm);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-copy small {
+  overflow: hidden;
+  color: var(--ui-text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Native form controls: only style our own workbench fields, never Element Plus internals. */
+:where(.field, .fields, .field-line, .info-value, .param-row, .check-label, .source-label, .chart-column, .option-group__item, .filter-item, .config-row, .query-row, .tree-panel, .code-panel, .source-toolbar, .opbar, .line-jump, .force-recompute) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea) {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--ui-input-height);
+  padding: 0 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: var(--ui-font-md);
+  transition: border-color var(--ui-duration-fast) var(--ui-ease), box-shadow var(--ui-duration-fast) var(--ui-ease);
+}
+
+:where(.field, .fields, .field-line, .info-value, .param-row, .check-label, .source-label, .chart-column, .option-group__item, .filter-item, .config-row, .query-row, .tree-panel, .code-panel, .source-toolbar, .opbar, .line-jump, .force-recompute) select {
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%23667085' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px 8px;
+  appearance: none;
+  cursor: pointer;
+  text-overflow: ellipsis;
+}
+
+:where(.field, .fields, .field-line, .info-value, .param-row, .check-label, .source-label, .chart-column, .option-group__item, .filter-item, .config-row, .query-row, .tree-panel, .code-panel, .source-toolbar, .opbar, .line-jump, .force-recompute) select option {
+  color: var(--ui-text);
+  background: var(--ui-surface);
+}
+
+:where(.field, .fields, .field-line, .info-value, .param-row, .check-label, .source-label, .chart-column, .option-group__item, .filter-item, .config-row, .query-row, .tree-panel, .code-panel, .source-toolbar, .opbar, .line-jump, .force-recompute) textarea {
+  min-height: 88px;
+  padding: 9px 11px;
+  resize: vertical;
+}
+
+:where(.field, .fields, .field-line, .info-value, .param-row, .check-label, .source-label, .chart-column, .option-group__item, .filter-item, .config-row, .query-row, .tree-panel, .code-panel, .source-toolbar, .opbar, .line-jump, .force-recompute) :is(input, select, textarea):hover {
+  border-color: var(--ui-border-strong);
+}
+
+:where(.field, .fields, .field-line, .info-value, .param-row, .check-label, .source-label, .chart-column, .option-group__item, .filter-item, .config-row, .query-row, .tree-panel, .code-panel, .source-toolbar, .opbar, .line-jump, .force-recompute) :is(input, select, textarea):focus {
+  border-color: var(--ui-primary);
+  box-shadow: 0 0 0 3px var(--ui-focus-ring);
+  outline: none;
+}
+
+:where(.field, .fields, .field-line, .info-value, .param-row, .check-label, .source-label, .chart-column, .option-group__item, .filter-item, .config-row, .query-row, .tree-panel, .code-panel, .source-toolbar, .opbar, .line-jump, .force-recompute) :is(input, select, textarea):disabled {
+  background: var(--ui-color-slate-100);
+  color: var(--ui-text-muted);
+  cursor: not-allowed;
+}
+
+/* Element Plus 控件内部输入不参与上面的原生控件样式，避免出现双边框与双重内边距。 */
+:where(.field, .fields, .field-line, .info-value, .param-row, .check-label, .source-label, .chart-column, .option-group__item, .filter-item, .config-row, .query-row, .tree-panel, .code-panel, .source-toolbar, .opbar, .line-jump, .force-recompute) :is(input.el-input__inner, textarea.el-textarea__inner, input.el-select__input) {
+  width: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: inherit;
+  box-shadow: none;
+}
+
+/* Explicit class for native buttons that must match .el-button */
+button.ui-button {
+  min-height: var(--ui-button-height);
+  padding: 0 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: var(--ui-font-sm);
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease, background-color 140ms ease;
+}
+
+button.ui-button:hover:not(:disabled) {
+  border-color: var(--ui-primary);
+  color: var(--ui-primary);
+}
+
+button.ui-button:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
+}
+
+button.ui-button:disabled {
+  color: var(--ui-text-muted);
+  cursor: not-allowed;
+}
+
+:where(.check-label, .source-label, .option-group__item, .checkbox-row, .filter-item, .info-value, .param-row, .check-item, .chart-column) :is(input[type="checkbox"], input[type="radio"]) {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--ui-primary);
+  cursor: pointer;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  width: fit-content;
+  margin: var(--ui-space-3) 0;
+  font-size: var(--ui-font-sm);
+  line-height: 1.4;
+}
+
+/* Element Plus alignment with the tooling shell */
+.el-button {
+  min-height: var(--ui-button-height);
+  padding: 0 14px;
+  border-radius: var(--ui-radius-sm);
+  font-size: var(--ui-font-base);
+  font-weight: 550;
+  transition: background-color var(--ui-duration-fast) var(--ui-ease), border-color var(--ui-duration-fast) var(--ui-ease), color var(--ui-duration-fast) var(--ui-ease), box-shadow var(--ui-duration-fast) var(--ui-ease), transform 80ms var(--ui-ease);
+}
+
+.el-button:not(.is-disabled):active {
+  transform: translateY(0.5px) scale(0.995);
+}
+
+.el-button:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
+}
+
+.el-button--primary {
+  border-color: var(--ui-primary);
+  background: var(--ui-primary);
+}
+
+.el-button--primary:not(.is-disabled):hover {
+  border-color: var(--ui-primary-hover);
+  background: var(--ui-primary-hover);
+}
+
+.el-button--default {
+  background: var(--ui-surface);
+}
+
+/* 两列字段布局：收集 / 解释 / 定位等工具页共用 */
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 12px 0; }
+.fields.one { grid-template-columns: minmax(0, 1fr); }
+.fields label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; min-width: 0; }
+:where(.field, .fields, .field-line, .info-value, .param-row, .check-label, .source-label, .chart-column, .option-group__item, .filter-item, .config-row, .query-row, .tree-panel, .code-panel, .source-toolbar, .opbar, .line-jump, .force-recompute) :is(input, select, textarea):focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 2px; }
+.ui-entry-button.el-button {
+  height: var(--ui-entry-button-height);
+  min-height: var(--ui-entry-button-height);
+  min-width: var(--ui-entry-button-min-width);
+  padding: 0 var(--ui-entry-button-padding-inline);
+  border: 1px solid var(--ui-entry-button-border);
+  background: var(--ui-entry-button-bg);
+  color: var(--ui-entry-button-text);
+  font-size: var(--ui-entry-button-font-size);
+  font-weight: 550;
+}
+
+.ui-entry-button.el-button:hover:not(.is-disabled) {
+  border-color: var(--ui-primary);
+  background: var(--ui-entry-button-hover-bg);
+  color: var(--ui-entry-button-hover-text);
+}
+
+.el-button.is-text,
+.el-button.is-link {
+  min-height: 30px;
+  padding: 0 6px;
+}
+
+.el-input__wrapper,
+.el-select__wrapper,
+.el-date-editor.el-input__wrapper {
+  min-height: var(--ui-input-height);
+  border-radius: var(--ui-radius-sm);
+  box-shadow: 0 0 0 1px var(--ui-border) inset;
+  transition: box-shadow var(--ui-duration-fast) var(--ui-ease);
+}
+
+.el-input__wrapper:hover,
+.el-select__wrapper:hover,
+.el-date-editor.el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--ui-border-strong) inset;
+}
+
+.el-input__wrapper.is-focus,
+.el-select__wrapper.is-focused,
+.el-date-editor.el-input__wrapper.is-active {
+  box-shadow: 0 0 0 1px var(--ui-primary) inset, 0 0 0 3px var(--ui-focus-ring);
+}
+
+/* 独立内容页（提交详情 / 模型性能）：与工具页共用面板骨架 */
+.content-page {
+  min-width: 0;
+  padding: var(--ui-panel-padding);
+  border: 1px solid var(--ui-panel-border);
+  border-radius: var(--ui-panel-radius);
+  background: var(--ui-panel-bg);
+  box-shadow: var(--ui-panel-shadow);
+}
+.content-page > h2 {
+  margin: 0 0 20px;
+  font-size: var(--ui-font-xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+@media (max-width: 768px) {
+  .content-page {
+    padding: 20px;
+  }
+}
+
+.el-textarea__inner {
+  border-radius: var(--ui-radius-sm);
+  box-shadow: 0 0 0 1px var(--ui-border) inset;
+}
+
+.el-form-item__label {
+  color: var(--ui-color-slate-700);
+  font-size: var(--ui-font-sm);
+  font-weight: 500;
+}
+
+.el-card,
+.el-dialog,
+.el-drawer {
+  border-radius: var(--ui-radius-lg);
+}
+
+.el-table {
+  --el-table-header-bg-color: var(--ui-table-header-bg);
+  --el-table-border-color: var(--ui-border);
+  --el-table-row-hover-bg-color: var(--ui-table-row-hover-bg);
+  border-radius: var(--ui-panel-radius);
+  overflow: hidden;
+}
+
+.el-table th.el-table__cell {
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-sm);
+  font-weight: 650;
+}
+
+.el-alert {
+  border-radius: var(--ui-radius-md);
+}
+
+.el-tag {
+  border-radius: var(--p-radius-1);
+  font-size: var(--ui-font-hint);
+  font-weight: 600;
+}
+
+.el-tabs__item {
+  font-weight: 550;
+}
+
+.el-tabs__active-bar {
+  height: 2px;
+  border-radius: var(--p-radius-1);
+  background-color: var(--ui-primary);
+}
+
+@media (max-width: 900px) {
+  .ui-grid,
+  .ui-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .fields,
+  .ui-form-grid,
+  .ui-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .actions > .el-button,
+  .ui-actions > .el-button {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .panel,
+  .ui-panel {
+    padding: var(--ui-space-4);
+    border-radius: var(--ui-radius-md);
+  }
+
+  .ui-page-header {
+    flex-direction: column;
+  }
+
+  .ui-actions,
+  .actions {
+    align-items: stretch;
+  }
+
+  .ui-actions .el-button,
+  .actions .el-button {
+    margin-left: 0;
+  }
+}
+
+/* Consistent section accents across tool pages */
+.ui-table tbody tr:hover {
+  background: var(--ui-table-row-hover-bg);
+}
+
+.data-table__empty {
+  padding: var(--ui-table-empty-padding);
+}
+.data-table__cell--mono {
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-font-sm);
+}
+
+/* 反馈性动效克制：只给可交互元素 120ms 的即时反馈，不使用弹跳或装饰动画 */
+button,
+.el-button,
+.check-item,
+.file-card,
+.source-item,
+.data-table__row--clickable {
+  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out;
+}
+
+button:active,
+.el-button:active {
+  transform: translateY(0.5px);
+}
+
+/* ---------- 共享组合件：筛选栏 / 统计栅格 / 悬停说明 ----------
+   这些结构与 .step-block、.info-card 一起构成页面级组件的单一样式来源。 */
+.ui-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-2) var(--ui-space-3);
+  margin-bottom: var(--ui-space-4);
+}
+
+.ui-filter-bar__controls {
+  display: flex;
+  flex: 1 1 360px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+
+.ui-filter-bar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2);
+  margin-left: auto;
+}
+
+.ui-filter-bar :where(.el-select, .el-input, .el-date-editor) {
+  max-width: 100%;
+}
+
+.ui-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--ui-space-3);
+  margin-bottom: var(--ui-space-4);
+}
+
+.ui-hover-tip,
+.hover-tip {
+  position: absolute;
+  left: 12px;
+  bottom: calc(100% + 8px);
+  z-index: 20;
+  width: max-content;
+  max-width: min(320px, 80vw);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-tooltip-bg);
+  color: var(--ui-text-inverse);
+  font-size: var(--ui-font-hint);
+  font-weight: 400;
+  line-height: 1.55;
+  text-align: left;
+  box-shadow: var(--ui-shadow-md);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity 120ms ease, transform 120ms ease, visibility 120ms;
+  pointer-events: none;
+}
+
+.check-item:hover > .ui-hover-tip,
+.check-item:focus-within > .ui-hover-tip,
+.check-item:hover > .hover-tip,
+.check-item:focus-within > .hover-tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+@media (max-width: 640px) {
+  .ui-filter-bar__controls,
+  .ui-filter-bar__actions {
+    flex-basis: 100%;
+  }
+
+  .ui-filter-bar__actions {
+    margin-left: 0;
+  }
+}
+
+/* ---------- Console details: thin scrollbars and one consistent focus ring ---------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-border-strong) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: var(--p-radius-1);
+  background: var(--ui-border-strong);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ui-text-muted);
+  background-clip: padding-box;
+}
+
+:where(a, button, .el-button, .el-menu-item, .check-item, [tabindex]):focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transform: none !important;
+  }
+}

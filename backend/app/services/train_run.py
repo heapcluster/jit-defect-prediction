@@ -156,7 +156,7 @@ def _dataset_input(session, dataset_id):
     source = dataset.source_url or dataset.repo_source
     if not source or '://' in source:
         fc.invalid('dataset 未绑定可读取的本地仓库，无法在训练内现算特征')
-    metadata.update(feature_version='v1', repo=source)
+    metadata.update(feature_version='v1', repo=source, dataset_job_id=dataset.job_id)
     return rows, metadata, [{'name': 'dataset_commits.csv', 'sha256': fc.sha256(content), 'rows': len(rows)}], len(content)
 
 
@@ -205,11 +205,15 @@ def submit(session, raw_config, files):
     total = len(validated['algos']) + 1
     try:
         job = job_store.create(session, 'train', params={'module': 'train', 'input_ref': reference,
-            'input_sha256': digest, 'config': validated}, total=total)
+            'input_sha256': digest, 'config': validated}, total=total,
+            parents=[{'kind': 'clean', 'job_id': metadata['dataset_job_id']}]
+            if dataset_id and metadata.get('dataset_job_id') else None)
     except Exception:
         shutil.rmtree(_request_path(reference).parent)
         raise
     if len(rows) <= SYNC_MAX_ROWS and set(validated['algos']) <= SYNC_ALGOS:
+        # 同步执行会在独立会话中更新同一 job；先提交外层事务，避免自锁。
+        session.commit()
         _execute(job['job_id'], job['retry_count'])
         dispatch()
         current = job_store.get(session, job['job_id'])
@@ -225,22 +229,24 @@ def submit(session, raw_config, files):
 
 def _register_and_load(result, artifacts, validated):
     from app.services import storage
+    line = validated.get('line', 'expert')
     for sub in result['models']:
         if sub['status'] != 'success':
             continue
-        zip_name = f'train_{sub["algo"]}_model_package_{result["job_id"]}.zip'
+        pkl_name = f'train_{sub["algo"]}_model_{result["job_id"]}.pkl'
+        meta_name = f'train_{sub["algo"]}_meta_{result["job_id"]}.json'
         if validated.get('register'):
             try:
                 with db.SessionLocal() as session:
-                    storage.import_files(session, [(zip_name, artifacts[zip_name])])
+                    storage.register_model_file(session, pkl_name, artifacts[pkl_name],
+                                                meta_name, artifacts[meta_name])
                 sub['register_status'] = 'registered'
             except Exception as error:
                 sub['register_status'] = 'failed: ' + job_store.sanitize_text(str(error))
         if validated.get('auto_load'):
             try:
                 from app import model_registry
-                members = fc.read_zip(zip_name, artifacts[zip_name])
-                model_registry.load_trained(sub['model_name'], members[f'{sub["algo"]}.pkl'])
+                model_registry.load_trained(sub['model_name'], artifacts[pkl_name], line=line)
                 sub['load_status'] = 'loaded'
             except Exception as error:
                 sub['load_status'] = 'failed: ' + job_store.sanitize_text(str(error))
@@ -279,11 +285,13 @@ def _execute(job_id, attempt):
         version = output_store.backend_code_version() + '+' + _call('code_version')
         with db.SessionLocal() as session:
             job_store.assert_running(session, job_id, attempt=attempt)
+            internal_meta = {f"train_{sub['algo']}_meta_{job_id}.json"
+                             for sub in result['models'] if sub['status'] == 'success'}
             reference = output_store.publish_output('train', artifacts, inputs=request['inputs'],
-                config=job_store.sanitize(result['config']), job_id=job_id, code_version=version)
+                config=job_store.sanitize(result['config']), job_id=job_id, code_version=version,
+                internal=internal_meta)
             published = True
-            reference.update(models=result['models'], summary=result['summary'],
-                             comparison_name=f'train_comparison_{job_id}.json')
+            reference.update(models=result['models'], summary=result['summary'])
             job_store.finish(session, job_id, attempt=attempt, output_ref=reference)
             finished = True
         # 登记/热加载只在 finish 成功后执行，失败任务不会留下在线模型或已登记工件。
@@ -309,21 +317,6 @@ def _execute(job_id, attempt):
         if not isinstance(error, (AppError, ValueError)):
             logger.exception('train executor failed')
         return True
-
-
-def compare(session, job_id):
-    job = job_store.get(session, job_id)
-    if job['kind'] != 'train' or job['status'] != 'success':
-        raise AppError(40400, '训练比较仅对成功任务可用')
-    name = (job['output_ref_json'] or {}).get('comparison_name')
-    if not name:
-        raise AppError(40400, '比较产物未登记')
-    data = fc.read_json(output_store.read_output('train', job_id, name).read_bytes())
-    metric = config_store.get_value('primary_metric', session)
-    data['primary_metric'] = metric
-    data['models'] = sorted(data.get('models', []),
-        key=lambda m: ((m.get('metrics') or {}).get(metric) is None, -((m.get('metrics') or {}).get(metric) or 0)))
-    return data
 
 
 def _drain():

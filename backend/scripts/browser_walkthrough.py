@@ -51,8 +51,7 @@ BROWSERS = {
 
 # (用例编号, 关联接口, 路径模板, 文件名后缀, 是否同时作为联调截图)
 PAGES = [
-    ("A-01", "GET /api/commits", "/", "risk-list", True),
-    ("A-05", "GET /api/trends", "/trend", "trend-board", True),
+    ("A-01", "GET /api/models", "/", "predict-home", True),
     ("A-06", "GET /api/figures", "/model-performance", "model-performance", True),
     ("A-08", "GET /api/commits/{hash} 40400", "/commit/" + "f" * 40, "commit-not-found", True),
     ("A-16", "兜底路由", "/this-route-does-not-exist", "not-found", False),

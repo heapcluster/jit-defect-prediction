@@ -41,7 +41,11 @@ def repository(tmp_path):
     (repo / "invalid.bin").write_bytes(b"\xff\xfe")
     (repo / "oversized.txt").write_text("x" * 4096)
     (repo / "empty.txt").write_text("")
-    (repo / "link.java").symlink_to("src/代码 space.java")
+    # Windows 默认无符号链接权限；无链接时 "link.java" 仍应是 not_found。
+    try:
+        (repo / "link.java").symlink_to("src/代码 space.java")
+    except OSError:
+        pass
 
     def commit(message, empty=False):
         git(repo, "add", "--all")

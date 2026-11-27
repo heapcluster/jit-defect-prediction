@@ -28,7 +28,6 @@ GOOD_HASH = "a" * 40
 ALL_ENDPOINTS = [
     ("GET", "/api/commits"),
     ("GET", f"/api/commits/{GOOD_HASH}"),
-    ("GET", "/api/trends"),
     ("POST", "/api/predict"),
 ]
 
@@ -179,19 +178,6 @@ def test_predict_boundaries_return_40001(client, payload):
     assert resp.json()["code"] == 40001
 
 
-@pytest.mark.parametrize("granularity", ["day", "year", "WEEK", "", "week "])
-def test_trends_granularity_boundary_return_40001(client, granularity):
-    resp = client.get(f"/api/trends?granularity={granularity}", headers=HEADERS)
-    assert resp.status_code == 400
-    assert resp.json()["code"] == 40001
-
-
-def test_trends_time_boundary_return_40001(client):
-    resp = client.get("/api/trends?start_time=yesterday", headers=HEADERS)
-    assert resp.status_code == 400
-    assert resp.json()["code"] == 40001
-
-
 # ────────────────────────── 信息泄露断言 ──────────────────────────
 
 
@@ -200,7 +186,6 @@ def test_trends_time_boundary_return_40001(client):
     [
         ("GET", "/api/commits?page=0", None),
         ("GET", "/api/commits/short", None),
-        ("GET", "/api/trends?granularity=day", None),
         ("POST", "/api/predict", {"commit_hash": "short"}),
     ],
 )

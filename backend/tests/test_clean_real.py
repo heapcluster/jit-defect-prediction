@@ -46,9 +46,8 @@ def test_real_clean_files_and_stats_equivalent_to_core(real_clean, mode):
     assert reference['mode'] == mode
     manifest = client.get(f'/api/clean/outputs/{job_id}/{reference["manifest_name"]}', headers=HEADERS).json()
     assert manifest['config']['mode'] == mode
-    png_name = f'clean_column_distribution_final_is_bug_inducing_{job_id}.png'
-    png = client.get(f'/api/clean/outputs/{job_id}/{png_name}', headers=HEADERS).content
-    assert png.startswith(b'\x89PNG\r\n\x1a\n')
+    assert any(entry['name'].endswith('_steps_stats.json') for entry in reference['outputs'])
+    assert not any(entry['name'].endswith('.png') for entry in reference['outputs'])
     for entry in reference['outputs']:
         data = client.get(f'/api/clean/outputs/{job_id}/{entry["name"]}', headers=HEADERS)
         assert data.status_code == 200 and fc.sha256(data.content) == entry['sha256']

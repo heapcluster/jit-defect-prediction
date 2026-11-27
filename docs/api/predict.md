@@ -1,114 +1,231 @@
-# 妯″瀷棰勬祴 API锛坧redict锛?
-涓€鍙ヨ瘽锛氱嫭绔嬪姞杞芥ā鍨嬪寘鎴栧凡鍔犺浇妯″瀷锛屽鍗曟彁浜ゆ垨琛ㄦ牸鎵规杈撳嚭椋庨櫓姒傜巼銆佸垽瀹氭爣绛惧拰鐗堟湰淇℃伅锛屽苟浜や粯缁熶竴 `predictions.csv`锛屼笉鍦ㄩ娴嬫湇鍔″唴鐢熸垚瑙ｉ噴鎴栧畾浣嶃€?
-瀹炵幇鐘舵€侊細宸插疄鐜般€€鏈熸锛氫竴鏈?
-鏂囦欢濂戠害鍞竴鏉冨▉锛歔../file-contracts.md](../file-contracts.md) 搂3.1銆伮?.2銆伮?.3銆伮?.4銆伮?.9锛涙ā鍨嬬鐞嗚 [models.md](models.md)銆?
-## 1. 鑱岃矗涓庝笉璐熻矗鑼冨洿
+﻿# 模型预测 API（predict）
 
-- 璐熻矗妯″瀷鍖呮牎楠屻€佺壒寰佸垪瀹芥牎楠屻€佸崟鏉″嵆鏃堕娴嬨€佹枃浠舵壒閲忛娴嬨€侀槇鍊煎垽瀹氥€佺粨鏋滃箓绛夊拰棰勬祴鏂囦欢浜や粯銆?- 鍗曟潯璇︽儏鍙€夋嫨娌跨敤搴撲腑缁撴灉鎴栫珛鍗抽噸鏂拌绠楋紱鎵归噺鏂囦欢杩愯涓嶄緷璧栧簱涓凡鏈夐娴嬨€?- 涓嶈礋璐ｈ缁冦€佹€ц兘璇勪及銆乆AI 鎴栬绾у畾浣嶃€傚搷搴斾笉鍖呭惈 `explanation`锛岄娴嬫湇鍔＄姝㈣皟鐢ㄨВ閲婃垨瀹氫綅鏈嶅姟锛涜鎯呴〉鍙苟琛岀紪鎺?`/api/explain` 涓?`/api/localize/run`銆?- 涓嶉殣寮忔妸鎵归噺鏂囦欢缁撴灉瀵煎叆灞曠ず琛紱闇€瑕佹椂鐢辫皟鐢ㄦ柟鍙﹁皟 storage銆?
-> W8 宸茬Щ闄ゅ崟鏉￠娴嬬殑 explanation 鍜岄娴嬪唴閮ㄧ殑 SHAP 璋冪敤锛岃鎯呴〉缁?`/api/explain` 鍗曠嫭璇诲彇瑙ｉ噴锛沠eatures/summary 浠嶄负鐜版湁璇︽儏灞曠ず瀛楁銆俻rediction 宸茶惤 `model_version / feature_version` 涓ゅ彲绌哄垪锛氬崟鏉℃部鐢ㄥ簱涓粨鏋滄椂鎸夎鍐呯増鏈笌褰撳墠妯″瀷/鐗瑰緛鐗堟湰瀵规瘮杩斿洖鐪熷疄 `stale`锛屽巻鍙?NULL 鐗堟湰琛岃涓鸿繃鏈燂紝`force_recompute` 閲嶇畻骞跺埛鏂扮増鏈€傛壒閲?run 宸蹭氦浠?搂3.4 鏂囦欢 + summary + manifest锛屾敮鎸?expert / semantic 涓ょ嚎锛堣 搂3锛夛紱妯″瀷绠＄悊 status/load/unload/reload/default 瑙?[models.md](models.md)銆?
-## 2. 绔偣濂戠害
+设计状态：目标契约。Web 页面只做训练产物上的批量预测；判定阈值默认 `0.5`；预测结果二维表必须写入 `prediction` 表；结果文件区只展示一个核心「预测结果」，XLSX 在下载时按需生成。
+
+预测文件 schema 见训练测试集与模型文件契约、predictions 列契约；数据库落库见 [`../database/prediction.md`](../database/prediction.md)；功能点见 [`../function_point/predict.md`](../function_point/predict.md)；页面见 [`../web_page/predict.md`](../web_page/predict.md)。
+
+## 1. 职责与不负责范围
+
+- 负责单条预测与批量预测：输出风险分数、预测标签、风险等级、版本信息与失败原因。
+- 负责把批量预测成功的全部结果行写入 `prediction` 表，并发布核心结果文件。
+- Web 页面只使用训练阶段已保存的模型和训练成功产出的测试集；不提供手动上传、公开数据集或任意数据集入口。
+- 不负责训练、特征工程实现、解释、定位、评估；不生成训练 / 测试切分。
+- 不设默认模型：模型必须显式指定；判定阈值默认 `0.5`。
+
+## 2. 端点契约
 
 ### POST /api/predict
 
-鍗曟潯 JSON 璇锋眰锛屼緵鎻愪氦璇︽儏缂栨帓锛?
-| 瀛楁 | 蹇呭～ | 濂戠害 |
+单条预测，JSON body（`extra="forbid"`）。
+
+| 字段 | 必填 | 契约 |
 |---|---|---|
-| `commit_hash` | 鏄?| 40 浣?hex锛屽綊涓€鍖栦负灏忓啓 |
-| `model_name` | 鏄?| 蹇呴』鏄惧紡鎸囧畾宸插姞杞芥ā鍨嬶紱涓嶈榛樿鍊兼垨鍥為€€瑙勫垯 |
-| `decision_threshold` | 鍚?| 寮€鍖洪棿 (0,1)锛岀己鐪佽鍏ㄥ眬閰嶇疆 |
-| `force_recompute` | 鍚?| 榛樿 `false`锛氬悓妯″瀷涓庣壒寰佺増鏈湁鍙敤搴撲腑缁撴灉鍒欐部鐢紱`true` 绔嬪嵆閲嶆柊璁＄畻 |
+| `commit_hash` | 是 | 40 位十六进制 |
+| `model_name` | 是 | 必须显式指定，无默认模型 |
+| `decision_threshold` | 否 | `[0.05,0.95]`，默认 `0.5` |
+| `force_recompute` | 否 | bool，默认 false |
 
-鍝嶅簲 `data`锛?
-| 瀛楁 | 鍚箟 |
-|---|---|
-| `commit_hash` / `model_name` | 鎻愪氦涓庡疄闄呮ā鍨?|
-| `risk_score` | [0,1] 姒傜巼 |
-| `predicted_label` | 鎸夋湰娆?decision_threshold 寰楀埌鐨?0/1 |
-| `decision_threshold` | 瀹為檯鍒ゅ畾闃堝€?|
-| `risk_level` | 鎸?risk_high_threshold / risk_mid_threshold 寰楀埌鐨?high/mid/low |
-| `model_version` / `feature_version` | 鐗堟湰杩芥函 |
-| `predicted_at` | 鏈缁撴灉鏃堕棿锛孶TC `Z` |
-| `result_source` | `stored` / `computed`锛屾槑纭部鐢ㄦ垨閲嶇畻 |
-| `stale` | 妯″瀷鎴栫壒寰佺増鏈彉鍖栧鑷存棫缁撴灉杩囨湡鏃朵负 true |
+响应 `data`：
 
-璇锋眰绂佹澶氫綑瀛楁銆傛棤 `explanation`銆佸畾浣嶃€佷慨澶嶅缓璁瓧娈碉紱搴撲腑娌跨敤涔熶笉寰椾吉瑁呮垚鏂拌绠楁椂闂淬€?
+```text
+commit_hash, model_name, risk_score(5 位小数), predicted_label, decision_threshold,
+risk_level(high|mid|low), model_version, feature_version,
+result_source(stored|computed), stale, predicted_at, features(expert 14 维 / semantic 768 维), summary
+```
+
+模型未加载返回 `40001`；库中无特征且无法现算返回 `40400`。
+
 ### POST /api/predict/run
 
-`multipart/form-data`锛歚files[]` 鎺ユ敹涓€涓?`collected_commits` / `clean_dataset` 琛ㄦ牸锛圕SV/XLSX锛夛紝浠ュ強鍙€変竴涓?`model_package.zip`锛沗config` JSON part銆傚皬鏂囦欢鍚屾锛屽ぇ鏂囦欢鍒涘缓 `kind=predict_batch` job銆?
-| config 瀛楁 | 蹇呭～ | 濂戠害 |
-|---|---|---|
-| `dataset_id` | 鍚?| 宸插鍏ヨ緭鍏ヨ〃鐨勪究鍒╅€夋嫨锛涗笌涓婁紶琛ㄦ牸浜岄€変竴 |
-| `model_name` | 鍚?| 浣跨敤宸插姞杞芥垨宸茬櫥璁版ā鍨嬶紱涓婁紶妯″瀷鍖呮椂鍙渷鐣?|
-| `decision_threshold` | 鍚?| 缂虹渷璇?`user_config.decision_threshold` |
-| `batch_size` | 鍚?| 姝ｆ暣鏁帮紝缂虹渷璇?`predict.batch_size` |
-| `force_recompute` | 鍚?| 榛樿 true锛堟枃浠惰繍琛屽缁堟寜杈撳叆璁＄畻锛夛紱false 浠呭鍙€夊簱杈撳叆鍏佽澶嶇敤鍚岀増鏈粨鏋?|
-| `format` | 鍚?| `csv` / `xlsx`锛岄粯璁?`csv` |
+`multipart/form-data`。
 
-妯″瀷瑙ｆ瀽椤哄簭锛氭樉寮忎笂浼犳ā鍨嬪寘 鈫?鏄惧紡 `model_name`锛涗袱鑰呯殕鏃犺繑鍥?40001锛屼笉璁鹃粯璁ゅ€兼垨鐗堟湰搴忓洖閫€銆傚悓姝ュ搷搴?`{job_id,status:"success",outputs[],summary}`锛涘紓姝?`{job_id,status:"queued"}`銆俿ummary 鍚€绘暟銆佹垚鍔熸暟銆佸け璐ユ暟銆佸疄闄呮ā鍨嬩笌闃堝€硷紱閫愯澶辫触涓嶅緱琚啓鎴愰闄?0銆?
+`config` JSON part（必填）：
+
+| 字段 | 必填 | 契约 |
+|---|---|---|
+| `model_name` | 条件 | 已登记且可用模型；Web 页面必填并从模型下拉选择；API / CLI 与 `files[]` 模型文件二选一 |
+| `testset_ref` | 条件 | 训练成功任务产出的 `train_testset` 引用；Web 页面必填 |
+| `dataset_id` | 否 | API / CLI 兼容入口；Web 页面不使用 |
+| `decision_threshold` | 否 | `[0.05,0.95]`，默认 `0.5` |
+| `batch_size` | 否 | 正整数，默认按配置中心 |
+| `force_recompute` | 否 | bool，默认 false |
+| `output_name` | 否 | 预测结果 / 导出文件名称，允许中文，1–64 字符；禁止 `/ \ : * ? " < > \|`、控制字符，且不能以点开头或结尾；默认 `<model_name>_预测结果` |
+| `save_to_db` | 否 | bool，默认 true；Web 页面固定 true，必须落库 |
+| `format` | 否 | 已废弃；不再在任务配置中指定格式 |
+
+文件 part（可选，仅 API / CLI）：
+
+| part | 必填 | 契约 |
+|---|---|---|
+| `files[]` | 否 | 特征表、`predictions` 表或模型文件（`.pkl` / `.zip`），合计 ≤64MiB；Web 页面不上传 |
+
+Web 页面提交时必须满足：
+
+- `model_name` 来自已登记可用模型；
+- `testset_ref` 来自 `kind=train` 且 `status=success` 的任务产物 `train_testset`；
+- 模型特征线与测试集 schema 必须匹配；
+- `save_to_db=true`，不可关闭。
+
+响应：同步（≤2000 行）返回 `{job_id,status,outputs,summary,error_log}`；异步返回 `{job_id,status}`。
+
+`summary`：
+
+```text
+input_rows, success_count, failed_count, model_name, model_version, feature_version,
+decision_threshold, output_name, saved_rows, failed_samples[≤100]
+```
+
+### GET /api/predict/preview/{job_id}
+
+成功批量任务提供分页预览；优先读 `prediction` 表，缺失时回退核心 CSV。
+
+| 参数 | 必填 | 契约 |
+|---|---|---|
+| `page` | 否 | 页码，默认 1 |
+| `size` | 否 | 每页行数，默认 20，范围 1–100 |
+
+响应：
+
+```json
+{
+  "columns": [],
+  "preview": [],
+  "total": 0,
+  "page": 1,
+  "size": 20
+}
+```
+
+约束：
+
+- 数据来自 `prediction` 表中该 `job_id` 的结果行；无 `job_id` 时兼容从核心 CSV 读取。
+- 列严格采用 predictions 列契约全部列，不展示 `features` 等内部特征列。
+- 支持分页浏览全量预测结果。
+- preview 模式不存在；预测任务成功后即可预览。
+
 ### GET /api/predict/outputs/{job_id}/{name}
 
-涓嬭浇 predictions 鎴?manifest锛涢壌鏉冧笌鏂囦欢鍚嶉檺鍒跺悓鍏叡濂戠害銆?
-### 閿欒鐮?
-| 涓氬姟鐮?| HTTP | 鍦烘櫙 |
+下载核心预测结果文件。
+
+| 参数 | 必填 | 契约 |
 |---|---|---|
-| 40001 | 400 | 澶氫綑瀛楁銆侀潪娉曢槇鍊笺€佹ā鍨?鐗瑰緛涓嶅吋瀹广€乧hecksum 澶辫触銆佽緭鍏?schema 闈炴硶銆佺┖鐩爣銆佸悓 kind 鍐茬獊 |
-| 40100 | 401 | 缂哄け鎴栭敊璇殑 `X-API-Key` |
-| 40400 | 404 | 鎻愪氦銆佹ā鍨嬨€佸彲閫?dataset銆乯ob 鎴栬緭鍑轰笉瀛樺湪 |
-| 50000 | 500 | 鏈鏈熸湇鍔￠敊璇紱鎵归噺杩愯鏈熷け璐ュ啓鑴辨晱 job 鏃ュ織 |
+| `name` | 是 | 必须为核心产物名，禁止路径分隔符与 `..` |
+| `format` | 否 | `csv`（默认）/ `xlsx`；只影响本次下载响应 |
 
-## 3. 杈撳叆濂戠害
+- `format=csv`：直接返回规范主表 `predict_predictions_<job_id>.csv` 或 `<output_name>.csv`。
+- `format=xlsx`：从同一 CSV 即时生成单 sheet XLSX 并返回；不写入产物目录、不登记为新产物。
+- 响应 `Content-Disposition` 文件名为 `<output_name>_<job_id>.<ext>`，对 `output_name` 做安全清洗。
+- `predict_summary`、manifest、failed_samples 属于内部记录，不作为结果文件下载项。
 
-妯″瀷鍖呴€愬瓧閲囩敤 搂3.3锛?
-> zip 鍐呭惈锛氭潈閲嶆枃浠跺潎涓?`.pkl`锛坄expert`=Kamei 14 缁淬€乣semantic`=鍐荤粨澶?CodeBERT 768 缁达級銆乣feature_order.txt`銆乣feature_schema.json`銆乣model_meta.json`锛坢odel_name/line/algo/feature_set/version_key/feature_version/trained_at/瓒呭弬蹇収/鍒掑垎 mode/绉嶅瓙锛夈€乣checksum.sha256`銆俙fused` / `e2e` 鍙婂叾 safetensors 浜х墿宸插彇娑堛€俻redict/explain MUST 鏍￠獙 checksum 涓庣壒寰佸垪瀹藉悗鍐嶅姞杞姐€?
-琛ㄦ牸閲囩敤 搂3.2 `clean_dataset`锛涜瘎浼板満鏅噰鐢?搂3.3 `train_testset`锛堟瘡琛屽甫鐪熸爣绛撅紝schema 涓?搂3.2 閫愬垪涓€鑷达級銆傝緭鍏ュ垪濂戠害锛埪?.2锛夛細
+### 错误码
 
-| 鍒?| 绫诲瀷 | 蹇呭～ | 鍚箟 |
-|---|---|---|---|
-| commit_hash | string(40 hex) | 鏄?| 鎻愪氦鏍囪瘑锛堝皬鍐欙級 |
-| repo_name | string | 鏄?| 浠撳簱鍚嶆垨鏁版嵁闆嗗悕 |
-| repo_url | string | 鍚?| 鏉ユ簮 URL |
-| author_name / author_email | string | 鍚?| 浣滆€?|
-| committed_at | datetime | 鍚?| 鎻愪氦鏃堕棿 UTC |
-| message | string | 鍚?| 鎻愪氦淇℃伅 |
-| parent_hash | string(40) | 鍚?| 鐖舵彁浜?|
-| is_bug_inducing | int 绌哄彲 | 鏄?| 缂洪櫡鏍囩 1/0/绌猴紱璇勪及鍦烘櫙 MUST 闈炵┖ |
-| label_method | string | 鍚?| 鏍囩鏂规硶 |
-| label_source | string | 鏄?| `git_szz` / `public_dataset` |
-| labeled_at | datetime | 鍚?| 鎵撴爣鏃堕棿 |
-| fix_commit_hash | string(40) | 鍚?| SZZ 鍥炴函淇鎻愪氦 |
-| source_type | string | 鏄?| `git_repo` / `public_dataset` |
+| 业务码 | HTTP | 场景 |
+|---|---|---|
+| 40001 | 400 | 参数非法、阈值越界、batch_size 非正、输出名非法、模型未加载、模型与测试集特征线不匹配、数据库保存失败 |
+| 40100 | 401 | 鉴权失败 |
+| 40400 | 404 | commit / 特征 / 模型 / 训练测试集 / 输出批次不存在 |
+| 50000 | 500 | 未预期异常 |
 
-妯″瀷鐗瑰緛涓嶅湪杈撳叆琛ㄤ腑锛岀敱璁粌闃舵鐢熸垚骞跺浐鍖栬繘妯″瀷鍖呫€俍IP 杩橀』鏍￠獙璺緞绌胯秺銆佹枃浠舵暟閲忓拰瑙ｅ帇澶у皬锛涜〃鏍兼墽琛屽ぇ灏忋€佹墿灞曞悕榄旀暟銆乻chema銆佸叕寮忔敞鍏ユ牎楠屻€備换浣曟枃浠跺悕涓嶅緱鎷兼帴 shell銆傜壒寰侀『搴忎弗鏍兼寜鍖呭唴 `feature_order.txt`锛岀姝㈡寜瀛楀吀搴忕寽娴嬨€?
-**鐪熸爣绛鹃€忎紶**锛氳緭鍏ヨ鐨?`is_bug_inducing` MUST 鍘熸牱鍐欏叆 搂3.4 `predictions.csv` 鍚屽悕鍒椼€傝瘎浼板満鏅紙杈撳叆 `train_testset`锛夌湡鏍囩蹇呴潪绌猴紝缂烘爣绛惧湪 predict 鍓嶇疆鎷掔粷锛涢娴嬫柊鎻愪氦鍦烘櫙鍏佽鏍囩绌猴紝浣嗙粨鏋滀笉渚涙€ц兘璇勪及銆?
-鎸夋ā鍨嬬嚎鐨勬壒閲忚緭鍏ュ彛寰勶細
+## 3. 输入契约
 
-- **expert**锛氫竴涓?搂3.1/搂3.2 鎻愪氦琛紙鎴?`dataset_id`锛夋彁渚涙彁浜ゆ爣璇嗭紱14 缁寸壒寰佺敱妯″瀷鍖?`feature_order.txt` 椹卞姩銆佷粠缁戝畾浠撳簱鐨勬彁浜ゅ揩鐓х幇绠楋紙涓庤缁冧晶鍚屼竴鎶藉彇鍣級锛屼笉浠庝笂浼犺〃璇诲彇鐗瑰緛鍒椼€傜己鍙浠撳簱鎴栨彁浜や笉鍙揪杩斿洖 40001锛涗笉鎺ュ彈鏂囨湰琛ㄣ€?- **semantic**锛氫竴涓?搂3.1/搂3.2 鐗瑰緛琛ㄦ彁渚涙彁浜ゅ搱甯屼笌鐪熸爣绛撅紱768 缁磋涔夊悜閲忔寜 `commit_hash` 鍙栭璁＄畻 embedding锛坄semantic_embeddings.npz`锛屽喕缁撳ご CodeBERT锛夛紝缂哄け鏃惰嫢鏈満鏈夊喕缁撶紪鐮佸櫒鍒欎粠缁戝畾浠撳簱鍦ㄧ嚎缂栫爜锛屼粛涓嶅彲鐢ㄨ琛屾槑纭け璐ワ紙涓嶇紪閫犲悜閲忥級銆備笉鎺ユ敹鐙珛鏂囨湰琛ㄣ€?- `fused`锛?82 缁存嫾鎺ワ級涓?`e2e`锛堟枃鏈?/ 寰皟鍒嗙被澶达級涓ょ嚎宸茬爫鎺夛紝鐩稿叧妯″瀷鍖呬笌鏂囨湰琛ㄨ緭鍏ヤ笉鍐嶉€傜敤銆?- CLI `predict run` 涓?API 鍚屾簮锛歚--model-package` 鎴?`--model` 浜岄€変竴锛宍--input` 涓?搂3.1/搂3.2 鐗瑰緛琛紝涓嶆帴鍙楁枃鏈〃锛涚己杈撳叆鏄庣‘鎶ラ敊銆?
-## 4. 杈撳嚭濂戠害
+- 单条预测：`commit_hash` + `model_name`，可选阈值与 `force_recompute`。
+- Web 批量预测：已登记模型 + 训练成功任务产出的 `train_testset`，不允许任意数据集和手动上传。
+- API / CLI 批量预测：仍可上传特征表（collected_commits 列契约 / clean_dataset 列契约 列）或 `predictions` 表（predictions 列契约），保持模块独立运行能力。
+- 特征维度由模型线决定：expert 14 维、semantic 768 维；不一致返回 `40001`。
+- `train_testset` 每行真标签必须非空；预测结果必须透传 `is_bug_inducing`。
 
-涓绘枃浠?`predict_predictions_<job_id>.csv`锛堟垨 `.xlsx`锛夛紝manifest `predict_predictions_<job_id>.manifest.json`銆備富琛ㄩ€愬瓧閲囩敤 搂3.4锛?
-| 鍒?| 绫诲瀷 | 蹇呭～ | 鍚箟 |
-|---|---|---|---|
-| commit_hash | string(40) | 鏄?| 鎻愪氦 |
-| model_name | string | 鏄?| 妯″瀷 |
-| risk_score | float [0,1] | 鏄?| 姒傜巼锛? 浣嶅皬鏁帮級 |
-| predicted_label | int 0/1 | 鏄?| 鎸?decision_threshold 鐨勪簩鍒嗙被鏍囩 |
-| decision_threshold | float | 鏄?| 鏈鍒ゅ畾闃堝€?|
-| model_version / feature_version | string | 鏄?| 鐗堟湰鍏冧俊鎭?|
-| predicted_at | datetime | 鏄?| 棰勬祴鏃堕棿 |
-| is_bug_inducing | int 绌哄彲 | 鍚?| 閫忎紶鐪熸爣绛撅紙鏉ヨ嚜 搂3.3 `train_testset`锛屼緵 evaluate 绠楁€ц兘锛涜瘎浼板満鏅繀闈炵┖锛?|
+## 4. 输出契约
 
-姒傜巼涓庢爣绛惧垎绂伙紝闃堝€间笉鏀瑰彉 risk_score锛涜緭鍏ョ湡鏍囩鍘熸牱閫忎紶锛屾湭鎵撴爣鐣欑┖銆侰SV UTF-8 BOM锛孹LSX 鍗?sheet锛沵anifest 涓ユ牸绗﹀悎 搂3.9锛岃褰曟ā鍨嬪寘 checksum銆佺壒寰佺増鏈€侀槇鍊笺€佽緭鍏ヤ笌杈撳嚭 checksum銆?
-鍗曟潯绔偣鍙繑鍥?JSON 骞跺箓绛夊啓 prediction锛屼笉棰濆浜х敓浜ゆ崲鏂囦欢锛涙壒閲?run 蹇呴』浜х敓涓婅堪鏂囦欢涓?manifest銆?
-## 5. 鍙厤缃」
+### 4.1 核心结果文件
 
-- 鍏ㄥ眬锛歚decision_threshold`銆乣risk_high_threshold`銆乣risk_mid_threshold`锛涙ā鍨嬩笉璁鹃粯璁ゅ€笺€?- 鍛藉悕绌洪棿锛歚predict.batch_size`銆乣predict.cache_ttl`銆乣predict.retry_max`锛屽潎钀?`user_config` 骞堕噸鍚仮澶嶃€?- 鍗曟杩愯鍙寚瀹氭ā鍨嬪寘/妯″瀷銆侀槇鍊笺€佹壒閲忓ぇ灏忓拰杈撳嚭鏍煎紡锛涙樉寮忛槇鍊艰繘鍏?manifest锛屼笉浠庢ā鍨嬪寘鐚滄祴銆?- `.env` 浠呮彁渚涘嚭鍘傞粯璁わ紱妯″瀷閲嶈浇鏄?models 绠＄悊鍔ㄤ綔锛屼笉鐢遍娴嬭姹傞殣寮忚Е鍙戙€?
-## 6. 鐘舵€佹寔涔呭寲
+用户可见核心产物只有一份：
 
-- 鎵归噺 run 鍚屾鍐欑粓鎬侊紝寮傛 kind=`predict_batch` 鍐欎簲鎬侊紱鍚?kind 鏉′欢鏇存柊浜掓枼锛岄噸鍚仐鐣?running 缃?failed锛屽彲 retry/cancel銆?- 杈撳嚭钀?`temp/outputs/<job_id>/`锛坓itignore锛夛紝job 鐧昏杈撳嚭鍜屾垚鍔?澶辫触璁℃暟銆?- 鍗曟潯棰勬祴鎸?`(commit_hash,model_name)` 骞傜瓑鏇存柊锛岃褰曟ā鍨?鐗瑰緛鐗堟湰锛涙部鐢ㄧ粨鏋滆繑鍥?stored锛岄噸绠楄繑鍥?computed銆?- 鎵归噺鏂囦欢浜х墿鏄惁瀵煎叆 prediction 鐢?storage 鍐冲畾锛岄娴嬭绠楁湰韬笉瑕佹眰鏁版嵁搴撴垨 explain/localize 鍙敤銆?
-## 7. 楠屾敹
+```text
+predict_predictions_<job_id>.csv
+```
 
-fixtures锛歚tests/fixtures/files/predict/`锛屽彲鍙嚟涓婁紶琛ㄦ牸涓庢ā鍨嬪寘杩愯銆?
-- **姝ｅ父**锛氬崟鏉?computed/stored 涓ょ璺緞涓庢壒閲?CSV/XLSX 鍧囪繑鍥炴纭鐜囥€佹爣绛俱€侀槇鍊煎拰鐗堟湰锛浡?.4 椋庨櫓鍒?5 浣嶅皬鏁帮紝manifest checksum 鍙獙銆?- **杈圭晫**锛氶粯璁ゆā鍨嬫湭閰嶇疆銆侀槇鍊兼帴杩?0/1銆佺┖鐪熸爣绛俱€侀噸澶嶆彁浜ゃ€侀儴鍒嗚澶辫触銆佺紦瀛樿繃鏈熷潎涓嶅～閫?0锛屼笉鏀瑰彉姒傜巼璇箟銆?- **闈炴硶**锛氬浣欏崟鏉″瓧娈点€佹崯鍧?ZIP銆乧hecksum 鎴栫壒寰佸垪瀹戒笉绗︺€佽矾寰勭┛瓒娿€佺己鍒椼€佸叕寮忔敞鍏ャ€侀潪娉曢槇鍊煎潎杩斿洖 40001锛涙棤瑙ｉ噴瀛楁涓旈娴嬫湇鍔℃棤瑙ｉ噴/瀹氫綅璋冪敤銆?- 鍚屾彁浜ゅ悓妯″瀷鍐欏簱骞傜瓑锛涘ぇ鏂囦欢 job 閲嶅惎缃?failed锛汣LI/API 鍚?fixture 杈撳嚭涓€鑷淬€?
-## 8. 杈圭晫
+填写 `output_name` 时：
 
-predict 涓?train 閫氳繃 搂3.3銆佷笌 clean 閫氳繃 搂3.1/搂3.2銆佷笌 evaluate/explain/localize 閫氳繃 搂3.4 鏂囦欢鍏煎銆俙dataset_id` 鍙究鍒╅€夋嫨杈撳叆锛沞xplain/localize 娑堣垂棰勬祴浜х墿锛屽弽鍚戣皟鐢ㄧ姝€?
+```text
+<output_name>.csv
+```
+
+列严格采用 predictions 列契约：
+
+```text
+commit_hash, model_name, risk_score, predicted_label, decision_threshold,
+model_version, feature_version, predicted_at, is_bug_inducing
+```
+
+不输出：
+
+```text
+features
+raw_feature_vector
+explanation
+localization
+```
+
+CSV 使用 UTF-8 BOM；XLSX 只在下载时按需生成。
+
+### 4.2 判定与风险等级
+
+- `predicted_label = risk_score >= decision_threshold`，输出 1 / 0。
+- `risk_level` 由配置 `risk_high_threshold` / `risk_mid_threshold` 判定。
+- 阈值变化只改变 `predicted_label`，不改变 `risk_score`。
+- 判定阈值默认 `0.5`；Web 页面仅在 `02` 用滑杆调整，不展示说明文字。
+
+### 4.3 内部记录
+
+```text
+predict_summary_<job_id>.json
+<stem>.manifest.json
+```
+
+内部记录不进入结果文件区，不提供页面下载入口。
+
+### 4.4 数据库保存
+
+批量预测成功后 MUST 把全部成功行写入 `prediction` 表：
+
+- 落库列与 predictions 列契约对齐；
+- 以 `(commit_hash, model_name)` 幂等 upsert；
+- 同提交同模型重复预测时更新最新 `risk_score`、`decision_threshold`、`predicted_label`、`model_version`、`feature_version`、`predicted_at`、`is_bug_inducing` 与 `job_id`；
+- `summary.saved_rows` 记录本次入库行数；
+- 数据库保存失败时任务失败，文件产物保留，可重试；
+- 失败行不入库，仅进入 `failed_samples`（≤100）。
+
+## 5. 可配置项
+
+- `batch_size`、`risk_high_threshold`、`risk_mid_threshold` 来自配置中心。
+- `decision_threshold` 页面默认 `0.5`，本次运行显式传入并写入 summary / DB。
+- 模型每次显式选择，不设默认模型。
+
+## 6. 状态持久化
+
+- 批量任务 `kind=predict_batch`，同步阈值 2000 行，`job.total = 行数 + 1`。
+- 进度文案按逐条提交计数：“已完成 X / Y 条提交”；发布产物前补一次收尾进度。
+- `params_json` 记录 `model_name`、`testset_ref`、`decision_threshold`、`output_name`、`save_to_db`、`batch_size`。
+- `output_ref_json.outputs` 登记本批次全部产物（核心 CSV、summary、manifest）；页面结果文件区只展示核心 CSV。
+- 输入快照落 `temp/predict_inputs/<hash>/request.json`，重试校验 checksum。
+- 单条预测与批量预测都写 `prediction` 表。
+
+## 7. 验收
+
+- Web 页面只能选择训练阶段产出的 `train_testset`，不能选择任意数据集或手动上传。
+- 模型与测试集特征线 / schema 不匹配时拒绝运行。
+- 判定阈值默认 `0.5`，范围 `[0.05,0.95]`。
+- `risk_score >= threshold` 生成 `predicted_label`；阈值变化不改 `risk_score`。
+- 批量预测成功后，`prediction` 表保存全部成功行的 predictions 列契约二维表。
+- 数据库保存失败时任务失败且可重试，文件产物保留。
+- 分页预览返回 predictions 列契约全部列，不返回内部特征列。
+- 结果文件区只有一个逻辑文件；下载 CSV 直接返回规范主表，下载 Excel 按需生成且不落盘。
+- 单条与批量同模型、同阈值、同特征结果一致。
+- 模型版本或特征版本变化后 `stale=true`。
+
+## 8. 边界
+
+预测是独立工具：文件与模型齐备即可运行，不要求库里有提交、清洗或训练记录；Web 页面则固定使用训练产物，便于页面验收与结果回溯。评估、解释、定位不在本模块完成。
+
+
+

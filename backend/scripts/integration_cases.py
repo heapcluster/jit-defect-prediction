@@ -1,4 +1,4 @@
-"""集成测试用例：对**运行中的服务**执行 11 个端点的四类场景，输出逐条结果。
+"""集成测试用例：对**运行中的服务**执行核心端点的四类场景，输出逐条结果。
 
 用法（在仓库根目录执行，先起服务；也可 cd backend 后执行 scripts/ 下的同名脚本）：
 
@@ -19,7 +19,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import sys
 import threading
 import time
@@ -378,40 +377,6 @@ def sync_concurrent() -> str:
     ok = ("200" in results) and all(r in ("200", "500", "ReadTimeout") for r in results)
     check(ok, f"并发结果异常 {results}")
     return f"并发两次 → {sorted(results)}（200/500/超时均属可控，重点是状态不串扰）"
-
-
-# ---------------------------------------------------------------- GET /api/trends
-@case("T-IN-22", "GET /api/trends", "正常")
-def trends_normal() -> str:
-    d = expect(200)(get("/api/trends", params={"granularity": "week"}))["data"]
-    check(d["granularity"] == "week", "粒度回显不符")
-    for p in d["series"]:
-        check(re.fullmatch(r"\d{4}-W\d{2}", p["period"]) is not None, f"period 格式 {p['period']}")
-        check(p["high_risk_count"] <= p["commit_count"], "高风险数大于提交数")
-        check(0.0 <= p["avg_risk"] <= 1.0, "平均风险越界")
-    return f"周粒度 {len(d['series'])} 个周期 OK"
-
-
-@case("T-IN-23", "GET /api/trends", "缺参")
-def trends_noauth() -> str:
-    expect(401)(client.get("/api/trends"))
-    return "缺失令牌 401/40100"
-
-
-@case("T-IN-24", "GET /api/trends", "非法参数")
-def trends_bad_params() -> str:
-    expect(400)(get("/api/trends", params={"granularity": "day"}))
-    expect(400)(get("/api/trends", params={"end_time": "abc"}))
-    return "非法粒度/时间 40001"
-
-
-@case("T-IN-25", "GET /api/trends", "边界值")
-def trends_boundary() -> str:
-    d = expect(200)(get("/api/trends", params={"model_name": "no_such_model"}))["data"]
-    check(d["series"] == [], "未知模型应返回空 series 而非报错")
-    m = expect(200)(get("/api/trends", params={"granularity": "month"}))["data"]
-    check(all(re.fullmatch(r"\d{4}-\d{2}", p["period"]) for p in m["series"]), "月粒度格式不符")
-    return f"未知模型空 series；月粒度 {len(m['series'])} 个周期"
 
 
 # ---------------------------------------------------------------- GET /api/figures

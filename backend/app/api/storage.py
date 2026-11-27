@@ -46,6 +46,25 @@ def export_storage(request: Request, session: DatabaseSession, table: str, forma
     return ok(storage.export_table(session, table, format, dataset_id, model_name, start_time, end_time, limit))
 
 
+@router.get("/lineage")
+def storage_lineage(request: Request, session: DatabaseSession, kind: str | None = None,
+                    status: str | None = None, search: str | None = None,
+                    start_time: str | None = None, end_time: str | None = None,
+                    page: int = Query(default=1, ge=1), size: int = Query(default=20, ge=1, le=100)):
+    query_keys(request, {"kind", "status", "search", "start_time", "end_time", "page", "size"})
+    return ok(storage.lineage(session, kind=kind, status=status, search=search,
+                              start_time=start_time, end_time=end_time, page=page, size=size))
+
+
+@router.delete("/chains/{chain_id}")
+def storage_delete_chain(request: Request, session: DatabaseSession, chain_id: str,
+                         confirm: bool = Query(default=False)):
+    query_keys(request, {"confirm"})
+    if confirm is not True:
+        fc.invalid("删除链路需 confirm=true")
+    return ok(storage.delete_chain(session, chain_id))
+
+
 @router.get("/outputs/{job_id}/{name}")
 def download_storage(job_id: str, name: str):
     return download("storage", job_id, name)

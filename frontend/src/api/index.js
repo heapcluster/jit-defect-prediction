@@ -282,10 +282,6 @@ export function runTrain(config, files = []) {
   return request.post('/train/run', form, { timeout: SYNC_TIMEOUT })
 }
 
-export function getTrainCompare(jobId) {
-  return request.get('/train/compare', { params: { job_id: jobId } })
-}
-
 export async function fetchTrainOutput(jobId, name) {
   const path = `/api/train/outputs/${encodeURIComponent(jobId)}/${encodeURIComponent(name)}`
   const response = await fetch(path, { headers: { 'X-API-Key': import.meta.env.VITE_API_KEY } })

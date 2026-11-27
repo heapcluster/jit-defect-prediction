@@ -1,3 +1,3 @@
 import { reactive } from 'vue'
 
-export const evaluating = reactive({ job: null })
+export const evaluating = reactive({ job: null, request: null })

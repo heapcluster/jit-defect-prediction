@@ -30,7 +30,6 @@ import math
 import re
 import sys
 import time
-import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -132,7 +131,7 @@ def validate_config(raw: dict) -> dict:
     if not isinstance(raw, dict) or set(raw) - _CONFIG_FIELDS or not {"line", "algos"} <= set(raw):
         _invalid("Config requires line and algos and permits no unknown keys")
     selection = registry.validate_selection(raw["line"], raw["algos"], raw.get("hyperparams", {}))
-    feature_set = raw.get("feature_set")
+    feature_set = raw.get("feature_set") or ("kamei14" if selection["line"] == "expert" else "codebert768")
     if not isinstance(feature_set, str) or feature_set not in FEATURE_SETS:
         _invalid("feature_set must be one of kamei14/codebert768")
     if FEATURE_SETS[feature_set] != selection["line"]:
@@ -231,27 +230,29 @@ def _positive_proba(model, X):
     return np.full(len(X), 1.0 if classes and classes[0] == 1 else 0.0)
 
 
-def _package(algo, model, meta, feature_order):
+def _bundle(algo, model, meta, feature_order):
+    """单算法交付：直接导出 .pkl 权重 + 侧车元数据 JSON（不再打包 ZIP）。"""
     import joblib
 
     buffer = io.BytesIO()
     joblib.dump(model, buffer)
-    members = {
-        f"{algo}.pkl": buffer.getvalue(),
-        "feature_order.txt": ("\n".join(feature_order) + "\n").encode("utf-8"),
-        "model_meta.json": _json(meta),
+    feature_schema = {
+        "line": meta.get("line"),
+        "feature_set": meta.get("feature_set"),
+        "feature_version": meta.get("feature_version"),
+        "features": [
+            {
+                "name": name,
+                "dtype": "float64",
+                "source": meta.get("feature_set"),
+                "version": meta.get("feature_version"),
+            }
+            for name in feature_order
+        ],
+        "training_transforms": ["log_transform", "standardize", "categorical_encode"],
     }
-    checksum = "".join(
-        f"{hashlib.sha256(content).hexdigest()}  {name}\n" for name, content in members.items()
-    ).encode("utf-8")
-    members["checksum.sha256"] = checksum
-    output = io.BytesIO()
-    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for name, content in members.items():
-            entry = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
-            entry.compress_type = zipfile.ZIP_DEFLATED
-            archive.writestr(entry, content)
-    return output.getvalue()
+    sidecar = {**meta, "feature_schema": feature_schema}
+    return {"pkl": buffer.getvalue(), "meta": _json(sidecar)}
 
 
 def _sanitize(text):
@@ -389,7 +390,7 @@ def run(rows: list[dict], config: dict, *, metadata: dict | None = None, progres
                 "seed": normalized["seed"],
                 "feature_order": feature_order,
             }
-            packages[algo] = _package(algo, model, meta, feature_order)
+            packages[algo] = _bundle(algo, model, meta, feature_order)
             predictions[algo] = {"y": y_test.tolist(), "proba": proba.tolist()}
             for metric in ("auc", "f1", "precision", "recall", "accuracy"):
                 metrics_rows.append(
@@ -437,6 +438,7 @@ def run(rows: list[dict], config: dict, *, metadata: dict | None = None, progres
         },
         "models": models,
         "metrics_rows": metrics_rows,
+        "trainset_rows": [{key: row.get(key) for key in fc.CLEAN_DATASET_COLUMNS} for row in train],
         "testset_rows": [{key: row.get(key) for key in fc.CLEAN_DATASET_COLUMNS} for row in test],
         "comparison": comparison,
         "packages": packages,
@@ -577,27 +579,19 @@ def artifacts(result: dict, job_id: str) -> dict[str, bytes]:
     output = {}
     for item in result["models"]:
         if item["status"] == "success":
-            output[f"train_{item['algo']}_model_package_{job_id}.zip"] = result["packages"][
-                item["algo"]
-            ]
+            bundle = result["packages"][item["algo"]]
+            output[f"train_{item['algo']}_model_{job_id}.pkl"] = bundle["pkl"]
+            output[f"train_{item['algo']}_meta_{job_id}.json"] = bundle["meta"]
     testset = result.get("testset_rows")
     if not isinstance(testset, list) or not testset:
         _invalid("train result contains no testset rows; train_testset cannot be fabricated")
     if any(row.get("is_bug_inducing") in (None, "") for row in testset):
         _invalid("train testset rows must all carry a non-null is_bug_inducing label")
-    for fmt in ("csv", "xlsx"):
-        output[f"train_testset_{job_id}.{fmt}"] = fc.encode_table(
-            fc.CLEAN_DATASET_COLUMNS, testset, fmt
-        )
-    output[f"train_metrics_{job_id}.csv"] = fc.encode_table(
-        METRICS_COLUMNS, result["metrics_rows"], "csv"
-    )
-    output[f"train_comparison_{job_id}.json"] = _json(result["comparison"])
-    output[f"train_roc_{job_id}.png"] = _curve_figure(result, "roc")
-    output[f"train_pr_{job_id}.png"] = _curve_figure(result, "pr")
-    output[f"train_confusion_{job_id}.png"] = _confusion_figure(result)
-    output[f"train_metric_bars_{job_id}.png"] = _metric_bars_figure(result)
-    output[f"train_log_{job_id}.md"] = result["log"].encode("utf-8")
+    trainset = result.get("trainset_rows")
+    if not isinstance(trainset, list) or not trainset:
+        _invalid("train result contains no trainset rows; train_trainset cannot be fabricated")
+    for name, rows in (("train_trainset", trainset), ("train_testset", testset)):
+        output[f"{name}_{job_id}.csv"] = fc.encode_table(fc.CLEAN_DATASET_COLUMNS, rows, "csv")
     return output
 
 
@@ -651,46 +645,11 @@ def main(argv=None) -> int:
     command.add_argument("--threshold", type=float, default=0.5)
     command.add_argument("--manifest", type=Path)
     command.add_argument("--out", required=True, type=Path)
-    compared = sub.add_parser("compare", help="Print a published comparison ranked by AUC desc")
-    compared.add_argument("--job", required=True)
-    compared.add_argument("--out", required=True, type=Path)
     args = parser.parse_args(argv)
     try:
         if args.command == "algorithms":
             print(
                 _json(registry.algorithms(line=args.line, enabled_only=args.enabled_only)).decode()
-            )
-            return 0
-        if args.command == "compare":
-            from app.services import output_store
-
-            output_store.OUTPUT_ROOT = args.out.resolve()
-            name = f"train_comparison_{args.job}.json"
-            comparison = fc.read_json(
-                output_store.read_output("train", args.job, name).read_bytes()
-            )
-
-            def auc_key(item):
-                auc = (item["metrics"] or {}).get("auc")
-                return float("-inf") if auc is None else auc
-
-            ranked = sorted(comparison["models"], key=auc_key, reverse=True)
-            print(
-                _json(
-                    {
-                        "line": comparison["line"],
-                        "models": [
-                            {
-                                "model_name": m["model_name"],
-                                "algo": m["algo"],
-                                "status": m["status"],
-                                "auc": (m["metrics"] or {}).get("auc"),
-                                "f1": (m["metrics"] or {}).get("f1"),
-                            }
-                            for m in ranked
-                        ],
-                    }
-                ).decode()
             )
             return 0
         if args.split_ratio is not None and args.time_boundary is not None:
@@ -749,7 +708,7 @@ def main(argv=None) -> int:
             job_id=job_id,
             code_version=code_version(),
         )
-        print(_json({**published, "summary": result["summary"]}).decode())
+        print(_json({**published, "summary": result["summary"], "models": result["models"]}).decode())
         return 0
     except (TrainError, fc.AppError, OSError, ValueError, TypeError) as error:
         message = (

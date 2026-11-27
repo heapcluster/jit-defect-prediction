@@ -15,63 +15,66 @@
 from tests.conftest import HEADERS
 
 CONTRACT_PATHS = {
+    "/api/algorithms",
+    "/api/clean/operations",
+    "/api/clean/outputs/{job_id}/{name}",
+    "/api/clean/preview/{job_id}",
+    "/api/clean/run",
+    "/api/collect/branches",
+    "/api/collect/outputs/{job_id}/{name}",
+    "/api/collect/preview/{job_id}",
+    "/api/collect/resave/{job_id}",
+    "/api/collect/run",
+    "/api/collect/source-columns",
     "/api/commits",
     "/api/commits/{commit_hash}",
-    "/api/models",
-    "/api/trends",
-    "/api/predict",
-    "/api/sync",
-    "/api/sync/status",
-    "/api/figures",
-    "/api/health",
-    "/api/health/live",
-    "/api/health/ready",
     "/api/config",
     "/api/config/{key}",
-    "/api/jobs",
-    "/api/jobs/{job_id}",
-    "/api/jobs/{job_id}/retry",
-    "/api/jobs/{job_id}/cancel",
-    "/api/storage/tables",
-    "/api/storage/import",
-    "/api/storage/export",
-    "/api/storage/outputs/{job_id}/{name}",
     "/api/datasets",
     "/api/datasets/outputs/{job_id}/{name}",
     "/api/datasets/{dataset_id}",
     "/api/datasets/{dataset_id}/commits",
     "/api/datasets/{dataset_id}/export",
-    "/api/collect/run",
-    "/api/collect/preview/{job_id}",
-    "/api/collect/resave/{job_id}",
-    "/api/collect/outputs/{job_id}/{name}",
-    "/api/clean/run",
-    "/api/clean/operations",
-    "/api/clean/preview/{job_id}",
-    "/api/clean/outputs/{job_id}/{name}",
-    "/api/algorithms",
-    "/api/train/run",
-    "/api/train/compare",
-    "/api/train/outputs/{job_id}/{name}",
+    "/api/evaluate/metrics",
+    "/api/evaluate/outputs/{job_id}/{name}",
+    "/api/evaluate/run",
+    "/api/explain",
+    "/api/explain/outputs/{job_id}/{name}",
+    "/api/explain/run",
+    "/api/explain/techniques",
+    "/api/figures",
+    "/api/health",
+    "/api/health/live",
+    "/api/health/ready",
+    "/api/jobs",
+    "/api/jobs/{job_id}",
+    "/api/jobs/{job_id}/cancel",
+    "/api/jobs/{job_id}/retry",
+    "/api/localize/outputs/{job_id}/{name}",
+    "/api/localize/run",
+    "/api/models",
+    "/api/models/default",
+    "/api/models/selection",
     "/api/models/status",
     "/api/models/{name}/load",
-    "/api/models/{name}/unload",
     "/api/models/{name}/reload",
-    "/api/models/selection",
-    "/api/models/default",
-    "/api/predict/run",
+    "/api/models/{name}/unload",
+    "/api/predict",
     "/api/predict/outputs/{job_id}/{name}",
-    "/api/evaluate/metrics",
-    "/api/evaluate/run",
-    "/api/evaluate/outputs/{job_id}/{name}",
-    "/api/explain",
-    "/api/explain/techniques",
-    "/api/explain/run",
-    "/api/explain/outputs/{job_id}/{name}",
-    "/api/source/tree",
+    "/api/predict/preview/{job_id}",
+    "/api/predict/run",
     "/api/source/file",
-    "/api/localize/run",
-    "/api/localize/outputs/{job_id}/{name}",
+    "/api/source/tree",
+    "/api/storage/chains/{chain_id}",
+    "/api/storage/export",
+    "/api/storage/import",
+    "/api/storage/lineage",
+    "/api/storage/outputs/{job_id}/{name}",
+    "/api/storage/tables",
+    "/api/sync",
+    "/api/sync/status",
+    "/api/train/outputs/{job_id}/{name}",
+    "/api/train/run",
 }
 
 
@@ -110,11 +113,6 @@ def test_figures_params_match_contract(client):
     assert {"model_name", "figure_type", "job_id"} <= params
 
 
-def test_trends_params_match_contract(client):
-    params = {p["name"] for p in _schema(client)["paths"]["/api/trends"]["get"]["parameters"]}
-    assert {"granularity", "start_time", "end_time", "model_name"} <= params
-
-
 def test_predict_is_post(client):
     assert "post" in _schema(client)["paths"]["/api/predict"]
 
@@ -145,13 +143,18 @@ def test_commits_response_fields_match_contract(client):
     assert _keys(doc, data) == {"total", "page", "size", "items"}
     assert _keys(doc, data["properties"]["items"]["items"]) == {
         "commit_hash",
+        "repo_name",
         "author_name",
         "committed_at",
         "message",
         "risk_score",
         "model_name",
+        "predicted_at",
+        "predicted_label",
         "features",
         "is_bug_inducing",
+        "label_method",
+        "labeled_at",
     }
 
 
@@ -159,6 +162,7 @@ def test_detail_response_fields_match_contract(client):
     doc, data = _data_props(client, "/api/commits/{commit_hash}")
     assert _keys(doc, data) == {
         "commit_hash",
+        "repo_name",
         "author_name",
         "committed_at",
         "message",
@@ -166,22 +170,11 @@ def test_detail_response_fields_match_contract(client):
         "model_name",
         "predicted_at",
         "features",
-        "explanation",
         "summary",
         "is_bug_inducing",
-        "localization",
-        "fix_references",
-    }
-
-
-def test_trends_response_fields_match_contract(client):
-    doc, data = _data_props(client, "/api/trends")
-    assert _keys(doc, data) == {"granularity", "model_name", "series"}
-    assert _keys(doc, data["properties"]["series"]["items"]) == {
-        "period",
-        "commit_count",
-        "avg_risk",
-        "high_risk_count",
+        "label_method",
+        "labeled_at",
+        "prediction",
     }
 
 
@@ -216,15 +209,20 @@ def test_figures_response_fields_match_contract(client):
         "model_name",
         "line",
         "source_job_id",
+        "batches",
         "metrics",
         "metrics_unavailable",
         "figures",
         "missing",
     }
+    assert _keys(doc, data["properties"]["batches"]["items"]) == {
+        "job_id", "created_at", "testset_ref", "figures_count",
+    }
     assert _keys(doc, data["properties"]["figures"]["items"]) == {
         "figure_type",
         "effort_kind",
         "title",
+        "figure_name",
         "file_path",
         "checksum_sha256",
         "source_job_id",

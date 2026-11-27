@@ -1,5 +1,8 @@
 <template>
-  <div>
+  <div class="panel config-panel content-page">
+    <div class="section-heading">
+      <h2>提交详情</h2>
+    </div>
     <div class="head">
       <el-button
         link
@@ -69,72 +72,32 @@
           type="danger"
           size="small"
         >
-          SZZ：引入缺陷
+          已确认有缺陷
         </el-tag>
         <el-tag
           v-else-if="detail.is_bug_inducing === 0"
           type="success"
           size="small"
         >
-          SZZ：非缺陷
+          已确认无缺陷
         </el-tag>
         <el-tag
           v-else
           type="info"
           size="small"
         >
-          无 SZZ 标记
+          尚未标注
         </el-tag>
       </div>
 
-      <!-- 重新预测：架构 → 模型级联 -->
-      <div class="opbar">
-        <span class="muted">重新预测：</span>
-        <LineModelCascade
-          v-model:line="predictLine"
-          v-model:model="predictModel"
-          :lines="lines"
-          model-placeholder="选择模型"
-        />
-        <el-button
-          size="small"
-          type="primary"
-          :loading="predicting"
-          :disabled="forbidden"
-          @click="predict"
-        >
-          预测
-        </el-button>
-        <label class="force-recompute"><input
-          v-model="forceRecompute"
-          type="checkbox"
-          :disabled="forbidden"
-        >立即重算</label>
-      </div>
-      <div
-        v-if="detail.result_source || detail.stale"
-        class="opbar"
+      <p
+        v-if="batchNotice"
+        class="batch-notice"
       >
-        <el-tag
-          v-if="detail.result_source"
-          size="small"
-          :type="detail.result_source === 'computed' ? 'success' : 'info'"
-        >
-          {{ detail.result_source === 'computed' ? '本次重新计算' : '沿用库中结果' }}
-        </el-tag>
-        <el-tag
-          v-if="detail.stale"
-          size="small"
-          type="warning"
-        >
-          版本变化，结果可能过期
-        </el-tag>
-        <span
-          v-if="detail.decision_threshold != null"
-          class="muted"
-        >阈值 {{ detail.decision_threshold }} · 标签 {{ detail.predicted_label }}</span>
-      </div>
+        {{ batchNotice }}
+      </p>
 
+      <h3>预测详情</h3>
       <div class="meta">
         <div class="row">
           <span class="k">提交</span>
@@ -153,16 +116,38 @@
           <span class="v">{{ formatTime(detail.predicted_at) }}</span>
         </div>
         <div class="row">
+          <span class="k">判定结果</span>
+          <span class="v">{{ detail.predicted_label == null ? '未提供' : detail.predicted_label === 1 ? '缺陷' : '非缺陷' }}</span>
+        </div>
+        <div class="row">
+          <span class="k">判定阈值</span><span class="v">{{ detail.decision_threshold ?? '未提供' }}</span>
+        </div>
+        <div class="row">
+          <span class="k">预测模型</span><span class="v">{{ detail.model_name || '未提供' }}</span>
+        </div>
+        <div
+          v-if="detail.stale"
+          class="row"
+        >
+          <span class="k">状态</span>
+          <el-tag
+            size="small"
+            type="warning"
+          >
+            模型已更新，建议重新预测
+          </el-tag>
+        </div>
+        <div class="row">
           <span class="k">信息</span>
           <span class="v msg">{{ detail.message }}</span>
         </div>
       </div>
 
-      <!-- 风险解释 -->
+      <!-- 预测结果解释 -->
       <template v-if="!isNotPredicted">
-        <h3>风险解释</h3>
+        <h3>预测结果解释</h3>
         <div class="opbar">
-          <label for="detail-technique">解释技术</label>
+          <label for="detail-technique">解释方式</label>
           <select
             id="detail-technique"
             v-model="explainTechnique"
@@ -192,12 +177,6 @@
           class="muted"
         >
           {{ explainError || explainMessage }}
-        </p>
-        <p
-          v-if="explainSpace"
-          class="muted"
-        >
-          输出尺度：{{ explainSpace }}；LIME 是局部概率代理系数，不能与 SHAP 数值直接相加。
         </p>
         <p
           v-if="detail.summary"
@@ -232,19 +211,26 @@
         <el-empty
           v-else
           :description="explanationHint"
-        />
+        >
+          <el-button
+            size="small"
+            :loading="explaining"
+            :disabled="forbidden || !detail.model_name"
+            @click="loadExplanation"
+          >
+            生成解释
+          </el-button>
+        </el-empty>
       </template>
 
-      <!-- 缺陷定位（G1-1）：无文件/行级数据，降级到提交级特征归因 -->
+      <!-- 缺陷定位及修复：行级定位、修复建议与历史修复参考 -->
+      <h3>缺陷定位及修复</h3>
+      <LocalizationPanel
+        :commit-hash="detail.commit_hash"
+        :model-name="detail.model_name"
+        :prediction="detail.prediction"
+      />
       <template v-if="localization">
-        <h3>缺陷定位</h3>
-        <el-button
-          size="small"
-          data-testid="detail-open-localization"
-          @click="$router.push({ path: '/localization', query: { commit_hash: detail.commit_hash, model_name: detail.model_name } })"
-        >
-          打开定位及源码工具
-        </el-button>
         <el-alert
           v-if="localization.level === 'commit'"
           :title="localization.notice"
@@ -271,9 +257,9 @@
               class="file-meta"
             >
               <el-tag size="small">
-                可疑度 {{ Math.round((f.score || 0) * 100) }}%
+                优先程度 {{ Math.round((f.score || 0) * 100) }}%
               </el-tag>
-              <span class="muted">{{ f.reasons.join(' · ') }}</span>
+              <span class="muted">{{ f.reasons.join('，') }}</span>
             </div>
             <div
               v-for="l in f.added_lines"
@@ -290,15 +276,15 @@
             </div>
           </div>
           <div class="loc-legend">
-            <span><i class="dot high" />高可疑 ≥70%</span>
-            <span><i class="dot mid" />中 40–70%</span>
-            <span><i class="dot low" />低 &lt;40%</span>
+            <span><i class="dot high" />优先检查 ≥70%</span>
+            <span><i class="dot mid" />建议检查 40–70%</span>
+            <span><i class="dot low" />一般 &lt;40%</span>
           </div>
           <div
             v-if="localization.truncated"
             class="muted"
           >
-            仅展示可疑度最高的前若干文件 / hunk 行，已截断
+            仅展示最值得优先检查的部分代码。
           </div>
         </div>
         <!-- 提交级特征归因（始终保留） -->
@@ -333,14 +319,18 @@
         />
       </template>
 
-      <!-- 14 项特征：中文名为主，悬停看原始字段名 -->
-      <h3>14 项特征</h3>
+      <el-empty
+        v-if="!localization && !fixReferences"
+        description="当前提交暂无定位与修复结果，可在上方运行定位。"
+      />
+
+      <h3>影响判断的主要因素</h3>
       <div
         v-for="group in featureGroups"
         :key="group.title"
         class="group"
       >
-        <h4>{{ group.title }}</h4>
+        <h3>{{ group.title }}</h3>
         <div class="feats">
           <el-tooltip
             v-for="f in group.fields"
@@ -356,9 +346,11 @@
         </div>
       </div>
 
-      <!-- 修复建议与参考（G1-2）：可执行建议 + 同仓库历史修复提交 -->
+      <!-- 修复建议与参考：可执行建议 + 同仓库历史修复提交 -->
       <template v-if="fixReferences">
-        <h3>修复建议与参考</h3>
+        <h4 class="subsection-title">
+          修复建议与参考
+        </h4>
         <div
           v-if="fixReferences.suggestions && fixReferences.suggestions.length"
           class="suggestions"
@@ -391,6 +383,30 @@
           description="暂无同类历史修复提交"
         />
       </template>
+
+      <h3>重新预测</h3>
+      <div class="opbar">
+        <LineModelCascade
+          v-model:line="predictLine"
+          v-model:model="predictModel"
+          :lines="lines"
+          model-placeholder="选择模型"
+        />
+        <el-button
+          size="small"
+          type="primary"
+          :loading="predicting"
+          :disabled="forbidden || !predictModel"
+          @click="predict"
+        >
+          预测
+        </el-button>
+        <label class="force-recompute"><input
+          v-model="forceRecompute"
+          type="checkbox"
+          :disabled="forbidden"
+        >立即重算</label>
+      </div>
     </template>
   </div>
 </template>
@@ -398,14 +414,16 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { getCommitDetail, getExplainTechniques, postExplain, postPredict } from '../api'
+import { fetchPredictOutput, getCommitDetail, getExplainTechniques, getJob, postExplain, postPredict } from '../api'
 import { ElMessage } from 'element-plus'
 import { riskColor } from '../utils/risk'
 import { loadModelLines } from '../utils/models'
 import { FEATURE_GROUPS, featureLabel } from '../utils/features'
 import { errText } from '../utils/errors'
 import { formatTime } from '../utils/datetime'
+import { parseCsv } from '../utils/csv'
 import LineModelCascade from '../components/LineModelCascade.vue'
+import LocalizationPanel from '../components/LocalizationPanel.vue'
 import RiskTag from '../components/RiskTag.vue'
 
 const props = defineProps({
@@ -418,6 +436,7 @@ const detail = ref(null)
 const loading = ref(false)
 const error = ref('')
 const errorCode = ref(0)
+const batchNotice = ref('')
 
 // 重新预测：架构 → 模型级联
 const lines = ref([])
@@ -443,18 +462,7 @@ const explanation = computed(() => {
     .slice(0, 8)
 })
 
-// 解释为空是预期：只有 expert 线的树/线性模型能算 SHAP；
-// 深度/核模型（tabnet/svm/mlp）与 semantic 线不提供逐特征归因。
-const explanationHint = computed(() => {
-  const name = detail.value?.model_name || ''
-  if (name.includes('_semantic')) {
-    return '该模型属于语义线，只提供风险分，不提供逐特征归因。'
-  }
-  if (/^(tabnet|svm|mlp_deep)/.test(name)) {
-    return '该模型为深度 / 核模型，当前不提供逐特征归因；可切换到 lr / rf / xgb / lgbm / et 查看解释。'
-  }
-  return '该模型未提供特征解释'
-})
+const explanationHint = computed(() => '当前模型暂不支持逐项解释，可换用支持解释的模型。')
 
 const maxContribution = computed(() =>
   Math.max(...explanation.value.map((e) => Math.abs(e.contribution)), 0.000001)
@@ -484,13 +492,13 @@ function locBarWidth(contribution) {
 // 行级可疑度分档：≥70% 红、40–70% 橙、<40% 绿（与图例一致）
 function lineColor(score) {
   const value = score || 0
-  if (value >= 0.7) return '#d9484a'
-  if (value >= 0.4) return '#d98a2b'
-  return '#4e9b68'
+  if (value >= 0.7) return 'var(--ui-danger)'
+  if (value >= 0.4) return 'var(--ui-warning)'
+  return 'var(--ui-success)'
 }
 
 function riskTint(score) {
-  return lineColor(score) + '1a'
+  return `color-mix(in srgb, ${lineColor(score)} 10%, transparent)`
 }
 
 function signed(v) {
@@ -505,19 +513,92 @@ function featureValue(value) {
   return Number.isInteger(number) ? String(number) : number.toFixed(4)
 }
 
+// 从模型预测页进入时带批次任务号：批量结果不写库，预测详情直接读该批次的预测产物。
+const jobId = computed(() => typeof route.query.job_id === 'string' ? route.query.job_id : '')
+
+// 重新预测默认沿用本条预测的模型，避免用户再次手选。
+function syncPredictModel() {
+  const model = detail.value?.model_name
+  if (!model) return
+  predictModel.value = model
+  const match = lines.value.find(item => (item.models || []).includes(model))
+  if (match) predictLine.value = match.line
+}
+
+async function loadBatchPrediction(job) {
+  const reference = job?.output_ref_json || {}
+  const name = (reference.outputs || [])
+    .find(item => item.name.includes('predictions') && item.name.endsWith('.csv'))?.name
+  if (!name) return null
+  const text = await (await fetchPredictOutput(job.job_id, name)).text()
+  const parsed = parseCsv(text)
+  if (!parsed.columns.includes('commit_hash')) return null
+  const target = props.hash.toLowerCase()
+  const row = parsed.rows.find(item => String(item.commit_hash).trim().toLowerCase() === target)
+  if (!row) return null
+  const risk = Number(row.risk_score)
+  if (!Number.isFinite(risk)) return null
+  const threshold = Number(row.decision_threshold)
+  const label = row.is_bug_inducing
+  return {
+    commit_hash: props.hash,
+    model_name: row.model_name,
+    risk_score: risk,
+    predicted_label: Number(row.predicted_label),
+    decision_threshold: Number.isFinite(threshold) ? threshold : null,
+    model_version: row.model_version,
+    feature_version: row.feature_version,
+    predicted_at: row.predicted_at,
+    is_bug_inducing: label === '' || label == null ? null : Number(label),
+    summary: `本批次预测：风险分 ${(risk * 100).toFixed(1)}%${
+      Number.isFinite(threshold) ? `，判定阈值 ${threshold.toFixed(2)}` : ''
+    }。`
+  }
+}
+
 async function load() {
   loading.value = true
   error.value = ''
   errorCode.value = 0
+  explainError.value = ''
+  explainMessage.value = ''
   try {
-    const model = typeof route.query.model_name === 'string' ? route.query.model_name : ''
-    if (!model) {
-      detail.value = null
-      errorCode.value = 40001
-      error.value = '请先从风险列表进入，并携带 model_name 查看提交详情'
-      return
+    let batch = null, batchError = null
+    if (jobId.value) {
+      try { batch = await loadBatchPrediction(await getJob(jobId.value)) }
+      catch (caught) { batchError = caught; batch = null }
     }
-    detail.value = await getCommitDetail(props.hash, model)
+    // 后端详情接口强制要求 model_name：深链未带时先从批次结果、再从已登记模型解析。
+    let model = typeof route.query.model_name === 'string' ? route.query.model_name : ''
+    if (!model) model = batch?.model_name || ''
+    if (!model) {
+      const available = await loadModelLines()
+      model = available.find(item => item.models?.length)?.models?.[0] || ''
+    }
+    let base = null, baseError = null
+    try {
+      base = await getCommitDetail(props.hash, model)
+      // 后端把判定字段放在 prediction 里，页面统一读顶层。
+      if (base?.prediction) base = { ...base, ...base.prediction }
+    } catch (caught) {
+      if (caught?.code === 40100) throw caught
+      baseError = caught
+    }
+    if (!base && !batch) throw baseError || new Error('提交详情不可用')
+    detail.value = batch
+      ? {
+        ...(base || { features: {}, explanation: [] }),
+        ...batch,
+        features: base?.features || {},
+        is_bug_inducing: batch.is_bug_inducing ?? base?.is_bug_inducing ?? null
+      }
+      : base
+    batchNotice.value = batchError
+      ? '批次预测结果读取失败，当前仅显示库内详情，可刷新页面重试。'
+      : batch && !base
+        ? '该提交不在展示库中，以上为本批次预测结果；逐项解释需先生成单条预测。'
+        : ''
+    syncPredictModel()
     await loadExplanation()
   } catch (e) {
     detail.value = null
@@ -545,7 +626,9 @@ async function loadExplanation() {
   } catch (err) {
     if (epoch === explainEpoch && detail.value?.model_name === model) {
       detail.value.explanation = []
-      explainError.value = err.detail || err.message || '解释服务不可用'
+      explainError.value = err.code === 40400 && jobId.value
+        ? '本批次结果尚未入库，逐项解释需先在下方「重新预测」生成单条结果。'
+        : err.detail || err.message || '解释服务不可用'
     }
   } finally { if (epoch === explainEpoch) explaining.value = false }
 }
@@ -588,6 +671,7 @@ onMounted(() => {
   load()
   loadModelLines().then((l) => {
     lines.value = l
+    syncPredictModel()
   })
 })
 // 路由参数变化时重载：组件复用时不重载会显示上一条提交
@@ -595,6 +679,7 @@ watch(
   () => props.hash,
   () => {
     detail.value = null
+    batchNotice.value = ''
     errorCode.value = 0
     load()
   }
@@ -621,17 +706,29 @@ watch(
   margin: 4px 0 14px;
 }
 .big {
-  font-size: 38px;
+  font-size: var(--ui-font-2xl);
   font-weight: 700;
-  font-family: monospace;
+  font-family: var(--ui-font-mono);
+  letter-spacing: -0.03em;
   line-height: 1;
 }
 .spacer {
   flex: 1;
 }
 .muted {
-  color: #9aa1ab;
-  font-size: 12px;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-hint);
+  line-height: 1.6;
+}
+.batch-notice {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--ui-primary);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-primary-soft);
+  color: var(--ui-text);
+  font-size: var(--ui-font-hint);
+  line-height: 1.6;
 }
 .opbar {
   display: flex;
@@ -650,8 +747,8 @@ watch(
   margin: 8px 0 12px;
   padding: 10px 12px;
   border-left: 3px solid var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
-  border-radius: 4px;
+  background: var(--ui-primary-soft);
+  border-radius: var(--ui-radius-md);
   line-height: 1.6;
 }
 .file-meta {
@@ -659,14 +756,14 @@ watch(
   align-items: center;
   gap: 8px;
   margin: 2px 0 6px;
-  font-size: 12px;
+  font-size: var(--ui-font-hint);
 }
 .suggestions {
   margin: 8px 0 16px;
   padding: 10px 14px;
   background: var(--el-color-success-light-9);
   border-left: 3px solid var(--el-color-success);
-  border-radius: 4px;
+  border-radius: var(--ui-radius-md);
 }
 .suggestions ol {
   margin: 0;
@@ -680,32 +777,32 @@ watch(
 }
 .e .f {
   width: 110px;
-  font-size: 13px;
+  font-size: var(--ui-font-sm);
 }
 .e .track {
   flex: 1;
-  height: 10px;
-  border-radius: 5px;
-  background: #eceef2;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--ui-color-slate-100);
   overflow: hidden;
 }
 .e .track i {
   display: block;
   height: 100%;
-  border-radius: 5px;
+  border-radius: inherit;
 }
 .e .track i.increase {
-  background: #d9484a;
+  background: var(--ui-danger);
 }
 .e .track i.decrease {
-  background: #4e9b68;
+  background: var(--ui-success);
 }
 .e .val {
   width: 68px;
   text-align: right;
   white-space: nowrap;
-  font-family: monospace;
-  color: #6b7280;
+  font-family: var(--ui-font-mono);
+  color: var(--ui-text-muted);
 }
 .loc-notice {
   margin: 0 0 10px;
@@ -717,23 +814,28 @@ watch(
   margin: 8px 0 16px;
 }
 .file-path {
-  font-size: 12px;
-  color: #7c838c;
+  font-size: var(--ui-font-hint);
+  color: var(--ui-text-muted);
   margin-bottom: 4px;
   word-break: break-all;
 }
 .line {
   display: flex;
   gap: 10px;
-  padding: 2px 8px;
+  padding: 4px 10px;
   border-left: 3px solid transparent;
-  font-family: monospace;
-  font-size: 12px;
+  border-radius: var(--ui-radius-sm);
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-font-hint);
+  line-height: 1.65;
+}
+.line:hover {
+  background: var(--ui-surface-subtle);
 }
 .line-no {
   min-width: 36px;
   text-align: right;
-  color: #9aa1ab;
+  color: var(--ui-text-muted);
   user-select: none;
 }
 .line-content {
@@ -744,31 +846,31 @@ watch(
 .line-score {
   min-width: 42px;
   text-align: right;
-  color: #909399;
+  color: var(--ui-text-muted);
   font-size: 11px;
 }
 .loc-legend {
   display: flex;
   gap: 16px;
   margin-top: 4px;
-  color: #7c838c;
-  font-size: 12px;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-hint);
 }
 .loc-legend .dot {
   display: inline-block;
   width: 10px;
   height: 10px;
-  border-radius: 2px;
-  margin-right: 4px;
+  border-radius: 3px;
+  margin-right: 5px;
 }
 .loc-legend .dot.high {
-  background: #f56c6c;
+  background: var(--ui-danger);
 }
 .loc-legend .dot.mid {
-  background: #e6a23c;
+  background: var(--ui-warning);
 }
 .loc-legend .dot.low {
-  background: #67c23a;
+  background: var(--ui-success);
 }
 .loc {
   display: flex;
@@ -778,8 +880,8 @@ watch(
 }
 .loc .rank {
   width: 18px;
-  font-size: 12px;
-  color: #9aa1ab;
+  font-size: var(--ui-font-hint);
+  color: var(--ui-text-muted);
   text-align: center;
 }
 .refs {
@@ -792,14 +894,14 @@ watch(
   display: flex;
   align-items: baseline;
   gap: 10px;
-  border: 1px solid #e2e5ea;
-  border-radius: 6px;
-  padding: 8px 12px;
-  background: #fff;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  padding: 10px 14px;
+  background: var(--ui-surface);
 }
 .ref-hash {
-  color: #7c838c;
-  font-size: 12px;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-hint);
 }
 .ref-msg {
   flex: 1;
@@ -807,13 +909,13 @@ watch(
   word-break: break-word;
 }
 .ref-time {
-  color: #9aa1ab;
-  font-size: 12px;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-hint);
   white-space: nowrap;
 }
 .meta {
-  border: 1px solid #e2e5ea;
-  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
   overflow: hidden;
   margin: 0 0 20px;
 }
@@ -822,14 +924,14 @@ watch(
   grid-template-columns: 80px 1fr;
   gap: 12px;
   padding: 10px 14px;
-  border-bottom: 1px solid #eef0f4;
+  border-bottom: 1px solid var(--ui-border);
 }
 .meta .row:last-child {
   border-bottom: none;
 }
 .meta .k {
-  color: #7c838c;
-  font-size: 13px;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-sm);
 }
 .meta .v {
   min-width: 0;
@@ -840,16 +942,23 @@ watch(
   line-height: 1.6;
 }
 h3 {
-  font-size: 15px;
-  margin: 18px 0 8px;
+  margin: 20px 0 10px;
+  font-size: var(--ui-font-md);
+  font-weight: 650;
+}
+.subsection-title {
+  margin: 12px 0 8px;
+  font-size: var(--ui-font-sm);
+  font-weight: 650;
+  color: var(--ui-text);
 }
 .group {
   margin-bottom: 10px;
 }
-.group h4 {
+.group h3 {
   margin: 8px 0 6px;
-  font-size: 12px;
-  color: #7c838c;
+  font-size: var(--ui-font-hint);
+  color: var(--ui-text-muted);
   font-weight: 500;
 }
 .feats {
@@ -858,23 +967,23 @@ h3 {
   gap: 8px;
 }
 .feat {
-  border: 1px solid #e2e5ea;
-  border-radius: 6px;
-  padding: 6px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  padding: 7px 12px;
   display: flex;
   align-items: baseline;
   gap: 8px;
-  background: #fff;
+  background: var(--ui-surface);
 }
 .feat .k {
-  color: #7c838c;
-  font-size: 12px;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-font-hint);
 }
 .feat .v {
-  font-family: monospace;
+  font-family: var(--ui-font-mono);
   font-weight: 600;
 }
 .mono {
-  font-family: monospace;
+  font-family: var(--ui-font-mono);
 }
 </style>

@@ -1,15 +1,15 @@
-# 数据集查询与导出 API（datasets）
+﻿# 数据集查询与导出 API（datasets）
 
-实现状态：目标契约　期次：一期
+实现状态：已实现　期次：一期
 
 > 旧口径把数据集成员视为 commit + commit_feature + 14 维特征视图；本文按板块 2 新定义重写。数据集成员是带标签二维表，不含 14 维特征和 `is_test`。本轮只修改设计文档。
 
-文件契约唯一权威：[../file-contracts.md](../file-contracts.md) §3.1、§3.4、§3.9；收集与默认保存见 [collect.md](collect.md)。
+collected_commits 列契约、predictions 列契约、manifest 契约；收集与默认保存见 [collect.md](collect.md)。
 
 ## 1 职责与不负责范围
 
 - 负责查询板块 2 默认保存的数据集元数据与二维表成员。
-- 负责把数据集成员按 `collected_commits.csv/xlsx` 契约导出，并可导出已有 predictions 结果。
+- 负责把数据集成员按 `collected_commits.csv` 规范表导出，并可导出已有 predictions 结果；CSV / XLSX 按下载请求即时生成，不预生成双份文件。
 - 负责列表、详情、成员分页、统计展示和导出批次。
 - 不触发采集、SZZ 打标、清洗、训练、预测、评估、解释或定位。
 - 不创建新的标签、不补 14 维特征、不生成 `is_test`。
@@ -54,11 +54,11 @@ labeled_at,fix_commit_hash,source_type,row_no
 
 ### GET /api/datasets/{dataset_id}/export
 
-同步生成导出批次。
+按所选格式生成一次导出批次；同一请求只生成 `format` 指定的一份文件，不同时落 CSV 与 XLSX。
 
 | 参数 | 必填 | 契约 |
 |---|---|---|
-| `format` | 否 | `csv` / `xlsx`，默认 `csv` |
+| `format` | 否 | `csv` / `xlsx`，默认 `csv`；只影响本次导出 |
 | `artifact` | 否 | `commits`（默认）/ `predictions` |
 | `model_name` | predictions 时是 | 选择已有预测结果 |
 | `label` | 否 | `1` / `0` / `null` / `all` |
@@ -86,6 +86,18 @@ labeled_at,fix_commit_hash,source_type,row_no
 
 下载导出主表或 manifest。`name` 必须来自 manifest `outputs[]`，禁止路径穿越。
 
+### DELETE /api/datasets/{dataset_id}
+
+删除数据集登记：清除 `dataset_commit` 关联行并删除 `dataset` 行，不删除模块产物文件与产物批次。
+
+响应：
+
+```json
+{"dataset_id": "...", "deleted": true}
+```
+
+数据集不存在返回 40400。该接口是数据集单删入口；`/storage` 产物库默认按数据链路整体删除（`DELETE /api/storage/chains/{chain_id}`），数据集被链路外任务引用时单删返回 40001。
+
 ### 错误码
 
 | 业务码 | HTTP | 场景 |
@@ -99,13 +111,14 @@ labeled_at,fix_commit_hash,source_type,row_no
 
 ### 3.1 commits 导出
 
-文件名：
+文件名按本次导出的 `format` 生成一份：
 
 ```text
-datasets_commits_<job_id>.csv / .xlsx
+datasets_commits_<job_id>.csv
+datasets_commits_<job_id>.xlsx   # 仅 format=xlsx 时生成
 ```
 
-列严格采用 file-contracts §3.1，即 `collected_commits` schema：
+列严格采用 `collected_commits` 列契约（字段定义见 [`../database/commit.md`](../database/commit.md)），即：
 
 ```text
 commit_hash,repo_name,repo_url,author_name,author_email,committed_at,
@@ -123,17 +136,18 @@ ns,nd,nf,entropy,la,ld,lt,fix,ndev,age,nuc,exp,rexp,sexp,is_test
 
 ### 3.2 predictions 导出
 
-文件名：
+文件名按本次导出的 `format` 生成一份：
 
 ```text
-datasets_predictions_<job_id>.csv / .xlsx
+datasets_predictions_<job_id>.csv
+datasets_predictions_<job_id>.xlsx   # 仅 format=xlsx 时生成
 ```
 
-列严格采用 file-contracts §3.4。`is_bug_inducing` 从 `dataset_commit` 透传，不从 `commit_feature` 读取。
+列严格采用 predictions 列契约。`is_bug_inducing` 从 `dataset_commit` 透传，不从 `commit_feature` 读取。
 
 ### 3.3 manifest
 
-导出主文件必伴同名 manifest，遵循 file-contracts §3.9，并记录：
+导出主文件必伴同名 manifest，遵循 [`storage.md`](storage.md) 的 manifest 契约，并记录：
 
 ```text
 dataset_id,artifact,format,filters,source_type,label_source
@@ -168,3 +182,7 @@ dataset_id,artifact,format,filters,source_type,label_source
 ## 7 边界
 
 datasets 是板块 2 默认保存结果的查询与导出面，不是模块间运行前置。模块间仍以文件契约为 handoff；数据库提供展示、筛选和便利选择。
+
+
+
+

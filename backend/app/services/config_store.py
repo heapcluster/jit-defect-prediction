@@ -4,6 +4,7 @@ import copy
 import json
 import logging
 import math
+import re
 from pathlib import Path
 
 from sqlalchemy import select
@@ -31,6 +32,8 @@ CONFIG_SCHEMA = {
     "primary_metric": ("string", "主排序指标"),
     "effort_enabled": ("bool", "启用 effort-aware 评估"),
     "page_prefs": ("object", "页面偏好"),
+    "ui.background_color": ("string", "页面背景色"),
+    "ui.accent_color": ("string", "主题色"),
     "collect.allow_roots": ("list", "允许的本地仓库根目录"),
     "collect.protocol_whitelist": ("list", "允许的仓库协议"),
     "clean.chain_templates": ("object", "清洗链模板"),
@@ -64,6 +67,7 @@ def factory_defaults() -> dict:
         "selected_model": "", "default_dataset": "", "default_xai": "shap",
         "metrics_selected": list(METRIC_KEYS[:6]), "primary_metric": "auc",
         "effort_enabled": True, "page_prefs": {},
+        "ui.background_color": "#f7f9fc", "ui.accent_color": "#2563eb",
         "collect.allow_roots": [str(config.SOURCE_REPO.parent.resolve())] if config.SOURCE_REPO else [],
         "collect.protocol_whitelist": ["https", "git"],
         "clean.chain_templates": {}, "train.templates": {},
@@ -185,6 +189,9 @@ def _validate_value(session: Session, key: str, value) -> None:
         if any(type(item) is not str or not Path(item).is_absolute() for item in value):
             _invalid(key)
         if len(set(value)) != len(value):
+            _invalid(key)
+    if key in ("ui.background_color", "ui.accent_color"):
+        if not re.fullmatch(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})", value):
             _invalid(key)
     if key == "page_prefs":
         if set(value) - {"page_size", "remember_drawer", "explain_top_n", "collect_branch", "collect_mode"}:

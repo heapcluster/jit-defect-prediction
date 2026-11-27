@@ -1,530 +1,511 @@
 <template>
-  <section class="predict">
-    <p class="hint">
-      上传模型包与待预测特征文件，或选择已登记模型 / 已导入数据集。批量预测交付 predictions.csv，不写入展示库；导入为可选动作。模型由每次运行显式选择，不设默认模型；加载/卸载/重载/选择为独立管理操作。
-    </p>
-    <el-alert
-      v-if="error"
-      :title="error"
-      type="error"
-      :closable="false"
-      show-icon
-    />
-    <section
-      class="panel"
-      aria-labelledby="predict-models-title"
-    >
-      <h2 id="predict-models-title">
-        模型管理
-      </h2>
-      <p class="hint">
-        当前选择：{{ status.selected_model || '—' }}（仅用于回显，运行需显式指定模型）
-      </p>
+  <ToolWorkspace
+    hide-tabs
+    model-value="config"
+  >
+    <template #config>
       <el-alert
-        v-if="modelsError"
-        :title="modelsError"
+        v-if="error"
+        :title="error"
         type="error"
         :closable="false"
+        show-icon
       />
-      <div class="table-scroll">
-        <table data-testid="predict-models">
-          <thead><tr><th>模型</th><th>线</th><th>工件</th><th>运行时</th><th>版本</th><th>错误</th><th>操作</th></tr></thead>
-          <tbody>
-            <tr
-              v-for="m in status.items || []"
-              :key="m.model_name"
+      <StepRail
+        :steps="railSteps"
+        :active="activeStep"
+      />
+      <StepSection
+        index="01"
+        title="选择输入"
+        :state="stepState(0)"
+        collapsible
+        :summary="inputSummary"
+      >
+        <div class="fields">
+          <div class="field">
+            <span class="field-label">已训练模型</span>
+            <el-select
+              id="predict-source"
+              v-model="draft.source_id"
+              placeholder="请选择已训练模型"
+              :disabled="busy || auth || sourcesLoading"
+              filterable
             >
-              <td class="mono">
-                {{ m.model_name }}
-              </td><td>{{ m.line }}</td><td>{{ m.artifact_status }}</td><td>{{ m.runtime_state }}</td><td>{{ m.version_key }}</td><td>{{ m.load_error || '—' }}</td>
-              <td class="ops">
-                <el-button
-                  :data-testid="`predict-load-${m.model_name}`"
-                  size="small"
-                  :disabled="auth || modelsBusy"
-                  @click="modelAction(m.model_name, 'load')"
-                >
-                  加载
-                </el-button><el-button
-                  :data-testid="`predict-reload-${m.model_name}`"
-                  size="small"
-                  :disabled="auth || modelsBusy"
-                  @click="modelAction(m.model_name, 'reload')"
-                >
-                  重载
-                </el-button><el-button
-                  :data-testid="`predict-unload-${m.model_name}`"
-                  size="small"
-                  :disabled="auth || modelsBusy"
-                  @click="modelAction(m.model_name, 'unload')"
-                >
-                  卸载
-                </el-button><el-button
-                  size="small"
-                  :disabled="auth || modelsBusy || m.artifact_status !== 'available'"
-                  @click="selectModel(m.model_name)"
-                >
-                  选择
-                </el-button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <el-button
-        size="small"
-        :disabled="auth || modelsBusy"
-        @click="loadStatus"
-      >
-        刷新状态
-      </el-button>
-    </section>
-    <section
-      class="panel"
-      aria-labelledby="predict-input-title"
-    >
-      <h2 id="predict-input-title">
-        批量预测输入
-      </h2>
-      <div class="fields">
-        <label for="predict-files">模型包 + 待预测文件（model_package.zip + collected_commits / clean_dataset CSV/XLSX）
-          <input
-            id="predict-files"
-            type="file"
-            multiple
-            accept=".zip,.csv,.xlsx"
-            :disabled="busy || auth"
-            @change="selectFiles"
-          >
-        </label>
-        <p class="hint span-all">
-          上传模型包与 collected_commits/clean_dataset 二维表；expert 的 14 维特征由内核从绑定仓库现算（无需表内预置），semantic 使用预计算向量。模型必须显式选择。
+              <el-option
+                v-for="item in sources"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </div>
+          <div class="field">
+            <span class="field-label">待预测测试集</span>
+            <el-select
+              id="predict-testset"
+              v-model="draft.test_id"
+              :placeholder="testSources.length ? '请选择测试集' : '暂无测试集，请先完成模型训练'"
+              :disabled="busy || auth || sourcesLoading || !testSources.length"
+              filterable
+            >
+              <el-option
+                v-for="item in testSources"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </div>
+        </div>
+        <p
+          v-if="sourcesLoading"
+          class="status-line"
+        >
+          正在读取已训练模型与测试集…
         </p>
-        <label for="predict-registered">已登记模型（便利，未上传模型包时使用）
-          <select
-            id="predict-registered"
-            v-model="draft.model_name"
-            :disabled="busy || auth"
-          ><option value="">选择已登记模型</option><option
-            v-for="name in registered"
-            :key="name"
-            :value="name"
-          >{{ name }}</option></select>
-        </label>
-        <label for="predict-dataset">已导入数据集（便利，上传文件优先）
-          <select
-            id="predict-dataset"
-            v-model="draft.dataset_id"
-            :disabled="busy || auth"
-          ><option value="">不使用数据集</option><option
-            v-for="d in datasets"
-            :key="d.dataset_id"
-            :value="d.dataset_id"
-          >{{ d.name }}</option></select>
-        </label>
-        <label for="predict-threshold">决策阈值（开区间 0–1）<input
-          id="predict-threshold"
-          v-model.number="draft.threshold"
-          type="number"
-          min="0.01"
-          max="0.99"
-          step="0.01"
-          :disabled="busy || auth"
-        ></label>
-      </div>
-      <p
-        v-if="files.length"
-        class="file-note"
+        <p
+          v-if="sourcesError"
+          class="validation"
+        >
+          {{ sourcesError }}
+        </p>
+        <InfoGrid
+          v-if="selectedSource || selectedTest"
+          :items="sourceInfo"
+        />
+      </StepSection>
+      <StepSection
+        index="02"
+        title="判定阈值"
+        :state="stepState(1)"
+        collapsible
+        :summary="`阈值 ${thresholdText}`"
       >
-        {{ files.map(f => f.name).join('；') }} <el-button
-          size="small"
-          :disabled="busy"
-          @click="files = []"
-        >
-          移除文件
-        </el-button>
-      </p>
-      <div class="fields">
-        <label for="predict-model-artifact">train 模型包产物库
-          <select
-            id="predict-model-artifact"
-            v-model="modelArtifact"
+        <template #extra>
+          <el-tag>{{ thresholdText }}</el-tag>
+        </template>
+        <div class="field">
+          <el-slider
+            v-model="draft.threshold"
+            :min="0.05"
+            :max="0.95"
+            :step="0.01"
             :disabled="busy || auth"
-          ><option value="">{{ modelSources.length ? '选择模型包' : '暂无产物，可直接上传' }}</option><option
-            v-for="s in modelSources"
-            :key="s.value"
-            :value="s.value"
-          >{{ s.name }}</option></select>
-        </label>
-        <label for="predict-table-artifact">collect/clean 特征文件产物库
-          <select
-            id="predict-table-artifact"
-            v-model="tableArtifact"
-            :disabled="busy || auth"
-          ><option value="">{{ tableSources.length ? '选择特征文件' : '暂无产物，可直接上传' }}</option><option
-            v-for="s in tableSources"
-            :key="s.value"
-            :value="s.value"
-          >{{ s.name }}</option></select>
-        </label>
-      </div>
-      <div class="actions">
-        <el-button
-          :disabled="!modelArtifact || busy || auth"
-          @click="useArtifact(modelArtifact, 'train')"
-        >
-          使用模型包
-        </el-button><el-button
-          :disabled="!tableArtifact || busy || auth"
-          @click="useArtifact(tableArtifact, 'table')"
-        >
-          使用特征文件
-        </el-button><el-button
-          :disabled="busy || auth"
-          @click="loadSources"
-        >
-          刷新来源
-        </el-button>
-      </div>
-      <label
-        class="checkbox"
-        for="predict-force"
-      ><input
-        id="predict-force"
-        v-model="draft.force"
-        type="checkbox"
-        :disabled="busy || auth"
-      >force_recompute（忽略库中已有结果，全部重算）</label>
-      <div class="actions">
+            aria-label="判定阈值"
+          />
+        </div>
+      </StepSection>
+      <StepSection
+        index="03"
+        title="确认配置"
+        :state="stepState(2)"
+        collapsible
+        :summary="`${selectedSource?.label || '未选择模型'} · 阈值 ${thresholdText}`"
+      >
+        <InfoGrid :items="confirmInfo" />
+      </StepSection>
+      <StepSection
+        index="04"
+        title="运行"
+        :state="stepState(3)"
+        sticky
+      >
         <el-button
           data-testid="predict-run"
+          class="run-button"
           type="primary"
+          size="large"
           :loading="busy"
           :disabled="busy || auth || isRunning || !canRun"
           @click="submit"
         >
-          运行预测
-        </el-button><span class="hint">阈值只影响 predicted_label，不改 risk_score；缺预测行与未打标留空，不填 0。</span>
-      </div>
-    </section>
-    <section
-      v-if="predicting.job"
-      class="panel"
-      aria-live="polite"
-      data-testid="predict-job"
-    >
-      <div class="heading">
-        <h2>预测任务</h2><el-tag>{{ statusLabel }}</el-tag>
-      </div>
-      <p class="mono">
-        {{ predicting.job.job_id }}
-      </p>
-      <el-progress
-        :percentage="percentage"
-        :status="predicting.job.status === 'success' ? 'success' : undefined"
-      />
-      <p class="hint">
-        {{ predicting.job.current_item || '等待执行' }} · {{ predicting.job.done || 0 }} / {{ predicting.job.total || 0 }} · 重试 {{ predicting.job.retry_count || 0 }} 次
-      </p>
-      <el-alert
-        v-if="predicting.job.error_log"
-        :title="predicting.job.error_log"
-        type="error"
-        :closable="false"
-      />
-      <div class="actions">
-        <el-button
-          :disabled="auth || refreshing"
-          @click="refreshJob"
-        >
-          刷新状态
-        </el-button><el-button
-          v-if="predicting.job.status === 'failed'"
-          data-testid="predict-retry"
-          :disabled="auth || refreshing"
-          @click="retry"
-        >
-          重试原任务
-        </el-button><el-button
-          v-if="isRunning"
-          data-testid="predict-cancel"
-          :disabled="auth"
-          @click="cancel"
-        >
-          取消任务
+          开始预测
         </el-button>
-      </div>
-    </section>
-    <section
-      v-if="predicting.job?.status === 'success'"
-      class="panel"
-      aria-labelledby="predict-result-title"
-    >
-      <h2 id="predict-result-title">
-        预测结果
-      </h2>
-      <p class="hint">
-        输入 {{ summary.input_rows }} · 成功 {{ summary.success_count }} · 失败 {{ summary.failed_count }} · 模型 {{ summary.model_name }} · 阈值 {{ summary.decision_threshold }}
-      </p>
-      <el-alert
-        v-if="outputError"
-        :title="outputError"
-        type="error"
-        :closable="false"
+      </StepSection>
+    </template>
+    <template #after>
+      <JobProgress
+        title="预测进度"
+        test-id="predict-job"
+        :job="predicting.job"
+        :text="progressText"
+        retry-test-id="predict-retry"
+        cancel-test-id="predict-cancel"
+        :retry-disabled="auth || refreshing"
+        :cancel-disabled="auth"
+        @retry="retry"
+        @cancel="cancel"
       />
-      <div
-        v-if="preview"
-        data-testid="predict-preview"
-        class="table-scroll"
+      <JobResultPanel
+        title="预测结果"
+        test-id="predict-result"
+        :stats="resultStats"
+        :error="outputError"
+        :summary-rows="resultSummaryRows"
       >
-        <table>
-          <thead>
-            <tr>
-              <th
-                v-for="c in preview.columns"
-                :key="c"
-              >
-                {{ c }}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="row in preview.rows"
-              :key="row.commit_hash"
-            >
-              <td
-                v-for="c in preview.columns"
-                :key="c"
-                :class="{ mono: c === 'commit_hash' }"
-              >
-                {{ c === 'is_bug_inducing' && (row[c] == null || row[c] === '') ? '未打标' : row[c] }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <h3>已登记文件</h3>
-      <ul class="output-list">
-        <li
-          v-for="item in result.outputs || []"
-          :key="item.name"
-        >
-          <div><strong>{{ item.name }}</strong><span class="hint"> · {{ item.size_bytes }} bytes</span><code>{{ item.sha256 }}</code></div><el-button
-            :data-testid="`predict-download-${item.name}`"
-            size="small"
-            :disabled="auth || downloading"
-            @click="download(item.name)"
+        <el-collapse v-model="openSections">
+          <el-collapse-item
+            title="预测预览"
+            name="preview"
           >
-            下载
-          </el-button>
-        </li>
-      </ul>
-      <div class="import-block">
-        <h3>可选导入展示库</h3><p class="hint">
-          导入后按 (commit_hash, model_name) 幂等 upsert，风险列表 / 提交详情页可见；重复导入不产生重复记录。
-        </p><el-button
-          data-testid="predict-import"
-          :disabled="auth || importing"
-          :loading="importing"
-          @click="importResult"
-        >
-          导入预测结果
-        </el-button><p role="status">
-          {{ importMessage }}
-        </p>
-      </div>
-    </section>
-  </section>
+            <DataTable
+              v-if="preview"
+              test-id="predict-preview"
+              :columns="previewColumns"
+              :rows="previewRows"
+              row-key="commit_hash"
+              clickable
+              empty="暂无预览数据"
+              @row-click="openDetail"
+            >
+              <template #[`cell.actions`]="{ row }">
+                <el-button
+                  link
+                  type="primary"
+                  @click.stop="openDetail(row)"
+                >
+                  查看详情
+                </el-button>
+              </template>
+            </DataTable>
+            <el-pagination
+              v-if="preview?.total"
+              class="pagination"
+              background
+              layout="total, prev, pager, next"
+              :current-page="previewPage"
+              :page-size="previewSize"
+              :total="preview.total"
+              hide-on-single-page
+              @current-change="loadPreview"
+            />
+            <p
+              v-else
+              class="status-line"
+            >
+              预测完成后在这里展示全部结果，可翻页查看。
+            </p>
+          </el-collapse-item>
+        </el-collapse>
+      </JobResultPanel>
+      <section
+        class="panel"
+        data-pane="wide"
+        aria-label="结果文件"
+        data-testid="predict-files"
+      >
+        <div class="section-heading">
+          <h2>结果文件</h2>
+        </div>
+        <OutputFiles
+          :items="downloadItems"
+          @download="item => download(item.name)"
+        />
+      </section>
+    </template>
+  </ToolWorkspace>
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
-import { cancelJob, fetchPredictOutput, fetchTrainOutput, fetchCollectOutput, fetchCleanOutput, getDatasets, getJob, getJobs, getModels, getModelsStatus, importStorageFiles, loadModel, reloadModel, retryJob, runPredict, setSelectedModel, unloadModel } from '../api'
+import { computed, onActivated, onDeactivated, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import DataTable from '../components/DataTable.vue'
+import JobProgress from '../components/JobProgress.vue'
+import JobResultPanel from '../components/JobResultPanel.vue'
+import OutputFiles from '../components/OutputFiles.vue'
+import InfoGrid from '../components/InfoGrid.vue'
+import StepRail from '../components/StepRail.vue'
+import StepSection from '../components/StepSection.vue'
+import ToolWorkspace from '../components/ToolWorkspace.vue'
+import { cancelJob, fetchPredictOutput, getJob, getJobs, getModelsStatus, getPredictPreview, retryJob, runPredict } from '../api'
+import { artifactSources, loadArtifactJobs, materializeArtifact } from '../utils/artifacts'
 import { predicting } from '../utils/predict'
+import { saveBlob } from '../utils/download'
+import { scrollToResults } from '../utils/scroll'
 import { configuration } from '../utils/thresholds'
 
 defineOptions({ name: 'PredictTool' })
-const status = reactive({ selected_model: '', items: [] })
-const modelsError = ref(''), modelsBusy = ref(false), registered = ref([]), datasets = ref([])
-const modelSources = ref([]), tableSources = ref([]), modelArtifact = ref(''), tableArtifact = ref('')
-const draft = reactive({ model_name: '', dataset_id: '', threshold: 0.5, force: false })
-const files = ref([]), busy = ref(false), auth = ref(false), error = ref(''), refreshing = ref(false), downloading = ref(false), importing = ref(false)
-const summary = reactive({}), preview = ref(null), outputError = ref(''), importMessage = ref('')
-let timer, mounted = true, outputJob = '', epoch = 0
+const router = useRouter()
+const sourceJobs = reactive({ items: [], total: 0, page: 1 })
+// 模型下拉直接来自已登记工件（model_artifact），逐个 .pkl 展示模型名，不再要求选择 ZIP。
+const registry = reactive({ items: [] })
+const sources = computed(() => registry.items
+  .filter(item => item.artifact_status === 'available')
+  .map(item => ({ value: item.model_name, label: item.model_name, model: item })))
+const testSources = computed(() => artifactSources(sourceJobs.items, ['.csv', '.xlsx'])
+  .filter(item => item.name.includes('train_testset')))
+const selectedSource = computed(() => sources.value.find(item => item.value === draft.source_id))
+const selectedJob = computed(() => sourceJobs.items.find(job => (job.models || []).some(
+  model => model.model_name === draft.source_id && model.status === 'success')))
+const selectedTest = computed(() => testSources.value.find(item => item.value === draft.test_id))
+const lineLabel = computed(() => selectedSource.value?.model?.line === 'semantic' ? '语义' : '专家特征')
+const artifactStatus = computed(() => {
+  const status = selectedSource.value?.model?.artifact_status
+  return status === 'available' ? '可用' : status === 'retired' ? '已退役' : (status || '未提供')
+})
+const selectedTestJob = computed(() => sourceJobs.items.find(job => job.job_id === selectedTest.value?.job_id))
+const sampleScale = computed(() => {
+  const metrics = selectedTestJob.value?.metrics || []
+  const value = label => metrics.find(item => item.label === label)?.value
+  const train = value('训练行数'), test = value('测试行数')
+  return train != null && test != null ? `${train} → ${test} 条` : '未提供'
+})
+const sourceInfo = computed(() => [
+  { label: '模型名称', value: selectedSource.value?.label || '未选择', mono: true },
+  { label: '算法', value: selectedSource.value?.model?.algo || '未提供' },
+  { label: '特征线', value: lineLabel.value },
+  { label: '模型版本', value: selectedSource.value?.model?.version_key || '未提供', mono: true },
+  { label: '训练任务', value: selectedJob.value?.label || '未提供' },
+  { label: '状态', value: artifactStatus.value },
+  { label: '测试集', value: selectedTest.value?.name || '未选择', mono: true },
+  { label: '样本规模', value: sampleScale.value },
+  { label: '数据清单', value: selectedTest.value?.companions?.[0] || '随测试集一起提交', mono: true },
+  { label: '生成时间', value: formatTime(selectedSource.value?.model?.trained_at || selectedJob.value?.created_at) }
+])
+const confirmInfo = computed(() => [
+  { label: '输入模型', value: selectedSource.value?.label || '未选择', mono: true },
+  { label: '模型任务', value: selectedJob.value?.label || '未提供' },
+  { label: '待测数据', value: selectedTest.value?.name || '未选择', mono: true },
+  { label: '样本规模', value: sampleScale.value },
+  { label: '判定阈值', value: thresholdText.value },
+  { label: '数据清单', value: selectedTest.value?.companions?.[0] || '随测试集一起提交', mono: true },
+  { label: '输出', value: '预测结果表（CSV），可在预览中翻页查看全部结果', span: true }
+])
+const sourcesLoading = ref(false), sourcesError = ref('')
+// 判定阈值默认取系统设置里的当前值，允许本次运行单独调整；不填任何本地常量冒充配置。
+function configuredThreshold() {
+  const value = configuration.items.find(item => item.config_key === 'decision_threshold')?.value
+  return typeof value === 'number' && value > 0 && value < 1 ? value : 0.5
+}
+const draft = reactive({ source_id: '', test_id: '', threshold: configuredThreshold() })
+// 切换模型时默认带上同一次训练产出的测试集，仍可单独改选其它训练批次。
+watch(() => draft.source_id, value => {
+  const job = sourceJobs.items.find(item => (item.models || []).some(
+    model => model.model_name === value && model.status === 'success'))
+  const matched = testSources.value.find(item => item.job_id === job?.job_id)
+  draft.test_id = matched?.value || testSources.value[0]?.value || ''
+})
+const thresholdText = computed(() => Number(draft.threshold || 0).toFixed(2))
+// 折叠后的单行摘要：只保留模型与测试集名称，便于确认当前选择。
+const inputSummary = computed(() => {
+  const parts = [selectedSource.value?.label, selectedTest.value?.name].filter(Boolean)
+  return parts.length ? parts.join(' · ') : '尚未选择模型与测试集'
+})
+const thresholdValid = computed(() => Number(draft.threshold) > 0 && Number(draft.threshold) < 1)
+const busy = ref(false), auth = ref(false), error = ref(''), refreshing = ref(false), downloading = ref(false)
+const preview = ref(null), outputError = ref('')
+const previewPage = ref(1)
+const previewSize = 12
+const openSections = ref(['preview'])
+let timer, mounted = true, jobEpoch = 0, outputJob = '', epoch = 0
+let activated = false
 const result = computed(() => predicting.job?.output_ref_json || {})
+const summary = computed(() => result.value.summary || {})
+const resultStats = computed(() => [
+  { label: '输入提交', value: summary.value.input_rows ?? '—' },
+  { label: '成功预测', value: summary.value.success_count ?? '—' },
+  { label: '失败', value: summary.value.failed_count ?? '—' },
+  { label: '判定阈值', value: summary.value.decision_threshold ?? Number(predicting.request?.decision_threshold ?? draft.threshold).toFixed(2) }
+])
+const previewColumns = computed(() => [
+  ...(preview.value?.columns || []).map(key => ({ key, label: key, mono: key === 'commit_hash' })),
+  { key: 'actions', label: '详情', width: '90px' }
+])
+const previewRows = computed(() => (preview.value?.preview || []).map(row => ({
+  ...row,
+  is_bug_inducing: row.is_bug_inducing == null || row.is_bug_inducing === '' ? '未标注' : row.is_bug_inducing
+})))
+// 预测只交付一张结果表。
+const predictFiles = computed(() => (result.value.outputs || [])
+  .filter(item => item.name.endsWith('.csv'))
+  .map(item => ({
+    ...item,
+    label: '预测结果',
+    testid: `predict-download-${item.name}`,
+    disabled: auth.value || downloading.value
+  })))
+const downloadItems = computed(() => predictFiles.value)
+const resultSummaryRows = computed(() => predicting.job?.status !== 'success' ? [] : [
+  { label: '预测模型', value: summary.value.model_name || predicting.request?.model_name || '—', mono: true },
+  { label: '待测数据', value: predicting.request?.test_name || '—', mono: true },
+  { label: '判定阈值', value: thresholdText.value },
+  { label: '失败样本', value: summary.value.failed_count ?? '—' },
+  { label: '完成时间', value: formatTime(predicting.job?.finished_at || predicting.job?.created_at) },
+  { label: '输出文件', value: `${predictFiles.value.length} 个` }
+])
 const isRunning = computed(() => ['queued', 'running'].includes(predicting.job?.status))
-const statusLabel = computed(() => ({ queued: '排队中', running: '运行中', success: '成功', failed: '失败', cancelled: '已取消' })[predicting.job?.status] || '')
-const percentage = computed(() => predicting.job?.total ? Math.min(100, Math.floor(predicting.job.done / predicting.job.total * 100)) : 0)
-const hasZip = computed(() => files.value.some(f => f.name.endsWith('.zip')))
-const hasTable = computed(() => files.value.some(f => /\.(csv|xlsx)$/i.test(f.name)))
-const canRun = computed(() => (hasZip.value || draft.model_name) && (hasTable.value || draft.dataset_id))
+const progressText = computed(() => {
+  const status = predicting.job?.status
+  if (!status) return '当前未开始，选择模型与测试集后开始预测'
+  if (status === 'queued') return '当前正在排队等待执行'
+  if (status === 'running') return `当前正在预测，已完成 ${predicting.job.done || 0} / ${predicting.job.total || 0} 条提交`
+  if (status === 'success') return '当前预测已完成，可查看结果并下载'
+  if (status === 'failed') return '当前预测失败，可重试原任务'
+  if (status === 'cancelled') return '当前预测已取消'
+  return ''
+})
+const canRun = computed(() => Boolean(draft.source_id) && Boolean(draft.test_id) && thresholdValid.value)
+// 顶部步骤轨道：输入齐备后自动推进，运行中与完成后收口到最后一步。
+const railSteps = [
+  { title: '选择输入', note: '模型与测试集' },
+  { title: '判定阈值', note: '风险分界' },
+  { title: '确认配置', note: '运行前核对' },
+  { title: '运行', note: '开始预测' }
+]
+const activeStep = computed(() => {
+  if (isRunning.value) return 3
+  if (predicting.job?.status === 'success') return 3
+  if (!canRun.value) return 0
+  return 2
+})
+function stepState(index) {
+  if (predicting.job?.status === 'success') return 'done'
+  if (index < activeStep.value) return 'done'
+  return index === activeStep.value ? 'current' : 'upcoming'
+}
+function formatTime(value) {
+  if (!value) return '未提供'
+  return String(value).replace('T', ' ').replace(/\.\d+Z?$/, '').replace('Z', '').slice(0, 16)
+}
 function message(err) {
-  if (err.code === 40100) { auth.value = true; return '鉴权失败，请检查部署环境中的 API Key' }
+  if (err.code === 40100) { auth.value = true; return '登录已失效，请重新登录' }
   return err.code === 50000 ? '预测服务异常，请稍后重试' : err.detail || err.message || '请求失败，请重试'
 }
-function selectFiles(event) { files.value = Array.from(event.target.files || []); event.target.value = '' }
-async function loadStatus() {
-  modelsBusy.value = true
-  try { Object.assign(status, await getModelsStatus()); modelsError.value = '' }
-  catch (err) { modelsError.value = message(err) }
-  finally { modelsBusy.value = false }
-}
-async function modelAction(name, action) {
-  modelsBusy.value = true
+async function loadSources(page = 1) {
+  sourcesLoading.value = true; sourcesError.value = ''
   try {
-    const fn = { load: loadModel, unload: unloadModel, reload: reloadModel }[action]
-    await fn(name); await loadStatus()
-  } catch (err) { modelsError.value = message(err) }
-  finally { modelsBusy.value = false }
-}
-async function selectModel(name) {
-  modelsBusy.value = true
-  try { await setSelectedModel(name); await loadStatus() }
-  catch (err) { modelsError.value = message(err) }
-  finally { modelsBusy.value = false }
-}
-async function loadSources() {
-  try {
-    const [train, collect, clean, data, models] = await Promise.all([
-      getJobs({ kind: 'train', status: 'success', size: 100 }), getJobs({ kind: 'collect', status: 'success', size: 100 }),
-      getJobs({ kind: 'clean', status: 'success', size: 100 }), getDatasets({ size: 100, status: 'ready' }), getModels()])
-    modelSources.value = train.items.flatMap(j => (j.output_ref_json?.outputs || []).filter(i => i.name.endsWith('.zip')).map(i => ({ job_id: j.job_id, name: i.name, value: j.job_id + '/' + i.name })))
-    tableSources.value = [...collect.items, ...clean.items].flatMap(j => (j.output_ref_json?.outputs || []).filter(i => /\.(csv|xlsx)$/i.test(i.name)).map(i => ({ job_id: j.job_id, kind: j.kind, name: i.name, value: j.kind + '/' + j.job_id + '/' + i.name })))
-    datasets.value = data.items
-    registered.value = (models.lines || []).flatMap(l => l.models)
-  } catch (err) { error.value = message(err) }
-}
-async function useArtifact(value, kind) {
-  busy.value = true
-  try {
-    if (kind === 'train') {
-      const [jobId, name] = value.split('/')
-      const blob = await fetchTrainOutput(jobId, name)
-      files.value = [...files.value.filter(f => !f.name.endsWith('.zip')), new File([blob], name)]
-    } else {
-      const [sourceKind, jobId, name] = value.split('/')
-      const fetcher = sourceKind === 'clean' ? fetchCleanOutput : fetchCollectOutput
-      const blob = await fetcher(jobId, name)
-      files.value = [...files.value.filter(f => !/\.(csv|xlsx)$/i.test(f.name)), new File([blob], name)]
+    const [jobs, models] = await Promise.all([
+      loadArtifactJobs('train', { page, size: 20 }),
+      getModelsStatus()
+    ])
+    Object.assign(sourceJobs, jobs)
+    registry.items = models.items || []
+    // 首次进入自动选中最新可用模型，并带出同批次测试集，减少一次手动选择。
+    if (!sources.value.some(file => file.value === draft.source_id)) {
+      draft.source_id = sources.value[0]?.value || ''
     }
-  } catch (err) { error.value = message(err) }
-  finally { busy.value = false }
+    if (!testSources.value.some(file => file.value === draft.test_id)) {
+      const jobId = sourceJobs.items.find(job => (job.models || []).some(
+        model => model.model_name === draft.source_id && model.status === 'success'))?.job_id
+      // 优先带出同批训练产出的测试集，没有匹配时退回最近的可用测试集。
+      draft.test_id = testSources.value.find(file => file.job_id === jobId)?.value
+        || testSources.value[0]?.value || ''
+    }
+  } catch (err) { sourcesError.value = message(err) }
+  finally { sourcesLoading.value = false }
 }
-function resetOutputs() { epoch++; outputJob = ''; preview.value = null; outputError.value = ''; Object.keys(summary).forEach(k => delete summary[k]) }
+function resetOutputs() { epoch++; outputJob = ''; preview.value = null; previewPage.value = 1; outputError.value = '' }
 async function submit() {
   if (busy.value || auth.value || isRunning.value || !canRun.value) return
-  if (!(draft.threshold > 0 && draft.threshold < 1)) { error.value = '阈值必须在开区间 (0,1)'; return }
-  busy.value = true; error.value = ''; importMessage.value = ''
+  busy.value = true; error.value = ''
   try {
-    const config = { decision_threshold: draft.threshold, force_recompute: draft.force }
-    if (draft.model_name && !hasZip.value) config.model_name = draft.model_name
-    if (draft.dataset_id && !hasTable.value) config.dataset_id = draft.dataset_id
-    const accepted = await runPredict(config, files.value)
+    // 模型通过 model_name 引用已登记 .pkl；只上传待预测测试集及其 manifest。
+    const config = { model_name: draft.source_id, decision_threshold: Number(draft.threshold), force_recompute: false }
+    const testFiles = await materializeArtifact(sourceJobs.items, draft.test_id, { extensions: ['.csv', '.xlsx'], includeCompanions: true })
+    const accepted = await runPredict(config, testFiles)
     if (!accepted?.job_id || !['queued', 'running', 'success', 'failed'].includes(accepted.status)) throw new Error('预测任务响应不完整')
-    resetOutputs(); predicting.request = config; predicting.job = accepted
+    resetOutputs()
+    predicting.request = { ...config, model_name: selectedSource.value?.label || '', test_name: selectedTest.value?.name || '' }
+    predicting.job = accepted
+    scrollToResults()
     await refreshJob()
   } catch (err) { error.value = message(err) }
   finally { busy.value = false }
 }
 async function loadOutputs(id) {
   if (outputJob === id) return
-  const ownEpoch = epoch, reference = result.value
+  const ownEpoch = epoch
   try {
-    const summaryName = (reference.outputs || []).find(i => i.name.startsWith('predict_summary_')).name
-    const csvName = (reference.outputs || []).find(i => i.name.endsWith('.csv')).name
-    const [summaryBlob, csvBlob] = await Promise.all([fetchPredictOutput(id, summaryName), fetchPredictOutput(id, csvName)])
-    const parsedSummary = JSON.parse(await summaryBlob.text())
-    const text = await csvBlob.text()
-    const lines = text.replace(/^/, '').split(/\r?\n/).filter(Boolean)
-    const columns = lines[0].split(',')
-    const rows = lines.slice(1, 21).map(line => Object.fromEntries(line.split(',').map((v, i) => [columns[i], v])))
+    const data = await getPredictPreview(id, { page: 1, size: previewSize })
     if (!mounted || ownEpoch !== epoch || predicting.job?.job_id !== id) return
-    Object.assign(summary, parsedSummary); preview.value = { columns, rows }; outputJob = id; outputError.value = ''
+    preview.value = data
+    previewPage.value = data.page || 1
+    outputJob = id; outputError.value = ''
   } catch (err) { if (mounted && ownEpoch === epoch) outputError.value = message(err) }
+}
+// 预测结果按页读取全部行。
+async function loadPreview(page = 1) {
+  const id = predicting.job?.job_id
+  if (!id) return
+  try {
+    const data = await getPredictPreview(id, { page, size: previewSize })
+    if (predicting.job?.job_id !== id) return
+    preview.value = data
+    previewPage.value = data.page || page
+  } catch (err) { if (mounted) outputError.value = message(err) }
 }
 async function refreshJob() {
   if (!predicting.job?.job_id || refreshing.value || auth.value) return
   clearTimeout(timer); refreshing.value = true
-  const id = predicting.job.job_id
+  const id = predicting.job.job_id, token = ++jobEpoch
   try {
     const data = await getJob(id)
-    if (!mounted || predicting.job?.job_id !== id) return
+    if (!mounted || token !== jobEpoch || predicting.job?.job_id !== id) return
     if (data.kind !== 'predict_batch' || !['queued', 'running', 'success', 'failed', 'cancelled'].includes(data.status)) throw new Error('任务响应不完整')
     predicting.job = data
     if (data.status === 'success') await loadOutputs(id)
-  } catch (err) { if (mounted && predicting.job?.job_id === id) error.value = message(err) }
+  } catch (err) { if (mounted && token === jobEpoch && predicting.job?.job_id === id) error.value = message(err) }
   finally {
     refreshing.value = false
-    if (mounted) {
-      if (predicting.job?.job_id !== id) refreshJob()
-      else if (['queued', 'running'].includes(predicting.job?.status)) timer = setTimeout(refreshJob, 1500)
-    }
+    if (mounted && token === jobEpoch && ['queued', 'running'].includes(predicting.job?.status)) timer = setTimeout(refreshJob, 1500)
   }
 }
 async function retry() {
-  try { const data = await retryJob(predicting.job.job_id); resetOutputs(); predicting.job = { ...predicting.job, ...data }; await refreshJob() }
-  catch (err) { error.value = message(err) }
+  try {
+    const id = predicting.job.job_id
+    await retryJob(id)
+    resetOutputs(); predicting.job = await getJob(id)
+    await refreshJob()
+  } catch (err) { error.value = message(err) }
 }
 async function cancel() {
-  try { const data = await cancelJob(predicting.job.job_id); predicting.job = { ...predicting.job, ...data }; clearTimeout(timer) }
-  catch (err) { error.value = message(err) }
+  try {
+    const id = predicting.job.job_id
+    await cancelJob(id)
+    jobEpoch++; clearTimeout(timer)
+    predicting.job = await getJob(id)
+  } catch (err) { error.value = message(err) }
 }
 async function download(name) {
   downloading.value = true
-  try {
-    const blob = await fetchPredictOutput(predicting.job.job_id, name), url = URL.createObjectURL(blob)
-    try { const link = document.createElement('a'); link.href = url; link.download = name; link.click() }
-    finally { URL.revokeObjectURL(url) }
-  } catch (err) { error.value = message(err) }
+  try { saveBlob(await fetchPredictOutput(predicting.job.job_id, name), name) }
+  catch (err) { error.value = message(err) }
   finally { downloading.value = false }
 }
-async function importResult() {
-  importing.value = true; importMessage.value = ''
-  try {
-    const name = (result.value.outputs || []).find(i => i.name.endsWith('.csv')).name
-    const blob = await fetchPredictOutput(predicting.job.job_id, name)
-    const data = await importStorageFiles([new File([blob], name)])
-    importMessage.value = data?.summary?.rejected ? '存在拒绝项：' + (data.items || []).flatMap(i => i.errors || []).join('；') : '预测结果已导入，风险列表 / 提交详情页可见'
-  } catch (err) { importMessage.value = message(err) }
-  finally { importing.value = false }
+// 每条预测结果都能进入详情：带上批次任务与模型，详情页据此显示该提交的预测结果。
+function openDetail(row) {
+  const hash = typeof row?.commit_hash === 'string' ? row.commit_hash.trim() : ''
+  if (!hash) return
+  const model = row.model_name || summary.value.model_name || predicting.request?.model_name || ''
+  router.push({
+    path: `/predict/commit/${hash}`,
+    query: {
+      ...(model ? { model_name: model } : {}),
+      ...(predicting.job?.job_id ? { job_id: predicting.job.job_id } : {})
+    }
+  })
 }
-onMounted(async () => {
-  draft.threshold = configuration.items.find(i => i.config_key === 'decision_threshold')?.value ?? 0.5
-  await Promise.all([loadStatus(), loadSources()])
+onActivated(async () => {
+  mounted = true; jobEpoch++
+  // 二次进入保留模型、数据集与阈值选择，只续接预测进度。
+  if (activated) { await refreshJob(); return }
+  activated = true
+  await loadSources()
   if (!predicting.job) {
     try { const data = await getJobs({ kind: 'predict_batch', size: 1 }); predicting.job = data.items?.[0] || null }
     catch (err) { error.value = message(err) }
   }
+  if (predicting.request) {
+    // 回到页面时沿用上次运行选择的参数，避免阈值悄悄回到默认值。
+    const threshold = Number(predicting.request.decision_threshold)
+    if (threshold > 0 && threshold < 1) draft.threshold = threshold
+  }
   await refreshJob()
 })
-onUnmounted(() => { mounted = false; clearTimeout(timer); resetOutputs() })
+onDeactivated(() => { mounted = false; clearTimeout(timer) })
 </script>
 
 <style scoped>
-.predict { min-width: 0; }
-.panel { border: 1px solid var(--el-border-color-light); border-radius: var(--el-border-radius-base); padding: 18px; margin: 18px 0; }
-h2 { margin: 0 0 16px; font-size: 16px; } h3 { font-size: 14px; margin: 20px 0 12px; }
-.hint { color: var(--el-text-color-secondary); font-size: 13px; line-height: 1.65; }
-.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 16px 0; }
-.fields .span-all { grid-column: 1 / -1; margin: 0; }
-.fields label { display: flex; flex-direction: column; gap: 8px; font-size: 14px; min-width: 0; }
-input:not([type="checkbox"]), select { box-sizing: border-box; width: 100%; min-width: 0; padding: 8px 10px; font: inherit; background: var(--el-fill-color-blank); color: var(--el-text-color-primary); border: 1px solid var(--el-border-color); border-radius: var(--el-border-radius-base); }
-input:focus-visible, select:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 2px; }
-.actions, .heading { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
-.heading h2 { margin: 0; }
-.checkbox { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; margin: 10px 0; }
-.file-note, .mono, code { font-size: 12px; overflow-wrap: anywhere; }
-.mono, code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.table-scroll { overflow-x: auto; max-width: 100%; }
-table { border-collapse: collapse; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-th, td { border: 1px solid var(--el-border-color-light); padding: 10px; text-align: left; }
-th { background: var(--el-fill-color-light); }
-.ops { display: flex; gap: 6px; }
-.ops .el-button { margin-left: 0; }
-.output-list { padding: 0; list-style: none; }
-.output-list li { display: flex; gap: 14px; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--el-border-color-lighter); }
-.output-list li div { min-width: 0; overflow-wrap: anywhere; font-size: 12px; } .output-list code { display: block; margin-top: 5px; }
-.import-block { border-top: 1px solid var(--el-border-color-light); margin-top: 20px; padding-top: 4px; }
-@media (max-width: 640px) { .fields { grid-template-columns: minmax(0, 1fr); } .panel { padding: 14px; } .actions .el-button { margin-left: 0; } }
+.pagination { margin-top: 16px; justify-content: flex-end; }
 </style>

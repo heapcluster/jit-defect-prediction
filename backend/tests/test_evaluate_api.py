@@ -11,13 +11,14 @@ from tests.conftest import HEADERS
 
 
 def pred_rows():
+    # 新契约：一次评估固定单一模型、单一测试集。
     rows = []
-    for model in ("m1", "m2"):
-        for i in range(8):
-            rows.append({"commit_hash": f"{i + 1:040x}", "model_name": model,
-                         "risk_score": round((i + 1) / 9 if model == "m1" else (8 - i) / 9, 5),
-                         "predicted_label": i % 2, "decision_threshold": 0.5, "model_version": "v1",
-                         "feature_version": "v1", "predicted_at": "2026-01-01T00:00:00Z", "is_bug_inducing": i % 2})
+    for i in range(8):
+        risk = round((i + 1) / 9, 5)
+        rows.append({"commit_hash": f"{i + 1:040x}", "model_name": "m1",
+                     "risk_score": risk, "predicted_label": int(risk >= 0.5),
+                     "decision_threshold": 0.5, "model_version": "v1",
+                     "feature_version": "v1", "predicted_at": "2026-01-01T00:00:00Z", "is_bug_inducing": i % 2})
     return rows
 
 
@@ -42,7 +43,8 @@ def evalclient(engine, tmp_path, monkeypatch):
 
 
 def post(client, config=None, files=None):
-    return client.post('/api/evaluate/run', data={'config': json.dumps(config or {'threshold': 0.5, 'metrics': ['auc', 'f1'], 'primary_metric': 'auc'})},
+    # 新契约：评估不再接收 threshold，判定阈值逐行取自 predictions.decision_threshold。
+    return client.post('/api/evaluate/run', data={'config': json.dumps(config or {'metrics': ['auc', 'f1'], 'primary_metric': 'auc'})},
         files=files if files is not None else [pred_file()], headers=HEADERS)
 
 
@@ -59,16 +61,17 @@ def test_run_delivers_section36_outputs(evalclient):
     response = post(client)
     assert response.status_code == 200, response.text
     result = response.json()['data']
-    assert result['status'] == 'success' and result['summary']['rows'] == 16
+    assert result['status'] == 'success' and result['summary']['rows'] == 8
     job_id = result['job_id']
     names = [o['name'] for o in result['outputs']]
-    assert any(n.startswith('evaluate_metrics_') and n.endswith('.csv') for n in names)
-    assert any(n.startswith('evaluate_effort_aware_') for n in names)
-    assert any(n.startswith('evaluate_report_') for n in names)
-    metrics_name = next(n for n in names if n.startswith('evaluate_metrics_') and n.endswith('.csv'))
+    assert any(n.startswith('evaluate_figures_') and n.endswith('.zip') for n in names)
+    assert any(n.startswith('metrics_evaluate_') and n.endswith('.csv') for n in names)
+    assert any(n.endswith('_effort_aware.png') for n in names)
+    assert not any('comparison' in n or n.startswith('evaluate_report_') for n in names)
+    metrics_name = next(n for n in names if n.startswith('metrics_evaluate_') and n.endswith('.csv'))
     columns, rows = fc.read_table(metrics_name, client.get(f'/api/evaluate/outputs/{job_id}/{metrics_name}', headers=HEADERS).content)
     assert columns == ["model_name", "line", "metric", "value", "threshold", "n", "pos_rate", "dataset_version", "model_version", "computed_at"]
-    assert {r['model_name'] for r in rows} == {'m1', 'm2'}
+    assert {r['model_name'] for r in rows} == {'m1'}
 
 
 def test_deprecated_labels_and_unknown_files_rejected(evalclient):
@@ -95,7 +98,7 @@ def test_effort_source_accepted_but_missing_effort_disclosed(evalclient):
             'fix_commit_hash': '', 'source_type': 'git_repo',
         })
     effort_file = ('files[]', ('train_testset.csv', fc.encode_table(fc.CLEAN_DATASET_COLUMNS, commits, 'csv')))
-    config = {'threshold': 0.5, 'metrics': ['auc', 'recall_at_20', 'p_norm'], 'primary_metric': 'auc', 'effort_enabled': True}
+    config = {'metrics': ['auc', 'recall_at_20', 'p_norm'], 'primary_metric': 'auc', 'effort_enabled': True}
     response = post(client, config=config, files=[pred_file(), effort_file])
     assert response.status_code == 200, response.text
     data = response.json()['data']
@@ -103,7 +106,7 @@ def test_effort_source_accepted_but_missing_effort_disclosed(evalclient):
     assert data['summary']['effort'] == {'provided': 0, 'matched': 0}
     assert any(item['reason_code'] == 'missing_effort' for item in data['summary']['unavailable'])
     job_id = data['job_id']
-    metrics_name = next(o['name'] for o in data['outputs'] if o['name'].startswith('evaluate_metrics_') and o['name'].endswith('.csv'))
+    metrics_name = next(o['name'] for o in data['outputs'] if o['name'].startswith('metrics_evaluate_') and o['name'].endswith('.csv'))
     _, rows = fc.read_table(metrics_name, client.get(f'/api/evaluate/outputs/{job_id}/{metrics_name}', headers=HEADERS).content)
     vals = {r['metric']: r['value'] for r in rows if r['model_name'] == 'm1'}
     # 新契约不含 LOC：effort-aware 指标应为不可用，而不是伪造数值。

@@ -57,6 +57,17 @@ def _json(value):
     return json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True).encode('utf-8')
 
 
+def branches(session, repo_source):
+    policy = _policy(session)
+    return _call('list_branches', repo_source, allow_roots=policy['allow_roots'],
+                 protocol_whitelist=policy['protocol_whitelist'])
+
+
+def source_columns(session, source_url):
+    return _call('source_columns', source_url,
+                 protocol_whitelist=_policy(session)['protocol_whitelist'])
+
+
 def _quality_report(result, settings):
     """Only project values already present in the collector result; never invent metrics."""
     summary = job_store.sanitize(result.get('summary') or {})
@@ -127,6 +138,23 @@ def _save_request(value):
 
 def submit(session, raw_config, files):
     settings = fc.read_json(raw_config.encode('utf-8'))
+    policy = _policy(session)
+    if settings.get('source_type') == 'public_dataset':
+        if files or settings.get('dataset_id') is not None:
+            fc.invalid('公开数据集模式不接受上传清单或 dataset_id')
+        validated = _call('validate_public_config', settings,
+                          protocol_whitelist=policy['protocol_whitelist'])
+        reference, digest = _save_request({'config': validated, 'commit_hashes': None, 'inputs': []})
+        try:
+            job = job_store.create(session, 'collect', params={
+                'module': 'collect', 'input_ref': reference, 'input_sha256': digest,
+                'config': validated,
+            }, total=5)
+        except Exception:
+            shutil.rmtree(_request_path(reference).parent)
+            raise
+        dispatch()
+        return {'job_id': job['job_id'], 'status': job['status']}
     hashes, inputs = [], []
     if len(files) > 1:
         fc.invalid('收集只接受一个 CSV/XLSX 提交清单')
@@ -156,7 +184,11 @@ def submit(session, raw_config, files):
             if not hashes:
                 fc.invalid('所选数据集没有提交')
             inputs.append({'name': 'dataset_commits.json', 'sha256': fc.sha256(_json(sorted(hashes))), 'rows': len(hashes)})
-    validated = _call('validate_config', settings, **_policy(session))
+    validated = _call('validate_config', settings, **policy)
+    available = _call('list_branches', validated['repo_source'], allow_roots=policy['allow_roots'],
+                      protocol_whitelist=policy['protocol_whitelist'])
+    if validated['branch'] not in available['branches']:
+        fc.invalid('所选分支不存在，请刷新分支后重试')
     reference, digest = _save_request({'config': validated, 'commit_hashes': hashes or None, 'inputs': inputs})
     try:
         job = job_store.create(session, 'collect', params={
@@ -203,19 +235,26 @@ def _execute(job_id, attempt):
                 job_store.update_progress(session, job_id, attempt=attempt, total=max(total, job['total']),
                                           done=max(done, job['done']), current_item=phase)
 
-        result = _call('run', request['config'], **policy, commit_hashes=request['commit_hashes'],
+        result = (
+            _call('run_public', request['config'], protocol_whitelist=policy['protocol_whitelist'],
+                  progress=progress)
+            if request['config'].get('source_type') == 'public_dataset'
+            else _call('run', request['config'], **policy, commit_hashes=request['commit_hashes'],
                        progress=progress, cache_dir=CACHE_ROOT)
+        )
         progress('publish', 5, 5)
         settings = job_store.sanitize(result['config'])
         settings['source_fingerprint'] = fc.sha256(_json(request['config']))
         base = f'collected_commits_{job_id}'
         quality = _quality_report(result, settings)
         artifacts = {base + '.csv': _call('encode_rows', result['rows'], 'csv'),
-                     base + '.xlsx': _call('encode_rows', result['rows'], 'xlsx'),
                      f'collect_summary_{job_id}.json': _json(job_store.sanitize(result['summary'])),
                      f'collect_audit_{job_id}.json': _json(job_store.sanitize(result['audit'])),
                      f'collect_quality_{job_id}.json': _json(quality),
                      f'collect_quality_{job_id}.md': _quality_markdown(quality)}
+        if result.get('metadata'):
+            artifacts[f'collect_public_metadata_{job_id}.json'] = _json(
+                job_store.sanitize(result['metadata']))
         inputs = []
         for item in result['inputs']:
             if item.get('name') == 'repository_snapshot.json' and item.get('path'):
@@ -297,17 +336,24 @@ def resave(session, job_id):
         if row.get('author_name') is None:
             row['author_name'] = ''
     settings = (job['params_json'] or {}).get('config') or {}
+    # 任务参数会脱敏，重存数据集时优先读回原始请求快照，保住仓库路径与分支绑定。
+    try:
+        snapshot = json.loads(_request_path((job['params_json'] or {}).get('input_ref')).read_text('utf-8'))
+        settings = snapshot.get('config') or settings
+    except (OSError, ValueError):
+        pass
     summary = reference.get('summary') or {}
     head = summary.get('head_hash')
     head_hash = head if isinstance(head, str) and re.fullmatch(r'[0-9a-f]{40}', head) else None
     source = settings.get('repo_source') or ''
+    source_type = settings.get('source_type') or ('git_repo' if source else 'public_dataset')
     dataset_id = str(uuid5(NAMESPACE_URL, 'collect-resave:' + job_id))
     dataset = session.get(Dataset, dataset_id, with_for_update=True)
     if dataset is None:
         session.add(Dataset(
             dataset_id=dataset_id,
             name=str(settings.get('dataset_name') or f'collected_{job_id}')[:128],
-            source_type='git_repo' if source else 'public_dataset',
+            source_type=source_type,
             source_url=str(settings.get('source_url') or (source if '://' in source else ''))[:512] or None,
             repo_name=str(settings.get('dataset_name') or '')[:128],
             repo_source=source[:255],

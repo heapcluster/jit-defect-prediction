@@ -57,25 +57,34 @@ def _json(value):
     return json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True).encode("utf-8")
 
 
+def _artifact_base(value, field):
+    """用户可命名的产物基名：不允许路径分隔符、控制字符与首尾点。"""
+    if value is None:
+        return None
+    if (
+        not isinstance(value, str)
+        or not value.strip()
+        or len(value) > 120
+        or value.startswith(".")
+        or value.endswith((".", " "))
+        or any(char in value for char in '/\\:*?"<>|')
+        or any(ord(char) < 32 for char in value)
+    ):
+        _invalid(f"{field} 名称非法")
+    return value.strip()
+
+
 def validate_config(raw):
     allowed = {
-        "threshold",
         "metrics",
         "primary_metric",
         "effort_enabled",
-        "report_format",
-        "format",
-        "model_names",
+        "figure_zip_name",
+        "metrics_name",
+        "output_format",
     }
     if not isinstance(raw, dict) or set(raw) - allowed:
         _invalid("评估配置含未知字段")
-    threshold = raw.get("threshold", metrics.DECISION_THRESHOLD)
-    if (
-        isinstance(threshold, bool)
-        or not isinstance(threshold, (int, float))
-        or not 0 < threshold < 1
-    ):
-        _invalid("threshold 必须在开区间 (0,1)")
     keys = metrics.metric_keys()
     selected = raw.get("metrics", metrics.DEFAULT_METRICS)
     if (
@@ -91,25 +100,16 @@ def validate_config(raw):
     effort_enabled = raw.get("effort_enabled", True)
     if type(effort_enabled) is not bool:
         _invalid("effort_enabled 必须为布尔")
-    report_format = raw.get("report_format", "md")
-    if report_format not in ("md", "html"):
-        _invalid("report_format 只支持 md/html")
-    fmt = raw.get("format", "csv")
-    if fmt not in ("csv", "xlsx"):
-        _invalid("format 只支持 csv/xlsx")
-    model_names = raw.get("model_names")
-    if model_names is not None and (
-        not isinstance(model_names, list) or any(not isinstance(m, str) for m in model_names)
-    ):
-        _invalid("model_names 必须为字符串列表")
+    output_format = raw.get("output_format", "csv")
+    if output_format not in ("csv", "xlsx"):
+        _invalid("output_format 只支持 csv/xlsx")
     return {
-        "threshold": float(threshold),
         "metrics": selected,
         "primary_metric": primary,
         "effort_enabled": effort_enabled,
-        "report_format": report_format,
-        "format": fmt,
-        "model_names": model_names,
+        "figure_zip_name": _artifact_base(raw.get("figure_zip_name"), "figure_zip_name"),
+        "metrics_name": _artifact_base(raw.get("metrics_name"), "metrics_name"),
+        "output_format": output_format,
     }
 
 
@@ -132,12 +132,21 @@ def parse_predictions(name, content):
             _invalid("risk_score 必须在 [0,1]")
         if row["predicted_label"] not in ("0", "1", 0, 1):
             _invalid("predicted_label 必须为 0/1")
+        try:
+            threshold = float(row["decision_threshold"])
+        except (TypeError, ValueError):
+            _invalid("decision_threshold 必须为数值")
+        if not 0 < threshold < 1:
+            _invalid("decision_threshold 必须在开区间 (0,1)")
+        if int(row["predicted_label"]) != int(risk >= threshold):
+            _invalid("predicted_label 与 risk_score/decision_threshold 不一致")
         label = row.get("is_bug_inducing")
         out.append(
             {
                 **row,
                 "risk_score": risk,
                 "predicted_label": int(row["predicted_label"]),
+                "decision_threshold": threshold,
                 "is_bug_inducing": None if label in (None, "") else int(label),
             }
         )
@@ -182,17 +191,23 @@ def _annotate(figure, text):
     return _save(figure)
 
 
-def run(pred_rows, config, *, effort=None, explanations=None, progress=None):
+def run(pred_rows, config, *, effort=None, progress=None):
     import numpy as np
     from sklearn.metrics import confusion_matrix, precision_recall_curve, roc_curve
 
     cfg = validate_config(config)
+    names = sorted({row["model_name"] for row in pred_rows})
+    if len(names) != 1:
+        _invalid("评估只接受单一模型的预测结果")
+    thresholds = {round(row["decision_threshold"], 6) for row in pred_rows}
+    if len(thresholds) != 1:
+        _invalid("预测结果 decision_threshold 不一致")
+    cfg["threshold"] = thresholds.pop()
+    cfg["model_name"] = names[0]
     merged, label_stats = join_labels(pred_rows)
     models = {}
     for row in merged:
         models.setdefault(row["model_name"], []).append(row)
-    if cfg["model_names"]:
-        models = {name: rows for name, rows in models.items() if name in cfg["model_names"]}
     computed_at = datetime.now(UTC).replace(tzinfo=None, microsecond=0).isoformat() + "Z"
     dataset_version = hashlib.sha256(_json([r["commit_hash"] for r in pred_rows])).hexdigest()[:16]
     metric_rows, confusion_rows, comparison, unavailable, figures = [], [], [], [], {}
@@ -318,14 +333,14 @@ def run(pred_rows, config, *, effort=None, explanations=None, progress=None):
     figures["calibration"] = [("all", _calibration_figure(merged, cfg["threshold"]))]
     figures["effort_unaware"] = [("all", _effort_unaware_figure(merged))]
     figures["effort_aware"] = [("all", _effort_aware_figure(merged, effort_map))]
-    if explanations:
-        figures["feat_importance"] = [("all", _feat_importance_figure(explanations))]
     summary = {
         "models": list(models),
+        "model_name": cfg["model_name"],
         "rows": len(merged),
         "unavailable": unavailable,
         "primary_metric": cfg["primary_metric"],
         "threshold": cfg["threshold"],
+        "decision_threshold": cfg["threshold"],
         "label_stats": label_stats,
         "effort": {"provided": len(effort_map),
                    "matched": sum(1 for r in merged if r["commit_hash"] in effort_map)},
@@ -430,93 +445,34 @@ def _effort_aware_figure(merged, effort_map):
     return _save(fig)
 
 
-def _feat_importance_figure(explanations):
-    fig = _figure()
-    ax = fig.subplots()
-    totals = {}
-    for row in explanations:
-        feature = row.get("feature")
-        if feature:
-            totals[feature] = totals.get(feature, 0) + abs(float(row.get("contribution", 0)))
-    if not totals:
-        return _annotate(fig, "Empty data")
-    items = sorted(totals.items(), key=lambda kv: -kv[1])[:14]
-    ax.barh([k for k, _ in items][::-1], [v for _, v in items][::-1])
-    ax.set_title("Feature importance (|SHAP|)")
-    fig.tight_layout()
-    return _save(fig)
+def _figures_zip(figures, job_id):
+    import zipfile
 
-
-def _report(result):
-    cfg = result["config"]
-    summary = result["summary"]
-    lines = [
-        "# 评估报告",
-        "",
-        f"阈值：{cfg['threshold']} · 主指标：{cfg['primary_metric']} · 数据集版本：{cfg['dataset_version']}",
-        f"样本行数：{summary['rows']} · 标签统计：{json.dumps(summary['label_stats'], ensure_ascii=False)}",
-        "",
-        "## 指标",
-        "",
-        "| 模型 | 指标 | 值 | n | 正样本率 |",
-        "|---|---|---|---|---|",
-    ]
-    for row in result["metrics_rows"]:
-        value = "" if row["value"] is None else f"{row['value']:.6f}"
-        lines.append(
-            f"| {row['model_name']} | {row['metric']} | {value} | {row['n']} | {row['pos_rate']:.4f} |"
-        )
-    lines += ["", "## 混淆矩阵", "", "| 模型 | TP | FP | FN | TN |", "|---|---|---|---|---|"]
-    for row in result["confusion_rows"]:
-        lines.append(
-            f"| {row['model_name']} | {row['tp']} | {row['fp']} | {row['fn']} | {row['tn']} |"
-        )
-    lines += ["", "## 图件", ""]
-    for kind in result["figures"]:
-        lines.append(f"- evaluate_{kind}_<job_id>.png")
-    lines += ["", "## 不可用原因", ""]
-    if result["unavailable"]:
-        for item in result["unavailable"]:
-            lines.append(
-                f"- {item.get('model_name', item.get('key', ''))}: {item['reason_code']} — {item['message']}"
-            )
-    else:
-        lines.append("- 无")
-    return "\n".join(lines) + "\n"
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for kind, items in figures.items():
+            archive.writestr(f"evaluate_{job_id}_{kind}.png", items[0][1])
+    return buffer.getvalue()
 
 
 def artifacts(result, job_id):
     cfg = result["config"]
-    fmt = cfg["format"]
-    out = {}
-    primary_metrics = fc.encode_table(METRIC_COLUMNS, result["metrics_rows"], fmt)
-    out[f"evaluate_metrics_{job_id}.{fmt}"] = primary_metrics
-    out[f"evaluate_metrics_{job_id}.{'xlsx' if fmt == 'csv' else 'csv'}"] = fc.encode_table(
-        METRIC_COLUMNS, result["metrics_rows"], "xlsx" if fmt == "csv" else "csv"
-    )
-    out[f"evaluate_confusion_{job_id}.{fmt}"] = fc.encode_table(
-        CONFUSION_COLUMNS, result["confusion_rows"], fmt
-    )
-    out[f"evaluate_confusion_{job_id}.{'xlsx' if fmt == 'csv' else 'csv'}"] = fc.encode_table(
-        CONFUSION_COLUMNS, result["confusion_rows"], "xlsx" if fmt == "csv" else "csv"
-    )
-    out[f"evaluate_comparison_{job_id}.json"] = _json(
-        {
-            "primary_metric": cfg["primary_metric"],
-            "models": result["comparison"],
-            "unavailable": result["unavailable"],
-        }
-    )
-    report = _report(result)
-    if cfg["report_format"] == "html":
-        report = (
-            "<html><body><pre>"
-            + report.replace("&", "&amp;").replace("<", "&lt;")
-            + "</pre></body></html>"
-        )
-    out[f"evaluate_report_{job_id}.{cfg['report_format']}"] = report.encode("utf-8")
+    fmt = cfg["output_format"]
+    zip_name = cfg.get("figure_zip_name") or f"evaluate_figures_{job_id}"
+    if not zip_name.lower().endswith(".zip"):
+        zip_name += ".zip"
+    metrics_name = cfg.get("metrics_name") or f"evaluate_metrics_{job_id}"
+    out = {
+        # 用户可见：评估图集 zip + 评估指标表
+        zip_name: _figures_zip(result["figures"], job_id),
+        f"{metrics_name}.{fmt}": fc.encode_table(METRIC_COLUMNS, result["metrics_rows"], fmt),
+        # 内部记录：长表指标与混淆矩阵由后端 figures 接口读取，不向用户展示。
+        f"evaluate_metrics_{job_id}.csv": fc.encode_table(METRIC_COLUMNS, result["metrics_rows"], "csv"),
+        f"evaluate_confusion_{job_id}.csv": fc.encode_table(CONFUSION_COLUMNS, result["confusion_rows"], "csv"),
+    }
+    # 逐张 PNG 单独保存，便于 model_figure 登记与按批次查找；前端不把它们列为结果文件。
     for kind, items in result["figures"].items():
-        out[f"evaluate_{kind}_{job_id}.png"] = items[0][1]
+        out[f"evaluate_{job_id}_{kind}.png"] = items[0][1]
     return out
 
 
@@ -548,12 +504,12 @@ def main(argv=None):
     command = sub.add_parser("run")
     command.add_argument("--predictions", required=True)
     command.add_argument("--effort")
-    command.add_argument("--threshold", type=float, default=0.5)
     command.add_argument("--metrics")
     command.add_argument("--primary-metric", default="auc")
     command.add_argument("--effort-enabled", default="true")
-    command.add_argument("--report-format", choices=("md", "html"), default="md")
-    command.add_argument("--format", choices=("csv", "xlsx"), default="csv")
+    command.add_argument("--output-format", choices=("csv", "xlsx"), default="csv")
+    command.add_argument("--figure-zip-name")
+    command.add_argument("--metrics-name")
     command.add_argument("--out", required=True)
     args = parser.parse_args(argv)
     try:
@@ -561,14 +517,16 @@ def main(argv=None):
             print(_json(metrics.registry()).decode())
             return 0
         config = {
-            "threshold": args.threshold,
             "primary_metric": args.primary_metric,
             "effort_enabled": args.effort_enabled.lower() == "true",
-            "report_format": args.report_format,
-            "format": args.format,
+            "output_format": args.output_format,
         }
         if args.metrics:
             config["metrics"] = args.metrics.split(",")
+        if args.figure_zip_name:
+            config["figure_zip_name"] = args.figure_zip_name
+        if args.metrics_name:
+            config["metrics_name"] = args.metrics_name
         cfg = validate_config(config)
         pred_path = Path(args.predictions).resolve(strict=True)
         pred_rows = parse_predictions(pred_path.name, _bounded(pred_path))

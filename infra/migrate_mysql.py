@@ -123,6 +123,8 @@ def _prepare(conn):
         raise MigrationError("External inbound foreign keys require a separately reviewed migration")
     metadata = {table: _metadata(conn, table) for table in present}
     upgrades = {}
+    index_upgrades = {}
+    rebuilds = {}
     legacy_columns = {
         "commit": set(specs["commit"][1]) | {"id"},
         "commit_feature": (set(specs["commit_feature"][1]) - {"is_test", "is_bug_inducing", "labeled_at"}) | {"committed_at"},
@@ -150,25 +152,51 @@ def _prepare(conn):
             expected = [(name, *definition[:3], "") for name, definition in specs[table][1].items()]
             # MySQL 8 给 CURRENT_TIMESTAMP 默认值标注 DEFAULT_GENERATED；DDL 文本里没有该标记。
             actual = [row[:4] + ("",) if row[4] == "DEFAULT_GENERATED" else row[:5] for row in columns]
+            if table == "model_figure" and [row[0] for row in actual] == [
+                "model_name", "figure_type", "title", "file_path", "generated_at"
+            ]:
+                # 旧主键把同模型同类型图压成一行，无法保留评估批次；只接受整表旧形态。
+                rebuilds[table] = (
+                    "REBUILD model_figure with PK (job_id, model_name, figure_type), "
+                    "figure_name/testset_ref columns and legacy rows mapped to job_id=''"
+                )
+                continue
             added = []
             if table == "prediction" and actual != expected:
-                # 旧 current12/proper5 的 prediction 缺两个可空版本列；只接受整组缺失，部分缺失仍拒绝。
-                previous = [row for row in expected if row[0] not in ("model_version", "feature_version")]
+                # 旧 current12/proper5 的 prediction 缺可空版本列与 5 个目标契约列
+                # （predicted_label/decision_threshold/is_bug_inducing/job_id/output_name）。
+                # 与 dataset/job 同款「整组缺失」白名单：部分缺失仍拒绝。
+                actual_names = {row[0] for row in actual}
+                added_names = [row[0] for row in expected if row[0] not in actual_names]
+                previous = [row for row in expected if row[0] in actual_names]
                 if actual == previous:
-                    added = ["model_version", "feature_version"]
+                    added = added_names
             if table == "dataset_commit" and actual != expected:
                 # 旧 current12 的 dataset_commit 是两列成员关联表；只接受整组缺失，部分缺失仍拒绝。
                 added_names = [row[0] for row in expected if row[0] not in ("dataset_id", "commit_hash")]
                 previous = [row for row in expected if row[0] in ("dataset_id", "commit_hash")]
                 if actual == previous:
                     added = added_names
-            if table == "dataset" and actual != expected:
-                # 旧 current12 的 dataset 用 repo_source 单列；补三列来源字段，repo_source 保留兼容。
-                added_names = ["source_type", "source_url", "repo_name"]
-                previous = [row for row in expected if row[0] not in added_names]
+            if table in ("dataset", "job") and actual != expected:
+                # 只接受整组缺失的可空列；旧的 repo_source / 既有列保持兼容。
+                actual_names = {row[0] for row in actual}
+                added_names = [row[0] for row in expected if row[0] not in actual_names]
+                previous = [row for row in expected if row[0] in actual_names]
                 if actual == previous:
                     added = added_names
-            if (actual != expected and not added) or indexes != specs[table][2]:
+            indexes_ok = indexes == specs[table][2]
+            if not indexes_ok and table == "job" and added:
+                expected_indexes = {name: value for name, value in specs[table][2].items() if name != "ix_job_chain"}
+                if indexes == expected_indexes:
+                    index_upgrades[table] = ["ix_job_chain"]
+                    indexes_ok = True
+            if not indexes_ok and table == "prediction" and added:
+                # 旧库没有 ix_prediction_job，随 5 个新列一并补建。
+                expected_indexes = {name: value for name, value in specs[table][2].items() if name != "ix_prediction_job"}
+                if indexes == expected_indexes:
+                    index_upgrades[table] = ["ix_prediction_job"]
+                    indexes_ok = True
+            if (actual != expected and not added) or not indexes_ok:
                 raise MigrationError(f"Noncanonical columns/PK/indexes in {table}")
             if added:
                 upgrades[table] = added
@@ -204,6 +232,8 @@ def _prepare(conn):
     missing = [table for table in specs if table not in present]
     operations = [f"CREATE TABLE {table}" for table in missing]
     operations += [f"ALTER TABLE {table} ADD nullable columns {', '.join(names)}" for table, names in upgrades.items()]
+    operations += [f"ALTER TABLE {table} ADD INDEX {', '.join(names)}" for table, names in index_upgrades.items()]
+    operations += list(rebuilds.values())
     warnings = []
     if source == "legacy4":
         operations = ["Normalize commit/prediction PKs; remove redundant id/committed_at columns; prediction version columns become nullable provenance",
@@ -215,12 +245,12 @@ def _prepare(conn):
     if seed:
         operations.append("INSERT missing global user (never overwrite edits/config)")
     report = {"source": source, "operations": operations, "warnings": warnings, "destructive": source == "legacy4"}
-    return report, specs, metadata, models, seed, upgrades
+    return report, specs, metadata, models, seed, upgrades, index_upgrades, rebuilds
 
 
 def migrate_connection(conn, allow_legacy_cleanup=False):
     """Apply a fully preflighted migration; caller must back up before legacy opt-in."""
-    report, specs, metadata, models, seed, upgrades = _prepare(conn)
+    report, specs, metadata, models, seed, upgrades, index_upgrades, rebuilds = _prepare(conn)
     if report["destructive"] and not allow_legacy_cleanup:
         raise MigrationError("Legacy removal requires allow_legacy_cleanup=True and a caller-owned backup")
     if report["destructive"]:
@@ -269,12 +299,26 @@ def migrate_connection(conn, allow_legacy_cleanup=False):
                 if (column, parent, parent_column) not in foreign:
                     _query(conn, f"ALTER TABLE `{table}` ADD {clause}")
         _query(conn, "DROP TABLE commit_label")
+    if "model_figure" in rebuilds:
+        _query(conn, "RENAME TABLE `model_figure` TO `model_figure_legacy`")
+        _query(conn, specs["model_figure"][0])
+        _query(conn, """INSERT INTO `model_figure`
+            (job_id, model_name, figure_type, figure_name, title, file_path, testset_ref, generated_at)
+            SELECT '', model_name, figure_type, CONCAT(model_name, '_', figure_type, '.png'),
+                   title, file_path, NULL, generated_at FROM `model_figure_legacy`""")
+        _query(conn, "DROP TABLE `model_figure_legacy`")
     for table, spec in specs.items():
         if table not in metadata and not (report["destructive"] and table == "model"):
             _query(conn, spec[0])
     for table, names in upgrades.items():
         for name in names:
             _query(conn, f"ALTER TABLE `{table}` ADD COLUMN {specs[table][1][name][3]}")
+    for table, names in index_upgrades.items():
+        for name in names:
+            _unique, cols = specs[table][2][name]
+            _query(conn, f"CREATE INDEX `{name}` ON `{table}` ({','.join(f'`{col}`' for col in cols)})")
+    if "job" in metadata:
+        _query(conn, "UPDATE `job` SET chain_id = job_id WHERE chain_id IS NULL OR chain_id = ''")
     if seed:
         _query(conn, """INSERT INTO `user` (user_id,display_name,role,status,created_at)
             VALUES ('global','全局默认','system','active',UTC_TIMESTAMP())""")

@@ -18,7 +18,7 @@ from app.services import file_contracts as fc
 from tests.conftest import HEADERS
 
 MODEL = "figure_fixture_v1"
-TYPES = ("roc", "pr", "confusion", "calibration", "effort", "feat_importance")
+TYPES = ("roc", "pr", "confusion", "calibration", "effort_unaware", "effort_aware", "feat_importance")
 # 契约要求 PNG 魔数校验，伪造格式不得冒充可用图。
 PNG = b"\x89PNG\r\n\x1a\n" + b"figure payload"
 METRIC_COLUMNS = (
@@ -33,15 +33,14 @@ def _seed(model=MODEL, line="expert", *, files=None, effort=None):
     with SessionLocal() as session:
         session.add(Model(model_name=model, line=line))
         for figure_type in TYPES:
-            filename = (
-                f"effort_{effort}.png"
-                if figure_type == "effort" and effort else f"{figure_type}.png"
-            )
+            filename = f"{figure_type}_{effort}.png" if effort and figure_type.startswith("effort") else f"{figure_type}.png"
             file_path = f"/static/figures/{line}/{model}/{filename}"
             paths[figure_type] = file_path
             session.add(ModelFigure(
+                job_id="",
                 model_name=model,
                 figure_type=figure_type,
+                figure_name=filename,
                 title=filename,
                 file_path=file_path,
                 generated_at=datetime(2026, 11, 1, 8, 0, 0),
@@ -68,6 +67,16 @@ def _evaluate_batch(job_id="j-eval-1"):
             "computed_at": "2026-11-01T08:00:00Z",
         })
     rows.append({**rows[0], "model_name": "other_model", "value": 0.1})
+    # 批次查询以 model_figure.job_id 定位；登记该批次的 7 类图（文件是否存在由缺失检测单独覆盖）。
+    with SessionLocal() as session:
+        for figure_type in TYPES:
+            filename = f"{figure_type}.png"
+            session.add(ModelFigure(
+                job_id=job_id, model_name=MODEL, figure_type=figure_type, figure_name=filename,
+                title=filename, file_path=f"/static/figures/expert/{MODEL}/{filename}",
+                generated_at=datetime(2026, 11, 1, 8, 0, 0),
+            ))
+        session.commit()
     artifacts = {f"evaluate_metrics_{job_id}.csv": fc.encode_table(METRIC_COLUMNS, rows, "csv")}
     output_store.publish_output("evaluate", artifacts, inputs=[], config={}, job_id=job_id)
     return registered
@@ -80,7 +89,7 @@ def test_figures_returns_new_contract_with_effort_kind_and_checksum(client, tmp_
 
     data = client.get("/api/figures", params={"model_name": MODEL}, headers=HEADERS).json()["data"]
     assert set(data) == {
-        "model_name", "line", "source_job_id", "metrics", "metrics_unavailable", "figures", "missing",
+        "model_name", "line", "source_job_id", "batches", "metrics", "metrics_unavailable", "figures", "missing",
     }
     assert data["model_name"] == MODEL and data["line"] == "expert"
     assert data["source_job_id"] is None
@@ -89,14 +98,14 @@ def test_figures_returns_new_contract_with_effort_kind_and_checksum(client, tmp_
     assert [item["figure_type"] for item in data["figures"]] == list(TYPES)
     for item in data["figures"]:
         assert set(item) == {
-            "figure_type", "effort_kind", "title", "file_path", "checksum_sha256", "source_job_id",
+            "figure_type", "effort_kind", "title", "figure_name", "file_path", "checksum_sha256", "source_job_id",
         }
         assert item["file_path"] == paths[item["figure_type"]]
         assert item["checksum_sha256"] == fc.sha256(PNG)
         assert item["source_job_id"] is None
-    effort = next(item for item in data["figures"] if item["figure_type"] == "effort")
-    assert effort["effort_kind"] == "aware"
-    assert all(item["effort_kind"] is None for item in data["figures"] if item["figure_type"] != "effort")
+    kinds = {item["figure_type"]: item["effort_kind"] for item in data["figures"]}
+    assert kinds["effort_unaware"] == "unaware" and kinds["effort_aware"] == "aware"
+    assert all(value is None for key, value in kinds.items() if not key.startswith("effort"))
 
 
 def test_figures_reads_evaluate_metrics_as_long_table(client, tmp_path, monkeypatch):
@@ -118,12 +127,11 @@ def test_figures_reads_evaluate_metrics_as_long_table(client, tmp_path, monkeypa
         assert row["value"] == pytest.approx(0.75)
         assert row["n"] == 10 and row["pos_rate"] == pytest.approx(0.4)
 
+    # 不存在的批次按 docs/api/figures.md 返回 404，而不是伪造空图集。
     missing_batch = client.get(
         "/api/figures", params={"model_name": MODEL, "job_id": "j-nope"}, headers=HEADERS
-    ).json()["data"]
-    assert missing_batch["metrics"] == []
-    assert missing_batch["metrics_unavailable"] == "metrics_file_missing"
-    assert missing_batch["source_job_id"] == "j-nope"
+    )
+    assert missing_batch.status_code == 404
 
 
 def test_figures_filters_by_figure_type(client, tmp_path, monkeypatch):
@@ -148,7 +156,8 @@ def test_figures_hides_missing_files_and_reports_them(client, tmp_path, monkeypa
         "pr": "invalid_png",
         "confusion": "file_missing",
         "calibration": "file_missing",
-        "effort": "file_missing",
+        "effort_unaware": "file_missing",
+        "effort_aware": "file_missing",
         "feat_importance": "file_missing",
     }
     for item in data["missing"]:

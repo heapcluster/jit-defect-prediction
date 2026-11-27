@@ -1,21 +1,19 @@
 # 项目包结构设计
 
-一句话：目标结构把"预测单仓库 + 后续叠加的 Web 工具台"收敛为"内核独立、配置单一权威、API 按页面分组、产物归属明确"的分层结构；本文只定义配置收敛、`core/` 分层、`localize` 任务语义、前端 API 分组、算法资产归属五件事。
+一句话：把"预测单仓库 + 后续叠加的 Web 工具台"收敛为"内核独立、配置单一权威、API 按页面分组、产物归属明确"的分层结构；本文定义配置收敛、`core/` 分层、`localize` 任务语义、前端 API 分组、算法资产归属五件事。
+
+实现状态：部分（前端 API 分组已实施；`core/`、`infra/`、`config_schema.py` 为目标（未实施），文中已逐项标注）。
 
 ## 0. 范围与边界
 
 **本文负责**：
 - 配置来源分层与出厂默认单一真源
-- `backend/app/core/` 与 `backend/app/infra/` 分层
+- `backend/app/core/` 与 `backend/app/infra/` 分层（目标）
 - `localize` 的任务/同步语义统一
 - 前端 API 按页面分组
 - `data_model/` 算法资产与后端运行时产物的归属
 
-**本文不负责**（由 `.trae/documents/design-doc-consistency.md` 另一个任务执行，避免重叠）：
-- `model_figure` 主键/字段的 DDL 与 ORM 变更（其 Phase 2.2）
-- `job.chain_id` / `parent_job_ids` 的 DDL 与 ORM（其 Phase 2.1）
-- 评估批次语义、`GET /api/figures?...batches[]`（其 Phase 1.4）
-- pkl 契约统一（其 Phase 1.2）、公开数据集模式（其 Phase 1.3）、页面路由清理（其 Phase 3）
+**本文不涉及**：单个接口的字段与错误码（见 `docs/api/`）、单表 DDL 与字段（见 `docs/database/`）、页面交互与验收（见 `docs/web_page/`）；这些对象以各自文档为准。
 
 ## 1. 目标结构
 
@@ -25,19 +23,19 @@ jit-defect-prediction/
 │   └── app/
 │       ├── api/              薄路由：一个页面/资源一个文件，只做校验与编排
 │       ├── services/         业务用例与任务 worker：可落库、可发布产物
-│       ├── core/             【新增】纯算法内核：无 DB、无 job、无 FastAPI 依赖
+│       ├── core/             【目标（未实施）】纯算法内核：无 DB、无 job、无 FastAPI 依赖
 │       │   ├── localization.py   ← 原 localization_core.py
 │       │   ├── explain.py        ← 原 explain_core.py
 │       │   ├── model_registry.py ← 原 model_registry.py
 │       │   ├── feature_source.py ← 原 feature_source.py
 │       │   └── semantic_source.py← 原 semantic_source.py
-│       ├── infra/            【新增】基础设施：DB、配置、 schema、时间
+│       ├── infra/            【目标（未实施）】基础设施：DB、配置、 schema、时间
 │       │   ├── config.py        ← 原 app/config.py（仅部署/env）
 │       │   ├── db.py
 │       │   ├── models.py
 │       │   ├── schemas.py
 │       │   └── timeutil.py
-│       ├── config_schema.py  【新增】配置键 schema + 出厂默认单一真源
+│       ├── config_schema.py  【目标（未实施）】配置键 schema + 出厂默认单一真源
 │       ├── main.py
 │       └── cli.py
 ├── frontend/
@@ -53,6 +51,8 @@ jit-defect-prediction/
 ├── infra/                    DDL 与迁移脚本
 └── docs/                     具体设计文档，不设索引类文档
 ```
+
+现状：`app/` 已有 `api/` 与 `services/` 分层，顶层 `config.py`、`db.py`、`models.py`、`schemas.py`、`timeutil.py` 与算法模块仍在 `app/` 根；`core/`、`infra/`、`config_schema.py` 为已定型但尚未实施的目标结构。
 
 分层约束：
 - `api/` 不写业务规则，不直接 import `core/`；只调 `services/`。
@@ -76,7 +76,7 @@ jit-defect-prediction/
 - `data_model/*/config.py` 中的 `DECISION_THRESHOLD=0.5` 只作为**离线训练默认**，在线运行阈值一律来自服务层或本次请求，不反向覆盖运行期配置。
 - `selected_model` 仅页面回显，不参与任何运行入口；模型必须由每次运行显式指定。
 
-### 2.2 迁移清单
+### 2.2 目标迁移清单（未实施）
 
 | 现位置 | 现状 | 目标 |
 |---|---|---|
@@ -96,7 +96,9 @@ jit-defect-prediction/
 - `risk_high_threshold` / `risk_mid_threshold`：全局风险等级配置，只影响展示，写 `user_config`。
 - 评估不读取阈值配置：`predicted_label` / `decision_threshold` 从预测结果透传。
 
-## 3. `core/` 分层迁移
+## 3. `core/` 分层迁移（目标）
+
+下列迁移为已定型目标，尚未实施。
 
 | 现文件 | 目标 | 依赖清理 |
 |---|---|---|
@@ -137,10 +139,10 @@ jit-defect-prediction/
 |---|---|---|
 | `collect.js` | 数据收集 | `runCollect`、`getCollectBranches`、`getCollectSourceColumns`、`resaveCollect`、`getCollectPreview`、`fetchCollectOutput` |
 | `clean.js` | 数据清洗 | `getCleanOperations`、`runClean`、`getCleanPreview`、`fetchCleanOutput` |
-| `train.js` | 模型训练 | `getAlgorithms`、`runTrain`、`getTrainCompare`、`fetchTrainOutput` |
+| `train.js` | 模型训练 | `getAlgorithms`、`runTrain`、`fetchTrainOutput` |
 | `predict.js` | 模型预测 | `postPredict`、`runPredict`、`getPredictPreview`、`fetchPredictOutput` |
 | `evaluate.js` | 预测评估 | `getEvaluateMetrics`、`runEvaluate`、`fetchEvaluateOutput` |
-| `figures.js` | 模型性能页 | `getFigures`、`fetchFigureBlob`（批次查询由另任务 Phase 1.4 补齐） |
+| `figures.js` | 模型性能页 | `getFigures`、`fetchFigureBlob` |
 | `commits.js` | 预测详情页 | `getCommits`、`getCommitDetail` |
 | `explain.js` | 详情页解释板块 | `getExplainTechniques`、`postExplain`、`runExplain`、`fetchExplainOutput` |
 | `localize.js` | 详情页定位板块 | `getSourceTree`、`getSourceFile`、`runLocalize`、`fetchLocalizeOutput` |
@@ -186,15 +188,15 @@ infra/                         DDL 与迁移
 | 阶段 | 主产物（模块前缀） | 落点 | 内部记录 |
 |---|---|---|---|
 | 数据收集 | `collected_commits_<job_id>.csv` | `temp/outputs/<job_id>/` | manifest / summary / audit / quality |
-| 数据清洗 | `clean_dataset_<job_id>.csv` 或 `<output_name>.csv` | 同上 | manifest / steps_stats / column_stats / 变化图 PNG |
-| 模型训练 | `train_testset_<job_id>.csv`、逐算法 `.pkl` + 侧车 JSON | 测试集落 outputs；`.pkl` 落 `data_model/pipelines/*/models/` 并登记 `model_artifact` | manifest / 训练日志 / 对比 JSON |
+| 数据清洗 | `clean_dataset_<job_id>.csv` 或 `<output_name>.csv` | 同上 | manifest / steps_stats（前后差异） |
+| 模型训练 | `train_trainset_<job_id>.csv`、`train_testset_<job_id>.csv`、逐算法 `.pkl` | 训练集 / 测试集落 outputs；`.pkl` 落 `data_model/pipelines/*/models/` 并登记 `model_artifact` | manifest；模型元数据为内部文件，不登记为用户产物 |
 | 模型预测 | `predict_predictions_<job_id>.csv` 或 `<output_name>.csv` | `temp/outputs/<job_id>/`；完整行同时 upsert 到 `prediction` 表 | manifest / summary |
-| 预测评估 | `<figure_zip_name>.zip`、`<metrics_name>.csv/.xlsx` | 同上；逐图另登记 `model_figure` 并同步展示副本到 `backend/static/figures/` | manifest / summary / comparison / report / 逐图 |
+| 预测评估 | `<figure_zip_name>.zip`、`<metrics_name>.csv/.xlsx` | 同上；逐图另登记 `model_figure` 并同步展示副本到 `backend/static/figures/` | manifest / summary / 逐图；内部指标长表与混淆矩阵不展示 |
 | 预测结果解释 | `explain_explanations_<job_id>.csv/.xlsx` | `temp/outputs/<job_id>/` | manifest / 对比 / 贡献图 |
 | 缺陷定位及修复 | `localization_localization_<job_id>.csv/.xlsx`、`localization_evidence_<job_id>.json`、`localization_suggestions_<job_id>.md` | 同上（同步产物，无 `job` 行） | manifest |
 
 说明：
-- `model_figure` 逐图同步展示副本时，文件名按 `evaluate_<job_id>_<figure_type>.png` 标准命名（该字段的 DDL/ORM 由另一任务 Phase 2.2 负责）。
+- `model_figure` 逐图同步展示副本时，文件名按 `evaluate_<job_id>_<figure_type>.png` 标准命名（字段与索引见 `docs/database/model_figure.md`）。
 - 训练产物 `.pkl` 不在 `temp/outputs/`，而是在 `data_model/` 算法目录——这是唯一跨越"运行时产物"与"算法资产"的例外，因为它需要长期保留与版本化。
 - `output_store.MODULES` 含 `localize` / `datasets`，但 `job_store.KINDS` 不含它们：下载走统一端点，任务中心不展示。
 
@@ -206,4 +208,4 @@ infra/                         DDL 与迁移
 - `/api/jobs` 不返回 `localize` 记录；`localize` 产物仍可下载、可在产物库查到。
 - 前端 API 按分组文件存在，组件内无裸 `fetch`。
 - 后端容器不写 `data_model/`；删除 `backend/static/figures/` 后重启可由 `data_model` 重建。
-- 本文列出的"本文不负责"项在另一个任务计划中逐条有归属，不出现两处同时修改同一文件。
+- 文档与代码不一致时，以本文与 `docs/overview.md` 为准：先改文档、再改代码，不让实现反向改写设计目标。

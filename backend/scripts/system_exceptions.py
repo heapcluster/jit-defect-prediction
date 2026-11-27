@@ -176,12 +176,6 @@ def scenario_empty_db(logdir: Path) -> None:
             and commits["data"]["items"] == [],
             f"code={commits.get('code')} total={commits['data']['total']}",
         )
-        trends = client.get("/api/trends").json()
-        record(
-            "空库 / 趋势返回空 series",
-            trends.get("code") == 0 and trends["data"]["series"] == [],
-            f"code={trends.get('code')} series={len(trends['data']['series'])}",
-        )
         r = client.get("/api/figures", params={"model_name": "et_v1"})
         record(
             "空库 / 图集 40400",

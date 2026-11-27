@@ -69,7 +69,7 @@
 
 ### Requirement: 交付模型 MUST 保持不变
 
-在线 expert 交付清单 `data_model/pipelines/expert/models/feature_order.txt` 的 `[models]` 段 SHALL 固定为 `lr_v1`、`rf_v1`、`xgb_v1`、`lgbm_v1`、`et_v1`、`svm_v1`、`mlp_deep_v1`、`tabnet_v1` 八项；清单外模型只作离线评估，不自动进入后端加载清单。四条模型线的训练/评估总数见 `docs/README.md`，不能把 25 个已训练模型都宣称为在线可用。
+在线 expert 交付清单 `data_model/pipelines/expert/models/feature_order.txt` 的 `[models]` 段 SHALL 固定为 `lr_v1`、`rf_v1`、`xgb_v1`、`lgbm_v1`、`et_v1`、`svm_v1`、`mlp_deep_v1`、`tabnet_v1` 八项；清单外模型只作离线评估，不自动进入后端加载清单。两条模型线各交付 8 个模型、共 16 个在线交付模型（见 `docs/overview.md`），每线另有 4 个注册算法只作离线评估，不能把全部注册模型都宣称为在线可用。
 
 #### Scenario: 交付清单不变
 

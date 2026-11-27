@@ -2,9 +2,9 @@
 
 ## Purpose
 
-统一四条线（expert / semantic / fused / e2e）的 Python 运行环境来源：`data_model/environment.yml` 是唯一权威清单，仓库内不再保留各自的 `requirements.txt`。
+统一两条模型线（expert / semantic）的 Python 运行环境来源：`data_model/environment.yml` 是唯一权威清单，仓库内不再保留各自的 `requirements.txt`。
 
-存在意义是「可复现」：同一份文件要能在 Windows（win-64）与 Linux/WSL、CPU 与 GPU 机器上建出依赖版本一致的环境，否则四条线的指标差异无法区分是模型差异还是环境差异。环境清单的安装命令见 `data_model/environment.yml` 文件头；本机后端、数据库与权重运行步骤见 `docs/README.md`。跨平台和 GPU 复现仍须在目标机器实测并留证，不能仅凭这两处说明认定已通过。
+存在意义是「可复现」：同一份文件要能在 Windows（win-64）与 Linux/WSL、CPU 与 GPU 机器上建出依赖版本一致的环境，否则两条线的指标差异无法区分是模型差异还是环境差异。环境清单的安装命令见 `data_model/environment.yml` 文件头；本机后端、数据库与权重运行步骤见仓库根 `README.md`。跨平台和 GPU 复现仍须在目标机器实测并留证，不能仅凭这两处说明认定已通过。
 
 ## Requirements
 
@@ -15,7 +15,7 @@
 #### Scenario: 干净 clone 建环境
 
 - **WHEN** 在干净 clone 后执行 `conda env create -f data_model/environment.yml`
-- **THEN** 创建出 Python 3.12 环境 `jit-defect-prediction`，且包含模型四线与后端线所需依赖
+- **THEN** 创建出 Python 3.12 环境 `jit-defect-prediction`，且包含模型两线与后端线所需依赖
 
 #### Scenario: 禁止残留重复清单（边界）
 

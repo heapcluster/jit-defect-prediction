@@ -176,19 +176,20 @@ def _feature_count(model: Any) -> int | None:
     return int(n) if n is not None else None
 
 
-def load_trained(name: str, weights: bytes) -> ModelEntry:
-    """热加载本次训练自产的 expert 包权重（字节由本服务 joblib.dump 生成，非任意上传 pickle）。
+def load_trained(name: str, weights: bytes, *, line: str = "expert") -> ModelEntry:
+    """热加载本次训练自产的 .pkl（字节由本服务 joblib.dump 生成，非任意上传 pickle）。
 
     校验特征列宽后放入运行时注册表，不重启、不改默认模型配置。通用已登记工件的
     加载端点属 predict/模型管理（W6）安全面，不在此开放任意 zip 反序列化。
     """
     model = joblib.load(BytesIO(weights))
     width = _feature_count(model)
-    if width is not None and width != len(config.FEATURE_COLUMNS):
-        raise ValueError(f"trained model expects {width} features, contract has {len(config.FEATURE_COLUMNS)}")
-    entry = ModelEntry(name, Path(name), time.time(), model, line="expert")
+    expected = _LINE_WIDTH.get(line)
+    if expected is not None and width is not None and width != expected:
+        raise ValueError(f"trained model expects {width} features, contract has {expected}")
+    entry = ModelEntry(name, Path(name), time.time(), model, line=line)
     _REGISTRY[name] = entry
-    _LINE_OF[name] = "expert"
+    _LINE_OF[name] = line
     return entry
 
 
@@ -201,17 +202,24 @@ def runtime_state(name: str) -> dict:
     return {"state": "loaded" if name in _REGISTRY else "unloaded", "error": None}
 
 
-def load_artifact_package(name: str, zip_bytes: bytes, *, line: str) -> ModelEntry:
-    """校验 §3.3 包（checksum/元数据/特征列宽）后再反序列化权重，失败保留旧实例。"""
+def load_artifact_package(name: str, weights: bytes, *, line: str) -> ModelEntry:
+    """加载已登记工件：训练自产直接是 .pkl；外部交付 ZIP 仍解包取权重。
+
+    两种形态都在校验特征列宽后再反序列化；失败保留旧实例。
+    """
     from app.services import file_contracts as fc
     from app.services import storage
     try:
-        meta = storage.model_package(f"{name}.zip", zip_bytes)
-        if meta["line"] != line:
-            raise ValueError("model line disagrees with registration")
-        members = fc.read_zip(f"{name}.zip", zip_bytes)
-        weight_name = next(key for key in members if key.endswith(".pkl"))
-        model = joblib.load(BytesIO(members[weight_name]))
+        if weights[:4] == b"PK\x03\x04":
+            meta = storage.model_package(f"{name}.zip", weights)
+            if meta["line"] != line:
+                raise ValueError("model line disagrees with registration")
+            members = fc.read_zip(f"{name}.zip", weights)
+            weight_name = next(key for key in members if key.endswith(".pkl"))
+            payload = members[weight_name]
+        else:
+            payload = weights
+        model = joblib.load(BytesIO(payload))
         width = _feature_count(model)
         expected = _LINE_WIDTH.get(line)
         if expected is not None and width is not None and width != expected:

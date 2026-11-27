@@ -56,7 +56,6 @@ def main() -> None:
         ("GET", "/api/commits", {"params": {"size": 5}}),
         ("GET", f"/api/commits/{commit_hash}", {"params": {"model_name": model}}),
         ("GET", "/api/models", {}),
-        ("GET", "/api/trends", {"params": {"granularity": "week"}}),
         ("GET", "/api/figures", {"params": {"model_name": figure_model}}),
         ("GET", "/api/sync/status", {}),
         ("GET", "/api/health", {}),

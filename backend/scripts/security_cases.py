@@ -73,7 +73,6 @@ def main() -> None:
     # 2) 畸形参数
     bad_cases = [
         ("size=101", f"{BASE_URL}/api/commits?size=101"),
-        ("granularity=day", f"{BASE_URL}/api/trends?granularity=day"),
         ("hash 非 40 位", f"{BASE_URL}/api/commits/" + "a" * 39),
         ("hash 非十六进制", f"{BASE_URL}/api/commits/" + "g" * 40),
     ]
@@ -128,7 +127,6 @@ def main() -> None:
     injections = [
         ("q=' OR 1=1 --", "/api/commits", {"q": "' OR 1=1 --"}),
         ("model_name='; DROP TABLE", "/api/figures", {"model_name": "'; DROP TABLE model; --"}),
-        ("start_time 注入", "/api/trends", {"start_time": "2024-01-01' OR '1'='1"}),
         ("q 注入（DROP TABLE）", "/api/commits", {"q": "'; DROP TABLE `commit`; --"}),
     ]
     for name, path, params in injections:

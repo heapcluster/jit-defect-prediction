@@ -18,11 +18,10 @@ from tests.conftest import HEADERS
 
 
 def assert_collect_contract_outputs(job_id, result):
-    """docs/api/collect.md §2/§3：按新契约登记六类产物 + 同名 manifest。"""
+    """docs/api/collect.md §2/§3：登记核心 CSV + 内部记录 + 同名 manifest；不预生成 XLSX。"""
     names = {item['name'] for item in result['outputs']}
     assert {
         f'collected_commits_{job_id}.csv',
-        f'collected_commits_{job_id}.xlsx',
         f'collect_summary_{job_id}.json',
         f'collect_audit_{job_id}.json',
         f'collect_quality_{job_id}.json',
@@ -59,7 +58,15 @@ def real_collect(client, tmp_path, monkeypatch):
     return client, repo, commits
 
 
+def current_branch(repo):
+    return subprocess.check_output(
+        ['git', '-C', str(repo), 'symbolic-ref', '--short', 'HEAD'], text=True
+    ).strip()
+
+
 def run(client, repo, **settings):
+    # 新契约要求显式分支；默认取 fixture 仓库当前分支。
+    settings.setdefault('branch', current_branch(repo))
     response = client.post('/api/collect/run', data={'config': json.dumps({
         'repo_source': str(repo), 'dataset_name': 'AI real Git fixture',
         'fetch_remote': False, **settings,
@@ -147,8 +154,8 @@ def test_cli_and_api_files_are_identical_for_the_same_real_repository(real_colle
     _, _, rows, _ = run(client, repo)
     root = Path(config.REPO_ROOT)
     process = subprocess.run([sys.executable, '-m', 'preparation.collect', 'run',
-        '--repo', str(repo), '--name', 'AI real Git fixture', '--fetch-remote', 'false',
-        '--allow-root', str(repo.parent), '--out', str(tmp_path / 'cli')],
+        '--repo', str(repo), '--branch', current_branch(repo), '--name', 'AI real Git fixture',
+        '--fetch-remote', 'false', '--allow-root', str(repo.parent), '--out', str(tmp_path / 'cli')],
         cwd=root, env={**os.environ, 'PYTHONPATH': str(root / 'data_model')}, text=True, capture_output=True)
     assert process.returncode == 0, process.stdout + process.stderr
     csv_path = next((tmp_path / 'cli').rglob('collected_commits_*.csv'))
@@ -180,7 +187,8 @@ def test_production_import_path_does_not_depend_on_pytest(real_collect):
         'allow_roots=[sys.argv[3]], protocol_whitelist=[]); '
         'assert result["summary"]["rows"] == 4'
     )
-    settings = {'repo_source': str(repo), 'dataset_name': 'isolated runtime', 'fetch_remote': False}
+    settings = {'repo_source': str(repo), 'dataset_name': 'isolated runtime',
+                'fetch_remote': False, 'branch': current_branch(repo)}
     result = subprocess.run([sys.executable, '-I', '-c', code,
                              str(root / 'backend'), json.dumps(settings), str(repo.parent)],
                             capture_output=True, text=True)
@@ -190,19 +198,23 @@ def test_production_import_path_does_not_depend_on_pytest(real_collect):
 def test_real_xlsx_output_keeps_trailing_null_cells(real_collect):
     from app.services import file_contracts as fc
     client, repo, hashes = real_collect
-    job_id, result, _, _ = run(client, repo, branch=hashes[0])
-    name = next(item['name'] for item in result['outputs'] if item['name'].endswith('.xlsx'))
-    response = client.get(f'/api/collect/outputs/{job_id}/{name}', headers=HEADERS)
-    columns, rows = fc.read_table(name, response.content)
-    assert columns == list(fc.COLLECTED_COMMITS_COLUMNS)
-    assert rows[0]['is_bug_inducing'] == rows[0]['labeled_at'] == rows[0]['label_method'] == ''
+    job_id, result, _, _ = run(client, repo)
+    # 新契约不预生成 XLSX；下载时由同一规范 CSV 即时转换，逐格保持空值列。
+    name = f'collected_commits_{job_id}.csv'
+    csv_bytes = client.get(f'/api/collect/outputs/{job_id}/{name}', headers=HEADERS).content
+    xlsx_bytes = client.get(f'/api/collect/outputs/{job_id}/{name}', params={'format': 'xlsx'}, headers=HEADERS).content
+    csv_columns, csv_rows = fc.read_table(name, csv_bytes)
+    columns, rows = fc.read_table('collected_commits.xlsx', xlsx_bytes)
+    assert columns == csv_columns == list(fc.COLLECTED_COMMITS_COLUMNS)
+    assert rows == csv_rows
+    assert any(row['fix_commit_hash'] == '' and row['repo_url'] == '' for row in rows)
 
 
 def test_unreachable_hash_is_rejected_without_success_output(real_collect):
     client, repo, _ = real_collect
     response = client.post('/api/collect/run', data={'config': json.dumps({
         'repo_source': str(repo), 'dataset_name': 'fixture', 'fetch_remote': False,
-        'head_expect': 'f' * 40})}, headers=HEADERS)
+        'branch': current_branch(repo), 'head_expect': 'f' * 40})}, headers=HEADERS)
     if response.status_code == 200:
         job_id = response.json()['data']['job_id']
         collect_run._execute(job_id, 0)

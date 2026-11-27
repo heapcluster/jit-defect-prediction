@@ -42,14 +42,14 @@ def rows(count=4):
     return result
 
 
-def config(*enabled, mode="apply", fmt="csv", charts=(), params=None):
+def config(*enabled, mode="apply", fmt="csv", params=None):
     chosen = set(enabled) if enabled else set(OPS) - {"outlier_filter", "derive_basic_fields"}
     steps = [{"op": op, "enabled": op in chosen, "params": (params or {}).get(op, {})} for op in OPS]
-    return {"mode": mode, "steps": steps, "format": fmt, "chart_columns": list(charts)}
+    return {"mode": mode, "steps": steps, "format": fmt}
 
 
-def apply(*enabled, records=None, params=None, charts=()):
-    return core().run(records if records is not None else rows(), config(*enabled, params=params, charts=charts))
+def apply(*enabled, records=None, params=None):
+    return core().run(records if records is not None else rows(), config(*enabled, params=params))
 
 
 def stat(result, op):
@@ -86,7 +86,6 @@ def test_config_normalizes_without_mutating_input():
     normalized = core().validate_config(raw)
     assert raw == saved
     assert normalized["mode"] == "apply" and normalized["format"] == "csv"
-    assert normalized["chart_columns"] == []
     assert all(set(step["params"]) == {p["name"] for p in next(
         item for item in core().operations() if item["op"] == step["op"])["params_schema"]}
         for step in normalized["steps"])
@@ -95,8 +94,6 @@ def test_config_normalizes_without_mutating_input():
 @pytest.mark.parametrize("change", [
     {"dataset_id": 1}, {"template": "x"}, {"features": ["ns"]}, {"seed": 42}, {"split_ratio": 0.7},
     {"is_test": 1}, {"mode": "invalid"}, {"steps": {}}, {"format": "zip"},
-    {"chart_columns": ["ns"]}, {"chart_columns": "message"},
-    {"chart_columns": ["message", "message"]},
 ])
 def test_config_rejects_unknown_or_train_only_keys(change):
     with pytest.raises(ValueError):
@@ -255,6 +252,17 @@ def test_outlier_filter_only_touches_existing_columns(method):
     assert any("no model features generated" in warning for warning in result["summary"]["warnings"])
 
 
+def test_outlier_filter_keeps_minority_labels():
+    records = rows(20)
+    for index, row in enumerate(records):
+        row["is_bug_inducing"] = 1 if index < 2 else 0
+        row["message_length"] = 10
+    result = apply("schema_validate", "outlier_filter", records=records)
+    # 标签是 0/1 二元值，不能参与 IQR/zscore，否则少数正例会整体被判为异常。
+    assert stat(result, "outlier_filter")["label_dist_after"]["positive"] == 2
+    assert len(result["rows"]) == 20
+
+
 def test_text_clean_and_normalize_collapse_controls_and_whitespace():
     records = rows()
     records[0]["message"] = "  fix\x00the\nroute  "
@@ -290,13 +298,6 @@ def test_derive_basic_fields_are_display_only():
     assert not set(result["rows"][0]) & set(fc.FEATURE_COLUMNS)
 
 
-def test_column_stats_before_and_after_are_reported():
-    result = apply("schema_validate", "text_clean", charts=["message"])
-    stats = result["feature_stats"]["message"]
-    assert stats["before"]["kind"] == stats["after"]["kind"] == "categorical"
-    assert set(stats["before"]["frequency"]) == {"Feature change"}
-
-
 def test_stats_record_every_excluded_and_modified_hash():
     records = rows()
     records[1]["parent_hash"] = "a" * 40 + " " + "b" * 40
@@ -316,17 +317,16 @@ def test_preview_mode_has_no_dataset_artifact():
     assert "clean_steps_stats_preview-job.json" in artifacts
 
 
-@pytest.mark.parametrize("fmt", ["csv", "xlsx"])
-def test_artifacts_primary_and_parity_tables(fmt):
-    result = apply("schema_validate", charts=["message"])
+def test_artifacts_only_clean_csv_table():
+    # 清洗数据只落一份 CSV，Excel 由下载接口按需转换，不再预生成两种格式。
+    result = core().run(rows(), config("schema_validate", fmt="xlsx"))
     artifacts = core().artifacts(result, "fixture-job")
-    assert f"clean_dataset_fixture-job.{fmt}" in artifacts
-    parity = "xlsx" if fmt == "csv" else "csv"
-    assert f"clean_dataset_fixture-job.{parity}" in artifacts
-    columns, decoded = fc.read_table(f"data.{fmt}", artifacts[f"clean_dataset_fixture-job.{fmt}"])
+    assert "clean_dataset_fixture-job.csv" in artifacts
+    assert "clean_dataset_fixture-job.xlsx" not in artifacts
+    columns, decoded = fc.read_table("data.csv", artifacts["clean_dataset_fixture-job.csv"])
     assert columns == list(fc.CLEAN_DATASET_COLUMNS) and len(decoded) == 4
     assert json.loads(artifacts["clean_steps_stats_fixture-job.json"])[0]["step"] == "schema_validate"
-    assert any(name.endswith("_message_fixture-job.png") for name in artifacts)
+    assert not any(name.endswith('.png') or name.endswith('_column_stats.json') for name in artifacts)
 
 
 def test_artifacts_reject_invalid_job_id():

@@ -37,7 +37,8 @@ def run(client, line, files, monkeypatch, widths, proba=0.42):
     monkeypatch.setattr(predict_run, '_resolve_model', lambda *a: ('m_' + line, line, 'v1', 'v1'))
     monkeypatch.setattr(model_registry, 'get_model', lambda name: SimpleNamespace(name=name, model=object(), line=line))
     monkeypatch.setattr(model_registry, 'predict_proba', lambda model, vector: widths.append(len(vector)) or proba)
-    return client.post('/api/predict/run', data={'config': json.dumps({'decision_threshold': 0.5})}, files=files, headers=HEADERS)
+    # 本测试只验证特征向量宽度；模型解析被 mock，未登记到 Model 表，故关闭落库。
+    return client.post('/api/predict/run', data={'config': json.dumps({'decision_threshold': 0.5, 'save_to_db': False})}, files=files, headers=HEADERS)
 
 
 def test_expert_batch_uses_14_feature_vector(lineclient):

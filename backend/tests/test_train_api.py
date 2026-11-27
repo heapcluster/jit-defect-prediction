@@ -51,13 +51,15 @@ def train_client(client, tmp_path, monkeypatch):
                     'summary': {'input_rows': len(rows), 'labeled_rows': 3, 'unlabeled_rows': 1, 'train_rows': 2, 'test_rows': 1,
                                 'success_count': 1, 'failed_count': 0, 'warnings': []},
                     'models': [sub], 'metrics_rows': [],
+                    'trainset_rows': [{key: ('1' if key == 'is_bug_inducing' else '') for key in fc.CLEAN_DATASET_COLUMNS}],
                     'testset_rows': [{key: ('1' if key == 'is_bug_inducing' else '') for key in fc.CLEAN_DATASET_COLUMNS}],
                     'comparison': {'line': 'expert', 'models': [sub]}}
 
         def artifacts(result, job_id):
-            return {f'train_lr_model_package_{job_id}.zip': b'PK\x03\x04mock', f'train_metrics_{job_id}.csv': b'metric\n',
-                    f'train_comparison_{job_id}.json': json.dumps(result['comparison']).encode(),
-                    f'train_roc_{job_id}.png': b'\x89PNG\r\n\x1a\n', f'train_log_{job_id}.md': b'# log\n'}
+            return {f'train_lr_model_{job_id}.pkl': b'PK\x03\x04mock',
+                    f'train_lr_meta_{job_id}.json': b'{"model_name":"lr"}',
+                    f'train_trainset_{job_id}.csv': b'is_bug_inducing\n1\n',
+                    f'train_testset_{job_id}.csv': b'is_bug_inducing\n1\n'}
 
         fake = SimpleNamespace(TrainError=type('TrainError', (ValueError,), {'code': 40001}), validate_config=validate,
                                run=run, artifacts=artifacts, code_version=lambda: 'train-test')
@@ -72,7 +74,7 @@ def train_client(client, tmp_path, monkeypatch):
 
 def test_train_routes_wired(client):
     paths = client.app.openapi()['paths']
-    assert {'/api/algorithms', '/api/train/run', '/api/train/compare', '/api/train/outputs/{job_id}/{name}'} <= paths.keys()
+    assert {'/api/algorithms', '/api/train/run', '/api/train/outputs/{job_id}/{name}'} <= paths.keys()
 
 
 def test_algorithms_endpoint_and_param_validation(train_client):
@@ -96,7 +98,7 @@ def test_small_sync_run_delivers_package_without_business_mutation(train_client)
     job = client.get('/api/jobs/' + job_id, headers=HEADERS).json()['data']
     assert job['kind'] == 'train' and job['status'] == 'success'
     names = [e['name'] for e in job['output_ref_json']['outputs']]
-    assert any(n.endswith('.zip') for n in names) and any(n.endswith('.png') for n in names)
+    assert any(n.endswith('.pkl') for n in names) and any(n.startswith('train_trainset_') for n in names)
     for entry in job['output_ref_json']['outputs']:
         url = f'/api/train/outputs/{job_id}/{entry["name"]}'
         assert client.get(url).status_code == 401
@@ -104,16 +106,6 @@ def test_small_sync_run_delivers_package_without_business_mutation(train_client)
         assert download.status_code == 200 and fc.sha256(download.content) == entry['sha256']
     with db.SessionLocal() as session:
         assert before == [session.scalar(select(func.count()).select_from(t)) for t in (Commit, Dataset, Model, ModelArtifact)]
-
-
-def test_compare_sorts_by_primary_metric(train_client):
-    client, _, _, _, _ = train_client
-    response = post(client)
-    assert response.status_code == 200
-    job_id = response.json()['data']['job_id']
-    compare = client.get('/api/train/compare', params={'job_id': job_id}, headers=HEADERS).json()['data']
-    assert compare['models'][0]['algo'] == 'lr' and 'primary_metric' in compare
-    assert client.get('/api/train/compare', params={'job_id': 'missing'}, headers=HEADERS).status_code == 404
 
 
 def test_large_queued_then_executes(train_client, monkeypatch):
@@ -185,7 +177,7 @@ def test_train_templates_persist_and_snapshot_frozen(train_client):
     assert client.put('/api/config/train.templates', json={'value': {'bad': {'line': 'expert', 'algos': []}}}, headers=HEADERS).status_code == 400
 
 
-def test_compare_handles_failed_submodel(train_client, monkeypatch):
+def test_failed_submodel_does_not_break_training(train_client, monkeypatch):
     client, module, fake, _, _ = train_client
     if module:
         monkeypatch.setattr(module, 'SYNC_MAX_ROWS', 1)
@@ -194,7 +186,6 @@ def test_compare_handles_failed_submodel(train_client, monkeypatch):
         result = original(rows, config, **kwargs)
         result['models'].append({'algo': 'rf', 'model_name': 'rf_x_v1', 'version_key': 'x', 'feature_version': 'v1',
                                  'status': 'failed', 'metrics': None, 'error': 'boom', 'hyperparams': {}})
-        result['comparison']['models'] = result['models']
         result['summary']['failed_count'] = 1
         return result
     fake.run = mixed
@@ -202,10 +193,13 @@ def test_compare_handles_failed_submodel(train_client, monkeypatch):
     assert response.status_code == 200
     job_id = response.json()['data']['job_id']
     assert module._execute(job_id, 0)
-    compare = client.get('/api/train/compare', params={'job_id': job_id}, headers=HEADERS)
-    assert compare.status_code == 200, compare.text
-    models = compare.json()['data']['models']
-    assert models[0]['algo'] == 'lr' and models[-1]['status'] == 'failed'
+    job = client.get('/api/jobs/' + job_id, headers=HEADERS).json()['data']
+    names = [item['name'] for item in job['output_ref_json']['outputs']]
+    assert not any('comparison' in name for name in names)
+    assert not any(name.endswith('_meta.json') for name in names)
+    assert any(name.endswith('.pkl') for name in names)
+    assert any(name.endswith('_trainset_' + job_id + '.csv') for name in names)
+    assert any(name.endswith('_testset_' + job_id + '.csv') for name in names)
 
 
 def test_template_rejects_unknown_key(train_client):

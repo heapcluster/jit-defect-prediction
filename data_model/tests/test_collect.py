@@ -58,7 +58,9 @@ def repository(tmp_path):
 
 
 def config(repo, **changes):
-    return {"repo_source": str(repo), "dataset_name": "中文数据集", "fetch_remote": False, **changes}
+    # 新契约：采集必须显式选择分支。
+    return {"repo_source": str(repo), "dataset_name": "中文数据集", "fetch_remote": False,
+            "branch": "main", **changes}
 
 
 def run(repo, **kwargs):
@@ -313,11 +315,11 @@ def test_encoded_features_have_database_precision_without_changing_math(reposito
 def test_direct_cli_script_works_without_external_pythonpath(repository, tmp_path):
     repo, _ = repository
     process = subprocess.run([sys.executable, '-I', str(DATA_MODEL / 'preparation/collect.py'),
-        'run', '--repo', str(repo), '--name', 'standalone fixture', '--fetch-remote', 'false',
+        'run', '--repo', str(repo), '--branch', 'main', '--name', 'standalone fixture', '--fetch-remote', 'false',
         '--allow-root', str(repo.parent), '--out', str(tmp_path / 'direct-cli')],
         capture_output=True, text=True)
     assert process.returncode == 0, process.stderr
-    assert list((tmp_path / 'direct-cli').glob('*/collect_commits_*.csv'))
+    assert list((tmp_path / 'direct-cli').glob('*/collected_commits_*.csv'))
 
 
 def test_cli_run_export_verified_manifest_and_bom(repository, tmp_path):
@@ -330,7 +332,7 @@ def test_cli_run_export_verified_manifest_and_bom(repository, tmp_path):
         "--mode", "incremental", "--fetch-remote", "false", "--out", str(out), "--allow-root", str(repo.parent)],
         env=env, capture_output=True, text=True)
     assert process.returncode == 0, process.stderr
-    table = next(out.glob("*/collect_commits_*.csv"))
+    table = next(out.glob("*/collected_commits_*.csv"))
     assert table.read_bytes().startswith(b"\xef\xbb\xbf")
     sys.path.insert(0, str(ROOT / "backend"))
     from app.services import file_contracts
@@ -345,7 +347,7 @@ def test_cli_run_export_verified_manifest_and_bom(repository, tmp_path):
     result = subprocess.run(command + ["export", "--input", str(table), "--format", "xlsx", "--out", str(out)],
                             env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
-    xlsx = next(out.glob("*/collect_commits_*.xlsx"))
+    xlsx = next(out.glob("*/collected_commits_*.xlsx"))
     assert file_contracts.read_table(xlsx.name, xlsx.read_bytes())[1] == rows
     table.write_bytes(table.read_bytes() + b"tampered")
     result = subprocess.run(command + ["export", "--input", str(table), "--format", "xlsx", "--out", str(out)],
@@ -588,10 +590,10 @@ def test_cli_direct_xlsx_retains_full_width_nullable_rows(repository, tmp_path):
     env = {**os.environ, "PYTHONPATH": str(DATA_MODEL), "DATABASE_URL": "", "DB_HOST": ""}
     output = tmp_path / "xlsx-output"
     process = subprocess.run([sys.executable, "-m", "preparation.collect", "run", "--repo", str(repo),
-        "--name", "中文", "--fetch-remote", "false", "--format", "xlsx", "--out", str(output),
+        "--branch", "main", "--name", "中文", "--fetch-remote", "false", "--format", "xlsx", "--out", str(output),
         "--allow-root", str(repo.parent)], env=env, capture_output=True, text=True)
     assert process.returncode == 0, process.stderr
-    path = next(output.glob("*/collect_commits_*.xlsx"))
+    path = next(output.glob("*/collected_commits_*.xlsx"))
     contracts, _ = collect()._file_services()
     columns, rows = contracts.read_table(path.name, path.read_bytes())
     assert tuple(columns) == contracts.COLLECTED_COMMITS_COLUMNS and rows[-1]["is_bug_inducing"] == ""

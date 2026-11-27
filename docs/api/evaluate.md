@@ -1,82 +1,125 @@
-# 棰勬祴鎬ц兘璇勪及 API锛坋valuate锛?
-涓€鍙ヨ瘽锛氱嫭绔嬫帴鏀舵澘鍧?鈶?瀵规祴璇曢泦棰勬祴浜у嚭銆佸凡閫忎紶鐪熸爣绛剧殑 predictions锛埪?.4锛夛紝鎸夋寚瀹氶槇鍊煎拰鎸囨爣璁＄畻 metrics銆佹贩娣嗙煩闃点€佸妯″瀷瀵规瘮銆佸浘褰笌鎶ュ憡锛屼笉璁粌妯″瀷銆佷笉鏀瑰彉棰勬祴姒傜巼銆佷笉鎺ュ彈鐙珛鏍囩鏂囦欢銆?
-瀹炵幇鐘舵€侊細宸插疄鐜般€€鏈熸锛氫竴鏈?
-鏂囦欢濂戠害鍞竴鏉冨▉锛歔../file-contracts.md](../file-contracts.md) 搂3.4锛坧redictions 杈撳叆锛夈€伮?.3锛坱rain_testset 浣?effort 鏉ユ簮锛夈€伮?.6銆伮?.9锛涙棫 搂3.5 `labels.csv` 宸插簾姝€傛寚鏍囧叕寮忓崟婧愪负 `data_model/evaluation/metrics.py`銆?
-## 1. 鑱岃矗涓庝笉璐熻矗鑼冨洿
+# 预测评估 API（evaluate）
 
-- 璐熻矗闃堝€间笌鎸囨爣閰嶇疆銆侀€愭ā鍨嬫寚鏍囥€佹贩娣嗙煩闃点€佸妯″瀷鎺掑簭瀵规瘮銆丷OC/PR/鏍″噯/effort 绛夊浘褰㈠強鎶ュ憡浜や粯銆?- 璐熻矗涓嶅彲鐢ㄥ師鍥犳姭闇诧細鏃犳湁鏁堥娴嬨€佹牱鏈笉瓒炽€佹ā鍨嬪厓淇℃伅涓嶅吋瀹逛笉寰椾吉閫犳暟鍊硷紱缂虹湡鏍囩鐨勮緭鍏ュ湪鍏ュ彛鍓嶇疆鎷掔粷銆?- 涓嶈礋璐ｉ噰闆嗐€佹竻娲椼€佽缁冦€侀娴嬫垨 XAI锛涗笉璇诲彇灞曠ず椤电姸鎬佷綔涓鸿绠椾緷鎹€?- 涓嶆帴鍙楃嫭绔嬫爣绛炬枃浠讹紙鏃?`labels.csv` 宸插簾姝級锛氱湡鏍囩 MUST 宸茬敱鏉垮潡 鈶?浠?搂3.3 `train_testset` 閫忎紶鍦?predictions 鍐呫€?- 鍘嗗彶 `model_metrics.csv` 浠呬綔榛樿 0.5 鐨勬暟鍊煎彛寰勫鐓у熀绾匡紝涓嶆槸杩愯杈撳叆鎴栧敮涓€鏁版嵁鏉ユ簮銆?
-## 2. 绔偣濂戠害
+一句话：消费一份系统已保存的预测结果（单一模型、单一测试集），按用户勾选的指标计算指标值与图，交付评估图集 zip 与评估指标表（CSV / Excel）；不重新训练、不重算预测、不重新判定标签。
+
+实现状态：已实现　期次：一期
+
+predictions 列契约见 [`../api/predict.md`](predict.md)；effort 来源见训练测试集 / 清洗数据集列契约；指标公式单源为 `data_model/evaluation/metrics.py`；功能点职责见 [`../function_point/evaluate.md`](../function_point/evaluate.md)。
+
+## 1. 职责与不负责范围
+
+- 负责从已保存的预测结果读取 `predicted_label` 与 `decision_threshold`，按勾选指标计算指标值与图。
+- 负责校验预测结果的列契约、真标签完整性与单模型单测试集约束。
+- 负责为图集内每张图按标准命名单独保存，并登记到 `model_figure`，支持按批次与模型查找。
+- 不负责训练、预测、解释；不重算概率，不提供或接受新的判定阈值。
+
+## 2. 端点契约
 
 ### GET /api/evaluate/metrics
 
-鏃犺姹傚弬鏁般€傚搷搴?`data.metrics[]` 姣忛」 `{key,name,description,formula,threshold_dependent,effort_aware}`锛涘彟杩斿洖 `defaults:{metrics_selected,primary_metric,effort_enabled}`銆?
-涓€鏈熻嚦灏戠櫥璁?`auc`銆乣ap`銆乣f1`銆乣precision`銆乣recall`銆乣accuracy`銆乣recall_at_20`銆乣recall_at_50`銆乣p_norm`銆乣popt`銆傚叕寮忚鏄庣敱缁熶竴鎸囨爣妯″潡瀵煎嚭锛屽墠绔笉鍙﹀啓鍏紡銆?
+无参数（任何 query → 40001）。响应：
+
+```json
+{
+  "metrics": [{"key": "auc", "name": "...", "description": "...", "formula": "...", "threshold_dependent": false, "effort_aware": false}],
+  "defaults": {"metrics_selected": ["..."], "primary_metric": "f1", "effort_enabled": false}
+}
+```
+
+指标键固定 10 个：`auc, ap, f1, precision, recall, accuracy, recall_at_20, recall_at_50, p_norm, popt`。
+
+`description` 与 `formula` 供页面逐项展示指标含义（`GET /api/evaluate/metrics` 是含义的唯一数据源）。
+
 ### POST /api/evaluate/run
 
-`multipart/form-data`锛歚files[]` 蹇呴』鍚?predictions 琛ㄦ牸锛埪?.4锛岄』鑷甫鐪熸爣绛撅級锛屽彲鍐嶅惈涓€涓?effort 鏉ユ簮琛ㄦ牸锛埪?.3 `train_testset`锛夛紱`config` JSON part銆備笉鍐嶆帴鍙?labels 琛ㄦ牸銆傚皬鏂囦欢鍚屾锛屽ぇ鏂囦欢鍒涘缓 `kind=evaluate` job銆?
-| config 瀛楁 | 蹇呭～ | 濂戠害 |
-|---|---|---|
-| `dataset_id` | 鍚?| 宸插鍏?predictions 鐨勪究鍒╅€夋嫨锛涙樉寮忎笂浼犱紭鍏?|
-| `model_names[]` | 鍚?| 闄愬畾妯″瀷锛涚己鐪佽瘎浼?predictions 鍐呭叏閮ㄦā鍨?|
-| `threshold` | 鍚?| 寮€鍖洪棿 (0,1)锛岀己鐪佽 `decision_threshold` |
-| `metrics[]` | 鍚?| 缂虹渷璇?`metrics_selected`锛岄€愰」椤诲湪娉ㄥ唽琛?|
-| `primary_metric` | 鍚?| 缂虹渷璇?`primary_metric`锛岄』灞炰簬鏈 metrics |
-| `effort_enabled` | 鍚?| 缂虹渷璇诲悓鍚嶉厤缃紱鎺у埗 effort-aware 鎸囨爣涓庡浘 |
-| `report_format` | 鍚?| `md` / `html`锛岄粯璁?`md` |
-| `format` | 鍚?| 琛ㄦ牸杈撳嚭 `csv` / `xlsx`锛岄粯璁?`csv` |
+`multipart/form-data`：
 
-鍚屾鍝嶅簲 `data`锛歚{job_id,status:"success",outputs[],summary}`锛涘紓姝ヤ负 `{job_id,status:"queued"}`銆俿ummary 鍚?`models`銆乣rows`銆乣unavailable[]`銆乣primary_metric`銆乣effort:{provided,matched}`锛泆navailable 椤逛负 `{model_name,reason_code,message}`锛屽師鍥犵爜鍖呮嫭 `missing_effort`銆乣no_predictions`銆乣insufficient_samples`銆乣incompatible_model`銆傜己鐪熸爣绛剧殑杈撳叆鍦ㄥ叆鍙ｇ洿鎺?40001 鎷掔粷锛屼笉鐢熸垚 job銆?
+| part | 必填 | 契约 |
+|---|---|---|
+| `prediction_job_id` | 是 | 已保存的批量预测任务 id（对应 `predict_batch` 成功任务），指向单一预测结果文件；也可由前端传 `files[]` 直接给一份 predictions Excel（二期兼容） |
+| `config` | 是 | JSON 文本 |
+
+`config` 字段：
+
+| 字段 | 必填 | 契约 |
+|---|---|---|
+| `metrics` | 否 | 非空、去重、必须在指标注册表内 |
+| `primary_metric` | 否 | 必须属于 `metrics` |
+| `effort_enabled` | 否 | bool |
+| `figure_zip_name` | 否 | 图集 zip 名称，用户可改，有默认值；不含扩展名时自动补 `.zip` |
+| `metrics_name` | 否 | 指标表基名，用户可改，有默认值；导出时补 `.csv` / `.xlsx` |
+| `output_format` | 否 | `csv` / `xlsx`，仅控制指标表导出格式，默认 `csv` |
+
+**已移除字段**：`threshold`（评估沿用预测结果中的 `decision_threshold`，不接受新阈值）、`model_names`（一次评估固定单一模型）、`report_format` / `format`（评估报告与比较产物已移除）。传入这些字段一律 40001。
+
+`labels.csv` 已废止，上传会被拒绝；`dataset_id` 会被忽略。
+
+响应：同步（≤5000 行）返回 `{job_id,status,outputs,summary,error_log}`；异步返回 `{job_id,status}`。
+
+`summary`：`model_name`、`testset_ref`、`rows`、`unavailable[]`、`primary_metric`、`decision_threshold`（沿用值）、`label_stats`、`config{metrics,primary_metric,effort_enabled,figure_zip_name,metrics_name,output_format,dataset_version}`。
+
 ### GET /api/evaluate/outputs/{job_id}/{name}
 
-涓嬭浇鎸囨爣銆佹贩娣嗐€佸浘銆佹姤鍛婃垨 manifest锛涙墍鏈夋枃浠堕兘瑕佹眰 `X-API-Key`銆?
-### 閿欒鐮?
-| 涓氬姟鐮?| HTTP | 鍦烘櫙 |
+用户可见产物只有两类：
+
+```text
+<figure_zip_name>.zip                # 评估图集，内含逐张标准命名的图片
+<metrics_name>.csv / .xlsx           # 评估指标表，按 output_format 导出
+```
+
+zip 内每张图由后端标准命名，形如 `evaluate_<job_id>_<figure_type>.png`（`figure_type` 取 `roc` / `pr` / `confusion` / `calibration` / `effort_unaware` / `effort_aware`），逐张单独保存并登记到 `model_figure`。
+
+内部记录（不进入结果文件区、不作为用户可见下载入口）：
+
+```text
+evaluate_metrics_<job_id>.csv        # 长表指标明细
+evaluate_confusion_<job_id>.csv
+<stem>.manifest.json
+```
+
+### 错误码
+
+| 业务码 | HTTP | 场景 |
 |---|---|---|
-| 40001 | 400 | schema/闃堝€?鎸囨爣/鎺掑簭閰嶇疆闈炴硶銆佺己鐪熸爣绛俱€佸叕寮忔敞鍏ャ€佸悓 kind 鍐茬獊銆侀潪娉曚笅杞藉悕 |
-| 40100 | 401 | 缂哄け鎴栭敊璇殑 `X-API-Key` |
-| 40400 | 404 | 鍙€?dataset銆乯ob 鎴栬緭鍑轰笉瀛樺湪 |
-| 50000 | 500 | 鏈鏈熸湇鍔￠敊璇紱杩愯鏈熷け璐ュ啓鑴辨晱 job 鏃ュ織 |
+| 40001 | 400 | 未选预测结果、预测结果 schema 非法、缺真标签、非单模型单测试集、labels.csv 已废止、指标/主指标非法、传入已移除字段（threshold / model_names / report_format / format）、预测结果与模型版本不一致、`predicted_label` 与 `decision_threshold` 不一致 |
+| 40100 | 401 | 鉴权失败 |
+| 40400 | 404 | 预测结果或输出批次不存在、重试时输入已不可用 |
+| 50000 | 500 | 未预期异常 |
 
-## 3. 杈撳叆濂戠害
+## 3. 输入契约
 
-predictions 閫愬瓧閲囩敤 [../file-contracts.md](../file-contracts.md) 搂3.4锛?
-| 鍒?| 绫诲瀷 | 蹇呭～ | 鍚箟 |
-|---|---|---|---|
-| commit_hash | string(40) | 鏄?| 鎻愪氦 |
-| model_name | string | 鏄?| 妯″瀷 |
-| risk_score | float [0,1] | 鏄?| 姒傜巼锛? 浣嶅皬鏁帮級 |
-| predicted_label | int 0/1 | 鏄?| 鎸?decision_threshold 鐨勪簩鍒嗙被鏍囩 |
-| decision_threshold | float | 鏄?| 鏈鍒ゅ畾闃堝€?|
-| model_version / feature_version | string | 鏄?| 鐗堟湰鍏冧俊鎭?|
-| predicted_at | datetime | 鏄?| 棰勬祴鏃堕棿 |
-| is_bug_inducing | int 0/1 | 鏄?| 閫忎紶鐪熸爣绛撅紙鏉ヨ嚜 搂3.3 `train_testset`锛岃瘎浼板繀濉級 |
+- 输入来源：系统已保存的预测结果（`predict_batch` 成功任务），底层为 predictions Excel；一次评估固定单一模型、单一测试集。
+- `predicted_label` 与 `decision_threshold` 来自预测结果，MUST 非空且互相一致；评估不重新判定标签。
+- effort 来源：train_testset 或 clean_dataset schema，用于 effort-aware 指标；缺省时只算 unaware。
+- `labels.csv` 已废止；真值只能随 predictions 透传。
 
-鐪熸爣绛惧凡鐢辨澘鍧?鈶?閫忎紶鍦?搂3.4 `predictions.csv` 鐨?`is_bug_inducing` 鍒楋紝**姣忚 MUST 闈炵┖**锛涙湰绔偣涓嶅啀鎺ュ彈鐙珛鏍囩鏂囦欢锛堟棫 搂3.5 `labels.csv` 搴熸锛夈€傜己鐪熸爣绛惧湪鍏ュ彛鐩存帴 40001 鎷掔粷锛屼笉鐢熸垚 job銆佷笉浜у崐鎴愬搧銆?
-- 璇勪及鎸夋湰娆?threshold 浠?risk_score 閲嶆柊鎺ㄥ璇勪及鐢ㄦ爣绛撅紝涓嶄緷璧栬緭鍏?predicted_label 鐨勬棫闃堝€硷紱杈撳叆 predicted_label 浠嶉』閫氳繃 schema 鏍￠獙銆?- 鐪熸爣绛炬潵鑷?搂3.3 `train_testset`锛屾棤鏈墦鏍囨牱鏈紱缂洪娴嬭涓嶈ˉ 0銆?- effort-aware 鎸囨爣闇€鐪熷疄 LOC 宸ヤ綔閲忥細鍙€変笂浼犱竴涓?搂3.3 `train_testset` 琛ㄦ牸浣滀负 effort 鏉ユ簮锛屾寜 `la/ld`锛坙og1p锛夊弽鍙樻崲杩樺師 `LOC = round(expm1(la)+expm1(ld))`锛屾寜 commit_hash join銆傜己 effort 鏉ユ簮鏃?effort-aware 鎸囨爣鎶湶 `missing_effort`锛屼袱绫?effort 鍥句粛浜や粯锛坅ware 鍥炬爣娉ㄦ棤宸ヤ綔閲忚緭鍏ワ級銆俿ummary 鍚?`effort:{provided,matched}` 鐧昏鏉ユ簮琛屾暟涓庡懡涓鏁帮紱CLI 浠?`--effort <train_testset>` 鎻愪緵鍚屾簮杈撳叆銆?- 涓婁紶鏍￠獙澶у皬銆佹墿灞曞悕榄旀暟銆佸垪 schema銆佹鐜囪寖鍥淬€佺湡鏍囩闈炵┖涓?CSV 鍏紡娉ㄥ叆锛涚己 predictions銆佷吉閫犳枃浠舵垨缂虹湡鏍囩杩斿洖 40001銆?
-## 4. 杈撳嚭濂戠害
+## 4. 输出契约
 
-搂3.6 鐨勫垪瀹氫箟閫愬瓧濡備笅锛屼笉鍙﹂€犺瘎浼板垪锛?
-- **metrics**锛歚model_name,line,metric,value,threshold,n,pos_rate,dataset_version,model_version,computed_at`锛堥暱琛紝閫愭ā鍨嬮€愭寚鏍囦竴琛岋級銆?- **confusion**锛歚model_name,threshold,tp,fp,fn,tn`銆?- **report**锛歮d/html 鍚寚鏍囪〃 + 娣锋穯 + 鍥惧紩鐢?+ 涓嶅彲鐢ㄥ師鍥犳竻鍗曘€?- **鍥?png**锛歳oc/pr/confusion/calibration/effort/feat_importance锛坋ffort 涓ょ被璇剧▼纭姹傦級銆?
-| 鏂囦欢 | 鍛藉悕 |
-|---|---|
-| metrics | `evaluate_metrics_<job_id>.csv`锛屾垨 `.xlsx` |
-| confusion | `evaluate_confusion_<job_id>.csv`锛屾垨 `.xlsx` |
-| report | `evaluate_report_<job_id>.md`锛屾垨 `.html` |
-| 鍚勫浘 | `evaluate_<figure_type>_<job_id>.png`锛沞ffort-aware 涓?effort-unaware 鍒嗗埆浠?artifact 鍚嶅尯鍒?|
-| manifest | `evaluate_metrics_<job_id>.manifest.json` |
+- 指标值来自 `metrics.py` 单源公式；退化场景（空集/单类）置 null 并给警告，不编造 0。
+- 指标表为用户可见 CSV / Excel；图按后端标准命名打包为 zip，逐图登记 `model_figure` 并按 `job_id` 可追溯。
+- 内部指标长表与混淆矩阵不进入结果文件区；用户只看到图集 zip 与指标表。
+- 报告与图只覆盖本次运行，不随配置变化自动重算。
 
-report 涓紩鐢ㄧ浉瀵瑰熀纭€鏂囦欢鍚嶏紝涓嶅紩鐢ㄦ湰鏈虹粷瀵硅矾寰勩€傛病鏈夋湁鏁堟暟鍊兼椂瀵瑰簲 metrics 琛屼笉鍐?0锛屽師鍥犺繘鍏?report锛涙牱鏈暟銆佹鏍锋湰鐜囥€侀槇鍊笺€佹暟鎹泦鐗堟湰鍜屾ā鍨嬬増鏈殢缁撴灉缁欏嚭銆?
-manifest 涓ユ牸閲囩敤 搂3.9锛岃褰曡緭鍏?checksum銆佺湡鏍囩鏉ユ簮锛坱rain_testset锛夈€侀槇鍊笺€佹寚鏍囬泦鍚堛€乪ffort 寮€鍏炽€佽緭鍑?checksum 鍜屼唬鐮佺増鏈€侰SV UTF-8 BOM锛孹LSX 鍗?sheet銆傞粯璁?0.5 涓嬩笌鍘嗗彶 `model_metrics.csv` 瀵瑰簲鎸囨爣閫愬€间竴鑷达紝瀹瑰樊 1e-6锛屾槸鍙ｅ緞楠屾敹绾裤€?
-## 5. 鍙厤缃」
+## 5. 可配置项
 
-- 鍏ㄥ眬锛歚decision_threshold`銆乣metrics_selected`銆乣primary_metric`銆乣effort_enabled`锛沗risk_high_threshold` / `risk_mid_threshold` 浠呯敤浜庨闄╁睍绀猴紝涓嶆贩鍏ユ寚鏍囧叕寮忋€?- 鍗曟杩愯锛氭ā鍨嬪瓙闆嗐€侀槇鍊笺€佹寚鏍囥€佷富鎺掑簭銆乪ffort 寮€鍏炽€佹姤鍛婁笌琛ㄦ牸鏍煎紡銆?- 鎸囨爣娉ㄥ唽鍜岃绠楀潎鏉ヨ嚜 `data_model/evaluation/metrics.py`锛涘悗绔拰鍓嶇涓嶅緱澶嶅埗鍏紡銆?- `.env` 浠呮彁渚涘嚭鍘傞粯璁わ紝鐢ㄦ埛閰嶇疆閲嶅惎鎭㈠銆?
-## 6. 鐘舵€佹寔涔呭寲
+`metrics_selected`、`primary_metric`、`effort_enabled` 来自配置中心；请求可覆盖指标、主指标与 effort。图集 zip 名称与指标表名称由用户在 05 步确认（有默认值）；`decision_threshold` 不由评估配置提供，始终沿用预测结果。
 
-- 鍚屾杩愯鍐欑粓鎬侊紝寮傛 kind=`evaluate` 鍐欎簲鎬侊紱鍚?kind 鏉′欢鏇存柊浜掓枼锛岄噸鍚仐鐣?running 缃?failed锛屽彲 retry/cancel銆?- 杈撳嚭钀?`temp/outputs/<job_id>/`锛坓itignore锛夛紝job 鐧昏鍏ㄩ儴浜х墿涓庝笉鍙敤椤广€?- 鐩稿悓 predictions銆侀槇鍊间笌鎸囨爣閰嶇疆閲嶈窇涓€鑷达紱`computed_at` 闄ゅ锛屾暟鍊间笌鍥惧舰鏁版嵁蹇呴』涓€鑷淬€?- 璇勪及鏂囦欢鏄惁鐧昏 model_figure 鐢?storage 鍐冲畾锛岃繍琛屾湰韬笉渚濊禆鏁版嵁搴撳凡鏈夋ā鍨嬫垨棰勬祴琛屻€?
-## 7. 楠屾敹
+## 6. 状态持久化
 
-fixtures锛歚tests/fixtures/files/evaluate/`锛屼笉涓婁紶妯″瀷銆佷笉璋冪敤 predict 涔熷彲杩愯銆?
-- **姝ｅ父**锛氫笂浼犲甫閫忎紶鐪熸爣绛剧殑 predictions 浜у嚭 搂3.6 鍏ㄩ儴鎵€閫夌粨鏋溿€佹姤鍛娿€乵anifest锛涘妯″瀷鎸変富鎸囨爣鎺掑簭锛岄粯璁?0.5 瀵圭収瀹瑰樊涓嶈秴杩?1e-6銆?- **杈圭晫**锛氶槇鍊艰竟鐣屻€佸崟妯″瀷銆佸叏姝?鍏ㄨ礋銆佹牱鏈笉瓒冲拰鏃犳硶璁＄畻 AUC 鏃剁粰鍑哄師鍥狅紝涓嶄吉閫?0锛涚己鐪熸爣绛惧墠缃?40001锛沞ffort-aware 涓?effort-unaware 涓ょ被鍥惧潎瀛樺湪銆?- **闈炴硶**锛氱己 predictions銆佹鐜囪秺鐣屻€佹湭鐭ユ寚鏍囥€乸rimary_metric 鏈€夈€侀噸澶嶉敭鏃犳硶鍒ゅ畾銆佷吉閫?XLSX銆佸叕寮忔敞鍏ュ潎杩斿洖 40001锛屼笉浜у崐鎴愬搧銆?- 鏀归槇鍊煎彧褰卞搷闃堝€肩浉鍏崇粨鏋滐紝涓嶉噸璁篃涓嶆敼 risk_score锛汣LI/API 鏁板€间竴鑷达紝杈撳嚭涓嬭浇閴存潈锛岄噸鍚悗閰嶇疆涓?job 鍙仮澶嶃€?
-## 8. 杈圭晫
+- 任务 `kind=evaluate`，同步阈值 5000 行，`job.total = 行数 + 1`。
+- 输入快照落 `temp/evaluate_inputs/<hash>/request.json`。
+- `params_json` 记录 `prediction_job_id`、`metrics`、`primary_metric`、`effort_enabled`、`figure_zip_name`、`metrics_name`、`output_format`。
+- 产物不可覆盖；成功写 `output_ref_json.outputs`（zip、指标表、逐图 PNG 与内部记录）与 `summary`；逐图同时登记到 `model_figure`，页面只展示 zip 与指标表。
 
-evaluate 鍙姹?搂3.4 鏂囦欢鍏煎锛堥』鍚€忎紶鐪熸爣绛撅級锛屼笌 predict/train 鐨勬湇鍔℃槸鍚﹀湪绾挎棤鍏筹紱杈撳嚭鍙緵 figures 鐧昏灞曠ず锛屼絾灞曠ず瀵煎叆涓嶆槸璁＄畻鍓嶇疆銆傚叡浜寚鏍囧叕寮忔槸浠ｇ爜渚濊禆锛屼笉鏄暟鎹簱鎴栦笂娓告湇鍔′緷璧栥€?
+## 7. 验收
+
+- 默认指标集合下指标与历史 `model_metrics.csv` 逐值一致，阈值沿用预测结果不再单独配置。
+- 单模型单测试集结果正确；传入 `threshold` / `model_names` 被拒绝。
+- 缺真标签、非单模型单测试集、标签与阈值冲突被前置拒绝。
+- effort 缺失时 unaware 指标正常、aware 指标标记 unavailable。
+- 图集 zip 可下载、内含逐张标准命名图片；指标表可导出 CSV / Excel。
+- 每张图登记到 `model_figure` 且可按 `job_id` 与 `model_name` 查询。
+
+## 8. 边界
+
+评估是独立工具，输入是已保存的预测结果文件而不是「某次训练的运行状态」；同一预测结果可反复评估，结果永远对应显式运行，不产生隐式更新。

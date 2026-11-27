@@ -135,19 +135,30 @@ def _ratio(value, field):
     return float(value)
 
 
+def _output_name(value):
+    """产物名称：用户可读的清洗结果名，同时作为下游文件名前缀。"""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        _invalid("output_name must be a string")
+    name = value.strip()
+    if not 1 <= len(name) <= 64:
+        _invalid("output_name must be 1-64 characters")
+    if (name in (".", "..") or name.startswith(".") or name.endswith(".")
+            or any(ord(char) < 32 for char in name) or any(char in name for char in '/\\:*?"<>|')):
+        _invalid("output_name contains unsupported characters")
+    return name
+
+
 def validate_config(raw: dict) -> dict:
-    fields = {"mode", "steps", "chart_columns", "format"}
+    fields = {"mode", "steps", "format", "output_name"}
     if not isinstance(raw, dict) or set(raw) - fields or not {"mode", "steps"} <= set(raw):
         _invalid("Config requires mode and steps and permits no unknown keys (features/seed/split_ratio are train-only)")
+    output_name = _output_name(raw.get("output_name"))
     if not isinstance(raw["mode"], str) or raw["mode"] not in ("preview", "apply"):
         _invalid("mode must be preview or apply")
     if not isinstance(raw["steps"], list):
         _invalid("steps must be a list")
-    allowed_charts = set(fc.CLEAN_DATASET_COLUMNS)
-    chart_columns = raw.get("chart_columns", [])
-    if (not isinstance(chart_columns, list) or any(not isinstance(c, str) or c not in allowed_charts for c in chart_columns)
-            or len(set(chart_columns)) != len(chart_columns)):
-        _invalid("chart_columns must be unique column names from the clean_dataset schema")
     fmt = raw.get("format", "csv")
     if not isinstance(fmt, str) or fmt not in ("csv", "xlsx"):
         _invalid("format must be csv or xlsx")
@@ -201,7 +212,10 @@ def validate_config(raw: dict) -> dict:
                 _invalid(f"{op} must be after {other}")
             if kind == "before_basic_derive" and "derive_basic_fields" in positions and positions[op] >= positions["derive_basic_fields"]:
                 _invalid(f"{op} must be before derive_basic_fields")
-    return {"mode": raw["mode"], "steps": steps, "chart_columns": chart_columns, "format": fmt}
+    config = {"mode": raw["mode"], "steps": steps, "format": fmt}
+    if output_name:
+        config["output_name"] = output_name
+    return config
 
 
 def _timestamp(value, field):
@@ -385,7 +399,7 @@ def run(rows: list[dict], config: dict, *, metadata: dict | None = None, progres
         excluded, step_warnings = [], []
         if enabled:
             if op == "schema_validate":
-                step_warnings.append("Schema validated against collected_commits columns.")
+                pass
             elif op == "duplicate_drop":
                 seen, kept = set(), []
                 for row in current:
@@ -444,8 +458,10 @@ def run(rows: list[dict], config: dict, *, metadata: dict | None = None, progres
                         step_warnings.append(f"{nulls} unlabeled rows retained (NULL kept, not 0).")
             elif op == "outlier_filter":
                 method = params["method"]
+                # 标签列是 0/1 二元值，参与 IQR 会把少数正例整体判为异常；标签只做值域校验。
                 numeric_cols = [c for c in fc.COLLECTED_COMMITS_COLUMNS
-                                if all(isinstance(r.get(c), (int, float)) for r in current if r.get(c) not in (None, ""))]
+                                if c != "is_bug_inducing"
+                                and all(isinstance(r.get(c), (int, float)) for r in current if r.get(c) not in (None, ""))]
                 if method == "iqr" and numeric_cols:
                     import numpy as np
                     for col in numeric_cols:
@@ -462,7 +478,6 @@ def run(rows: list[dict], config: dict, *, metadata: dict | None = None, progres
                             else:
                                 kept.append(row)
                         current = kept
-                step_warnings.append("Outlier detection on existing value columns only; no model features generated.")
             elif op == "label_validate":
                 kept = []
                 for row in current:
@@ -480,7 +495,7 @@ def run(rows: list[dict], config: dict, *, metadata: dict | None = None, progres
                     if row.get("message"):
                         row["message"] = re.sub(r"[\x00-\x1f\x7f]+", " ", str(row["message"])).strip()
             elif op == "type_convert":
-                step_warnings.append("Type conversion applied to declared columns.")
+                pass
             elif op == "date_normalize":
                 for row in current:
                     for field in ("committed_at", "labeled_at"):
@@ -525,15 +540,12 @@ def run(rows: list[dict], config: dict, *, metadata: dict | None = None, progres
         warnings.extend(step_warnings)
         if progress:
             progress(op, index + 1, total)
-    column_stats = {}
-    for column in normalized["chart_columns"]:
-        column_stats[column] = {"before": _column_side(before, column), "after": _column_side(current, column)}
     return {"rows": current, "config": normalized,
             "summary": {"input_rows": len(before), "output_rows": len(current),
                         "label_dist": _label_dist(current),
                         "enabled_steps": normalized["operation_order"],
                         "warnings": list(dict.fromkeys(warnings))},
-            "steps_stats": stats, "feature_stats": column_stats}
+            "steps_stats": stats}
 
 
 def _encode(rows, fmt):
@@ -597,13 +609,11 @@ def artifacts(result: dict, job_id: str) -> dict[str, bytes]:
         _invalid("Invalid artifact job_id")
     output = {}
     config = result["config"]
+    name = config.get("output_name")
     if config["mode"] == "apply":
-        for fmt in (config["format"], "xlsx" if config["format"] == "csv" else "csv"):
-            output[f"clean_dataset_{job_id}.{fmt}"] = _encode(result["rows"], fmt)
-    output[f"clean_steps_stats_{job_id}.json"] = _json(result["steps_stats"])
-    output[f"clean_column_stats_{job_id}.json"] = _json(result["feature_stats"])
-    for column, stats in result["feature_stats"].items():
-        output[f"clean_column_distribution_{config.get('step', 'final')}_{column}_{job_id}.png"] = _distribution(stats, column)
+        # 清洗数据只保留一份 CSV 主表；Excel 由下载接口按需转换，避免重复冗余。
+        output[f"{name or f'clean_dataset_{job_id}'}.csv"] = _encode(result["rows"], "csv")
+    output[f"{name}_steps_stats.json" if name else f"clean_steps_stats_{job_id}.json"] = _json(result["steps_stats"])
     return output
 
 
@@ -638,8 +648,8 @@ def main(argv=None) -> int:
     command.add_argument("--input", required=True, type=Path)
     command.add_argument("--chain", required=True)
     command.add_argument("--mode", required=True, choices=("preview", "apply"))
-    command.add_argument("--chart-columns", default="")
     command.add_argument("--format", choices=("csv", "xlsx"), default="csv")
+    command.add_argument("--output-name", default=None)
     command.add_argument("--manifest", type=Path)
     command.add_argument("--out", required=True, type=Path)
     args = parser.parse_args(argv)
@@ -653,7 +663,7 @@ def main(argv=None) -> int:
         if set(chain) != {"steps"}:
             _invalid("--chain must be a JSON steps list or an object containing only steps")
         raw = {"mode": args.mode, "steps": chain["steps"], "format": args.format,
-               "chart_columns": [c for c in args.chart_columns.split(",") if c]}
+               "output_name": args.output_name}
         config = validate_config(raw)
         path = args.input.resolve(strict=True)
         companion = args.manifest.resolve(strict=True) if args.manifest else path.with_suffix(".manifest.json")

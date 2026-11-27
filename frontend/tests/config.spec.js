@@ -8,7 +8,7 @@ import { riskLabel } from '../src/utils/risk'
 import App from '../src/App.vue'
 
 const boundary = vi.hoisted(() => ({ getConfig: vi.fn(), putConfig: vi.fn(), putConfigKey: vi.fn(), deleteConfigKey: vi.fn() }))
-vi.mock('../src/api', () => boundary)
+vi.mock('../src/api', async importOriginal => ({ ...(await importOriginal()), ...boundary }))
 
 const response = () => ({
   items: [
@@ -115,21 +115,16 @@ describe('configuration boot gate and navigation', () => {
     expect(wrapper.find('[data-testid="business"]').text()).toBe('中等风险')
     await router.push('/storage')
     await flushPromises()
-    expect(wrapper.find('h1').text()).toBe('数据管理')
-    expect(wrapper.find('.el-menu-item.is-active').text()).toBe('数据管理')
-    expect(wrapper.findAll('.menu .el-menu-item').map(item => item.text())).toEqual([
-      '数据管理', '收集', '清洗', '训练', '预测', '评估', '解释', '定位及修复'
+    expect(wrapper.findAll('.menu [role="menuitem"]').map(item => item.text())).toEqual([
+      '数据存储', '数据收集', '数据清洗', '模型训练', '模型预测', '预测评估', '系统设置'
     ])
   })
 
-  it('registers storage and redirects settings to the configuration subsection', async () => {
+  it('registers storage and settings as real top-level views', async () => {
     const module = await import('../src/router/index.js')
     const routes = module.default.options.routes
-    const storage = routes.find(route => route.path === '/storage')
-    expect(storage).toBeDefined()
-    expect(storage.component.__file).toContain('Storage.vue')
-    const redirect = routes.find(route => route.path === '/settings')?.redirect
-    expect(redirect({ query: {}, hash: '' })).toMatchObject({ path: '/storage', query: { section: 'config' } })
+    expect(routes.find(route => route.path === '/storage')?.component.__file).toContain('Storage.vue')
+    expect(routes.find(route => route.path === '/settings')?.component.__file).toContain('Settings.vue')
   })
 })
 

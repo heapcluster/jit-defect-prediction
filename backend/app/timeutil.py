@@ -2,7 +2,7 @@
 
 契约三要求时间字段统一 UTC 且以 `_at` 结尾；`iso_z` 是唯一格式化入口。
 `parse_time_param` 承载 §1「时间范围语义」（闭区间 + end 侧纯日期串含结束日全天），
-此前只在 `api/commits.py` 内部，`trends` / `quality` 需要同一口径，故上移到这里。
+此前只在 `api/commits.py` 内部，其他按时间聚合的查询需要同一口径，故上移到这里。
 """
 
 from __future__ import annotations

@@ -19,13 +19,16 @@ from app.auth import require_api_key
 from app.db import SessionLocal
 from app.errors import AppError, ok
 from app.models import Model, ModelFigure
+from app.timeutil import iso_z
 from app.services import evaluate_run, output_store
 from app.services import file_contracts as fc
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
 
 # 图集固定展示顺序（docs/api/figures.md）
-_FIGURE_ORDER = ("roc", "pr", "confusion", "calibration", "effort", "feat_importance")
+_FIGURE_ORDER = ("roc", "pr", "confusion", "calibration", "effort_unaware", "effort_aware", "feat_importance")
+# 历史登记使用合并的 effort 类型，读取时归一为 effort_unaware，不改库。
+_LEGACY_TYPES = {"effort": "effort_unaware"}
 # §3.6 指标长表列序，逐字段投影，不重算
 _METRIC_COLUMNS = (
     "model_name", "line", "metric", "value", "threshold", "n", "pos_rate",
@@ -84,11 +87,15 @@ def _figure_checksum(path: Path) -> tuple[str | None, str | None]:
     return fc.sha256(raw), None
 
 
-def _effort_kind(row: ModelFigure, file_path: str) -> str | None:
-    """非 effort 图为 null；effort 图从登记名/标题识别 aware/unaware，无法证明则留 null。"""
+def _effort_kind(row: ModelFigure) -> str | None:
+    """effort 图区分 aware/unaware；历史合并图从登记名/标题推断，无法证明则留 null。"""
+    if row.figure_type == "effort_unaware":
+        return "unaware"
+    if row.figure_type == "effort_aware":
+        return "aware"
     if row.figure_type != "effort":
         return None
-    text = f"{Path(file_path).name} {row.title}".lower()
+    text = f"{row.figure_name} {row.title}".lower()
     if "unaware" in text:
         return "unaware"
     if "aware" in text:
@@ -206,19 +213,46 @@ def figures(
     query_keys(request, _QUERY_PARAMS)
     if figure_type is not None and figure_type not in _FIGURE_ORDER:
         raise AppError(40001, "参数非法：figure_type 取值不在契约图类型内")
+    if model_name is None and job_id is None:
+        raise AppError(40001, "参数非法：model_name 与 job_id 至少提供一个")
     with SessionLocal() as session:
-        model = session.execute(
-            select(Model).where(Model.model_name == model_name)
-        ).scalar_one_or_none()
-        rows = (
-            session.execute(select(ModelFigure).where(ModelFigure.model_name == model_name))
-            .scalars()
-            .all()
-        )
-    if model is None or not rows:
-        raise AppError(40400, "model figures not found")
-    by_type = {row.figure_type: row for row in rows}
-    metrics, metrics_unavailable, resolved_job = _load_metrics(model_name, job_id)
+        statement = select(ModelFigure)
+        if model_name is not None:
+            statement = statement.where(ModelFigure.model_name == model_name)
+        if job_id is not None:
+            statement = statement.where(ModelFigure.job_id == job_id)
+        rows = session.execute(statement).scalars().all()
+        if not rows:
+            raise AppError(40400, "model figures not found")
+        names = sorted({row.model_name for row in rows})
+        if model_name is None:
+            if len(names) != 1:
+                raise AppError(40400, "评估批次对应多个模型，无法定位图集")
+            model_name = names[0]
+        model = session.get(Model, model_name)
+        if model is None:
+            raise AppError(40400, "model figures not found")
+    all_rows = rows
+    # 批次清单：只传 job_id 时仅含该批次；model_name 维度返回全部已登记批次。
+    batch_ids = [job_id] if job_id is not None else sorted({row.job_id for row in all_rows}, reverse=True)
+    batches = [{
+        "job_id": batch or None,
+        "created_at": iso_z(max(
+            (row.generated_at for row in all_rows if row.job_id == batch),
+            default=None,
+        )),
+        "testset_ref": next(
+            (row.testset_ref for row in all_rows if row.job_id == batch and row.testset_ref),
+            None,
+        ),
+        "figures_count": sum(1 for row in all_rows if row.job_id == batch),
+    } for batch in batch_ids]
+    selected_job = job_id if job_id is not None else (batch_ids[0] if batch_ids else None)
+    selected = [row for row in all_rows if row.job_id == selected_job]
+    by_type = {}
+    for row in selected:
+        by_type.setdefault(_LEGACY_TYPES.get(row.figure_type, row.figure_type), row)
+    metrics, metrics_unavailable, resolved_job = _load_metrics(model_name, selected_job)
 
     figures_list: list[dict] = []
     missing: list[dict] = []
@@ -240,10 +274,14 @@ def figures(
             if reference is not None
             else row.file_path
         )
+        figure_name = row.figure_name or (
+            f"evaluate_{row.job_id}_{kind}.png" if row.job_id else f"{row.model_name}_{kind}.png"
+        )
         figures_list.append({
             "figure_type": kind,
-            "effort_kind": _effort_kind(row, row.file_path),
+            "effort_kind": _effort_kind(row),
             "title": row.title,
+            "figure_name": figure_name,
             "file_path": public_path,
             "checksum_sha256": checksum,
             "source_job_id": reference[0] if reference is not None else None,
@@ -252,9 +290,10 @@ def figures(
     data = {
         "model_name": model_name,
         "line": model.line,
-        "source_job_id": job_id or resolved_job or (
+        "source_job_id": selected_job or resolved_job or (
             figures_list[0]["source_job_id"] if figures_list else None
         ),
+        "batches": batches,
         "metrics": metrics,
         "metrics_unavailable": metrics_unavailable,
         "figures": figures_list,

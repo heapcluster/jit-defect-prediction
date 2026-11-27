@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
+# 新契约：公开数据必须显式给出正/负样本标签值；本夹具源值即 1/0。
+LABELS = {'positive': '1', 'negative': '0'}
 
 
 def modules(tmp_path, monkeypatch):
@@ -38,7 +40,7 @@ def test_load_preserves_records_and_metadata_without_business_db(tmp_path, monke
     loader, quality = modules(tmp_path, monkeypatch)
     path = source(tmp_path, rows())
     monkeypatch.setenv('DATABASE_URL', 'mysql+pymysql://invalid:invalid@127.0.0.1:1/unavailable')
-    result = loader.load_public(name='AI unreviewed', source=path, license_id='CC-BY-4.0', out=tmp_path / 'dataset')
+    result = loader.load_public(name='AI unreviewed', source=path, license_id='CC-BY-4.0', label_mapping=LABELS, out=tmp_path / 'dataset')
     metadata = json.loads((tmp_path / 'dataset/metadata.json').read_bytes())
     assert metadata['source_sha256'] == loader.fc.sha256(path.read_bytes())
     assert metadata['license'] == 'CC-BY-4.0' and metadata['source_rows'] == metadata['rows'] == 2
@@ -57,7 +59,7 @@ def test_missing_required_column_has_no_half_finished_directory(tmp_path, monkey
     records = [{key: value for key, value in row.items() if key != missing} for row in rows()]
     path = source(tmp_path, records)
     with pytest.raises(Exception, match=missing):
-        loader.load_public(name='fixture', source=path, license_id='CC-BY-4.0', out=tmp_path / 'dataset')
+        loader.load_public(name='fixture', source=path, license_id='CC-BY-4.0', label_mapping=LABELS, out=tmp_path / 'dataset')
     assert not (tmp_path / 'dataset').exists()
     assert not (tmp_path / 'outputs').exists()
 
@@ -65,7 +67,7 @@ def test_missing_required_column_has_no_half_finished_directory(tmp_path, monkey
 def test_explicit_mapping_does_not_fill_missing_kamei_features(tmp_path, monkeypatch):
     loader, _ = modules(tmp_path, monkeypatch)
     path = source(tmp_path, [{'commit': 'a' * 40, 'date': '2026-01-01T00:00:00Z', 'defective': '1'}])
-    loader.load_public(name='fixture', source=path, license_id='CC-BY-4.0', out=tmp_path / 'dataset',
+    loader.load_public(name='fixture', source=path, license_id='CC-BY-4.0', label_mapping=LABELS, out=tmp_path / 'dataset',
         mapping={'commit_hash': 'commit', 'committed_at': 'date', 'is_bug_inducing': 'defective'})
     columns, values = loader.fc.read_table('normalized.csv', (tmp_path / 'dataset/normalized.csv').read_bytes())
     assert 'ns' not in columns and values[0]['is_bug_inducing'] == '1'
@@ -75,7 +77,7 @@ def test_conflicting_labels_and_bad_time_are_retained_and_reported(tmp_path, mon
     loader, quality = modules(tmp_path, monkeypatch)
     records = rows() + [{**rows()[0], 'is_bug_inducing': '0', 'committed_at': 'bad-time'}]
     path = source(tmp_path, records)
-    loader.load_public(name='fixture', source=path, license_id='CC-BY-4.0', out=tmp_path / 'dataset')
+    loader.load_public(name='fixture', source=path, license_id='CC-BY-4.0', label_mapping=LABELS, out=tmp_path / 'dataset')
     report = quality.analyze(records)
     assert report['label_conflicts'] == [{'commit_hash': 'a' * 40, 'rows': [1, 3]}]
     assert report['duplicate_count'] == 1
@@ -119,14 +121,14 @@ def test_existing_public_data_is_not_overwritten(tmp_path, monkeypatch):
     destination.mkdir()
     (destination / 'keep.txt').write_text('user content')
     with pytest.raises(Exception, match='已存在'):
-        loader.load_public(name='fixture', source=source(tmp_path, rows()), license_id='CC-BY-4.0', out=destination)
+        loader.load_public(name='fixture', source=source(tmp_path, rows()), license_id='CC-BY-4.0', label_mapping=LABELS, out=destination)
     assert (destination / 'keep.txt').read_text() == 'user content'
 
 
 def test_zero_sample_is_rejected_instead_of_turning_into_full_load(tmp_path, monkeypatch):
     loader, _ = modules(tmp_path, monkeypatch)
     with pytest.raises(Exception, match='抽样'):
-        loader.load_public(name='fixture', source=source(tmp_path, rows()), license_id='CC-BY-4.0',
+        loader.load_public(name='fixture', source=source(tmp_path, rows()), license_id='CC-BY-4.0', label_mapping=LABELS,
                            out=tmp_path / 'dataset', sample_size=0)
     assert not (tmp_path / 'dataset').exists()
 

@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from app.db import SessionLocal
 from app.models import User, UserConfig
+from app.services import config_store
 from app.timeutil import now_naive_utc
 from sqlalchemy import select
 
@@ -34,7 +35,8 @@ def test_read_factory_config_is_sorted_and_excludes_secrets(config_client):
     items = data["items"]
     keys = [item["config_key"] for item in items]
     assert keys == sorted(keys)
-    assert len(keys) == 23
+    # 工厂默认键以 config_store 为单一事实源，避免新增配置后硬编码数量漂移。
+    assert set(keys) == set(config_store.factory_defaults())
     assert all(item["source"] == "factory" for item in items)
     assert {item["config_key"]: item["value"] for item in items}["decision_threshold"] == 0.5
     assert not any(key in keys for key in ("API_TOKEN", "DB_PASSWORD", "LLM_API_KEY"))
@@ -201,7 +203,7 @@ def test_single_prediction_requires_explicit_model(config_client):
     assert prediction.json()["code"] == 40001
 
 
-def test_risk_threshold_change_updates_trend_but_not_stored_risk_score(config_client):
+def test_risk_threshold_change_does_not_change_stored_risk_score(config_client):
     """阈值只改变风险判定展示；docs/api/commits.md 详情无 summary 字段，且阈值不改变库中 risk_score。"""
     first = config_client.get("/api/commits/" + "a" * 40, params={"model_name": "fixture_v2"}, headers=HEADERS).json()["data"]
     assert first["prediction"] is not None
@@ -211,9 +213,6 @@ def test_risk_threshold_change_updates_trend_but_not_stored_risk_score(config_cl
         assert forbidden not in first
     saved = config_client.put("/api/config/risk_high_threshold", headers=HEADERS, json={"value": 0.9})
     assert saved.status_code == 200
-    response = config_client.get("/api/trends", params={"model_name": "fixture_v2"}, headers=HEADERS)
-    assert response.status_code == 200
-    assert sum(item["high_risk_count"] for item in response.json()["data"]["series"]) == 0
     second = config_client.get("/api/commits/" + "a" * 40, params={"model_name": "fixture_v2"}, headers=HEADERS).json()["data"]
     assert second["prediction"]["risk_score"] == original_score
 

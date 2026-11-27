@@ -7,7 +7,7 @@
 
 ### Requirement: 识别修缺陷提交
 
-系统 MUST 按可复核的判据识别修缺陷提交，且判据 MUST 记录在 `docs/database/README.md`，MUST NOT 只存在于实现代码里。
+系统 MUST 按可复核的判据识别修缺陷提交，且判据 MUST 记录在 `docs/api/collect.md` 的 SZZ 判据小节，MUST NOT 只存在于实现代码里。
 
 #### Scenario: 修复提交被识别
 
@@ -21,7 +21,7 @@
 
 #### Scenario: 判据可复算
 
-- **WHEN** 他人按 `docs/database/README.md` 固定的版本与当前脚本判据复算
+- **WHEN** 他人按本规格固定的版本与当前脚本判据复算
 - **THEN** 命中统计与本次生成的报告逐项一致；报告缺失时如实记为未验证，MUST NOT 借用历史数字
 
 #### Scenario: 判据全部落空
@@ -36,7 +36,7 @@
 #### Scenario: 回溯命中
 
 - **WHEN** 被修复的代码行可定位到一次引入它的提交
-- **THEN** 引入提交标为 `is_bug_inducing = 1`；修复哈希只在离线审计产物中保留，不写入现行五表
+- **THEN** 引入提交标为 `is_bug_inducing = 1`；修复哈希只在离线审计产物中保留，不写入现行 12 张表
 
 #### Scenario: 回溯无法命中（边界）
 
@@ -59,7 +59,7 @@
 
 ### Requirement: 正样本比例异常时先自查
 
-打标结果 MUST 报出正样本比例。**判据 MUST 与实现同源** —— 当前 `02_szz_labeling.py` 的 `ABNORMAL_LOW` / `ABNORMAL_HIGH` 为 0.40 / 0.60，说明见 `docs/database/README.md` 第 3 节。
+打标结果 MUST 报出正样本比例。**判据 MUST 与实现同源** —— 当前 `02_szz_labeling.py` 的 `ABNORMAL_LOW` / `ABNORMAL_HIGH` 为 0.40 / 0.60，说明见 `docs/api/collect.md` 的 SZZ 判据小节。
 
 #### Scenario: 比例落在异常区间
 

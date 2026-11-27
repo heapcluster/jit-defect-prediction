@@ -45,7 +45,7 @@ def covered_hashes() -> set[str] | None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", type=Path, help="把逐条结果写成 JSON")
-    ap.add_argument("--size", type=int, default=100, help="从风险列表取多少条候选提交（<=100）")
+    ap.add_argument("--size", type=int, default=100, help="从提交列表取多少条候选提交（<=100）")
     args = ap.parse_args()
 
     # .env 里可能带失效的 HTTP_PROXY，本机请求必须绕过环境代理
