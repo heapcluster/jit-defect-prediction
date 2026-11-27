@@ -23,6 +23,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./tests/setup.js'],
     globals: true,
+    // Windows 下默认 fork 池在资源受限环境会被杀掉；关闭文件级并行可稳定复现单线程执行。
+    pool: 'threads',
+    fileParallelism: false,
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{js,vue}'],

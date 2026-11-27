@@ -1,6 +1,6 @@
 import request, { SYNC_TIMEOUT } from './request'
 
-// 风险列表：GET /api/commits（with_features 可选；model_name 必填）
+// 提交列表：GET /api/commits（模型性能页等；with_features 可选；model_name 必填）
 export function getCommits(params) {
   return request.get('/commits', { params })
 }
@@ -10,11 +10,6 @@ export function getCommitDetail(hash, modelName) {
   return request.get(`/commits/${hash}`, {
     params: modelName ? { model_name: modelName } : undefined
   })
-}
-
-// 缺陷引入趋势：GET /api/trends
-export function getTrends(params) {
-  return request.get('/trends', { params })
 }
 
 // 在线预测：POST /api/predict（commit_hash 必填，model_name 可选；opts 可传 decision_threshold/force_recompute）
@@ -70,9 +65,17 @@ export async function fetchPredictOutput(jobId, name) {
   return response.blob()
 }
 
-// 模型性能图 + 指标：GET /api/figures?model_name=
-export function getFigures(modelName) {
-  return request.get('/figures', { params: { model_name: modelName } })
+// 模型性能图 + 指标：GET /api/figures?model_name=&job_id=
+// 兼容旧调用 getFigures('model')；新调用传对象以按评估批次取图。
+export function getFigures(target, jobId) {
+  const params = typeof target === 'string'
+    ? { model_name: target, job_id: jobId || undefined }
+    : target
+  return request.get('/figures', { params })
+}
+
+export function getPredictPreview(jobId, params = {}) {
+  return request.get(`/predict/preview/${encodeURIComponent(jobId)}`, { params })
 }
 
 // 数据同步：POST /api/sync（异步，提交即返回，靠 GET /api/sync/status 轮进度）
@@ -132,10 +135,6 @@ const storageOptions = {
   }]
 }
 
-export function getStorageTables() {
-  return request.get('/storage/tables', storageOptions)
-}
-
 export function importStorageFiles(files, config = {}) {
   const form = new FormData()
   for (const file of files) form.append('files[]', file, file.name)
@@ -155,11 +154,41 @@ export function getDatasetCommits(id, params) {
   return request.get(`/datasets/${encodeURIComponent(id)}/commits`, { ...storageOptions, params })
 }
 
+export function exportDataset(id, params = {}) {
+  return request.get(`/datasets/${encodeURIComponent(id)}/export`, { ...storageOptions, params, timeout: SYNC_TIMEOUT })
+}
+
+export function deleteDataset(id) {
+  return request.delete(`/datasets/${encodeURIComponent(id)}`)
+}
+
 export function runCollect(config, files = []) {
   const form = new FormData()
   for (const file of files) form.append('files[]', file, file.name)
   form.append('config', JSON.stringify(config))
   return request.post('/collect/run', form, { timeout: SYNC_TIMEOUT })
+}
+
+export function getCollectBranches(repoSource) {
+  return request.get('/collect/branches', { params: { repo_source: repoSource } })
+}
+
+export function getCollectSourceColumns(sourceUrl) {
+  return request.post('/collect/source-columns', { source_url: sourceUrl })
+}
+
+export function resaveCollect(jobId) {
+  return request.post(`/collect/resave/${encodeURIComponent(jobId)}`)
+}
+
+export function getStorageLineage(params = {}) {
+  return request.get('/storage/lineage', { ...storageOptions, params })
+}
+
+export function deleteStorageChain(chainId) {
+  return request.delete(`/storage/chains/${encodeURIComponent(chainId)}`, {
+    ...storageOptions, params: { confirm: true }
+  })
 }
 
 export function getCleanOperations() {
@@ -275,12 +304,12 @@ export function runClean(config, files = []) {
   return request.post('/clean/run', form, { timeout: SYNC_TIMEOUT })
 }
 
-export function getCleanPreview(jobId) {
-  return request.get(`/clean/preview/${encodeURIComponent(jobId)}`)
+export function getCleanPreview(jobId, params = {}) {
+  return request.get(`/clean/preview/${encodeURIComponent(jobId)}`, { params })
 }
 
-export async function fetchCleanOutput(jobId, name) {
-  const path = `/api/clean/outputs/${encodeURIComponent(jobId)}/${encodeURIComponent(name)}`
+export async function fetchCleanOutput(jobId, name, format = 'csv') {
+  const path = `/api/clean/outputs/${encodeURIComponent(jobId)}/${encodeURIComponent(name)}?format=${encodeURIComponent(format)}`
   const response = await fetch(path, { headers: { 'X-API-Key': import.meta.env.VITE_API_KEY } })
   if (!response.ok) {
     const payload = await response.json().catch(() => null)
@@ -306,8 +335,8 @@ export function cancelJob(jobId) {
   return request.post(`/jobs/${encodeURIComponent(jobId)}/cancel`)
 }
 
-export function getCollectPreview(jobId) {
-  return request.get(`/collect/preview/${encodeURIComponent(jobId)}`)
+export function getCollectPreview(jobId, params = {}) {
+  return request.get(`/collect/preview/${encodeURIComponent(jobId)}`, { params })
 }
 
 export async function fetchCollectOutput(jobId, name) {
@@ -327,7 +356,7 @@ export async function fetchStorageOutput(jobId, name) {
     let payload
     try { payload = await response.json() } catch { /* Non-JSON errors have no safe detail. */ }
     const code = payload?.code ?? (response.status === 401 ? 40100 : undefined)
-    const message = code === 40100 ? '鉴权失败，请检查部署环境中的 API Key'
+    const message = code === 40100 ? '登录已失效，请重新登录'
       : code === 50000 || response.status >= 500 ? '下载服务异常，请稍后重试'
         : payload?.error?.detail || payload?.message || `下载失败（HTTP ${response.status}）`
     throw Object.assign(new Error(typeof message === 'string' ? message : '下载失败，请重试'), { code })

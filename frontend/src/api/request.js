@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-// 错误码 → 用户友好提示（页面三态入口见 docs/web_page/README.md）
+// 错误码 → 用户友好提示（页面错误三态由 docs/web_page/ 各页面设计统一约定）
 const ERROR_MESSAGES = {
   40001: '请求参数有误',
   40100: '登录已失效，请重新登录',
@@ -25,7 +25,7 @@ const request = axios.create({
   }
 })
 
-// 同步类端点（/api/sync、/api/sync-prs）的超时：实测单条提交 × 8 模型约 4.1s，
+// 同步类端点（/api/sync）的超时：实测单条提交 × 8 模型约 4.1s，
 // 一条 PR 动辄 20+ 提交，再加上从 GitHub 拉 PR 头与提交清单，默认的 10s 必然超时
 // （2026-10-25 修复：同步按钮此前 100% 报 "timeout of 10000ms exceeded"）。
 export const SYNC_TIMEOUT = 300000
@@ -53,5 +53,32 @@ request.interceptors.response.use(
     return Promise.reject(error)
   }
 )
+
+// Storage/datasets 响应保留结构化安全校验细节，不改动 W1 响应拦截器，
+// 也不让二进制文件经过该拦截器。
+export const storageOptions = {
+  transformResponse: [...request.defaults.transformResponse, data => {
+    const detail = data?.error?.detail
+    if (data?.code === 40001 && typeof detail === 'string') return { ...data, message: detail }
+    return data
+  }]
+}
+
+// 所有产物/图片下载统一走带 X-API-Key 的 fetch：<img> 和浏览器直接打开都带不了鉴权头。
+export async function fetchBinary(path, { label = '下载', serverError = '下载服务异常，请稍后重试', includeStatus = false } = {}) {
+  const response = await fetch(path, { headers: { 'X-API-Key': import.meta.env.VITE_API_KEY } })
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null)
+    const code = payload?.code ?? (response.status === 401 ? 40100 : undefined)
+    const detail = payload?.error?.detail ?? payload?.message
+    const message = code === 40100
+      ? '登录已失效，请重新登录'
+      : code === 50000 || response.status >= 500
+        ? serverError
+        : (typeof detail === 'string' && detail) || (includeStatus ? `${label}失败：${response.status}` : `${label}失败`)
+    throw Object.assign(new Error(message), { code })
+  }
+  return response.blob()
+}
 
 export default request
