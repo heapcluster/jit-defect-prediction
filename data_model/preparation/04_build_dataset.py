@@ -2,7 +2,7 @@
 
 对应 OpenSpec change: data-collection-and-szz-labeling（第 4 组任务）
 在线字段口径: docs/database/commit.md 与 docs/database/commit_feature.md；离线标签列由本脚本校验
-七项统计的定义: docs/common/data-pipeline.md 第 5 节
+七项统计的定义: docs/overview.md 第 5 节
 
 ── 这一步只做「对齐」，不造新数 ──────────────────────────────────────────
 输入三份文件，按 `commit_hash` 对齐：
@@ -78,7 +78,7 @@ DATASET_FIELDS = [
 # 样本集里绝不允许出现的列名：出现即说明切分被提前做进了样本集
 FORBIDDEN_FIELDS = {"split", "is_train", "is_test", "train", "test", "fold", "partition", "set"}
 
-# docs/common/data-pipeline.md 第 3 节：正样本比例落在该区间就要先查打标逻辑
+# docs/overview.md 第 3 节：正样本比例落在该区间就要先查打标逻辑
 ABNORMAL_LOW, ABNORMAL_HIGH = 0.40, 0.60
 
 
@@ -188,7 +188,7 @@ def write_review_sample(path: Path, commits: dict[str, dict], n: int, is_fix_com
     L: list[str] = []
     L.append("# 修缺陷提交识别抽样复核（tasks.md 3.7）\n")
     L.append(
-        "> 判据 D4 = 含缺陷编号 `CAMEL-<数字>` **且** 含修复语义 `fix`/`bug`/`patch`（词首边界 `\\b`，故 `dispatch`/`debug`/`prefix` 不算），见 `docs/common/data-pipeline.md` 第 7 节\n"
+        "> 判据 D4 = 含缺陷编号 `CAMEL-<数字>` **且** 含修复语义 `fix`/`bug`/`patch`（词首边界 `\\b`，故 `dispatch`/`debug`/`prefix` 不算），见 `docs/overview.md` 第 7 节\n"
     )
     L.append(
         f"> 抽样方式：按 `committed_at` 排序后**固定步长**各取 {n} 条。用步长而非随机数，是为了同一份输入每次产出同一份名单，便于他人复算。\n"
@@ -329,7 +329,7 @@ def write_report(path: Path, ctx: dict, results: list[dict], labels: list[Path])
     L: list[str] = []
     L.append("# 样本集统计（04_build_dataset.py 产出）—— 第 6 项交付物的证据\n")
     L.append(
-        "> 本文件可入库，七项统计的定义见 `docs/common/data-pipeline.md` 第 5 节；验收结论需人工复核\n"
+        "> 本文件可入库，七项统计的定义见 `docs/overview.md` 第 5 节；验收结论需人工复核\n"
     )
 
     commits = ctx["commits"]
@@ -354,7 +354,7 @@ def write_report(path: Path, ctx: dict, results: list[dict], labels: list[Path])
 
     L.append("\n## 正样本比例是否落在合理区间\n")
     L.append(
-        f"判定依据：`docs/common/data-pipeline.md` 第 6 节 —— 落在 {ABNORMAL_LOW:.0%}–{ABNORMAL_HIGH:.0%} 就先查打标逻辑。\n"
+        f"判定依据：`docs/overview.md` 第 6 节 —— 落在 {ABNORMAL_LOW:.0%}–{ABNORMAL_HIGH:.0%} 就先查打标逻辑。\n"
     )
     for r in results:
         if ABNORMAL_LOW <= r["ratio"] <= ABNORMAL_HIGH:
@@ -363,7 +363,7 @@ def write_report(path: Path, ctx: dict, results: list[dict], labels: list[Path])
             )
         else:
             L.append(
-                f"- ✅ `{r['method']}`：{r['ratio']:.2%} 不在异常区间（判据见 docs/common/data-pipeline.md 第 3 节：落在 40%–60% 才需自查）"
+                f"- ✅ `{r['method']}`：{r['ratio']:.2%} 不在异常区间（判据见 docs/overview.md 第 3 节：落在 40%–60% 才需自查）"
             )
 
     L.append("\n## 对齐与断言\n")
@@ -388,7 +388,7 @@ def write_report(path: Path, ctx: dict, results: list[dict], labels: list[Path])
         "- 样本集**不含任何切分列，也不产出切分文件**：按 `committed_at` 前 70%/后 30% 的时间序切分属下游 change（`AGENTS.md` 禁止随机切分）"
     )
     L.append(
-        "- 标签来源：`docs/common/data-pipeline.md` 第 7 节判据 D4（缺陷编号 且 修复语义双命中）+ 决策 D5（回溯未命中者不入样本、不记 0）"
+        "- 标签来源：`docs/overview.md` 第 7 节判据 D4（缺陷编号 且 修复语义双命中）+ 决策 D5（回溯未命中者不入样本、不记 0）"
     )
     L.append(
         "- 特征口径：`docs/database/commit_feature.md` 第四节（归一化 + 自然对数变换），版本号见样本集 `feature_version` 列"

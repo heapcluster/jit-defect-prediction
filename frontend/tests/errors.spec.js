@@ -4,12 +4,12 @@
 // [AI生成-人工修改]：0 条
 // [手写]：0 条
 // 使用工具：原始生成记录未归档（标注依据代码特征判断，作者于 2026-11-17 确认）
-// 提示词见：docs/test/unit_test/prompts/README.md
+// 提示词见：docs/README.md
 
 import { describe, it, expect } from 'vitest'
 import { errText, isRetryable } from '../src/utils/errors'
 
-// 统一错误文案只定义一处（docs/frontend/pages.md 第 5 节三态口径）
+// 统一错误文案只定义一处（docs/web_page/ 第 5 节三态口径）
 describe('错误文案（utils/errors.js）', () => {
   it('40001 统一提示用户检查输入', () => {
     expect(errText({ code: 40001, detail: 'model_name', message: '参数非法' })).toBe(

@@ -1,8 +1,6 @@
-﻿# 预测结果解释 API（explain）
+# 预测结果解释 API（explain）
 
 一句话：对单个提交或一批提交给出特征贡献（SHAP / LIME），交付解释表、对比、摘要与贡献图；不做预测、不训练、不定位。
-
-实现状态：已实现　期次：一期
 
 特征 schema 见 collected_commits 列契约、clean_dataset 列契约；解释文件见 explanations 列契约；功能点职责见 [`../function_point/explain.md`](../function_point/explain.md)。
 
@@ -120,6 +118,4 @@ explain_contributions_<job_id>.png
 ## 8. 边界
 
 解释是对既有预测的事后归因，不改变预测标签与阈值判定；解释结果不参与评估指标，也不作为定位的输入前置。
-
-
 

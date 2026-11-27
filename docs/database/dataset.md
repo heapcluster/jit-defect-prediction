@@ -1,7 +1,5 @@
 # dataset / dataset_commit
 
-`实现状态：已实现（一期单版本）　期次：一期 / 二期多版本`
-
 > 旧口径把公开数据集排除在库外、把 14 维特征和 `is_test` 作为收集交付；本文已按最新板块 2 重写，`infra/schema.sql` 与 ORM 已按本文同步。
 
 **一句话**：数据集元数据表 + 数据集成员二维表；板块 2 收集完成后默认把带缺陷标签的提交二维表写入这两张表，供页面展示、查询和导出。
@@ -47,7 +45,7 @@
 - `job_id` 是数据链路的链根依据：选择 `dataset_id` 启动清洗 / 训练时，父任务取该字段；产物库按链路展示与整链删除依赖它。
 - `pos_count + neg_count + unlabeled_count = sample_count`。
 - 未打标 `is_bug_inducing=null` 只计入 `unlabeled_count`，MUST NOT 计入负样本。
-- `repo_source` 旧字段在本契约中被 `source_type + source_url + repo_name` 替代；DDL 迁移时保留兼容映射或重命名，按板块 1 迁移规则处理。
+- 数据来源由 `source_type + source_url + repo_name` 表达，不使用 `repo_source`。
 
 ## 3 dataset_commit 字段（当前契约）
 
@@ -151,7 +149,7 @@ XLSX 仅由下载 / 导出端点按请求从同一数据源即时生成，不作
 ## 8 验收
 
 - Git 仓库采集完成后，`dataset` 与 `dataset_commit` 可查询到二维表内容。
-- 公开数据集经 collect 任务 URL 拉取后入库，并记录 `source_type=public_dataset`、`label_source=public_dataset`、许可证和来源说明；storage 不再创建公开数据集。
+- 公开数据集经 collect 任务 URL 拉取后入库，并记录 `source_type=public_dataset`、`label_source=public_dataset`、许可证和来源说明；storage 不创建公开数据集。
 - 数据库行内容与导出的 `collected_commits.csv/xlsx` 逐列一致。
 - 未打标样本入库为 NULL，导出为空，不显示为 0。
 - 同数据集重复提交不产生重复成员；标签冲突不静默覆盖。

@@ -1,6 +1,4 @@
-﻿# 数据清洗与预处理 API（clean）
-
-设计状态：目标契约。页面按四步组织，不提供“对比图配置”；结果区用 `steps_stats` 展示每步前后差异与字段级变化。清洗后主表只落一份规范 CSV，XLSX 在下载时按需生成；分页预览为全量数据分页，不生成 PNG 变化图。
+# 数据清洗与预处理 API（clean）
 
 collected_commits 列契约、clean_dataset 列契约、manifest 契约；页面设计见 [`../web_page/clean.md`](../web_page/clean.md)。
 
@@ -36,7 +34,7 @@ default_enabled
 
 `group=clean` 渲染为页面的“常用清洗操作”，`group=preprocess` 渲染为“预处理操作”。操作名与参数标签必须由前端中文化后展示，不暴露 `op` 与参数 key。
 
-一期操作：
+常用操作：
 
 ```text
 常用清洗操作：
@@ -72,7 +70,7 @@ derive_basic_fields
 | `dataset_id` | 否 | 数据收集保存的数据集 id；Web 页面必传；与上传文件二选一 |
 | `template` | 否 | 处理链模板名，需已存在于 `user_config` 的 `clean.chain_templates`；命中后与显式 `steps` 合并，显式字段优先 |
 
-变更说明：`format` 从运行配置移除；清洗任务只落规范 CSV，XLSX 在下载端点按 `format=xlsx` 即时生成。`chart_columns` 已移除；后端只在 `steps_stats` 中记录前后差异，不生成 PNG 变化图。
+`format` 不属于运行配置；清洗任务只落规范 CSV，XLSX 在下载端点按 `format=xlsx` 即时生成。`chart_columns` 不属于接口字段；后端只在 `steps_stats` 中记录前后差异，不生成 PNG 变化图。
 
 文件 part（可选，最多 2 个）：
 
@@ -244,7 +242,7 @@ warnings[]
 
 ### 5.3 前后差异展示
 
-Web 页面不传 `chart_columns`，API / CLI 也不再接受该字段。后端在 `clean_steps_stats` 中记录每步的行数、删除行数、修改行数、标签分布、缺失与重复变化，以及 `modified_samples[]` 的字段级前后值；页面据此渲染差异表，不生成 PNG 变化图。
+Web 页面不传 `chart_columns`，API / CLI 同样不接受该字段。后端在 `clean_steps_stats` 中记录每步的行数、删除行数、修改行数、标签分布、缺失与重复变化，以及 `modified_samples[]` 的字段级前后值；页面据此渲染差异表，不生成 PNG 变化图。
 
 ### 5.4 manifest
 
@@ -276,7 +274,7 @@ summary.time_range = {min, max}          # 最早、最晚提交时间（UTC）
 summary.time_bins  = [{start, end, count}]  # 时间分桶与样本数，供滑杆实时计算两侧比例
 ```
 
-当前实现尚未产出这两项，属待补契约；缺失时训练页时间滑杆不可用并退回手填边界，不影响比例切分。
+这两项为清洗 summary 的必备字段；缺失时训练页时间滑杆不可用并退回手填边界，不影响比例切分。
 
 ### 5.5 自动入库
 
@@ -293,7 +291,7 @@ summary.time_bins  = [{start, end, count}]  # 时间分桶与样本数，供滑�
 
 ## 7 验收
 
-- Web 页面只传 `dataset_id`、`mode=apply`、`steps[]`、`output_name`；不传 `chart_columns` 与 `format`，API / CLI 也不再接受 `chart_columns`。
+- Web 页面只传 `dataset_id`、`mode=apply`、`steps[]`、`output_name`；不传 `chart_columns` 与 `format`，API / CLI 同样不接受 `chart_columns`。
 - 前端用 `steps_stats` 展示每步前后差异与字段级变化，不生成 PNG 变化图。
 - 分页预览可浏览全量清洗后数据，默认每页 12 行，展示所有列。
 - apply 只落一份规范 CSV；下载 CSV 直接返回该文件，下载 Excel 按请求即时生成且不落盘。
@@ -304,7 +302,4 @@ summary.time_bins  = [{start, end, count}]  # 时间分桶与样本数，供滑�
 - 输出不含 `is_test` 和模型特征集；未打标保持空值。
 - 缺列、错类型、公式注入、未知操作、顺序冲突、禁止字段、非法 `output_name` 均返回 `40001`。
 - CLI 与 API 同参数等价（CLI 额外支持 `--output-name` 与 `--chart-columns`）。
-
-
-
 

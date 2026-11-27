@@ -4,13 +4,13 @@
 # [AI生成-人工修改]：42 条（AI 生成骨架，人工补充核心断言）
 # [手写]：0 条
 # 使用工具：原始生成记录未归档（标注依据代码特征判断，作者于 2026-11-17 确认）
-# 提示词见：docs/test/unit_test/prompts/README.md
+# 提示词见：docs/README.md
 
 """SZZ 打标判据与 diff/blame 解析的单元测试（蒋励，2026-10-13）。
 
 对应 OpenSpec change: data-collection-and-szz-labeling（tasks.md「测试与验证」§1）
 口径来源：data_model/02_szz_labeling.py 模块 docstring 的「判据（D4）」「两套方法（D3）」，
-以及 docs/common/data-pipeline.md 第 3 节登记的外沿数字。
+以及 docs/overview.md 第 3 节登记的外沿数字。
 
 只测**纯函数**：不碰 git、不读仓库、不跑全链路。
 跑法：cd data_model && python -m pytest -q

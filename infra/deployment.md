@@ -66,7 +66,7 @@ curl http://localhost:8000/api/health -H "X-API-Key: dev-token"
 2. 在 `feature_order.txt` 的 `[models]` 段追加一行 `xxx_v1.pkl\t模型中文名`。
 
 特征列序与 14 项契约见 `feature_order.txt` 的 `[feature_order]` 段；清单是
-`docs/model/feature-columns.md` 的副本，两者不一致以契约为准。
+`docs/database/commit_feature.md` 的副本，两者不一致以契约为准。
 
 ### 特征：替换抽取器，零核心改动
 
@@ -89,7 +89,7 @@ FEATURE_EXTRACTOR_SCRIPT=/abs/path/my_extractor.py
 ```
 
 不可达/非法提交抛 `ValueError`（后端映射为 40400）。14 项特征键名与顺序是冻结契约，
-新增特征维度属于契约变更，走 `docs/model/feature-columns.md` 升版流程，不在本插件机制内。
+新增特征维度属于契约变更，走 `docs/database/commit_feature.md` 升版流程，不在本插件机制内。
 
 ## 交付边界（DS-1 约定）
 

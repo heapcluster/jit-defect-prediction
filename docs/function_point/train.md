@@ -1,8 +1,6 @@
-﻿# 功能点 4 模型训练
+# 功能点 4 模型训练
 
 一句话：按设计图，用清洗后数据划分训练 / 测试集，选择一个或多个算法并设置超参数，交付每个算法的 `.pkl` 权重、训练集与测试集。
-
-实现状态：部分实现　期次：一期（时间滑杆元数据、训练集落盘、`.pkl` 直出与侧车元数据待补）
 
 clean_dataset 列契约、训练测试集与模型文件契约；API 见 [`../api/train.md`](../api/train.md)；页面见 [`../web_page/train.md`](../web_page/train.md)。
 
@@ -49,11 +47,11 @@ train_testset_<job_id>.csv / .xlsx
 <stem>.manifest.json
 ```
 
-每个成功算法一个 `.pkl`，结果文件区逐算法单独展示与下载；`train_<algo>_meta_<job_id>.json` 是侧车元数据（特征顺序、特征 schema、超参与版本），只随 manifest 归档，不占结果文件位。训练不再产出 ZIP 模型包。
+每个成功算法一个 `.pkl`，结果文件区逐算法单独展示与下载；`train_<algo>_meta_<job_id>.json` 是侧车元数据（特征顺序、特征 schema、超参与版本），只随 manifest 归档，不占结果文件位。训练不产出 ZIP 模型包，逐算法 `.pkl` 单独下载。
 
-训练集只用于用户下载核对，不作为下游模块输入；预测与评估仍只消费测试集。当前后端只产出测试集，训练集产物为待补契约。
+训练集只用于用户下载核对，不作为下游模块输入；预测与评估只消费测试集。训练产物同时提供训练集 `train_trainset_<job_id>.csv/.xlsx` 与测试集。
 
-`train_comparison_*.json` 与 `/api/train/compare` 已移除；模型元数据 JSON 只作注册内部文件，不登记为用户结果文件。
+`train_comparison_*.json` 与 `/api/train/compare` 不属于训练结果；模型元数据 JSON 只作注册内部文件，不登记为用户结果文件。
 
 `summary`：`input_rows, labeled_rows, unlabeled_rows, train_rows, test_rows, success_count, failed_count, warnings[]`。
 
@@ -82,6 +80,4 @@ train_testset_<job_id>.csv / .xlsx
 ## 8 边界
 
 训练只吃文件：不要求库中已有 commit 或预测；模型注册是自动完成的展示路径，未注册的 `.pkl` 仍可用于预测 / 解释的文件入口（外部交付包可为 ZIP，训练自身不产出 ZIP）。
-
-
 

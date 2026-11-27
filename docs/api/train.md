@@ -1,8 +1,6 @@
-﻿# 模型训练 API（train）
+# 模型训练 API（train）
 
 一句话：按专家特征线或语义特征线，用清洗后数据集或训练测试集，训练一个或多个分类器，交付每个算法的 `.pkl` 权重、训练集与测试集；详细性能指标与图由预测评估模块产出。
-
-实现状态：已实现　期次：一期
 
 特征与标签 schema 及模型产物契约见本文 §4 与 [models.md](models.md) §3；功能点职责见 [`../function_point/train.md`](../function_point/train.md)。
 
@@ -90,9 +88,9 @@ train_testset_<job_id>.csv / .xlsx
 
 每个成功算法产出一个独立的 `.pkl`，结果文件区逐算法展示与下载；`train_<algo>_meta_<job_id>.json` 是模型注册所需的内部元数据，落盘但不登记为用户结果文件。训练不产出 ZIP 模型包。
 
-`train_trainset` 与 `train_testset` 均作为用户产物下载核对；`train_comparison_<job_id>.json` 与 `/api/train/compare` 已移除。
+`train_trainset` 与 `train_testset` 均作为用户产物下载核对；`train_comparison_<job_id>.json` 与 `/api/train/compare` 不属于训练产物。
 
-- `.pkl` 非空且可被预测模块直接加载；checksum 由 manifest 登记，不再生成单独的 `checksum.sha256`。
+- `.pkl` 非空且可被预测模块直接加载；checksum 由 manifest 登记，不生成单独的 `checksum.sha256`。
 - `model_name = "{algo}_{fingerprint前8}_v1"`，`version_key = fingerprint[:16]`。
 - `models[].metrics` 仅作内部诊断，训练页不展示、不排序；权威指标、混淆矩阵与图由功能 ⑥ 产出。
 - 注册 / 加载结果只写入 `register_status` / `load_status`，失败不回滚任务。
@@ -119,5 +117,4 @@ train_testset_<job_id>.csv / .xlsx
 ## 8. 边界
 
 训练模块只吃文件，不感知上游是否存在在线数据；模型注册与热加载是可选展示路径，未注册的 `.pkl` 同样可用 predict 的文件入口完成预测（外部交付包仍可为 ZIP）。
-
 

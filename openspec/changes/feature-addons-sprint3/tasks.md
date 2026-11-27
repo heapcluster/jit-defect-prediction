@@ -12,7 +12,7 @@
 
 ## 2. 缺陷可视化定位（Sprint 3）
 - [ ] 2.1 对照 `backend/app/services/commits.py`、`backend/app/api/commits.py` 与详情页，验收提交级归因、真实 diff 新增行及缺源仓库降级；不得把新增行写成文件级 SHAP / 行级概率
-- [ ] 2.2 补四页联调证据，包含真实 diff 可达与不可达两种场景；现有报告入口为 `docs/想到什么取什么/integration_test/report.md`
+- [ ] 2.2 补四页联调证据，包含真实 diff 可达与不可达两种场景；现有报告入口为 `docs/README.md`
 
 ## 3. 高质量修复建议（Sprint 3）
 - [ ] 3.1 对照 `backend/app/services/commits.py` 的只读检索，验证 `commit_feature.fix=1`、同仓库、排除自身、按时间倒序及空态
@@ -31,7 +31,7 @@
 
 ## 测试与验证（强制板块）
 
-> 分层口径见 `docs/common/test-assessment-guide.md`；模板见 `openspec/TASKS_TEMPLATE.md`。
+> 分层口径见 `docs/README.md`；模板见 `openspec/TASKS_TEMPLATE.md`。
 > 本 change 的待实施功能仅为 G1-1/G1-2；G1-3/G1-4 的测试与验收分别见 `public-dataset-quality`、`semantic-feature-mainline`。下列结果以当前 change 为范围，未执行项如实保留。
 
 ### 1. 单元测试
@@ -47,7 +47,7 @@
 | 项 | 内容 |
 |---|---|
 | 集成范围 | G1-1/G1-2 的返回数据 ↔ 提交详情页；缺少后端数据时显示明确空态 |
-| 测试文件 | `frontend/tests/`（待新增），真实后端联调记录见 `docs/想到什么取什么/integration_test/report.md` |
+| 测试文件 | `frontend/tests/`（待新增），真实后端联调记录见 `docs/README.md` |
 | 用例数与结果 | 0 条（未开始） |
 | 关键断言 | 不伪造行级证据或修复建议；现行接口未提供对应字段时明确记为未实现，不改现行 `docs/api/` 契约 |
 
@@ -56,7 +56,7 @@
 |---|---|
 | 验收依据 | `specs/defect-visualization/spec.md`、`specs/fix-suggestion/spec.md` |
 | 用例数与结果 | 0 条（未开始） |
-| 证据归档 | 实测页面与接口证据待记录在 `docs/想到什么取什么/integration_test/report.md` 或对应 PR；目前未提供 |
+| 证据归档 | 实测页面与接口证据待记录在 `docs/README.md` 或对应 PR；目前未提供 |
 
 ### 4. 非功能验证
 | 维度 | 是否触及 | 证据 |

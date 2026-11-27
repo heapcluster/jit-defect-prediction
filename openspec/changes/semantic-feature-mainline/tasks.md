@@ -61,7 +61,7 @@
 
 ## 12. 形态说明与文档同步（蒋励统稿）
 - [ ] 12.1 在模型线报告中写明形态定位：**「预训练模型提特征 → 经典分类器」的混合形态，非端到端**；并列 DeepJIT / CC2Vec / LApredict / SimCom 各自形态，**不得暗示复现 SOTA**
-- [ ] 12.2 `docs/common/project-requirements.md` §4 定位改写为「已提升为模型线主线，见 `openspec/changes/semantic-feature-mainline`」
+- [ ] 12.2 `docs/overview.md` §4 定位改写为「已提升为模型线主线，见 `openspec/changes/semantic-feature-mainline`」
 - [ ] 12.3 在本 change 的 `design.md` 补「语义特征路线」与「评测协议标准」决策行及可核验文献依据
 - [ ] 12.4 `docs/README.md` §4.2 / §4.3 增补标准 effort-aware 指标与显著性检验结果
 - [ ] 12.5 周报记录已完成 / 下一步 / 存在问题
@@ -73,7 +73,7 @@
 
 ## 测试与验证（强制板块）
 
-> 分层口径见 `docs/common/test-assessment-guide.md`；模板见 `openspec/TASKS_TEMPLATE.md`。
+> 分层口径见 `docs/README.md`；模板见 `openspec/TASKS_TEMPLATE.md`。
 > 铁律：勾了 tasks ≠ 功能合格，必须有可复现命令与证据路径。
 
 ### 1. 单元测试

@@ -4,7 +4,7 @@
 // [AI生成-人工修改]：2 条（AI 生成骨架，人工补充核心断言）
 // [手写]：0 条
 // 使用工具：原始生成记录未归档（标注依据代码特征判断，作者于 2026-11-17 确认）
-// 提示词见：docs/test/unit_test/prompts/README.md
+// 提示词见：docs/README.md
 
 import { describe, it, expect, vi } from 'vitest'
 import { LINE_LABELS, LINE_ORDER, loadModelLines } from '../src/utils/models'

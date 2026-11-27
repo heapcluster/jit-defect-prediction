@@ -1,8 +1,6 @@
-﻿# 源码读取与缺陷定位 API（source / localize）
+# 源码读取与缺陷定位 API（source / localize）
 
 一句话：按提交读取仓库目录树与文件内容，并对提交给出可疑文件/行排序、证据与修复建议文件；同步执行，不建 job。
-
-实现状态：已实现　期次：一期
 
 定位文件契约见 localization 列契约；功能点职责见 [`../function_point/localization.md`](../function_point/localization.md)。
 
@@ -121,5 +119,4 @@ localization_suggestions_<job_id>.md
 ## 8. 边界
 
 定位与解释归入预测页入口，但运行不依赖预测是否先跑；它是独立工具，输入文件齐备即可运行。
-
 

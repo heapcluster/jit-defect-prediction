@@ -2,8 +2,6 @@
 
 一句话：消费一份系统已保存的预测结果（单一模型、单一测试集），按用户勾选的指标计算指标值与图，交付评估图集 zip 与评估指标表（CSV / Excel）；不重新训练、不重算预测、不重新判定标签。
 
-实现状态：已实现　期次：一期
-
 predictions 列契约见 [`../api/predict.md`](predict.md)；effort 来源见训练测试集 / 清洗数据集列契约；指标公式单源为 `data_model/evaluation/metrics.py`；功能点职责见 [`../function_point/evaluate.md`](../function_point/evaluate.md)。
 
 ## 1. 职责与不负责范围
@@ -36,7 +34,7 @@ predictions 列契约见 [`../api/predict.md`](predict.md)；effort 来源见训
 
 | part | 必填 | 契约 |
 |---|---|---|
-| `prediction_job_id` | 是 | 已保存的批量预测任务 id（对应 `predict_batch` 成功任务），指向单一预测结果文件；也可由前端传 `files[]` 直接给一份 predictions Excel（二期兼容） |
+| `prediction_job_id` | 是 | 已保存的批量预测任务 id（对应 `predict_batch` 成功任务），指向单一预测结果文件；也可由前端传 `files[]` 直接给一份 predictions Excel |
 | `config` | 是 | JSON 文本 |
 
 `config` 字段：
@@ -50,9 +48,9 @@ predictions 列契约见 [`../api/predict.md`](predict.md)；effort 来源见训
 | `metrics_name` | 否 | 指标表基名，用户可改，有默认值；导出时补 `.csv` / `.xlsx` |
 | `output_format` | 否 | `csv` / `xlsx`，仅控制指标表导出格式，默认 `csv` |
 
-**已移除字段**：`threshold`（评估沿用预测结果中的 `decision_threshold`，不接受新阈值）、`model_names`（一次评估固定单一模型）、`report_format` / `format`（评估报告与比较产物已移除）。传入这些字段一律 40001。
+**不属于本接口的字段**：`threshold`（评估沿用预测结果中的 `decision_threshold`，不接受新阈值）、`model_names`（一次评估固定单一模型）、`report_format` / `format`（评估不生成报告与比较产物）。传入这些字段一律 40001。
 
-`labels.csv` 已废止，上传会被拒绝；`dataset_id` 会被忽略。
+`labels.csv` 不是有效输入，上传会被拒绝；`dataset_id` 会被忽略。
 
 响应：同步（≤5000 行）返回 `{job_id,status,outputs,summary,error_log}`；异步返回 `{job_id,status}`。
 
@@ -81,7 +79,7 @@ evaluate_confusion_<job_id>.csv
 
 | 业务码 | HTTP | 场景 |
 |---|---|---|
-| 40001 | 400 | 未选预测结果、预测结果 schema 非法、缺真标签、非单模型单测试集、labels.csv 已废止、指标/主指标非法、传入已移除字段（threshold / model_names / report_format / format）、预测结果与模型版本不一致、`predicted_label` 与 `decision_threshold` 不一致 |
+| 40001 | 400 | 未选预测结果、预测结果 schema 非法、缺真标签、非单模型单测试集、labels.csv 非法、指标/主指标非法、传入不属于本接口的字段（threshold / model_names / report_format / format）、预测结果与模型版本不一致、`predicted_label` 与 `decision_threshold` 不一致 |
 | 40100 | 401 | 鉴权失败 |
 | 40400 | 404 | 预测结果或输出批次不存在、重试时输入已不可用 |
 | 50000 | 500 | 未预期异常 |
@@ -91,7 +89,7 @@ evaluate_confusion_<job_id>.csv
 - 输入来源：系统已保存的预测结果（`predict_batch` 成功任务），底层为 predictions Excel；一次评估固定单一模型、单一测试集。
 - `predicted_label` 与 `decision_threshold` 来自预测结果，MUST 非空且互相一致；评估不重新判定标签。
 - effort 来源：train_testset 或 clean_dataset schema，用于 effort-aware 指标；缺省时只算 unaware。
-- `labels.csv` 已废止；真值只能随 predictions 透传。
+- `labels.csv` 不是有效输入；真值只能随 predictions 透传。
 
 ## 4. 输出契约
 
@@ -113,7 +111,7 @@ evaluate_confusion_<job_id>.csv
 
 ## 7. 验收
 
-- 默认指标集合下指标与历史 `model_metrics.csv` 逐值一致，阈值沿用预测结果不再单独配置。
+- 默认指标集合下指标与历史 `model_metrics.csv` 逐值一致，阈值沿用预测结果，不单独配置。
 - 单模型单测试集结果正确；传入 `threshold` / `model_names` 被拒绝。
 - 缺真标签、非单模型单测试集、标签与阈值冲突被前置拒绝。
 - effort 缺失时 unaware 指标正常、aware 指标标记 unavailable。

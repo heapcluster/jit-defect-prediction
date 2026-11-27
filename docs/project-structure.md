@@ -2,20 +2,18 @@
 
 一句话：把"预测单仓库 + 后续叠加的 Web 工具台"收敛为"内核独立、配置单一权威、API 按页面分组、产物归属明确"的分层结构；本文定义配置收敛、`core/` 分层、`localize` 任务语义、前端 API 分组、算法资产归属五件事。
 
-实现状态：部分（前端 API 分组已实施；`core/`、`infra/`、`config_schema.py` 为目标（未实施），文中已逐项标注）。
-
 ## 0. 范围与边界
 
 **本文负责**：
 - 配置来源分层与出厂默认单一真源
-- `backend/app/core/` 与 `backend/app/infra/` 分层（目标）
+- `backend/app/core/` 与 `backend/app/infra/` 分层
 - `localize` 的任务/同步语义统一
 - 前端 API 按页面分组
 - `data_model/` 算法资产与后端运行时产物的归属
 
 **本文不涉及**：单个接口的字段与错误码（见 `docs/api/`）、单表 DDL 与字段（见 `docs/database/`）、页面交互与验收（见 `docs/web_page/`）；这些对象以各自文档为准。
 
-## 1. 目标结构
+## 1. 结构
 
 ```text
 jit-defect-prediction/
@@ -23,19 +21,19 @@ jit-defect-prediction/
 │   └── app/
 │       ├── api/              薄路由：一个页面/资源一个文件，只做校验与编排
 │       ├── services/         业务用例与任务 worker：可落库、可发布产物
-│       ├── core/             【目标（未实施）】纯算法内核：无 DB、无 job、无 FastAPI 依赖
-│       │   ├── localization.py   ← 原 localization_core.py
-│       │   ├── explain.py        ← 原 explain_core.py
-│       │   ├── model_registry.py ← 原 model_registry.py
-│       │   ├── feature_source.py ← 原 feature_source.py
-│       │   └── semantic_source.py← 原 semantic_source.py
-│       ├── infra/            【目标（未实施）】基础设施：DB、配置、 schema、时间
-│       │   ├── config.py        ← 原 app/config.py（仅部署/env）
+│       ├── core/             纯算法内核：无 DB、无 job、无 FastAPI 依赖
+│       │   ├── localization.py
+│       │   ├── explain.py
+│       │   ├── model_registry.py
+│       │   ├── feature_source.py
+│       │   └── semantic_source.py
+│       ├── infra/            基础设施：DB、配置、schema、时间
+│       │   ├── config.py       仅部署 / env
 │       │   ├── db.py
 │       │   ├── models.py
 │       │   ├── schemas.py
 │       │   └── timeutil.py
-│       ├── config_schema.py  【目标（未实施）】配置键 schema + 出厂默认单一真源
+│       ├── config_schema.py  配置键 schema + 出厂默认单一真源
 │       ├── main.py
 │       └── cli.py
 ├── frontend/
@@ -48,11 +46,9 @@ jit-defect-prediction/
 │           ├── jobs.js  config.js  commits.js
 │           └── index.js          仅汇总 re-export
 ├── data_model/               算法交付资产（.pkl/.npz/图/报告），后端只读消费
-├── infra/                    DDL 与迁移脚本
-└── docs/                     具体设计文档，不设索引类文档
+├── infra/                    DDL 与部署配置
+└── docs/                     具体设计文档
 ```
-
-现状：`app/` 已有 `api/` 与 `services/` 分层，顶层 `config.py`、`db.py`、`models.py`、`schemas.py`、`timeutil.py` 与算法模块仍在 `app/` 根；`core/`、`infra/`、`config_schema.py` 为已定型但尚未实施的目标结构。
 
 分层约束：
 - `api/` 不写业务规则，不直接 import `core/`；只调 `services/`。
@@ -67,28 +63,25 @@ jit-defect-prediction/
 | 类别 | 权威位置 | 内容 | 是否用户可调 |
 |---|---|---|---|
 | 部署 / 密钥 | 环境变量 + `.env`（`infra/config.py` 读取） | DB 连接、`API_TOKEN`、路径根、LLM、`SYNC_*` | 否，运维设置 |
-| 运行期配置 | `user_config` 表 + `config_store.py` | 阈值、指标、页面偏好、采集白名单、定位权重、模板等 | 是，设置页或 API 读写 |
+| 运行期配置 | `user_config` 表 + `config_store.py` | 阈值、指标、页面偏好、采集白名单、定位权重、模板等 | 是，配置区或 API 读写 |
 | 算法出厂参数 | `data_model/*/config.py` | 训练 seed、模型清单、`DECISION_THRESHOLD`、图目录等 | 否，算法资产自带 |
 
 硬规则：
-- **出厂默认单一真源**：`config_schema.py` 的 `CONFIG_SCHEMA` + `FACTORY_DEFAULTS`（由现 `config_store.py:21-80` 迁入）。任何模块不得另写一份默认值。
-- `infra/config.py` 只放**没有环境就无意义**的值（连接串、密钥、路径），不放 `HIGH_RISK_THRESHOLD` / `MID_RISK_THRESHOLD` 这类用户可调阈值——它们搬进 `FACTORY_DEFAULTS`。
+- **出厂默认单一真源**：`config_schema.py` 的 `CONFIG_SCHEMA` + `FACTORY_DEFAULTS`。任何模块不得另写一份默认值。
+- `infra/config.py` 只放**没有环境就无意义**的值（连接串、密钥、路径），不放 `HIGH_RISK_THRESHOLD` / `MID_RISK_THRESHOLD` 这类用户可调阈值——它们归 `FACTORY_DEFAULTS`。
 - `data_model/*/config.py` 中的 `DECISION_THRESHOLD=0.5` 只作为**离线训练默认**，在线运行阈值一律来自服务层或本次请求，不反向覆盖运行期配置。
 - `selected_model` 仅页面回显，不参与任何运行入口；模型必须由每次运行显式指定。
 
-### 2.2 目标迁移清单（未实施）
+### 2.2 配置落点
 
-| 现位置 | 现状 | 目标 |
+| 配置类别 | 落点 | 说明 |
 |---|---|---|
-| `services/config_store.py:21-80` | schema + 默认值 | 迁到 `config_schema.py`，`config_store.py` 只保留读写/校验逻辑 |
-| `app/config.py:132-134` | `HIGH/MID_RISK_THRESHOLD` 从 env 读 | 删除；默认值进 `FACTORY_DEFAULTS`，env 仅可作为出厂默认覆盖（可选兼容） |
-| `app/config.py:139` `MODEL_METRICS_CSV` | 全后端无消费方 | 删除（或标注为算法资产只读路径，非运行配置） |
-| `services/train_run.py:102-111`、`predict_run.py:109-118`、`evaluate_run.py:54-59` | 阈值/指标硬编码或分散读取 | 统一经 config_schema；阈值按运行提交，不写回全局 |
-| `services/explain_run.py:103` | `top_n=8`、`cache_ttl=3600` 硬编码 | 进 `FACTORY_DEFAULTS`（`explain.top_n` 新增键） |
-| `localization_core.py:27-28,92-95` | 权重与 `file_size_max` 默认副本 | 只从 `config_schema` 取，不自带常量 |
-| `.env.example:46-50` | 风险阈值 | 移除或改为"仅覆盖出厂默认"的显式说明 |
-| `frontend/src/utils/thresholds.js:17-28` | 消费 `ui.background_color`/`ui.accent_color` | 删除颜色读取；设置页已不展示颜色，键保留在配置表但不被前端消费 |
-| `frontend/src/utils/thresholds.js` | 本地阈值 fallback | 保持现状：只用服务端完整 schema，不本地兜底 |
+| 出厂默认 | `config_schema.py` 的 `CONFIG_SCHEMA` + `FACTORY_DEFAULTS` | 唯一默认值来源，任何模块不得另写 |
+| 运行期配置 | `user_config` 表 + `config_store.py` | 读写、校验与回落；默认值取自 `config_schema` |
+| 部署参数 | `infra/config.py` + 环境变量 | 连接串、密钥、路径、`SYNC_*`；不含用户可调阈值 |
+| 高风险 / 中风险阈值 | `user_config` | 写 `risk_high_threshold` / `risk_mid_threshold` |
+| 本次预测阈值 | 运行提交 | `decision_threshold` 写入 `job.params_json` 与 `prediction`，不写回全局 |
+| 前端阈值消费 | `frontend/src/utils/thresholds.js` | 只用服务端完整 schema，不本地兜底，不读颜色键 |
 
 ### 2.3 阈值写入口径
 
@@ -96,21 +89,18 @@ jit-defect-prediction/
 - `risk_high_threshold` / `risk_mid_threshold`：全局风险等级配置，只影响展示，写 `user_config`。
 - 评估不读取阈值配置：`predicted_label` / `decision_threshold` 从预测结果透传。
 
-## 3. `core/` 分层迁移（目标）
+## 3. `core/` 分层
 
-下列迁移为已定型目标，尚未实施。
-
-| 现文件 | 目标 | 依赖清理 |
+| 模块 | 职责 | 依赖约束 |
 |---|---|---|
-| `app/localization_core.py` | `app/core/localization.py` | 去掉 `from app import config_store` 与 `DEFAULT_WEIGHTS` 副本，改为由 `services/localize_run.py` 传入配置 |
-| `app/explain_core.py` | `app/core/explain.py` | 保持纯技术目录/兼容矩阵，不读 DB |
-| `app/model_registry.py` | `app/core/model_registry.py` | 模型路径由参数传入，不从 `config.py` 直接取 |
-| `app/feature_source.py` | `app/core/feature_source.py` | 特征列定义在 core，仓库路径由参数传入 |
-| `app/semantic_source.py` | `app/core/semantic_source.py` | embedding 路径由参数传入 |
-| `app/config.py` / `db.py` / `models.py` / `schemas.py` / `timeutil.py` | `app/infra/` | 仅移动，不改行为 |
+| `app/core/localization.py` | 可疑代码定位 | 不读 `config_store`，权重由 `services/localize_run.py` 传入 |
+| `app/core/explain.py` | 解释技术目录与兼容矩阵 | 不读 DB |
+| `app/core/model_registry.py` | 模型加载与目录 | 模型路径由参数传入 |
+| `app/core/feature_source.py` | 特征列定义 | 仓库路径由参数传入 |
+| `app/core/semantic_source.py` | 语义向量来源 | embedding 路径由参数传入 |
+| `app/infra/config.py` / `db.py` / `models.py` / `schemas.py` / `timeutil.py` | 基础设施 | 只描述连接、表结构与时间格式，不含业务判断 |
 
-迁移纪律：
-- 先加 `core/`、`infra/` 并保留旧路径的 re-export 兼容层，再逐个切换 import，最后删除兼容层。
+分层纪律：
 - `core/` 模块不得出现 `from app.services import ...`、`from app.models import ...`、`Session` 参数；发现即为分层违规。
 - `core/` 的测试不启动 FastAPI、不连数据库。
 
@@ -122,7 +112,7 @@ jit-defect-prediction/
 - `services/localize_run.py:131-142` 生成 `job_id` 并发布产物，但不创建 `Job` 行，也不走任务状态机。
 - 前端把定位当独立动作调用，产物模块也登记了 `localize` 产物。
 
-目标设计（选定"同步产物"口径）：
+定位口径（选定"同步产物"）：
 - 缺陷定位及修复是**预测详情页内的同步板块**：`POST /api/localize/run` 同步执行、同步返回，不进任务中心、不显示进度、不支持取消/重试。
 - `localize_run.py` 生成的 `job_id` 只作为**产物批次标识**，用于 `output_store` 发布和 `localization_evidence_<job_id>.json` 命名；它不是 `job` 表行，禁止在 API 响应用 `job_id` 字段暗示可轮询任务状态。
 - `job_store.KINDS` 不加 `localize`；`/api/jobs` 不返回定位记录。
@@ -150,7 +140,7 @@ jit-defect-prediction/
 | `datasets.js` | 数据共享 | `getDatasets`、`getDatasetCommits`、`exportDataset`、`deleteDataset` |
 | `models.js` | 模型加载 | `getModels`、`getModelsStatus`、`loadModel`、`unloadModel`、`reloadModel`、`setSelectedModel` |
 | `jobs.js` | 任务中心共享 | `getJobs`、`getJob`、`retryJob`、`cancelJob` |
-| `config.js` | 系统设置 | `getConfig`、`putConfig`、`putConfigKey`、`deleteConfigKey` |
+| `config.js` | 数据存储页配置区 | `getConfig`、`putConfig`、`putConfigKey`、`deleteConfigKey` |
 | `sync.js` | 数据同步 | `postSync`、`getSyncStatus` |
 | `request.js` | 共享 | 统一鉴权、错误码、二进制下载、storage 响应选项 |
 | `index.js` | 汇总 | 仅 re-export，不含实现 |
@@ -171,7 +161,7 @@ data_model/                    算法交付资产（只读、可重建）
 backend/                       运行时服务（消费算法资产，不拥有）
 ├── static/figures/            从 data_model 图集同步的展示副本（可重建，不入库）
 └── app/                       代码；temp/ 下运行时产物不入库
-infra/                         DDL 与迁移
+infra/                         DDL 与部署配置
 ```
 
 归属规则：
@@ -204,7 +194,7 @@ infra/                         DDL 与迁移
 
 - `core/` 模块无 DB / FastAPI / env 依赖，可独立导入与测试。
 - 配置默认值全仓库仅在 `config_schema.py` 定义一处；`grep` 不到第二份 `decision_threshold=0.5` 作为运行期默认。
-- 风险阈值不再从 `.env` 读；前端不消费 `ui.background_color` / `ui.accent_color`。
+- 风险阈值只来自 `user_config`；前端不消费 `ui.background_color` / `ui.accent_color`。
 - `/api/jobs` 不返回 `localize` 记录；`localize` 产物仍可下载、可在产物库查到。
 - 前端 API 按分组文件存在，组件内无裸 `fetch`。
 - 后端容器不写 `data_model/`；删除 `backend/static/figures/` 后重启可由 `data_model` 重建。

@@ -8,7 +8,7 @@
   4. 在两份库上执行 infra/schema.sql 建五张表。
 
 建表后库内为空是**预期状态**：测试集数据由模型线 `data_model/evaluation/out/data_init.sql`
-导入（见 docs/function_point/model_performance.md §数据准备）；其余增量由后端 `POST /api/sync` 异步补算，
+导入（见 docs/function_point/evaluate.md §数据准备）；其余增量由后端 `POST /api/sync` 异步补算，
 本脚本不提供任何种子/离线导入捷径。
 
 设计前提（与「全部按 MySQL」一致）：你已经在本机装好 MySQL，并在 backend/.env

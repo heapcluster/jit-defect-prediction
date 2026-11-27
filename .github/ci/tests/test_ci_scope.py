@@ -4,7 +4,7 @@
 # [AI生成-人工修改]：7 条（AI 生成骨架，人工补充核心断言）
 # [手写]：0 条
 # 使用工具：原始生成记录未归档（标注依据代码特征判断，作者于 2026-11-17 确认）
-# 提示词见：docs/test/unit_test/prompts/README.md
+# 提示词见：docs/README.md
 
 """Regression tests for the required CI job's path selection."""
 
@@ -23,7 +23,7 @@ class CIScopeTests(unittest.TestCase):
     def test_docs_are_lightweight(self):
         for paths in (
             ["docs/api/commits.md"],
-            ["docs/web_page/model_performance.md"],
+            ["docs/web_page/evaluate.md"],
             ["openspec/changes/archive/old/.openspec.yaml"],
         ):
             with self.subTest(paths=paths):
@@ -31,7 +31,7 @@ class CIScopeTests(unittest.TestCase):
 
     def test_ignore_rule_change_checks_infra(self):
         self.assertEqual(
-            select_checks(["docs/web_page/model_performance.md", ".gitignore"]),
+            select_checks(["docs/web_page/evaluate.md", ".gitignore"]),
             {"backend": False, "frontend": False, "model": False, "infra": True},
         )
 

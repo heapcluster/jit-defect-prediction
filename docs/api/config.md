@@ -2,9 +2,7 @@
 
 一句话：集中读写展示阈值、默认数据集、默认解释技术、采集协议与路径、指标选择、页面偏好等可调项，并提供键级 schema 供页面渲染；不设默认模型，不在配置层做业务计算。
 
-实现状态：部分　期次：一期
-
-配置键语义与默认值来源见后端 `config_store`；本文件覆盖全部配置键，系统设置页只展示常用全局配置五项（风险阈值 / 默认数据集 / 默认解释技术 / 页面大小），其余键仍经本 API 读写，页面展示范围见 [`../web_page/settings.md`](../web_page/settings.md)。
+配置键语义与默认值来源见后端 `config_store`；本文件覆盖全部配置键，数据存储页的配置区只展示常用全局配置五项（风险阈值 / 默认数据集 / 默认解释技术 / 页面大小），其余键仍经本 API 读写，页面展示范围见 [`../web_page/storage.md`](../web_page/storage.md)。
 
 ## 1. 职责与不负责范围
 
@@ -62,7 +60,7 @@ JSON body `{"value": ...}`，`extra="forbid"`；响应单键 `items`。未知键
 
 - 值类型由键的 `value_type` 决定（str/int/float/bool/json/list）。
 - 典型校验：`default_dataset` 必须 `status=ready`；`default_xai ∈ {shap, lime}`；`metrics_selected` 必须是 10 个指标键的子集且唯一；`collect.protocol_whitelist ⊆ {https, git}`；`collect.allow_roots` 必须是绝对路径且不重复；`page_prefs` 仅允许 `page_size(10/20/50/100)`、`remember_drawer`、`explain_top_n(1..100)`、`collect_branch`、`collect_mode(full|incremental)`；`localization.top_n` 恰为 `{files, lines}` 且 1..1000；`localization.weights` 结构须与默认一致且非负有限。
-- `ui.background_color` 与 `ui.accent_color` 必须是 `#rgb` 或 `#rrggbb`；键保留以兼容旧配置，但前端视觉主题由 `ui.css` 设计令牌决定，不再消费这两项。
+- `ui.background_color` 与 `ui.accent_color` 必须是 `#rgb` 或 `#rrggbb`；这两项键保留在配置表中，但前端视觉主题由 `ui.css` 设计令牌决定，不消费这两项。
 - 阈值类键必须在 (0,1)；`risk_mid_threshold < risk_high_threshold`；`primary_metric` 必须属于已选指标。
 
 ## 4. 输出契约
@@ -72,7 +70,7 @@ JSON body `{"value": ...}`，`extra="forbid"`；响应单键 `items`。未知键
 
 ## 5. 可配置项
 
-本文件即配置项清单的入口：展示阈值、默认数据集、默认解释技术、采集协议与路径、指标选择、页面偏好、界面颜色（背景色 / 主题色）、定位权重与文件大小上限。系统设置页只展示高风险阈值与中风险阈值两项，其余键仍由本 API 提供。模型不设默认值，`.env` 只提供出厂默认，不进入配置表。
+本文件即配置项清单的入口：展示阈值、默认数据集、默认解释技术、采集协议与路径、指标选择、页面偏好、界面颜色（背景色 / 主题色）、定位权重与文件大小上限。数据存储页的配置区展示高风险阈值、中风险阈值、默认数据集、默认解释技术与页面大小五项，其余键仍由本 API 提供。模型不设默认值，`.env` 只提供出厂默认，不进入配置表。
 
 ## 6. 状态持久化
 

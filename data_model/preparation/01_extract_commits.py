@@ -6,7 +6,7 @@
 只做三件事：读提交记录、过滤合并提交、按契约落字段。
 字段口径以 docs/database/commit.md 为准，不在此处发明列名。
 
-为什么要 --since：全量提交做回溯的开销尚未实测（见 docs/common/data-pipeline.md
+为什么要 --since：全量提交做回溯的开销尚未实测（见 docs/overview.md
 第 1 节）。首次跑通先用窗口子集验证链路，跑通后再扩大到全量。
 窗口只决定「哪些提交进样本」，不影响特征计算 —— 特征用的是窗口之前的历史。
 """
@@ -135,7 +135,7 @@ def main() -> int:
     stat = REPORTS_DIR / "commit_extract_stats.md"
     stat.write_text(
         "# 提交抽取统计（01_extract_commits.py 产出）\n\n"
-        "> 本文件可入库，是链路可复现的证据之一（见 `docs/common/data-pipeline.md` 第 3 节）\n\n"
+        "> 本文件可入库，是链路可复现的证据之一（见 `docs/overview.md` 第 3 节）\n\n"
         "| 指标 | 值 |\n|---|---|\n"
         f"| 仓库副本 | `{args.repo.name}` |\n"
         f"| 固定版本 HEAD | `{head}` |\n"

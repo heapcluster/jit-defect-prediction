@@ -1,8 +1,6 @@
-﻿# 功能点 2 缺陷数据收集
+# 功能点 2 缺陷数据收集
 
 一句话：从 Git 仓库枚举并选择一个分支采集提交、执行 SZZ 打标，或从公开数据集 URL 拉取已打标数据，统一交付一份核心「已标注数据集」，并自动保存为可复用数据集。
-
-设计状态：已实现。仓库分支枚举与下载时生成 XLSX 均按本文执行。
 
 collected_commits 列契约、manifest 契约；API 见 [`../api/collect.md`](../api/collect.md)；页面见 [`../web_page/collect.md`](../web_page/collect.md)。
 
@@ -40,7 +38,7 @@ Web 页面使用 Git 仓库与公开数据集两种入口；API / CLI 保留提�
 - `branch` 页面必填且必须存在于刷新后的远端分支列表，默认选中第一项。
 - `start_time/end_time` 按提交 `committed_at` 过滤，留空表示全量，结束日期包含当天。
 - 训练 / 测试划分不在收集阶段完成，`collected_commits` 不得包含 `is_test` 或切分标记列。
-- `format` 从运行配置移除；收集任务不再预生成 XLSX。
+- `format` 不属于运行配置；收集任务只落 CSV，XLSX 在下载时生成。
 
 ## 4 流程
 
@@ -86,10 +84,10 @@ collect_repository_snapshot_<job_id>.json  # 有快照时
 
 - 分支只能来自远端列表；刷新失败只能重试，不允许手填分支或使用空分支。
 - 未打标 `is_bug_inducing=null`，不得当负样本。
-- `label_source ∈ {git_szz, public_dataset}`；Git 模式产 `git_szz`，公开数据集模式产 `public_dataset` 且不跑 SZZ。公开数据集只能由 collect 任务创建，storage 不再创建 `public_dataset`。
+- `label_source ∈ {git_szz, public_dataset}`；Git 模式产 `git_szz`，公开数据集模式产 `public_dataset` 且不跑 SZZ。公开数据集只能由 collect 任务创建，storage 不创建 `public_dataset`。
 - 结果文件区只展示「已标注数据集」一个逻辑文件；不展示 manifest / summary / audit / quality。
 - Excel 格式在下载时生成，避免 CSV / XLSX 双份冗余。
-- 网络受限时可以本地仓库路径完成一期验收。
+- 网络受限时可以用本地仓库路径完成验收。
 
 ## 7 验收
 
@@ -105,6 +103,4 @@ collect_repository_snapshot_<job_id>.json  # 有快照时
 ## 8 边界
 
 collect 只负责「把提交与标签变成文件」。与清洗、训练之间不共享数据库状态，只通过 `collected_commits` + manifest 交接；数据集登记是可选展示路径。
-
-
 

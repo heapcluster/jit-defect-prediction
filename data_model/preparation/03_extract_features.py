@@ -677,7 +677,7 @@ def write_report(
     L: list[str] = []
     L.append("# 特征抽取统计（03_extract_features.py 产出）\n")
     L.append(
-        "> 本文件可入库，是特征口径落地的证据（见 `docs/common/data-pipeline.md` 第 4 节第 ④ 步）\n"
+        "> 本文件可入库，是特征口径落地的证据（见 `docs/overview.md` 第 4 节第 ④ 步）\n"
     )
     L.append("## 输入\n")
     L.append("| 项 | 值 |\n|---|---|")
@@ -742,7 +742,7 @@ def main() -> int:
 
     if not (args.repo / ".git").exists():
         print(
-            f"[失败] 找不到仓库：{args.repo}（先按 docs/common/data-pipeline.md 第 1 节克隆并固定版本）",
+            f"[失败] 找不到仓库：{args.repo}（先按 docs/overview.md 第 1 节克隆并固定版本）",
             file=sys.stderr,
         )
         return 2

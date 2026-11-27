@@ -1,6 +1,4 @@
-﻿# 数据集查询与导出 API（datasets）
-
-实现状态：已实现　期次：一期
+# 数据集查询与导出 API（datasets）
 
 > 旧口径把数据集成员视为 commit + commit_feature + 14 维特征视图；本文按板块 2 新定义重写。数据集成员是带标签二维表，不含 14 维特征和 `is_test`。本轮只修改设计文档。
 
@@ -50,7 +48,7 @@ message,parent_hash,is_bug_inducing,label_method,label_source,
 labeled_at,fix_commit_hash,source_type,row_no
 ```
 
-不再返回 Kamei 14 维特征、`is_test` 或特征开关。
+不返回 Kamei 14 维特征、`is_test` 或特征开关。
 
 ### GET /api/datasets/{dataset_id}/export
 
@@ -182,7 +180,4 @@ dataset_id,artifact,format,filters,source_type,label_source
 ## 7 边界
 
 datasets 是板块 2 默认保存结果的查询与导出面，不是模块间运行前置。模块间仍以文件契约为 handoff；数据库提供展示、筛选和便利选择。
-
-
-
 

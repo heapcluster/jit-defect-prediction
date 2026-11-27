@@ -1,8 +1,6 @@
-﻿# 数据收集 API（collect）
+# 数据收集 API（collect）
 
 一句话：从 Git 仓库枚举分支并采集提交，或从公开数据集 URL 拉取已打标数据，统一交付一份核心「已标注数据集」文件；Excel 在下载时按需生成，不预生成冗余文件。
-
-设计状态：目标契约（已实现）。仓库分支枚举、公开数据集 URL 拉取与下载时格式转换均按本文执行。
 
 输入输出 schema 见 collected_commits 列契约；内部记录见 manifest 契约；功能点职责见 [`../function_point/collect.md`](../function_point/collect.md)。
 
@@ -22,7 +20,7 @@
 
 | 参数 | 必填 | 契约 |
 |---|---|---|
-| `repo_source` | 是 | 绝对本地路径或 `https`/`git` URL；一期支持公开仓库或服务端已配置凭据的仓库；本地路径须在 `collect.allow_roots` 内；不允许账号密码、query、hash |
+| `repo_source` | 是 | 绝对本地路径或 `https`/`git` URL；支持公开仓库或服务端已配置凭据的仓库；本地路径须在 `collect.allow_roots` 内；不允许账号密码、query、hash |
 
 响应：
 
@@ -82,7 +80,7 @@
 | `szz_method` | 否 | `szz_v1` / `szz_lite` |
 | `dataset_id` | 否 | API / CLI 兼容入口；Web 页面不暴露 |
 
-变更说明：`format` 从运行配置移除；收集任务不再同时落 CSV 与 XLSX。`split_ratio` 不属于收集阶段，禁止在 collect 配置中出现。
+`format` 不属于运行配置；收集任务只落 CSV，XLSX 在下载时生成。`split_ratio` 不属于收集阶段，禁止在 collect 配置中出现。
 
 未知字段返回 `40001`。输入三态：上传清单 → 哈希列表；`dataset_id` → 已登记成员（未登记 40400，空成员 40001）；两者皆空 → 按 Git 仓库范围全量采集。
 
@@ -196,11 +194,9 @@ collect_repository_snapshot_<job_id>.json   # 内核提供快照时
 - 内部记录仅用于审计，不与核心文件混排。
 - 非法清单、非法范围、非法 `repo_source`、跨模块产物下载均被拒绝。
 - 同一仓库与参数重复运行，`summary` 计数一致（job_id 与耗时除外）。
-- 公开数据集 URL 拉取、字段 / 标签映射与 Git 模式产物同契约；存储导入不再创建 `public_dataset`。
+- 公开数据集 URL 拉取、字段 / 标签映射与 Git 模式产物同契约；storage 不创建 `public_dataset`。
 
 ## 8. 边界
 
 collect 是数据入口而不是流水线调度器：它不感知清洗 / 训练是否存在。数据集只是可选展示与入参来源，未 `resave` 也不影响产物下载与其他模块直接吃文件运行。
-
-
 

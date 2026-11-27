@@ -1,6 +1,4 @@
-﻿# 模型预测 API（predict）
-
-设计状态：目标契约。Web 页面只做训练产物上的批量预测；判定阈值默认 `0.5`；预测结果二维表必须写入 `prediction` 表；结果文件区只展示一个核心「预测结果」，XLSX 在下载时按需生成。
+# 模型预测 API（predict）
 
 预测文件 schema 见训练测试集与模型文件契约、predictions 列契约；数据库落库见 [`../database/prediction.md`](../database/prediction.md)；功能点见 [`../function_point/predict.md`](../function_point/predict.md)；页面见 [`../web_page/predict.md`](../web_page/predict.md)。
 
@@ -51,7 +49,7 @@ result_source(stored|computed), stale, predicted_at, features(expert 14 维 / se
 | `force_recompute` | 否 | bool，默认 false |
 | `output_name` | 否 | 预测结果 / 导出文件名称，允许中文，1–64 字符；禁止 `/ \ : * ? " < > \|`、控制字符，且不能以点开头或结尾；默认 `<model_name>_预测结果` |
 | `save_to_db` | 否 | bool，默认 true；Web 页面固定 true，必须落库 |
-| `format` | 否 | 已废弃；不再在任务配置中指定格式 |
+| `format` | 否 | 任务配置不指定格式 |
 
 文件 part（可选，仅 API / CLI）：
 
@@ -226,6 +224,4 @@ predict_summary_<job_id>.json
 ## 8. 边界
 
 预测是独立工具：文件与模型齐备即可运行，不要求库里有提交、清洗或训练记录；Web 页面则固定使用训练产物，便于页面验收与结果回溯。评估、解释、定位不在本模块完成。
-
-
 

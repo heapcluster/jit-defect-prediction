@@ -1,7 +1,5 @@
 # model
 
-`实现状态：已实现　期次：一期`
-
 **一句话**：模型注册表，一行对应一个可加载模型；是 `prediction` / `model_figure` / `model_artifact` 的外键目标，也是页面「架构 → 模型」级联选择器的数据源。
 
 实现锚点：backend/app/models.py:36-46
@@ -11,7 +9,7 @@
 | 字段 | 类型 | 空值/默认 | 键/索引 | 含义 |
 |---|---|---|---|---|
 | model_name | VARCHAR(64) | NOT NULL | 主键 | 模型名，全局唯一：`lr_v1` / `lr_semantic_v1` 等 |
-| line | VARCHAR(16) | NOT NULL DEFAULT 'expert' | ix_model_line | 所属架构：`expert`（Kamei 14 维）/ `semantic`（冻结头 CodeBERT 768 维）；`fused` / `e2e` 已砍掉 |
+| line | VARCHAR(16) | NOT NULL DEFAULT 'expert' | ix_model_line | 所属架构：`expert`（Kamei 14 维）/ `semantic`（冻结头 CodeBERT 768 维） |
 | algo | VARCHAR(64) | 可空 | — | 算法标识：`lr` `rf` `xgb` `lgbm` `et` `svm` `mlp_deep` `tabnet` |
 | version_key | VARCHAR(64) | NOT NULL DEFAULT '' | — | 版本键（同族内排序用） |
 | trained_at | DATETIME | 可空 | — | 训练完成时间 |

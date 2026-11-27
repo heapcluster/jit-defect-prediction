@@ -2,7 +2,7 @@
 
 ## Why
 
-课程测试考核要求四类测试都有**当前提交**的真实证据（见 `docs/common/test-assessment-guide.md`），但仓库里集成 / 系统 / 验收三条线的执行记录仍停留在模板占位：`docs/想到什么取什么/integration_test/report.md` 五条场景全是「待填 / 未执行」，系统测试计划与验收报告未产出，接口清单也没有与代码逐条对齐的版本。
+课程测试考核要求四类测试都有**当前提交**的真实证据（见 `docs/README.md`），但仓库里集成 / 系统 / 验收三条线的执行记录仍停留在模板占位：`docs/README.md` 五条场景全是「待填 / 未执行」，系统测试计划与验收报告未产出，接口清单也没有与代码逐条对齐的版本。
 
 本轮（2026-11-10，neon 承接集成 / 系统 / 验收测试）先解决**取证前提**问题：把「测什么、怎么测、哪些测不了」写清楚，避免后续用清单或计划冒充通过结果；同时把已经能执行的部分（前端契约测试、端点静态核对）落成可复现证据。
 
@@ -12,9 +12,9 @@
 - 新增环境能力核查与执行边界说明：已执行项的真实结果、未执行项与阻断原因、解除条件，落在 `docs/想到什么取什么/README.md`。
 - 将 AI 生成用例的 Prompt 与人工复核状态记录在 `docs/想到什么取什么/integration_test/prompts/`（现有 `integration_api_cases_01.md`、`integration_api_cases_02.md`）。
 - 新增 `test-evidence` change delta：把「清单来源、执行记录、不得以文档冒充实测」写成待验收 Requirement；归档前不称为活规格。
-- 更新 `docs/想到什么取什么/integration_test/report.md`：登记 2026-11-15（`2734c1b`）的实测结果与环境，35 条中 34 通过、1 条失败并定位到图集产物缺失。
+- 更新 `docs/README.md`：登记 2026-11-15（`2734c1b`）的实测结果与环境，35 条中 34 通过、1 条失败并定位到图集产物缺失。
 - 新增三个可复跑脚本（**不改业务代码**）：`backend/scripts/integration_cases.py`（11 端点四类场景 35 条）、`backend/scripts/perf_loop.py`（100 次预测分位数，对应 `nfr-evidence` 性能要求）、`backend/scripts/security_cases.py`（鉴权/畸形参数/模型不可用，对应安全要求），执行记录统一存于 `docs/想到什么取什么/integration_test/execution_records/`。
-- 新增 `docs/想到什么取什么/integration_test/report.md`（35 条逐条结果）与 `docs/想到什么取什么/system_test/execution_records/`（四页面 + 两种异常态截图、系统测试执行记录）。
+- 新增 `docs/README.md`（35 条逐条结果）与 `docs/想到什么取什么/system_test/execution_records/`（四页面 + 两种异常态截图、系统测试执行记录）。
 
 ## 不做什么
 

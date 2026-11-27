@@ -1,8 +1,6 @@
-﻿# prediction
+# prediction
 
-`实现状态：目标契约　期次：一期`
-
-> 目标设计：预测结果二维表必须落库；`infra/schema.sql` 与 ORM 已按本文补齐字段。`predicted_label` / `decision_threshold` 目标为非空，但现有写入代码尚未提供，DDL/ORM 暂允许 NULL 以保持兼容；待写入代码补齐后收紧为 NOT NULL。
+> 预测结果二维表必须落库；`infra/schema.sql` 与 ORM 字段与本文一致。`predicted_label` / `decision_threshold` 为非空字段，写入时必须提供。
 
 **一句话**：一行对应一个 `(commit_hash, model_name)` 的最新完整预测结果二维表，是提交详情、预测页分页预览与预测评估的数据源。
 
@@ -60,5 +58,4 @@
 - 改阈值后重新预测会更新 `predicted_label` 与 `decision_threshold`，但同一次运行的 `risk_score` 仍由模型概率决定。
 - 无预测行的提交在详情中返回 `null` 而非 0。
 - 「某模型 + 风险排序」查询走复合索引。
-
 

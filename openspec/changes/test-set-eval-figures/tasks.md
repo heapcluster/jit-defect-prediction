@@ -2,12 +2,12 @@
 
 > 提案：`proposal.md` ｜ 规格：`specs/model-figure/spec.md`
 > 负责人：model 蒋励 ｜ 创建：2026-11-01
-> 关联需求：测试集评估图集；现行页面见 `docs/web_page/model_performance.md`
+> 关联需求：测试集评估图集；现行页面见 `docs/web_page/evaluate.md`
 > 状态：实现已交付，待按现行五表设计复核并归档
 
 ## 1. 规格与文档
 
-- [x] 1.1 `figure_type` 增加 `effort`；同步 `docs/database/model_figure.md`、`docs/api/figures.md`、`docs/web_page/model_performance.md` — 口径变更
+- [x] 1.1 `figure_type` 增加 `effort`；同步 `docs/database/model_figure.md`、`docs/api/figures.md`、`docs/web_page/evaluate.md` — 口径变更
 - [x] 1.2 新增本 change 的 `specs/model-figure/spec.md`
 
 ## 2. 数据侧实现
@@ -35,7 +35,7 @@
 
 ### 3. 验收测试
 
-- 依据：`specs/model-figure/spec.md` 的 Scenario、`docs/api/figures.md` 与 `docs/web_page/model_performance.md`；按实际模型逐项核对图类型及页面展示，截图和操作者结论待补。
+- 依据：`specs/model-figure/spec.md` 的 Scenario、`docs/api/figures.md` 与 `docs/web_page/evaluate.md`；按实际模型逐项核对图类型及页面展示，截图和操作者结论待补。
 
 ### 4. 非功能验证
 

@@ -1,8 +1,6 @@
-﻿# 模型清单与生命周期 API（models）
+# 模型清单与生命周期 API（models）
 
 一句话：提供架构到模型的只读级联清单，以及模型状态、加载、卸载和重载，所有加载都以模型文件校验为前提；不管理默认模型。
-
-实现状态：已实现　期次：一期
 
 模型文件契约见本文 §3 与 [train.md](train.md) 的训练产物契约；默认配置见 [config.md](config.md)。
 
@@ -17,7 +15,7 @@
 
 ### GET /api/models
 
-可选 `line=expert|semantic`。响应 `data.lines[]` 按 expert/semantic 排列，每项 `{line,label,models[]}`；models 为可用 model_name 字符串数组，空线返回空数组。`fused` / `e2e` 已砍掉，传入这两个值返回 40001。
+可选 `line=expert|semantic`。响应 `data.lines[]` 按 expert/semantic 排列，每项 `{line,label,models[]}`；models 为可用 model_name 字符串数组，空线返回空数组。`line` 仅接受 `expert` / `semantic`，其他值返回 40001。
 
 ### GET /api/models/status
 
@@ -48,13 +46,13 @@
 
 ### PUT /api/models/selection
 
-请求 `{model_name}`，仅接受 available 模型；只记录当前页面选择用于回显，不影响任何运行入口。旧 `PUT /api/models/default` 已废止，调用返回 40001。
+请求 `{model_name}`，仅接受 available 模型；只记录当前页面选择用于回显，不影响任何运行入口。`PUT /api/models/default` 不是有效端点，调用返回 40001。
 
 ### 错误码
 
 | 业务码 | HTTP | 场景 |
 |---|---|---|
-| 40001 | 400 | line/操作非法、模型不可用、重复非法状态流转、模型文件校验失败、调用已废止的 default 端点 |
+| 40001 | 400 | line/操作非法、模型不可用、重复非法状态流转、模型文件校验失败、调用无效的 default 端点 |
 | 40100 | 401 | 缺失或错误的 `X-API-Key` |
 | 40400 | 404 | model_name 或登记工件不存在 |
 | 50000 | 500 | 未预期内部错误；可预期加载失败以 runtime_state/load_error 表达 |
@@ -100,6 +98,4 @@ fixtures：`tests/fixtures/files/models/`，包含合法模型文件、损坏文
 ## 8. 边界
 
 models 是模型资产管理面，不是模块间文件总线。train 交付 `.pkl` 权重与侧车元数据，predict/explain/source 可独立校验并加载模型文件；model_artifact 登记只提供可选展示与管理便利，数据库不是文件预测的前置。
-
-
 

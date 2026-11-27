@@ -1,8 +1,6 @@
-﻿# 提交查询 API（commits）
+# 提交查询 API（commits）
 
 一句话：只读查询已导入的提交、Kamei 特征、SZZ 标签和所选模型预测，为提交详情提供稳定分页数据，不在查询中执行任何业务计算。
-
-实现状态：部分　期次：一期
 
 展示数据来自 [storage.md](storage.md) 的可选导入；特征与标签语义引用 collected_commits 列契约，预测语义引用 predictions 列契约。
 
@@ -33,7 +31,7 @@
 | `commit_hash` / `repo_name` / `author_name` / `committed_at` / `message` | 提交元信息 |
 | `model_name` / `risk_score` / `predicted_label` / `predicted_at` | 已导入预测；列表只含该模型有预测行的提交 |
 | `features` | with_features=1 时返回 `commit_feature` 表的 Kamei 14 维 log 值（`ns,nd,nf,entropy,la,ld,lt,fix,ndev,age,nuc,exp,rexp,sexp`，fix 除外不变换） |
-| `is_bug_inducing` / `labeled_at` / `label_method` | SZZ 标签，未打标为 null；`is_test` 已废止，不返回 |
+| `is_bug_inducing` / `labeled_at` / `label_method` | SZZ 标签，未打标为 null；不返回 `is_test` |
 
 ### GET /api/commits/{commit_hash}
 
@@ -47,14 +45,14 @@
 
 | 业务码 | HTTP | 场景 |
 |---|---|---|
-| 40001 | 400 | 分页、时间、风险范围、hash、with_features 或未知参数非法；含已废止的 is_test |
+| 40001 | 400 | 分页、时间、风险范围、hash、with_features 或未知参数非法；含 `is_test` |
 | 40100 | 401 | 缺失或错误的 `X-API-Key` |
 | 40400 | 404 | 详情提交不存在，或显式模型/数据集不存在 |
 | 50000 | 500 | 未预期读取错误，不回显 SQL |
 
 ## 3. 输入契约
 
-无文件输入。查询仅接受上述参数，未知参数返回 40001。`dataset_id` 只是展示筛选；`model_name` 必须显式给出，不再有默认值或回退规则。
+无文件输入。查询仅接受上述参数，未知参数返回 40001。`dataset_id` 只是展示筛选；`model_name` 必须显式给出，没有默认值或回退规则。
 
 特征 JSON 的语义见 `database/commit_feature.md`：Kamei 14 维固定列序，值为 log 变换结果（fix 为 0/1）；`is_bug_inducing` 为 1/0/null，NULL 不得当负样本。预测 JSON 对应 predictions 列契约 的模型、概率、标签、阈值与版本字段，不重算风险。
 
@@ -67,7 +65,7 @@
 ## 5. 可配置项
 
 - default_dataset、risk_high_threshold、risk_mid_threshold 和 page_prefs 来自配置中心；模型每次显式选择。
-- 请求可覆盖模型、数据集、时间、关键字、特征开关、风险区间和分页；`is_test` 已废止，传入返回 40001；展示阈值不改变库中 risk_score。
+- 请求可覆盖模型、数据集、时间、关键字、特征开关、风险区间和分页；`is_test` 不是有效参数，传入返回 40001；展示阈值不改变库中 risk_score。
 - `.env` 仅提供出厂默认；查询不接收清洗步骤、训练超参或解释参数。
 
 ## 6. 状态持久化
@@ -87,7 +85,6 @@ fixtures：`tests/fixtures/files/commits/`，由 collected_commits 列契约/pre
 
 ## 8. 边界
 
-commits 是展示读模型，不是模块间数据通道。它消费的是已导入表，而业务模块之间只依约定文件的 schema 兼容；数据库为空不阻止任何上传文件运行，dataset_id 也不构成上游服务前置。
-
+commits 是展示读模型，不是模块间数据通道。它消费的是数据库表，而业务模块之间只依约定文件的 schema 兼容；数据库为空不阻止任何上传文件运行，dataset_id 也不构成上游服务前置。
 
 

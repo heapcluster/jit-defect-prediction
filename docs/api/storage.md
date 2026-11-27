@@ -1,10 +1,8 @@
-﻿# 存储登记与导出 API（storage）
+# 存储登记与导出 API（storage）
 
 一句话：把模块产物文件（提交表、清洗表、预测表、模型文件、图）按 schema 自动登记进关系库供展示（内部能力），按数据链路汇总历史产物并支持整链删除，或把库中表导出为 CSV/XLSX 文件。
 
-实现状态：已实现　期次：一期
-
-前端入口：`/storage` 产物中心（见 [`../web_page/storage.md`](../web_page/storage.md)）；历史产物查看、选择、下载、删除与数据集成员在此页，**页面不提供文件导入**。`POST /api/storage/import` 仅作内部自动登记，见第 2 节。`/api/storage/export` 仅由数据集 CSV 下载复用，页面不再提供按表导出入口。
+前端入口：`/storage` 产物中心（见 [`../web_page/storage.md`](../web_page/storage.md)）；历史产物查看、选择、下载、删除与数据集成员在此页，**页面不提供文件导入**。`POST /api/storage/import` 仅作内部自动登记，见第 2 节。`/api/storage/export` 仅由数据集 CSV 下载复用，页面不提供按表导出入口。
 
 表结构见 [`../database/`](../database/)；数据集读写见 [datasets.md](datasets.md)。
 
@@ -41,7 +39,7 @@
 
 配对的 `<stem>.manifest.json` 必须存在且 `outputs` 中同名条目的 sha256 与上传内容一致。
 
-`create_dataset` 字段：`name`（≤128，必填）、`source_type`（固定 `git_repo`，必填）、`source_url`、`repo_name`、`repo_source`、`branch`、`head_hash`。公开数据集只能由 collect 任务创建，storage 不再接受 `public_dataset`。
+`create_dataset` 字段：`name`（≤128，必填）、`source_type`（固定 `git_repo`，必填）、`source_url`、`repo_name`、`repo_source`、`branch`、`head_hash`。公开数据集只能由 collect 任务创建，storage 不接受 `public_dataset`。
 
 响应：
 
@@ -81,7 +79,6 @@
 
 按数据链路汇总历史产物；链路关系只来自 `job.chain_id` 与 `job.parent_job_ids`，不按文件名猜测。
 
-
 | 参数 | 必填 | 契约 |
 |---|---|---|
 | `kind` | 否 | `collect` / `clean` / `train` / `predict_batch` / `evaluate` / `explain`，过滤链内节点类型 |
@@ -115,7 +112,6 @@
 ### DELETE /api/storage/chains/{chain_id}
 
 整链删除，必须带 `?confirm=true`，否则 40001。
-
 
 删除范围：`chain_id` 命中的全部 `job` 行与其已发布产物、`model_artifact.train_job_id` 命中的模型（含 `model` 行与 `.pkl`）、`dataset.job_id` 命中的数据集（含 `dataset_commit`）。
 
@@ -178,5 +174,4 @@
 ## 8. 边界
 
 storage 是可选展示层：模块之间只交换文件，数据库为空不影响任何模块独立运行；内部登记失败也不改变已发布产物。
-
 

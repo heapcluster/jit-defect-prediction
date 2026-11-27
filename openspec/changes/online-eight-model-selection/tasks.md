@@ -28,7 +28,7 @@
 
 ## 测试与验证（强制板块）
 
-> 分层口径见 `docs/common/test-assessment-guide.md`。本 change 已过 propose 阶段进入实现；下列为**已执行**项的证据，未执行项如实标注。
+> 分层口径见 `docs/README.md`。本 change 已过 propose 阶段进入实现；下列为**已执行**项的证据，未执行项如实标注。
 
 ### 1. 单元测试
 
@@ -55,7 +55,7 @@
 | 项 | 内容 |
 |---|---|
 | 验收依据 | `specs/model-coverage/spec.md` 与 `specs/predict-api/spec.md` 各 Scenario；现行 `docs/api/models.md` 与 `docs/api/predict.md` |
-| 用例数与结果 | 已执行：8/8 加载 + 逐模型预测/归因实测（证据文件）；T-ST-04 判据已按 8 模型改写（`docs/common/test-assessment-guide.md`） |
+| 用例数与结果 | 已执行：8/8 加载 + 逐模型预测/归因实测（证据文件）；T-ST-04 判据已按 8 模型改写（`docs/README.md`） |
 | 复现命令 / 步骤 | 证据文件 §1/§2 的命令；`POST /api/predict` 逐模型请求核对模型名、分数和解释边界 |
 | 证据归档 | 旧证据已删除；当前逐模型加载、预测与 perf 八份证据待 4.2、4.3 重新归档 |
 

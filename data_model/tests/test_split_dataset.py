@@ -4,13 +4,13 @@
 # [AI生成-人工修改]：17 条（AI 生成骨架，人工补充核心断言）
 # [手写]：0 条
 # 使用工具：原始生成记录未归档（标注依据代码特征判断，作者于 2026-11-17 确认）
-# 提示词见：docs/test/unit_test/prompts/README.md
+# 提示词见：docs/README.md
 
 """时间序切分与守恒断言的单元测试（蒋励，2026-10-13）。
 
 对应 OpenSpec change: model-training-and-delivery（tasks.md「测试与验证」§1）
 口径来源：data_model/05_split_dataset.py 模块 docstring「一条断言」，
-以及 docs/common/data-pipeline.md 的「前 70% 训练、后 30% 检验，禁止随机切分」。
+以及 docs/overview.md 的「前 70% 训练、后 30% 检验，禁止随机切分」。
 
 为什么必须测：`exp` / `nuc` / `rexp` / `sexp` 这些历史类特征与时间相关，
 随机切分会把「未来」提交放进训练集，指标好看但没有意义。

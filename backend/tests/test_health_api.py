@@ -4,7 +4,7 @@
 # [AI生成-人工修改]：0 条
 # [手写]：4 条（核心业务断言由人工编写）
 # 使用工具：原始生成记录未归档（标注依据代码特征判断，作者于 2026-11-17 确认）
-# 提示词见：docs/test/unit_test/prompts/README.md
+# 提示词见：docs/README.md
 
 """健康检查与运行状态（observability capability）：GET /api/health。
 

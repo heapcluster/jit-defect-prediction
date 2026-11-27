@@ -1,6 +1,6 @@
 # 公开数据集加载与质量治理 — 设计要点
 
-> 只记技术决策与取舍，不重复 proposal 的内容。关联：`docs/common/project-requirements.md` §3、`docs/README.md`；待决策事项见本 change 的 `tasks.md`。
+> 只记技术决策与取舍，不重复 proposal 的内容。关联：`docs/overview.md` §3、`docs/README.md`；待决策事项见本 change 的 `tasks.md`。
 
 ## D1：为什么公开数据集的定位是「验证 + 治理 + 对照」，不是「换交付数据」
 

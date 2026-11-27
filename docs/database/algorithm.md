@@ -1,14 +1,12 @@
 # algorithm
 
-`实现状态：已实现　期次：一期`
-
 **一句话**：算法库表，登记每条模型线可用的算法及其超参数 schema；训练表单的元数据唯一来源，前端 MUST NOT 硬编码算法清单或超参数范围。
 
 ## 字段（逐字对齐 infra/schema.sql）
 
 | 字段 | 类型 | 空值/默认 | 键/索引 | 含义 |
 |---|---|---|---|---|
-| line | VARCHAR(16) | NOT NULL | 联合主键 | 所属模型线：`expert`（Kamei 14 维）/ `semantic`（冻结头 CodeBERT 768 维）；`fused` / `e2e` 已砍掉 |
+| line | VARCHAR(16) | NOT NULL | 联合主键 | 所属模型线：`expert`（Kamei 14 维）/ `semantic`（冻结头 CodeBERT 768 维） |
 | algo | VARCHAR(64) | NOT NULL | 联合主键 | 算法标识 |
 | family | VARCHAR(32) | NOT NULL | — | 族：`linear` / `tree` / `boost` / `svm` / `mlp` / `tabnet` / `kernel` / `bayes` / `transformer` |
 | hyperparams_json | TEXT | NOT NULL | — | 超参数 schema：`[{name, type, default, min, max, choices, desc}]` |
@@ -20,14 +18,14 @@
 - 联合主键 `(line, algo)`：同一算法在不同线各有独立超参 schema（输入维度不同），一行一个线算组合。
 - 训练任务创建时前置校验 `(line, algo)` 存在且 `enabled=1`；不兼容组合返回 40001，MUST NOT 进入训练后才失败。显式选择 disabled 算法须带确认参数。
 
-## 默认登记清单（一期）
+## 默认登记清单
 
 | line | algo | enabled | 说明 |
 |---|---|---|---|
-| expert | lr / rf / xgb / lgbm / et / svm / mlp_deep / tabnet / nb / dt / knn | 1 | 11 个可选算法，前 8 个默认勾选（Kamei 14 维输入） |
-| semantic | lr / rf / xgb / lgbm / et / svm / mlp_deep / tabnet / nb / dt / knn | 1 | 11 个可选算法，前 8 个默认勾选（冻结头 CodeBERT 768 维输入） |
+| expert | lr / rf / xgb / lgbm / et / svm / mlp_deep / tabnet / nb / dt / knn / mlp | 1 | 12 个可选算法，前 8 个默认勾选（Kamei 14 维输入） |
+| semantic | lr / rf / xgb / lgbm / et / svm / mlp_deep / tabnet / nb / dt / knn / mlp | 1 | 12 个可选算法，前 8 个默认勾选（冻结头 CodeBERT 768 维输入） |
 
-`mlp` 旧登记已由 `mlp_deep`（3 隐藏层 + 早停）取代，不再作为可选 `algo`。`fused`（782 维）与 `e2e`（`codebert_e2e` 微调分类头）两线及其算法登记已删除，不再是有效 `line` 取值。前端算法清单来自 `/api/algorithms`，不从 `DEFAULT_MODELS` 或页面硬编码推导。
+`mlp`（1 隐藏层）保留为可显式选择项但默认不训练，推荐使用 `mlp_deep`（3 隐藏层 + 早停）；`nb` / `dt` / `knn` 同为默认不训练的可选项。有效 `line` 取值只有 `expert` / `semantic`。前端算法清单来自 `/api/algorithms`，不从 `DEFAULT_MODELS` 或页面硬编码推导。
 
 ## 被谁所用
 

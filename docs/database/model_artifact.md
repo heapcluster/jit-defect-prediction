@@ -1,8 +1,6 @@
 # model_artifact
 
-`实现状态：部分　期次：一期`
-
-W2 已实现模型结构 / checksum 校验、权重路径登记与同事务 model 元数据派生；训练目标产物为每个算法一个独立 `.pkl`，外部交付导入仍可为 ZIP。不自动加载或执行上传权重。加载校验和模型管理由后续 W6 完成。
+模型工件登记模型结构 / checksum 校验、权重路径与同事务 model 元数据派生；训练产物为每个算法一个独立 `.pkl`，外部交付可为 ZIP。不自动加载或执行外部权重；加载校验与模型管理由模型加载服务负责。
 
 **一句话**：模型工件登记表，一行对应一份可加载权重；是模型名单的**唯一登记源**，`model` 表行由它派生，`model_registry` 只读登记结果并校验 checksum。
 
@@ -12,7 +10,7 @@ W2 已实现模型结构 / checksum 校验、权重路径登记与同事务 mode
 |---|---|---|---|---|
 | artifact_id | VARCHAR(36) | NOT NULL | 主键 | 工件标识 |
 | model_name | VARCHAR(64) | NOT NULL | uk_artifact_model（唯一）+ 外键 → `model.model_name` | 派生出的模型名（全局唯一） |
-| line | VARCHAR(16) | NOT NULL | ix_artifact_line | `expert`（Kamei 14 维）/ `semantic`（冻结头 CodeBERT 768 维）；`fused` / `e2e` 已砍掉 |
+| line | VARCHAR(16) | NOT NULL | ix_artifact_line | `expert`（Kamei 14 维）/ `semantic`（冻结头 CodeBERT 768 维） |
 | algo | VARCHAR(64) | 可空 | — | 算法标识（与 `algorithm` 表对应） |
 | version_key | VARCHAR(64) | NOT NULL DEFAULT '' | — | 版本键 |
 | weight_path | VARCHAR(255) | NOT NULL | — | 权重文件 / 目录路径（相对仓库根） |
@@ -26,7 +24,7 @@ W2 已实现模型结构 / checksum 校验、权重路径登记与同事务 mode
 
 ## 主键与约束理由
 
-- `artifact_id` 主键；`uk_artifact_model` 唯一键保证一个模型名同一时刻只有一份当前工件（一期单工件 per name）。
+- `artifact_id` 主键；`uk_artifact_model` 唯一键保证一个模型名同一时刻只有一份当前工件。
 - 双外键：`model_name → model`（派生行先落，同事务满足外键）、`train_job_id → job`（可追溯训练任务）。
 - `ix_artifact_line`：按模型线批量加载 / 盘点取数。
 - 权重文件本体不入库，只登记路径与校验值。
@@ -45,7 +43,7 @@ W2 已实现模型结构 / checksum 校验、权重路径登记与同事务 mode
 - **加载契约**：`model_registry` 启动与懒加载都从本表取路径并校验文件存在与 `checksum_sha256`；缺失或不符 → `status=load_failed` 并保留原因，MUST NOT 静默跳过或扫目录兜底。
 - **失败隔离**：训练失败 MUST NOT 覆盖已有 `available` 工件；新工件校验通过才置 `available`。
 - **链路关联**：训练自产工件 MUST 写 `train_job_id`；预测 / 解释任务据此把 `model_name` 解析为训练父任务，产物库链路视图与整链删除都依赖该字段，外部交付导入可为空。
-- 模型状态三态：`available`（可用）/ `load_failed`（加载失败）/ `retired`（已下线）。
+- 模型状态三态：`available`（可用）/ `load_failed`（加载失败）/ `retired`（停用）。
 - 在线 expert 权重列序以 `data_model/pipelines/expert/models/feature_order.txt` 为准，登记时核对 `feature_version` 与列序一致。
 - **范式取舍（有意偏离 BCNF）**：`line` / `algo` / `version_key` / `trained_at` / `feature_version` 同时存在于 `model` 与 `model_artifact`，其中 `model` 行由本表派生。冗余是为了让加载契约只读本表即可完成（不跨表 join），且工件元数据是登记时点快照，不被后续 `model` 行变更影响。一致性由"同事务 upsert `model` 行"的派生规则保证。
 

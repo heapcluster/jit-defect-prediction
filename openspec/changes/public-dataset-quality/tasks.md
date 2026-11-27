@@ -42,12 +42,12 @@
 ## 8. 范围与文档同步（蒋励统稿）
 - [ ] 8.1 `docs/README.md` 边界表述改写：「公开数据集（可选）」→「已提升为承诺范围（Sprint 2）」
 - [ ] 8.2 `feature-addons-sprint3` 的 G1-3 条目移出，proposal/tasks/design 同步注明「已由 `public-dataset-quality` 顶替」，不留双入口
-- [ ] 8.3 `docs/common/project-requirements.md` §3 G1-3 定位改写；`docs/database/README.md` 增补公开数据集加载步骤
+- [ ] 8.3 `docs/overview.md` §3 G1-3 定位改写；`docs/database/README.md` 增补公开数据集加载步骤
 - [ ] 8.4 在本 change 的 `design.md` 补「公开数据集与质量评价」文献依据及适用范围，列出可核验出处；未核验不写完成
 
 ## 测试与验证（强制板块）
 
-> 分层口径见 `docs/common/test-assessment-guide.md`；模板见 `openspec/TASKS_TEMPLATE.md`。
+> 分层口径见 `docs/README.md`；模板见 `openspec/TASKS_TEMPLATE.md`。
 > 铁律：勾了 tasks ≠ 功能合格，必须有可复现命令与证据路径。
 
 ### 1. 单元测试

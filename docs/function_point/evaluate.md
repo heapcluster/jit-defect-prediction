@@ -2,8 +2,6 @@
 
 一句话：选择系统已保存的一次模型预测结果（单一模型、单一测试集），按用户勾选的指标评估该次预测质量，输出评估图集 zip 与评估指标表（CSV / Excel）；不重算预测、不重新判定标签。
 
-实现状态：目标设计　期次：一期
-
 predictions 列契约与训练测试集、模型文件契约；API 见 [`../api/evaluate.md`](../api/evaluate.md)；页面见 [`../web_page/evaluate.md`](../web_page/evaluate.md)；图集入库见 [`../database/model_figure.md`](../database/model_figure.md)。
 
 ## 1 职责
@@ -27,7 +25,7 @@ predictions 列契约与训练测试集、模型文件契约；API 见 [`../api/
 | 已保存预测结果 | 必填，来自 `predict_batch` 成功任务，底层为 predictions Excel；固定单一模型、单一测试集，`predicted_label` 与 `decision_threshold` 必填且一致 |
 | effort 来源 | 可选，`train_testset` 或 `clean_dataset`，用于 effort-aware 指标 |
 
-`config`：`metrics`、`primary_metric`、`effort_enabled`、`figure_zip_name`、`metrics_name`、`output_format(csv|xlsx)`。`labels.csv` 已废止，`dataset_id` 被忽略；`threshold`、`model_names`、`report_format`、`format` 已在目标设计中移除，传入即拒绝。
+`config`：`metrics`、`primary_metric`、`effort_enabled`、`figure_zip_name`、`metrics_name`、`output_format(csv|xlsx)`。`labels.csv` 不是有效输入，`dataset_id` 被忽略；`threshold`、`model_names`、`report_format`、`format` 不属于本接口，传入即拒绝。
 
 ## 4 流程
 

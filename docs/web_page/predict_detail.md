@@ -2,8 +2,6 @@
 
 模型预测下的独立页面　路由 `/predict/commit/:hash`（旧 `/commit/:hash` 重定向到此）　query `model_name|job_id`
 
-实现状态：已实现；解释与定位均在详情页内联，标题不再显示 ⑦/⑧，独立路由已移除。
-
 ## 1. 页面定位
 
 - 目标：查看**此次 commit** 的提交详情与预测详情；在预测详情之后，提供针对该 commit 的预测结果解释与缺陷定位修复两个普通板块。
@@ -112,7 +110,7 @@
 | 解释技术清单 | `GET /api/explain/techniques` |
 | 生成 / 刷新解释 | `POST /api/explain` |
 | 当前 commit 的缺陷定位及修复 | `POST /api/localize/run`、`GET /api/source/tree`、`GET /api/source/file` |
-| 旧地址兼容 | `/commit/:hash` → `/predict/commit/:hash` |
+| 兼容地址 | `/commit/:hash` → `/predict/commit/:hash` |
 
 ## 7. 响应式与可访问性
 

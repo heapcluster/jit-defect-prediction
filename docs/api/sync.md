@@ -2,14 +2,12 @@
 
 一句话：按架构 / 模型 / commit 时间区间把最新提交补算入库，是系统**唯一会触发计算**的入口；查询类接口一律只读。
 
-实现状态：已实现　期次：一期
-
 ## 1. 职责与不负责范围
 
 - 负责拉取最新提交、现算特征、在线预测并写入 `commit` / `commit_feature` / `prediction`。
 - 负责同步互斥与进度状态快照。
 - 不负责训练、清洗、评估；不负责历史回填之外的业务编排。
-- `POST /api/sync/catchup` 与 `POST /api/sync/stream` 已下线：启动同步走内部 `catchup`，进度统一轮询 `/api/sync/status`。
+- `POST /api/sync/catchup` 与 `POST /api/sync/stream` 不属于对外接口：启动同步走内部 catchup，进度统一轮询 `/api/sync/status`。
 
 ## 2. 端点契约
 

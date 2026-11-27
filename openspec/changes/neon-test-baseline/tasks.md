@@ -2,7 +2,7 @@
 
 > 提案：`proposal.md` ｜ 设计决策：`design.md` ｜ 规格：`specs/test-evidence/spec.md`
 > 负责人：neon（集成 / 系统 / 验收测试）
-> 关联需求：飞书「想到什么取什么」本周计划 N-2 / N-3 / N-4；四类测试交付要求见 `docs/common/test-assessment-guide.md`
+> 关联需求：飞书「想到什么取什么」本周计划 N-2 / N-3 / N-4；四类测试交付要求见 `docs/README.md`
 > 状态：自动化部分已完成并在 `2734c1b` 上实跑（2026-11-15）；现场逐条判定与人工签字仍未完成
 
 ## 1 · 集成测试取证前提
@@ -11,8 +11,8 @@
 - [x] 1.2 四类场景用例设计（11 端点 × 正常/缺参/非法/边界） — 交付：`docs/想到什么取什么/integration_test/endpoint_inventory.md` §4；验收：每类给出具体输入与预期码/断言。
 - [x] 1.3 文档与代码偏差登记 — 交付：`docs/想到什么取什么/integration_test/endpoint_inventory.md` §3（D-02~D-07 + 交付缺口）；验收：每条有文档位置、代码位置、对断言的影响。
 - [x] 1.4 AI 用例 Prompt 归档与来源标注 — 交付：`docs/想到什么取什么/integration_test/prompts/`（`integration_api_cases_01.md`、`integration_api_cases_02.md`、`integration_api_predict_01.md`、`integration_rerun_02.md`）；验收：含工具、模型、日期、提示词原文、人工复核状态。
-- [x] 1.5 运行时 `/openapi.json` 逐端点比对 — 交付：`docs/想到什么取什么/integration_test/report.md` §1；验收：11 个路径与清单一致，全部要求 `X-API-Key`。
-- [x] 1.6 按用例表实跑并回填状态 — 交付：`backend/scripts/integration_cases.py`（35 条）+ `docs/想到什么取什么/integration_test/report.md`；验收：**34/35 通过、接口覆盖 11/11**，失败项 T-IN-29 定位到图集产物缺失。
+- [x] 1.5 运行时 `/openapi.json` 逐端点比对 — 交付：`docs/README.md` §1；验收：11 个路径与清单一致，全部要求 `X-API-Key`。
+- [x] 1.6 按用例表实跑并回填状态 — 交付：`backend/scripts/integration_cases.py`（35 条）+ `docs/README.md`；验收：**34/35 通过、接口覆盖 11/11**，失败项 T-IN-29 定位到图集产物缺失。
 
 ## 2 · 系统测试
 
@@ -58,7 +58,7 @@
 - 链路与场景：`docs/想到什么取什么/integration_test/endpoint_inventory.md` §4（11 端点四类）；落地 35 条可执行用例。
 - 执行命令：`cd backend && python scripts/integration_cases.py --json out.json`（服务需先起）。
 - 实测结果：**34/35 通过**，接口覆盖 **11/11**；失败项 T-IN-29 为图集文件不在盘（BUG-02）；跨模块链路 1 条（0.97637 三处一致）、并发 1 条（200/500 不串扰）。
-- 证据路径：`docs/想到什么取什么/integration_test/report.md`（逐条结果）、`docs/想到什么取什么/integration_test/execution_records/`（原始记录）、`docs/想到什么取什么/system_test/execution_records/`（页面截图）。
+- 证据路径：`docs/README.md`（逐条结果）、`docs/想到什么取什么/integration_test/execution_records/`（原始记录）、`docs/想到什么取什么/system_test/execution_records/`（页面截图）。
 
 ### 3. 验收测试
 

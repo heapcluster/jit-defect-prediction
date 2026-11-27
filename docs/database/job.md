@@ -1,8 +1,6 @@
 # job
 
-`实现状态：部分　期次：一期`
-
-W2 已实现持久状态、条件流转/重试令牌、同 kind 互斥及启动中断恢复；业务执行器随各模块波次接入。任务 API 不伪造业务已运行结果。板块 2 的 collect 任务按本文承载 Git 仓库采集和公开数据集 URL 拉取，二者共用 `kind=collect`。
+任务表持久化状态、条件流转/重试令牌、同 kind 互斥与启动中断恢复；任务 API 不伪造业务已运行结果。collect 任务承载 Git 仓库采集和公开数据集 URL 拉取，二者共用 `kind=collect`。
 
 **一句话**：统一任务表，承载收集 / 清洗 / 训练 / 批量预测 / 评估 / 解释六类异步任务的状态、进度、日志与产出引用；任务状态持久化，重启可恢复。
 
@@ -41,7 +39,7 @@ evaluate 的 `params_json` 必须记录 `prediction_job_id`、`metrics`、`prima
 | 字段 | 类型 | 空值/默认 | 键/索引 | 含义 |
 |---|---|---|---|---|
 | job_id | VARCHAR(36) | NOT NULL | 主键 | 任务标识 |
-| chain_id | VARCHAR(36) | NOT NULL DEFAULT '' | ix_job_chain | 所属数据链路根任务标识；链根任务等于自身 `job_id`，历史空值按自身 `job_id` 回填 |
+| chain_id | VARCHAR(36) | NOT NULL DEFAULT '' | ix_job_chain | 所属数据链路根任务标识；链根任务等于自身 `job_id` |
 | parent_job_ids | TEXT | 可空 | — | 直接父任务 JSON 数组 `[{"kind":"clean","job_id":"..."}]`；提交时按已校验输入显式写入 |
 | kind | VARCHAR(16) | NOT NULL | ix_job_kind_status（第 1 列） | `collect` / `clean` / `train` / `predict_batch` / `evaluate` / `explain` |
 | status | VARCHAR(16) | NOT NULL DEFAULT 'queued' | ix_job_kind_status（第 2 列） | `queued` / `running` / `success` / `failed` / `cancelled` |
