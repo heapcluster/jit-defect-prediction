@@ -1,26 +1,34 @@
-import request, { SYNC_TIMEOUT, fetchBinary } from './request'
+import http from './http'
 
-// 在线预测：POST /api/predict（commit_hash 必填，model_name 可选；opts 可传 decision_threshold/force_recompute）
-export function postPredict(commitHash, modelName, opts = {}) {
-  return request.post('/predict', {
-    commit_hash: commitHash,
-    model_name: modelName || undefined,
-    ...(opts.decision_threshold != null ? { decision_threshold: opts.decision_threshold } : {}),
-    ...(opts.force_recompute ? { force_recompute: true } : {})
-  })
-}
-
-export function runPredict(config, files = []) {
+export const importFile = (file) => {
   const form = new FormData()
-  for (const file of files) form.append('files[]', file, file.name)
-  form.append('config', JSON.stringify(config))
-  return request.post('/predict/run', form, { timeout: SYNC_TIMEOUT })
+  form.append('file', file)
+  return http.post('/predict/import', form)
 }
 
-export function getPredictPreview(jobId, params = {}) {
-  return request.get(`/predict/preview/${encodeURIComponent(jobId)}`, { params })
+export const precheck = (datasetId) => http.post('/predict/precheck', { dataset_id: datasetId })
+
+export const importModel = (file, line) => {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('line', line)
+  return http.post('/predict/import-model', form)
 }
 
-export function fetchPredictOutput(jobId, name) {
-  return fetchBinary(`/api/predict/outputs/${encodeURIComponent(jobId)}/${encodeURIComponent(name)}`)
-}
+export const saveModel = (payload) => http.post('/predict/save-model', payload)
+
+export const run = (payload) => http.post('/predict/run', payload)
+
+export const getRows = (jobId, params) => http.get(`/predict/results/${jobId}/rows`, { params })
+
+export const exportResult = (jobId, params) =>
+  http.get(`/predict/results/${jobId}/export`, { params, responseType: 'blob' })
+
+export const saveResult = (jobId, name) => http.post('/predict/save', { job_id: jobId, name })
+
+export const getDetail = (jobId, commitHash) =>
+  http.get(`/predict/results/${jobId}/commits/${commitHash}`)
+
+export const explain = (payload) => http.post('/predict/explain', payload)
+
+export const localize = (payload) => http.post('/predict/localize', payload)

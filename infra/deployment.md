@@ -1,99 +1,67 @@
 # infra · 工程化支撑
 
-本目录集中存放**与业务逻辑无关、但构建 / 运行 / 交付需要**的工程化文件。业务代码不放这里。
+本目录存放**与业务逻辑无关、但建库 / 初始化 / 交付需要**的工程化文件。业务代码不放这里。
 
-## 目录内容
+系统按**本机部署**交付：MySQL 运行在本机，后端由 Uvicorn 启动，前端由 Vite 开发服务或静态产物托管；不提供 Dockerfile 与容器编排。
+
+## 1 目录内容
 
 | 文件 | 作用 |
 |---|---|
-| `schema.sql` | 12 张表的建表 DDL（现有 5 + 重构新增 7）+ 预置 global 用户行，**建表唯一真源**（`docker compose` 首次启动与 CI 实际执行它） |
-| `setup_mysql.py` | 一键建 `jit_demo` / `jit_test` 两个库并执行 `schema.sql` |
-| `ci_scope.py` | CI 路径选择器：按改动目录决定跑哪些检查（纯文档改动走 lightweight） |
-| `nginx.conf` | 前端容器的 nginx 配置：SPA 路由回退 + `/api`、`/static` 反代到 `backend:8000`；由 `frontend/Dockerfile` 打进镜像 |
-| `tests/` | 本目录自身的 unittest（CI 契约、路径选择、建库凭据处理）；**不含业务/数据库测试** |
+| `schema.sql` | 15 张表的建表 DDL，**建表唯一真源**；不预置任何用户 |
+| `setup_mysql.py` | 创建 `jit_demo` / `jit_test` 两个库并执行 `schema.sql` |
+| `tests/` | 本目录自身的自测，不含业务与数据库测试 |
 
-## 职责边界
+## 2 职责边界
 
-- **只管**：建表脚本、CI 路径选择、容器运行时配置、容器化交付说明。
-- **不管**：业务逻辑与接口契约（见 `docs/api/`、`docs/database/`）、各端测试用例（见 `backend/tests/`、`frontend/tests/`、`data_model/tests/`）。
-- 部署编排入口在仓库根 `docker-compose.yml`，镜像定义在 `backend/Dockerfile`、`frontend/Dockerfile`；本目录只提供它们引用的配置。
+- **只管**：建表脚本、初始化脚本与交付说明。
+- **不管**：业务逻辑与接口契约（见 `docs/`）、各端测试用例（见 `backend/tests/`、`frontend/tests/`、`infra/tests/`）。
+- 不提供镜像定义与编排文件；运行步骤见第 3 节。
 
-## 一键启动（DS-1 工程化与容器化交付）
+## 3 本机启动
 
-一键启动「前端 + 后端 + MySQL」全栈；模型/特征可插件式扩展，不改核心逻辑。
-
-```bash
-# 仓库根目录
-docker compose up --build
-```
-
-- 前端：http://localhost:8080
-- 后端：http://localhost:8000/api/health
-- MySQL：localhost:3306（库 `jit_demo`，账号 `jit` / 口令 `jit`，仅本机演示）
-
-验收自检：
+1. **准备 MySQL**：本机 MySQL 8.0 可用，准备好具备建库权限的账号。
+2. **初始化数据库**：在仓库根运行 `python infra/setup_mysql.py`，创建 `jit_demo` / `jit_test` 并执行 `schema.sql`；也可在 `backend/` 运行 `python -m app.cli init-db` 只建业务库。
+3. **配置后端**：复制 `backend/.env.example` 为 `backend/.env`，填入 MySQL 连接。
+4. **创建账号**：在 `backend/` 运行 `python -m app.cli create-user`，口令由命令行交互输入。
+5. **启动后端**：在 `backend/` 运行 `python -m uvicorn app.main:app --host 127.0.0.1 --port 8000`。
+6. **启动前端**：在 `frontend/` 运行 `npm ci`、`npm run dev -- --host 127.0.0.1`，打开 http://127.0.0.1:5173/ 。
+7. **健康检查**：
 
 ```bash
-curl http://localhost:8000/api/health -H "X-API-Key: dev-token"
-# 期望 {"code":0,"message":"ok","data":{"status":"...","db":"up",...}}
+curl http://127.0.0.1:8000/api/health
+# 期望 {"code":0,"message":"ok","data":{"status":"ok"}}
 ```
 
-首次启动 MySQL 会用 `infra/schema.sql` 建 12 张表（仅 DDL + 预置 global 用户行，不含数据集）。
-旧 5 表库升级到 12 表须走迁移脚本（代码波次交付，含空库/旧库/重复执行三冒烟）；MUST NOT 靠 `create_all` 隐式迁移生产库。
-模型权重、历史 git 仓库、`.env`、密钥一律**不随镜像分发**（见下）。
+- 健康检查与登录接口无需会话；其余 `/api/**` 需要登录后的 `jit_session` Cookie。
+- `infra/schema.sql` 建立 15 张表，不创建任何用户；演示账号由操作者自行创建。
+- 旧 7 表或 12 表数据库不会被自动迁移；请在隔离库重建后重新导入数据。
 
-## 环境变量清单
+## 4 环境变量
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `API_TOKEN` | `dev-token` | 鉴权令牌；前端构建期注入 `VITE_API_KEY`，须一致 |
-| `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | — | MySQL 连接（compose 已注入） |
-| `DB_TEST_NAME` | `jit_test` | pytest 专用测试库名 |
-| `MODEL_DIR` | `data_model/pipelines/expert/models` | 在线模型目录（含 `feature_order.txt` 清单） |
-| `SOURCE_REPO` | 空 | 历史 git 仓库路径；重构后降级为默认仓库（收集任务可显式指定）；不配且任务未指定则 `/api/predict` 无法现算新提交特征 |
-| `FEATURE_EXTRACTOR_SCRIPT` | 空 | 覆盖默认特征抽取器（插件化，见下） |
-| `SYNC_ON_STARTUP` | `0` | `1` = 启动时后台同步一次最新提交 |
-| `HIGH_RISK_THRESHOLD` / `MID_RISK_THRESHOLD` | `0.5` / `0.2` | 高/中风险阈值**出厂默认值**；运行期权威 = `user_config`（配置 API / 设置页可改，重启恢复） |
+| `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | — | MySQL 连接 |
+| `DB_TEST_NAME` | `jit_test` | pytest 专用测试库 |
+| `GITHUB_TOKEN` | 空 | GitHub 接口凭证，可选，仅提高限额；页面不要求填写 |
+| `GITEE_TOKEN` | 空 | Gitee 接口凭证，可选，仅提高限额；页面不要求填写 |
+| `MODEL_DIR` | `temp/models` | 模型文件根目录 |
+| `SEMANTIC_EMBEDDINGS` | 空 | 可选的离线语义向量缓存目录 |
+| `SEMANTIC_TEXT_MODEL` | 空 | 本地 CodeBERT-base 权重目录或标识 |
+| `SEMANTIC_MAX_LEN` | `512` | 语义编码截断长度 |
 
-## 插件式扩展
+- 不提供 `API_TOKEN` / `X-API-Key`，鉴权统一走登录会话。
+- 不提供 `SOURCE_REPO` / `SYNC_*`，仓库由收集任务参数显式指定。
+- 只访问公开仓库；触发平台接口限流时提示稍后重试。
 
-### 模型：新增一个在线模型，零核心改动
+## 5 产物与数据
 
-在线模型由 `MODEL_DIR` 下的 `feature_order.txt` 清单唯一决定（后端 `app/model_registry.py`
-启动时按清单加载，清单缺失或列序漂移则拒绝加载）。新增模型只需两步：
+- 上传、任务产物、数据集、模型与评估图的目录规则见 [`../docs/约束/artifacts.md`](../docs/约束/artifacts.md)。
+- 模型文件由算法决定：sklearn 为 `.pkl`，dnn / tabnet 为 `.pt`；不随代码交付分发。
+- 登录会话存 MySQL `user_session`，登出删除会话行。
 
-1. 把 `xxx_v1.pkl`（`joblib.dump` 产物，特征宽度 = 14）放进 `MODEL_DIR`；
-2. 在 `feature_order.txt` 的 `[models]` 段追加一行 `xxx_v1.pkl\t模型中文名`。
+## 6 交付边界
 
-特征列序与 14 项契约见 `feature_order.txt` 的 `[feature_order]` 段；清单是
-`docs/database/commit_feature.md` 的副本，两者不一致以契约为准。
-
-### 特征：替换抽取器，零核心改动
-
-后端现算特征的唯一入口是 `app/feature_source.py::_extractor()`，默认加载
-`data_model/preparation/03_extract_features.py`。外部提供自定义抽取器时设置：
-
-```bash
-FEATURE_EXTRACTOR_SCRIPT=/abs/path/my_extractor.py
-```
-
-自定义脚本 MUST 暴露 `extract_single_commit(repo_dir, commit_hash) -> dict`，返回：
-
-```python
-{
-    "commit_hash": ..., "committed_at": "YYYY-MM-DD HH:MM:SS",
-    "feature_version": "v1",
-    "features": {"ns": ..., "nd": ..., ..., "sexp": ...},  # 14 项，键名与顺序同契约
-    "vector": [...],  # 与 features 同序的 14 维向量
-}
-```
-
-不可达/非法提交抛 `ValueError`（后端映射为 40400）。14 项特征键名与顺序是冻结契约，
-新增特征维度属于契约变更，走 `docs/database/commit_feature.md` 升版流程，不在本插件机制内。
-
-## 交付边界（DS-1 约定）
-
-- 不含：模型权重（`.pkl`）、数据集、`data_model/data/camel` 克隆、`.env`、任何密钥。
-- 不改：业务逻辑与接口契约（`docs/api/*`、`docs/database/*`）、CI 流水线（归 sober）。
-- 已知限制：容器内未挂载 `SOURCE_REPO` 时，`/api/predict` 对新提交返回 40400；
-  已入库提交的查询/详情/趋势不受影响。
+- 不含：模型权重（`.pkl` / `.pt`）、数据集、`temp/`、`.env`、任何密钥。
+- 数据库初始状态由 `infra/schema.sql` 决定；演示账号由操作者自行创建。
+- 不改：业务逻辑与接口契约（以 `docs/` 为准）。

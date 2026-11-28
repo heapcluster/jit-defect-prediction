@@ -8,18 +8,6 @@
 # ===== 数据集、模型等大文件（严禁入库）=====
 data/
 datasets/
-# Apache Camel 本地克隆（SOURCE_REPO 指向，大体积不入库）
-camel/
-# 模型产物：任意 pipeline 的 models/ 下权重不入库；feature_order.txt / manifest.txt /
-# load_manifest.txt 是**交付清单（纯文本）**，必须入库才能被审阅/比对（否则干净 clone 缺清单）。
-#   - manifest.txt      = verify_all_weights 的 md5 权重清单（5 列）
-#   - load_manifest.txt = 各线的在线加载清单（[encoder] / [input] + [models]）
-# 两者语义不同、文件名必须分开，否则 verify --check 会按 md5 格式解析加载清单而报错。
-# 故排除任意层级 models/ 的内容，但保留纯文本交付清单。
-data_model/pipelines/*/models/**
-!data_model/pipelines/*/models/feature_order.txt
-!data_model/pipelines/*/models/manifest.txt
-!data_model/pipelines/*/models/load_manifest.txt
 artifacts/
 *.onnx
 *.pkl
@@ -31,21 +19,9 @@ artifacts/
 *.safetensors
 *.bin
 *.db
-# 本地临时模型目录（联调用；正式交付在 data_model/pipelines/*/models/）
-# 注意：model/ 会匹配任意层级的 model 目录，需排除 docs/model/ 以便其下文档入库
-model/
-!docs/model/
-!docs/model/**/
-# 模型线评测产物：
-# - data_init.sql（约 87MB）是测试集初始化生成物，不入库；
-# - schema.sql 副本已下线（建表真源固定为仓库根 infra/schema.sql），如再生成也不入库；
-# - model_metrics.csv **必须入库**：它是 25 个模型在测试集上的性能指标，
-#   前端「模型性能页」抽屉（GET /api/figures 的 metrics）直接依赖。
-data_model/evaluation/out/data_init.sql
-data_model/evaluation/out/schema.sql
 
-# 过程数据唯一根目录：请求输入、缓存、执行日志、临时文件、在线拉取与采集/清洗/输出产物。
-# 仅存放非源码类临时数据，仓库不追踪；所有 run/export 输出落 temp/outputs/<job_id>/。
+# 过程数据唯一根目录：上传、缓存、任务产物、数据集、模型与评估图。
+# 仅存放非源码类临时数据，仓库不追踪。
 temp/
 
 # ===== Python =====
@@ -60,7 +36,6 @@ venv/
 .coverage
 .coverage.*
 htmlcov/
-backend/static/figures/
 *.egg-info/
 *.egg
 pip-wheel-metadata/
@@ -72,16 +47,6 @@ dist/
 frontend/coverage/
 .next/
 frontend/out/
-
-# ===== Java（data_model 用 Java 实现）=====
-*.class
-target/
-build/
-.gradle/
-*.iml
-gradle/wrapper/gradle-wrapper.jar
-!gradlew
-!gradlew.bat
 
 # ===== IDE 与系统 =====
 .idea/
@@ -113,17 +78,15 @@ _tmp/
 .mypy_cache/
 .dmypy.json
 coverage.xml
-# 集成脚本 `--json out.json` 的临时输出
 out.json
 
-# ===== 本地辅助脚本（个人工具，不入库；见 tools/）=====
+# ===== 本地辅助脚本（个人工具，不入库）=====
 tools/
 
 # ===== conda 建环境时的临时 pip 清单（conda 自动生成，勿入库）=====
 data_model/condaenv.*.requirements.txt
 
 # ===== 本地 agent / IDE 配置（保留在本地，不纳入版本控制）=====
-# 这些文件供各 AI 编码工具在本地使用，但不进仓库：
 .claude/
 .qoder/
 .codebuddy/

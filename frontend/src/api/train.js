@@ -1,16 +1,21 @@
-import request, { SYNC_TIMEOUT, fetchBinary } from './request'
+import http from './http'
 
-export function getAlgorithms(params) {
-  return request.get('/algorithms', { params })
-}
-
-export function runTrain(config, files = []) {
+export const importFile = (file) => {
   const form = new FormData()
-  for (const file of files) form.append('files[]', file, file.name)
-  form.append('config', JSON.stringify(config))
-  return request.post('/train/run', form, { timeout: SYNC_TIMEOUT })
+  form.append('file', file)
+  return http.post('/train/import', form)
 }
 
-export function fetchTrainOutput(jobId, name) {
-  return fetchBinary(`/api/train/outputs/${encodeURIComponent(jobId)}/${encodeURIComponent(name)}`)
-}
+export const precheck = (datasetId) => http.post('/train/precheck', { dataset_id: datasetId })
+
+export const run = (payload) => http.post('/train/run', payload)
+
+export const getResult = (jobId) => http.get(`/train/results/${jobId}`)
+
+export const downloadOutput = (jobId, name) =>
+  http.get(`/train/outputs/${jobId}/${encodeURIComponent(name)}`, { responseType: 'blob' })
+
+export const exportTestSet = (jobId, params) =>
+  http.get(`/train/results/${jobId}/test-set/export`, { params, responseType: 'blob' })
+
+export const saveAssets = (payload) => http.post('/train/save', payload)

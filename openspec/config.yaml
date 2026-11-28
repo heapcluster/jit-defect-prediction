@@ -1,15 +1,10 @@
+# 历史归档：本目录仅用于追溯，不作为实现或验收依据。现行设计见 docs/index.md。
 schema: spec-driven
 
 context: |
-  项目为 JIT 缺陷预测系统，以 commit 为单位输出建议性风险预警，不把预测结果作为 PR 强制门禁。
-  现行设计入口：docs/；范围与数据流：docs/overview.md。
-  技术契约按对象拆分：docs/api/、docs/database/、docs/function_point/、docs/web_page/。
-  当前设计为 12 张表、7 个页面；两条模型线（expert / semantic）各交付 8 个、共 16 个在线模型，以实际交付权重为准。
-  模型交付的 14 维列序见 data_model/pipelines/expert/models/feature_order.txt。
-  训练/检验必须按 committed_at 时间序前 70% / 后 30% 切分，不得随机切分。
-  数据库及特征列用 snake_case；布尔字段以 is_ 开头，时间字段以 _at 结尾并使用 UTC。
-  API 前缀 /api，响应包络 {"code":0,"message":"ok","data":{...}}；端点详情及错误码以 docs/api/ 为准。
-  数据与模型：data_model/；后端：backend/；前端：frontend/；工程化：infra/；docs/ 和 openspec/ 公共维护、蒋励统稿。
+  历史归档规格，仅用于追溯。现行设计以 docs/ 为唯一真源，入口 docs/index.md。
+  本文件中的 12 表、7 页面、16 个在线模型、docs/api/ 路径、X-API-Key 等口径均已废弃。
+  实现与验收不得引用 openspec/specs 或 openspec/changes。
   飞书看板是任务负责人、状态与时间的权威；todo/ 只是临时拆解，不得据此宣布任务完成。
   改代码须同步改规格；技术契约变更须显式记录 change，并与对应 docs 一起评审。
   不得提交数据集、权重、.env 或密钥；不得直接推送 main。

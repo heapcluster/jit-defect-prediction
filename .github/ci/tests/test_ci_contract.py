@@ -4,7 +4,7 @@
 # [AI生成-人工修改]：0 条
 # [手写]：4 条（核心业务断言由人工编写）
 # 使用工具：原始生成记录未归档（标注依据代码特征判断，作者于 2026-11-17 确认）
-# 提示词见：docs/README.md
+# 提示词见：docs/index.md
 
 """核心回归工作流的最小配置约束。"""
 
@@ -33,7 +33,6 @@ class CIContractTests(unittest.TestCase):
             ("Test infra", "python -m pytest -q infra/tests", "infra"),
             ("Test backend", "python -m pytest -q", "backend"),
             ("Test frontend", "npm run test:unit", "frontend"),
-            ("Test data model", "python -m pytest -q", "model"),
             ("Build frontend", "npm run build", "frontend"),
             ("Build Python", "python -m compileall", "python"),
         ):

@@ -1,17 +1,5 @@
-import request from './request'
+import http from './http'
 
-export function getJobs(params) {
-  return request.get('/jobs', { params })
-}
+export const getJob = (jobId) => http.get(`/jobs/${jobId}`)
 
-export function getJob(jobId) {
-  return request.get(`/jobs/${encodeURIComponent(jobId)}`)
-}
-
-export function retryJob(jobId) {
-  return request.post(`/jobs/${encodeURIComponent(jobId)}/retry`)
-}
-
-export function cancelJob(jobId) {
-  return request.post(`/jobs/${encodeURIComponent(jobId)}/cancel`)
-}
+export const cancelJob = (jobId) => http.post(`/jobs/${jobId}/cancel`)

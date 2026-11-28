@@ -12,5 +12,11 @@ export default [
     }
   },
   js.configs.recommended,
-  ...pluginVue.configs['flat/recommended']
+  ...pluginVue.configs['flat/recommended'],
+  {
+    rules: {
+      // catch 绑定常用于保留调用栈语义或统一错误处理，不强制使用。
+      'no-unused-vars': ['error', { caughtErrors: 'none', argsIgnorePattern: '^_' }]
+    }
+  }
 ]

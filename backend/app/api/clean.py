@@ -1,88 +1,81 @@
-import csv
-from typing import Annotated
+"""数据清洗页接口。"""
 
-from fastapi import APIRouter, Depends, File, Form, Query, Request, Response, UploadFile
-from starlette.concurrency import run_in_threadpool
+from __future__ import annotations
 
-from app import config
-from app.api.storage import download, query_keys
-from app.auth import require_api_key
+from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi.responses import Response
+from sqlalchemy.orm import Session
+
+from app.api.collect import _quote, export_result, result_rows
+from app.api.deps import current_user
+from app.db import get_db
 from app.errors import AppError, ok
-from app.services import clean_run
-from app.services import file_contracts as fc
+from app.models import Job, User
+from app.schemas import CleanRunRequest
+from app.services import artifacts, clean, jobs, uploads
+from app.utils import loads
 
-router = APIRouter(prefix='/api/clean', dependencies=[Depends(require_api_key)])
-
-
-@router.get('/operations')
-def operations(request: Request):
-    query_keys(request, set())
-    return ok({'operations': clean_run._call('operations'), 'features': list(config.FEATURE_COLUMNS)})
+router = APIRouter(prefix="/clean", tags=["clean"])
 
 
-@router.post('/run')
-async def run_clean(request: Request, config: Annotated[str, Form()] = '{}',
-                    files: Annotated[list[UploadFile] | None, File(alias='files[]')] = None):
-    query_keys(request, set())
-    form = await request.form()
-    if set(form) - {'config', 'files[]'} or len(form.getlist('config')) > 1:
-        fc.invalid('未知或重复的表单字段')
-    if len(files or []) > 2:
-        fc.invalid('清洗只接受一个主表和可选同名 manifest')
-    uploaded, remaining = [], fc.MAX_UPLOAD_BYTES
-    for file in files or []:
-        content = await file.read(remaining + 1)
-        if len(content) > remaining:
-            fc.invalid('清洗上传文件超过合计大小限制')
-        remaining -= len(content)
-        uploaded.append((file.filename or '', content))
-    def submit():
-        with clean_run.db.SessionLocal() as session:
-            return clean_run.submit(session, config, uploaded)
-    return ok(await run_in_threadpool(submit))
+@router.post("/import")
+async def import_file(file: UploadFile = File(...), user: User = Depends(current_user)) -> dict:
+    payload = await file.read()
+    result = uploads.save_data_upload(
+        user.user_id, file.filename or "", payload, "clean", require_unique=False
+    )
+    columns, rows = result["columns"], result["rows"]
+    return ok({
+        "file_id": result["meta"]["file_id"],
+        "line": result["meta"]["line"],
+        "row_count": len(rows),
+        "column_count": len(columns),
+        "columns": columns,
+        "preview": [{name: row.get(name, "") for name in columns} for row in rows[:10]],
+    })
 
 
-@router.get('/preview/{job_id}')
-def preview_clean(request: Request, job_id: str, page: int = Query(default=1, ge=1),
-                  size: int = Query(default=20, ge=1, le=100)):
-    query_keys(request, {'page', 'size'})
-    with clean_run.db.SessionLocal() as session:
-        job = clean_run.job_store.get(session, job_id)
-    reference = job['output_ref_json'] or {}
-    if job['kind'] != 'clean' or reference.get('mode') != 'apply':
-        fc.invalid('仅成功 apply 任务提供 cleaned 主表预览')
-    csv_name = next((item['name'] for item in reference.get('outputs', []) if item['name'].endswith('.csv')), None)
-    if csv_name is None:
-        fc.invalid('输出缺少清洗主表')
-    path = clean_run.output_store.read_output('clean', job_id, csv_name)
-    try:
-        with path.open(encoding='utf-8-sig', newline='') as source:
-            reader = csv.DictReader(source)
-            if tuple(reader.fieldnames or ()) != tuple(fc.CLEAN_DATASET_COLUMNS):
-                fc.invalid('输出预览列与契约不一致')
-            records = [{key: value if value != '' else None for key, value in row.items()} for row in reader]
-    except csv.Error as error:
-        raise AppError(40001, '输出表格无法预览') from error
-    total = len(records)
-    start = (page - 1) * size
-    return ok({'columns': list(fc.CLEAN_DATASET_COLUMNS), 'preview': records[start:start + size],
-               'total': total, 'page': page, 'size': size})
+@router.post("/run", status_code=202)
+def run(payload: CleanRunRequest, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
+    if not payload.operations:
+        raise AppError(40001, "至少选择一个清洗操作")
+    job = jobs.manager.create(db, user, "clean", payload.model_dump())
+    jobs.manager.start(job.job_id, clean.run_clean)
+    return ok({"job_id": job.job_id})
 
 
-@router.get('/outputs/{job_id}/{name}')
-def download_clean(request: Request, job_id: str, name: str, format: str = Query(default='csv')):
-    query_keys(request, {'format'})
-    if format not in ('csv', 'xlsx'):
-        fc.invalid('format 仅支持 csv/xlsx')
-    if format == 'csv':
-        return download('clean', job_id, name)
-    # 清洗数据只保存一份 CSV；Excel 在下载时按需转换，不落产物目录、不登记新产物。
-    if not name.endswith('.csv'):
-        fc.invalid('仅清洗后的 CSV 支持导出格式转换')
-    path = clean_run.output_store.read_output('clean', job_id, name)
-    columns, rows = fc.read_table(name, path.read_bytes())
-    if tuple(columns) != tuple(fc.CLEAN_DATASET_COLUMNS):
-        fc.invalid('输出列与契约不一致')
-    content = fc.encode_table(fc.CLEAN_DATASET_COLUMNS, rows, 'xlsx')
-    return Response(content=content, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    headers={'Content-Disposition': f'attachment; filename="{name[:-4]}.xlsx"'})
+def _ref(db: Session, user: User, job_id: str) -> dict:
+    job = db.get(Job, job_id)
+    if job is None or job.owner_user_id != user.user_id:
+        raise AppError(40401, "任务不存在")
+    if job.kind != "clean" or job.status != "success":
+        raise AppError(40901, "任务尚未成功结束")
+    ref = loads(job.output_ref_json, {}) or {}
+    if not ref.get("data_path"):
+        raise AppError(40901, "结果已失效")
+    return ref
+
+
+@router.get("/results/{job_id}/steps")
+def steps(job_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
+    ref = _ref(db, user, job_id)
+    path = artifacts.resolve(ref["data_path"]).parent / "steps.json"
+    if not path.is_file():
+        raise AppError(40901, "步骤记录已失效")
+    return ok(artifacts.read_json(path))
+
+
+@router.get("/results/{job_id}/rows")
+def rows(
+    job_id: str, page: int = 1, page_size: int = 20,
+    user: User = Depends(current_user), db: Session = Depends(get_db),
+) -> dict:
+    return ok(result_rows(db, user, job_id, page, page_size, kind="clean"))
+
+
+@router.get("/results/{job_id}/export")
+def export(
+    job_id: str, filename: str = Query(...), format: str = "csv",
+    user: User = Depends(current_user), db: Session = Depends(get_db),
+) -> Response:
+    return export_result(db, user, job_id, filename, format, kind="clean")

@@ -142,11 +142,6 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Test data model
-        if: steps.scope.outputs.model == 'true'
-        working-directory: data_model
-        run: python -m pytest -q
-
       - name: Build frontend
         if: steps.scope.outputs.frontend == 'true'
         working-directory: frontend

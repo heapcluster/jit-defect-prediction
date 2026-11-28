@@ -1,16 +1,38 @@
-import request, { SYNC_TIMEOUT, fetchBinary } from './request'
+import http from './http'
 
-export function getEvaluateMetrics() {
-  return request.get('/evaluate/metrics')
-}
-
-export function runEvaluate(config, files = []) {
+export const importFile = (file, label) => {
   const form = new FormData()
-  for (const file of files) form.append('files[]', file, file.name)
-  form.append('config', JSON.stringify(config))
-  return request.post('/evaluate/run', form, { timeout: SYNC_TIMEOUT })
+  form.append('file', file)
+  if (label) form.append('label', label)
+  return http.post('/evaluate/import', form)
 }
 
-export function fetchEvaluateOutput(jobId, name) {
-  return fetchBinary(`/api/evaluate/outputs/${encodeURIComponent(jobId)}/${encodeURIComponent(name)}`)
-}
+export const precheck = (datasetId) => http.post('/evaluate/precheck', { dataset_id: datasetId })
+
+export const run = (payload) => http.post('/evaluate/run', payload)
+
+export const getResult = (jobId) => http.get(`/evaluate/results/${jobId}`)
+
+export const exportResult = (jobId, params) =>
+  http.get(`/evaluate/results/${jobId}/export`, { params, responseType: 'blob' })
+
+export const figureUrl = (jobId, type) => `/api/evaluate/results/${jobId}/figures/${type}`
+
+export const figureBlob = (jobId, type) =>
+  http.get(`/evaluate/results/${jobId}/figures/${type}`, { responseType: 'blob' })
+
+export const saveHistory = (jobId, name) => http.post('/evaluate/save', { job_id: jobId, name })
+
+export const listHistory = (params) => http.get('/evaluate/history', { params })
+
+export const getHistory = (id) => http.get(`/evaluate/history/${id}`)
+
+export const historyFigureUrl = (id, type) => `/api/evaluate/history/${id}/figures/${type}`
+
+export const historyFigureBlob = (id, type) =>
+  http.get(`/evaluate/history/${id}/figures/${type}`, { responseType: 'blob' })
+
+export const exportHistory = (id, params) =>
+  http.get(`/evaluate/history/${id}/export`, { params, responseType: 'blob' })
+
+export const deleteHistory = (id) => http.delete(`/evaluate/history/${id}`)

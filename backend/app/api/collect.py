@@ -1,102 +1,126 @@
-import csv
-from typing import Annotated
+"""数据收集页接口。"""
 
-from fastapi import APIRouter, Depends, File, Form, Query, Request, Response, UploadFile
-from starlette.concurrency import run_in_threadpool
+from __future__ import annotations
 
-from app.api.storage import download, query_keys
-from app.auth import require_api_key
-from app.errors import ok
-from app.services import collect_run
-from app.services import file_contracts as fc
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
+from sqlalchemy.orm import Session
 
-router = APIRouter(prefix='/api/collect', dependencies=[Depends(require_api_key)])
+from app.api.deps import current_user, export_filename
+from app.db import get_db
+from app.errors import AppError, ok
+from app.models import Job, User
+from app.schemas import CollectPrecheckRequest, CollectRunRequest
+from app.services import artifacts, collect, jobs, storage
+from app.utils import loads
 
-
-@router.get('/branches')
-def list_branches(request: Request, repo_source: str = Query(...)):
-    query_keys(request, {'repo_source'})
-    with collect_run.db.SessionLocal() as session:
-        return ok(collect_run.branches(session, repo_source))
+router = APIRouter(prefix="/collect", tags=["collect"])
 
 
-@router.post('/source-columns')
-async def source_columns(request: Request):
-    query_keys(request, set())
-    payload = fc.read_json(await request.body())
-    if set(payload) != {'source_url'}:
-        fc.invalid('只接受 source_url')
-    with collect_run.db.SessionLocal() as session:
-        return ok(collect_run.source_columns(session, payload['source_url']))
+def _job(db: Session, user: User, job_id: str, kind: str = "collect") -> tuple[Job, dict]:
+    job = db.get(Job, job_id)
+    if job is None or job.owner_user_id != user.user_id:
+        raise AppError(40401, "任务不存在")
+    if job.kind != kind:
+        raise AppError(40001, "任务类型不匹配")
+    if job.status != "success":
+        raise AppError(40901, "任务尚未成功结束")
+    ref = loads(job.output_ref_json, {}) or {}
+    if not ref.get("data_path"):
+        raise AppError(40901, "结果已失效")
+    return job, ref
 
 
-@router.post('/run')
-async def run_collect(request: Request, config: Annotated[str, Form()] = '{}',
-                      files: Annotated[list[UploadFile] | None, File(alias='files[]')] = None):
-    query_keys(request, set())
-    form = await request.form()
-    if set(form) - {'config', 'files[]'} or len(form.getlist('config')) > 1:
-        fc.invalid('未知或重复的表单字段')
-    uploaded = []
-    for file in files or []:
-        content = await file.read(fc.MAX_UPLOAD_BYTES + 1)
-        if len(content) > fc.MAX_UPLOAD_BYTES:
-            fc.invalid('上传提交清单超过大小限制')
-        uploaded.append((file.filename or '', content))
-
-    def submit():
-        with collect_run.db.SessionLocal() as session:
-            return collect_run.submit(session, config, uploaded)
-    return ok(await run_in_threadpool(submit))
+def _core_columns(ref: dict) -> list[str]:
+    columns = ref.get("columns") or []
+    features = [name for name in columns if name not in ("project", "commit_id", "commit_time", "author_name", "author_email", "commit_message", "bug")]
+    return ["commit_id", "commit_time", "author_name", "bug"] + features[:6]
 
 
-@router.get('/preview/{job_id}')
-def preview_collect(request: Request, job_id: str, page: int = Query(default=1, ge=1),
-                    size: int = Query(default=20, ge=1, le=100)):
-    query_keys(request, {'page', 'size'})
-    path = collect_run.output_store.read_output('collect', job_id, f'collected_commits_{job_id}.csv')
-    try:
-        with path.open(encoding='utf-8-sig', newline='') as source:
-            reader = csv.DictReader(source)
-            columns = reader.fieldnames
-            if tuple(columns or ()) != tuple(fc.COLLECTED_COMMITS_COLUMNS):
-                fc.invalid('输出预览列与契约不一致')
-            records = [{key: (value if value != '' else None) for key, value in row.items()}
-                       for row in reader]
-    except csv.Error as error:
-        fc.invalid(f'无法预览表格：{error}')
-    total = len(records)
-    start = (page - 1) * size
-    return ok({'columns': columns, 'preview': records[start:start + size],
-               'total': total, 'page': page, 'size': size})
+def result_rows(db: Session, user: User, job_id: str, page: int, page_size: int, kind: str = "collect") -> dict:
+    _, ref = _job(db, user, job_id, kind)
+    _, rows = artifacts.read_table(artifacts.resolve(ref["data_path"]))
+    page = max(page, 1)
+    page_size = min(max(page_size, 1), 100)
+    start = (page - 1) * page_size
+    columns = _core_columns(ref)
+    items = [{name: row.get(name, "") for name in columns} for row in rows[start : start + page_size]]
+    summary = ref.get("summary") or {"total": len(rows), "pos": 0, "neg": 0}
+    return {"summary": summary, "columns": columns, "items": items, "total": len(rows), "page": page, "page_size": page_size}
 
 
-@router.post('/resave/{job_id}')
-async def resave_collect(request: Request, job_id: str):
-    query_keys(request, set())
+def export_result(db: Session, user: User, job_id: str, filename: str, fmt: str, kind: str = "collect") -> Response:
+    _, ref = _job(db, user, job_id, kind)
+    columns, rows = artifacts.read_table(artifacts.resolve(ref["data_path"]))
+    name = export_filename(filename, f"{kind}-{job_id[4:12]}")
+    if fmt not in ("csv", "excel"):
+        raise AppError(40001, "导出格式非法")
+    if fmt == "excel":
+        return Response(
+            content=artifacts.table_bytes(columns, rows, "excel"),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{_quote(name)}.xlsx"},
+        )
+    return Response(
+        content=artifacts.table_bytes(columns, rows, "csv"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{_quote(name)}.csv"},
+    )
 
-    def resave():
-        with collect_run.db.SessionLocal() as session:
-            return collect_run.resave(session, job_id)
 
-    return ok(await run_in_threadpool(resave))
+def _quote(name: str) -> str:
+    from urllib.parse import quote
+
+    return quote(name, safe="")
 
 
-@router.get('/outputs/{job_id}/{name}')
-def download_collect(request: Request, job_id: str, name: str, format: str = Query(default='csv')):
-    query_keys(request, {'format'})
-    if format not in ('csv', 'xlsx'):
-        fc.invalid('format 仅支持 csv/xlsx')
-    if format == 'csv':
-        return download('collect', job_id, name)
-    # 新契约不预生成 XLSX；仅对核心 CSV 即时转换，不写入产物目录、不登记新产物。
-    core = f'collected_commits_{job_id}.csv'
-    if name != core:
-        fc.invalid('仅核心 CSV 支持导出格式转换')
-    path = collect_run.output_store.read_output('collect', job_id, core)
-    columns, rows = fc.read_table(core, path.read_bytes())
-    if tuple(columns) != tuple(fc.COLLECTED_COMMITS_COLUMNS):
-        fc.invalid('输出列与契约不一致')
-    content = fc.encode_table(fc.COLLECTED_COMMITS_COLUMNS, rows, 'xlsx')
-    return Response(content=content, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    headers={'Content-Disposition': f'attachment; filename="collected_commits_{job_id}.xlsx"'})
+@router.get("/branches")
+def branches(repo_url: str = Query(...), user: User = Depends(current_user)) -> dict:
+    return ok(collect.branch_list(repo_url))
+
+
+@router.post("/precheck")
+def precheck(
+    payload: CollectPrecheckRequest,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    conf = storage.effective_config(db, user)
+    return ok(collect.precheck(
+        payload.repo_url, payload.branch, payload.mode,
+        int(conf["estimate_warn_minutes"]), int(conf["estimate_danger_minutes"]),
+    ))
+
+
+@router.post("/run", status_code=202)
+def run(payload: CollectRunRequest, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
+    if payload.mode not in ("expert", "semantic"):
+        raise AppError(40001, "解析方式非法")
+    collect.parse_repo(payload.repo_url)
+    if not payload.branch:
+        raise AppError(40001, "分支不能为空")
+    job = jobs.manager.create(db, user, "collect", payload.model_dump())
+    jobs.manager.start(job.job_id, collect.run_collect)
+    return ok({"job_id": job.job_id})
+
+
+@router.get("/results/{job_id}/rows")
+def rows(
+    job_id: str,
+    page: int = 1,
+    page_size: int = 20,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return ok(result_rows(db, user, job_id, page, page_size))
+
+
+@router.get("/results/{job_id}/export")
+def export(
+    job_id: str,
+    filename: str = Query(...),
+    format: str = "csv",
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    return export_result(db, user, job_id, filename, format)

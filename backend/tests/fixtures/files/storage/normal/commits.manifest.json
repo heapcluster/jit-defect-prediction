@@ -1,1 +1,0 @@
-{"schema_version":"1.0","module":"collect","job_id":"ai-unreviewed-fixture","inputs":[],"config":{"feature_version":"log-v2"},"outputs":[{"name":"commits.csv","sha256":"f11d5ad22e9012795d5c658c11e8a6112e7547072664495641a39a24ca045cc4"}],"code_version":"ai-unreviewed-fixture","created_at":"2026-11-21T12:00:00Z"}

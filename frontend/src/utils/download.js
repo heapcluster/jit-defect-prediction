@@ -1,16 +1,30 @@
-// 下载只定义一处：部分浏览器要求 <a> 在文档内才触发下载，
-// 也不能在 click() 后立刻 revokeObjectURL（会被取消）。
-export function saveBlob(blob, name) {
+function parseDisposition(header) {
+  if (!header) return null
+  const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(header)
+  if (utf8) return decodeURIComponent(utf8[1])
+  const plain = /filename="?([^";]+)"?/i.exec(header)
+  return plain ? plain[1] : null
+}
+
+export function saveBlob(response, fallback = 'export.csv') {
+  const blob = new Blob([response.data])
+  const name = parseDisposition(response.headers['content-disposition']) || fallback
   const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = name
-  link.style.display = 'none'
-  document.body.appendChild(link)
-  try { link.click() } finally {
-    setTimeout(() => {
-      link.remove()
-      URL.revokeObjectURL(url)
-    }, 1000)
-  }
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = name
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+export function savePng(url, name) {
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = name
+  anchor.target = '_blank'
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
 }

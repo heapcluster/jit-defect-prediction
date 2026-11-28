@@ -1,26 +1,13 @@
-import request, { SYNC_TIMEOUT, fetchBinary, storageOptions } from './request'
+import http from './http'
 
-export function importStorageFiles(files, config = {}) {
-  const form = new FormData()
-  for (const file of files) form.append('files[]', file, file.name)
-  form.append('config', JSON.stringify(config))
-  return request.post('/storage/import', form, { ...storageOptions, timeout: SYNC_TIMEOUT })
-}
+export const listFiles = (params) => http.get('/storage/files', { params })
 
-export function exportStorageTable(params) {
-  return request.get('/storage/export', { ...storageOptions, params, timeout: SYNC_TIMEOUT })
-}
+export const downloadAsset = (id, params) => http.get(`/storage/files/${id}/download`, { params, responseType: 'blob' })
 
-export function getStorageLineage(params = {}) {
-  return request.get('/storage/lineage', { ...storageOptions, params })
-}
+export const listAlgorithms = (params) => http.get('/algorithms', { params })
 
-export function deleteStorageChain(chainId) {
-  return request.delete(`/storage/chains/${encodeURIComponent(chainId)}`, {
-    ...storageOptions, params: { confirm: true }
-  })
-}
+export const getConfig = () => http.get('/config')
 
-export function fetchStorageOutput(jobId, name) {
-  return fetchBinary(`/api/storage/outputs/${encodeURIComponent(jobId)}/${encodeURIComponent(name)}`)
-}
+export const saveConfig = (items) => http.put('/config', { items })
+
+export const deleteModel = (name) => http.delete(`/models/${name}`)

@@ -1,24 +1,20 @@
-"""后端配置：一律从 .env 读取，不入库、不写死在代码里（契约三 1.5 鉴权细则）。"""
+"""运行配置：只从环境变量读取，不写入仓库、不下发前端。"""
 
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from urllib.parse import quote
 
 from dotenv import load_dotenv
 
-load_dotenv()
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
-# 过程数据唯一根目录：请求输入、缓存、产出等运行时文件；仓库内不追踪。
-TEMP_ROOT = REPO_ROOT / "temp"
-OUTPUTS_REL = "temp/outputs"
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-# ── 数据库连接：MySQL，分字段配置（口令单独一格、免转义）─────────────────────
-# 为什么要分字段：`mysql+pymysql://user:pwd@host/db` 里口令只要含 `@ : / # ? %` 就必须做
-# 百分号编码，手写几乎必错（写错的表现是「连不上」或「连上了别的库」）。分开填则原样写入，
-# 由本模块负责编码 —— 用户只关心「账号是什么、口令是什么」。
+load_dotenv(REPO_ROOT / "backend" / ".env")
+
 DB_HOST = os.getenv("DB_HOST", "").strip()
 DB_PORT = os.getenv("DB_PORT", "").strip() or "3306"
 DB_USER = os.getenv("DB_USER", "").strip()
@@ -27,22 +23,25 @@ DB_NAME = os.getenv("DB_NAME", "").strip() or "jit_demo"
 DB_TEST_NAME = os.getenv("DB_TEST_NAME", "").strip() or "jit_test"
 DB_CHARSET = os.getenv("DB_CHARSET", "").strip() or "utf8mb4"
 
+TEMP_ROOT = REPO_ROOT / "temp"
+REPOS_DIR = TEMP_ROOT / "repos"
+UPLOADS_DIR = TEMP_ROOT / "uploads"
+OUTPUTS_DIR = TEMP_ROOT / "outputs"
+DATASETS_DIR = TEMP_ROOT / "datasets"
+MODELS_DIR = TEMP_ROOT / "models"
+EVALUATIONS_DIR = TEMP_ROOT / "evaluations"
+
 
 def _with_database(url: str, database: str) -> str:
-    """把显式 DSN 的库名换掉（保留口令与 query），pytest 切测试库用。"""
     from sqlalchemy.engine import make_url
 
     try:
         return make_url(url).set(database=database).render_as_string(hide_password=False)
-    except Exception:  # noqa: BLE001 —— 非法 DSN 原样返回，把报错留给连接层
+    except Exception:  # noqa: BLE001
         return url
 
 
 def build_database_url(database: str | None = None) -> str:
-    """按分字段拼 MySQL DSN；显式 `DATABASE_URL` 优先（CI / 容器一行搞定）。缺字段返回空串。
-
-    `database` 非空时覆盖库名：pytest 用它把 `DB_NAME` 换成 `DB_TEST_NAME`。
-    """
     explicit = os.getenv("DATABASE_URL", "").strip()
     if explicit:
         return _with_database(explicit, database) if database else explicit
@@ -51,17 +50,11 @@ def build_database_url(database: str | None = None) -> str:
     credential = quote(DB_USER, safe="")
     if DB_PASSWORD:
         credential += f":{quote(DB_PASSWORD, safe='')}"
-    return (
-        f"mysql+pymysql://{credential}@{DB_HOST}:{DB_PORT}/"
-        f"{database or DB_NAME}?charset={DB_CHARSET}"
-    )
+    db = database or DB_NAME
+    return f"mysql+pymysql://{credential}@{DB_HOST}:{DB_PORT}/{db}?charset={DB_CHARSET}"
 
 
 def test_database_url() -> str:
-    """pytest 专用：`TEST_DATABASE_URL` > 当前配置把库名换成 `DB_TEST_NAME`。
-
-    这样跑测试不必手工改 `.env`（改错就会把演示库的表当成测试表清空）。
-    """
     explicit = os.getenv("TEST_DATABASE_URL", "").strip()
     if explicit:
         return explicit
@@ -69,71 +62,15 @@ def test_database_url() -> str:
 
 
 DATABASE_URL = build_database_url()
-API_TOKEN = os.getenv("API_TOKEN", "")
-MODEL_DIR = Path(
-    os.getenv("MODEL_DIR", "") or (REPO_ROOT / "data_model" / "pipelines" / "expert" / "models")
-)
-# 模型目录根（按最新契约只保留 expert / semantic 两线）
-PIPELINES_DIR = REPO_ROOT / "data_model" / "pipelines"
-# 语义特征来源：模型线预计算的 CodeBERT mean-pool embedding（commit_hash → 768 维）。
-# semantic 线在线预测查这张表，无需 transformers。
-SEMANTIC_EMBEDDINGS = Path(
-    os.getenv("SEMANTIC_EMBEDDINGS", "")
-    or (PIPELINES_DIR / "semantic" / "data" / "semantic_embeddings.npz")
-)
-# 缺预计算向量时在线补算用的冻结编码器（与模型线训练一致）；默认 HF 缓存里的 codebert-base
-SEMANTIC_TEXT_MODEL = os.getenv("SEMANTIC_TEXT_MODEL", "microsoft/codebert-base")
-SEMANTIC_MAX_LEN = int(os.getenv("SEMANTIC_MAX_LEN", "512"))
-# 在线补算 diff 文本的截断上限
-TEXT_MAX_CHARS = int(os.getenv("TEXT_MAX_CHARS", "4000"))
-# 绑定仓库：训练/预测在内核现算 14 维特征时使用的本地仓库路径（只读历史索引），
-# 由用户在数据集登记或环境变量中指定，不绑定任何特定项目。
-SOURCE_REPO = Path(os.environ["SOURCE_REPO"]) if os.getenv("SOURCE_REPO") else None
-# 特征抽取器脚本路径（插件化）：默认走模型线 data_model/preparation/03_extract_features.py。
-# 外部提供自定义抽取器时用本变量覆盖，MUST 实现 extract_single_commit(repo_dir, commit_hash)
-# 并返回 {commit_hash, committed_at, feature_version, features{14 项}, vector}。
-FEATURE_EXTRACTOR_SCRIPT = os.getenv("FEATURE_EXTRACTOR_SCRIPT", "").strip()
-# change realtime-commit-sync：启动时后台预同步一次最新提交（默认关）。
-# 开启后启动会 fetch SOURCE_REPO 并可能建临时 worktree；失败只记日志，不阻塞启动。
-SYNC_ON_STARTUP = os.getenv("SYNC_ON_STARTUP", "") == "1"
-# 同步前是否 fetch 远端（=0 跳过，直接用本地 HEAD；离线/固定版本演示用）
-SYNC_FETCH = os.getenv("SYNC_FETCH", "1") != "0"
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
+GITEE_TOKEN = os.getenv("GITEE_TOKEN", "").strip()
+MODEL_DIR = Path(os.getenv("MODEL_DIR", "") or MODELS_DIR)
+SEMANTIC_EMBEDDINGS = os.getenv("SEMANTIC_EMBEDDINGS", "").strip()
+SEMANTIC_TEXT_MODEL = os.getenv("SEMANTIC_TEXT_MODEL", "").strip() or "microsoft/codebert-base"
+SEMANTIC_MAX_LEN = int(os.getenv("SEMANTIC_MAX_LEN", "512") or 512)
 
-# 风险一句话总结：OpenAI 兼容接口；三项缺一即回退模板句，不阻塞详情/预测
-LLM_BASE_URL = os.getenv("LLM_BASE_URL", "").rstrip("/")
-LLM_API_KEY = os.getenv("LLM_API_KEY", "")
-LLM_MODEL = os.getenv("LLM_MODEL", "")
-LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "5"))
-# 启动同步分级：首启（空库）取最新 N 条建基线；日常增量追到 HEAD 的安全上限
-SYNC_INITIAL_LIMIT = int(os.getenv("SYNC_INITIAL_LIMIT", "10"))
-SYNC_CATCHUP_LIMIT = int(os.getenv("SYNC_CATCHUP_LIMIT", "500"))
-# 手动「刷新」未给时间范围时的默认批次：取最新 N 条提交（docs/api/sync.md「内部默认批次」）
-SYNC_BATCH_LIMIT = int(os.getenv("SYNC_BATCH_LIMIT", "10"))
-
-# 契约二 §3 的 14 项特征列顺序：模型输入向量按此顺序组装，不按 dict 插入顺序猜
-FEATURE_COLUMNS = (
-    "ns",
-    "nd",
-    "nf",
-    "entropy",
-    "la",
-    "ld",
-    "lt",
-    "fix",
-    "ndev",
-    "age",
-    "nuc",
-    "exp",
-    "rexp",
-    "sexp",
-)
-
-# GitHub webhook（change ops-hardening）：已随 PR 能力下线，删除（docs/overview.md）。
-HIGH_RISK_THRESHOLD = float(os.getenv("HIGH_RISK_THRESHOLD", "0.5"))
-# 风险等级阈值：>= HIGH 为高；介于 MID~HIGH 之间为中；否则低（可配）
-MID_RISK_THRESHOLD = float(os.getenv("MID_RISK_THRESHOLD", "0.2"))
-
-# 模型性能图集：逐模型图集由模型线生成并拷贝到 backend/static/figures/；
-# 指标数值来自 data_model/evaluation/out/model_metrics.csv（后端只读，不跑脚本）。
-FIGURES_DIR = Path(__file__).resolve().parents[1] / "static" / "figures"
-MODEL_METRICS_CSV = REPO_ROOT / "data_model" / "evaluation" / "out" / "model_metrics.csv"
+SESSION_COOKIE = "jit_session"
+SESSION_TTL_DAYS = 7
+MAX_DATA_UPLOAD_BYTES = 100 * 1024 * 1024
+MAX_MODEL_UPLOAD_BYTES = 200 * 1024 * 1024
+MAX_PAGE_STATE_BYTES = 64 * 1024

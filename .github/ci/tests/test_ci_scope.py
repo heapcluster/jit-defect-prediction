@@ -4,7 +4,7 @@
 # [AI生成-人工修改]：7 条（AI 生成骨架，人工补充核心断言）
 # [手写]：0 条
 # 使用工具：原始生成记录未归档（标注依据代码特征判断，作者于 2026-11-17 确认）
-# 提示词见：docs/README.md
+# 提示词见：docs/index.md
 
 """Regression tests for the required CI job's path selection."""
 
@@ -22,8 +22,8 @@ from ci_scope import select_checks  # noqa: E402
 class CIScopeTests(unittest.TestCase):
     def test_docs_are_lightweight(self):
         for paths in (
-            ["docs/api/commits.md"],
-            ["docs/web_page/evaluate.md"],
+            ["docs/接口/predict.md"],
+            ["docs/界面/模型评估页.md"],
             ["openspec/changes/archive/old/.openspec.yaml"],
         ):
             with self.subTest(paths=paths):
@@ -31,13 +31,13 @@ class CIScopeTests(unittest.TestCase):
 
     def test_ignore_rule_change_checks_infra(self):
         self.assertEqual(
-            select_checks(["docs/web_page/evaluate.md", ".gitignore"]),
+            select_checks(["docs/界面/模型评估页.md", ".gitignore"]),
             {"backend": False, "frontend": False, "model": False, "infra": True},
         )
 
     def test_frontend_only_avoids_unrelated_backend_suite(self):
         self.assertEqual(
-            select_checks(["frontend/src/App.vue", "docs/web_page/risk_list.md"]),
+            select_checks(["frontend/src/App.vue", "docs/界面/模型预测页.md"]),
             {"backend": False, "frontend": True, "model": False, "infra": False},
         )
 

@@ -1,28 +1,13 @@
-import request, { SYNC_TIMEOUT, fetchBinary } from './request'
+import http from './http'
 
-export function runCollect(config, files = []) {
-  const form = new FormData()
-  for (const file of files) form.append('files[]', file, file.name)
-  form.append('config', JSON.stringify(config))
-  return request.post('/collect/run', form, { timeout: SYNC_TIMEOUT })
-}
+export const getBranches = (repoUrl) => http.get('/collect/branches', { params: { repo_url: repoUrl } })
 
-export function getCollectBranches(repoSource) {
-  return request.get('/collect/branches', { params: { repo_source: repoSource } })
-}
+export const precheck = (repoUrl, branch, mode = 'expert') =>
+  http.post('/collect/precheck', { repo_url: repoUrl, branch, mode })
 
-export function getCollectSourceColumns(sourceUrl) {
-  return request.post('/collect/source-columns', { source_url: sourceUrl })
-}
+export const run = (payload) => http.post('/collect/run', payload)
 
-export function resaveCollect(jobId) {
-  return request.post(`/collect/resave/${encodeURIComponent(jobId)}`)
-}
+export const getRows = (jobId, params) => http.get(`/collect/results/${jobId}/rows`, { params })
 
-export function getCollectPreview(jobId, params = {}) {
-  return request.get(`/collect/preview/${encodeURIComponent(jobId)}`, { params })
-}
-
-export function fetchCollectOutput(jobId, name) {
-  return fetchBinary(`/api/collect/outputs/${encodeURIComponent(jobId)}/${encodeURIComponent(name)}`)
-}
+export const exportResult = (jobId, params) =>
+  http.get(`/collect/results/${jobId}/export`, { params, responseType: 'blob' })

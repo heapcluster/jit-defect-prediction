@@ -1,332 +1,420 @@
-"""预测业务逻辑共享服务（供 predict / sync / prs 路由复用）。
-
-此前特征抽取、Commit/Feature 幂等入库、全模型/单模型打分的代码散落在
-`app.api.predict` 并被 `sync.py` / `prs.py` 直接调用，层次被破坏。
-本模块统一为唯一定义点；路由层只做 HTTP 入参校验与响应包络。
-"""
+"""模型预测：数据 / 模型加载、批量推理、结果与详情。"""
 
 from __future__ import annotations
 
-import logging
-from datetime import UTC, datetime
+import math
+import re
+from datetime import datetime
+from pathlib import Path
 
+import numpy as np
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 
-from app import config, feature_source, model_registry, semantic_source
-from app.db import SessionLocal
-from app.errors import INTERNAL_ERROR_MESSAGE, AppError
-from app.models import Commit, CommitFeature, Model, Prediction
-from app.services import config_store, risk_summary
-from app.timeutil import iso_z
-from app.validate import normalize_commit_hash
-
-logger = logging.getLogger("backend.predict.service")
-
-
-def resolve_model_name(model_name: str | None) -> str:
-    """确定本次打分使用的模型名：必须显式指定；未指定返回 40001（不设默认模型）。
-
-    显式指定的模型区分两档错误：已在交付清单（`model` 表）但无在线权重 → 明确提示
-    「仅离线评估」；完全不存在 → 「model_name 不存在」。
-    """
-    if not model_name:
-        raise AppError(40001, "参数非法：model_name 必填，不设默认模型")
-    if model_registry.has(model_name):
-        return model_name
-    with SessionLocal() as session:
-        delivered = session.execute(
-            select(Model.model_name).where(Model.model_name == model_name)
-        ).scalar_one_or_none()
-    if delivered is not None:
-        raise AppError(40001, "参数非法：该模型暂无在线权重，仅离线评估，无法在线预测")
-    raise AppError(40001, "参数非法：model_name 不存在")
+from app import config
+from app.constants import (
+    ALGO_BY_NAME,
+    EXPERT_FEATURES,
+    FEATURE_VERSION,
+    PREDICTION_EXTRA_COLUMNS,
+    PREDICTION_VIEW_COLUMNS,
+    PREDICT_ELIGIBLE_SOURCES,
+    SEMANTIC_FEATURES,
+)
+from app.errors import AppError
+from app.models import Dataset, Model, ModelArtifact, Prediction, User
+from app.services import artifacts, datasets, uploads
+from app.services.jobs import JobContext
+from app.services.validation import expected_columns, parse_time
+from app.utils import iso, loads, new_id, now
+from data_model import gitops, ml
 
 
-def _missing_message(commit: Commit | None) -> str:
-    """40400 文案按缺的是 commit 还是 feature 区分（契约三 message 逐字对齐）。"""
-    return "commit not found" if commit is None else "features not found for this commit"
+def _features(line: str) -> list[str]:
+    return EXPERT_FEATURES if line == "expert" else SEMANTIC_FEATURES
 
 
-def _extract_feature(
-    commit_hash: str, repo=None, missing_message: str = "commit not found"
-) -> dict:
-    """现算单条提交的 14 项特征；抽取失败按异常类型映射为 40400/50000。
-
-    `missing_message` 由调用方传入：git 里也找不到该提交时，文案需与「库里缺哪一半」保持一致。
-    """
+def _repo_available(dataset: Dataset) -> bool:
+    if not dataset.repo_url:
+        return False
     try:
-        return feature_source.extract(commit_hash, repo=repo)
-    except ValueError as exc:
-        raise AppError(40400, missing_message) from exc
-    except Exception as exc:
-        logger.exception("single-commit feature extraction failed")
-        raise AppError(50000, INTERNAL_ERROR_MESSAGE) from exc
+        info = gitops.parse_repo_url(dataset.repo_url)
+    except ValueError:
+        return False
+    return gitops.cache_dir(info).exists()
 
 
-def _upsert_commit_feature(
-    session, commit_hash: str, extracted: dict
-) -> tuple[Commit, CommitFeature]:
-    """幂等写入 commit 与 commit_feature 行；并发双插时回落为查库。
-
-    返回 (commit, feature) 元组。
-    """
-    committed_at = datetime.fromisoformat(extracted["committed_at"])
-    commit = session.execute(
-        select(Commit).where(Commit.commit_hash == commit_hash)
-    ).scalar_one_or_none()
-    feature = session.execute(
-        select(CommitFeature).where(CommitFeature.commit_hash == commit_hash)
-    ).scalar_one_or_none()
-
-    if commit is None:
-        commit = Commit(
-            commit_hash=commit_hash,
-            repo_name=extracted["repo_name"],
-            author_name=extracted["author_name"],
-            author_email=extracted["author_email"],
-            committed_at=committed_at,
-            message=extracted["message"],
-            parent_hash=extracted["parent_hash"] or None,
-        )
-        session.add(commit)
-    if feature is None:
-        feature = CommitFeature(
-            commit_hash=commit_hash,
-            feature_version=extracted["feature_version"],
-            **extracted["features"],
-        )
-        session.add(feature)
-
-    try:
-        session.flush()
-    except IntegrityError:
-        session.rollback()
-        commit = session.execute(
-            select(Commit).where(Commit.commit_hash == commit_hash)
-        ).scalar_one_or_none()
-        feature = session.execute(
-            select(CommitFeature).where(CommitFeature.commit_hash == commit_hash)
-        ).scalar_one_or_none()
-        if commit is None or feature is None:
-            raise AppError(50000, INTERNAL_ERROR_MESSAGE) from None
-
-    return commit, feature
-
-
-def store_extracted_features(items: list[dict]) -> int:
-    """把批量现算的 14 维特征落库（同步预取用），每条独立提交避免整批回滚。"""
-    stored = 0
-    for item in items:
-        commit_hash = item["commit_hash"]
-        try:
-            with SessionLocal() as session:
-                _upsert_commit_feature(session, commit_hash, item)
-                session.commit()
-            stored += 1
-        except Exception:  # noqa: BLE001 —— 单条失败不拖垮整批，逐条预测时还会重试
-            logger.exception("store extracted feature failed: %s", commit_hash)
-    return stored
-
-
-def _model_version(session, name: str) -> str:
-    row = session.get(Model, name)
-    if row is not None and row.version_key:
-        return row.version_key
-    return str(model_registry.version_key(name))
-
-
-def _write_predictions(
-    session,
-    commit_hash: str,
-    feature: CommitFeature,
-    scores: list[tuple[str, float]],
-    predicted_at: datetime,
-) -> None:
-    """把 [(model_name, risk_score)] 幂等写入 prediction 表（缺行则插，有行则更新）。"""
-    for name, risk in scores:
-        row = session.execute(
-            select(Prediction).where(
-                Prediction.commit_hash == commit_hash,
-                Prediction.model_name == name,
-            )
-        ).scalar_one_or_none()
-        if row is None:
-            row = Prediction(commit_hash=commit_hash, model_name=name)
-            session.add(row)
-        row.risk_score = risk
-        row.predicted_at = predicted_at
-        row.model_version = _model_version(session, name)
-        row.feature_version = feature.feature_version
-
-
-def _upsert_predictions(
-    session, commit_hash: str, feature: CommitFeature, model_names: list[str] | None = None
-) -> list[dict]:
-    """对指定模型逐模型打分并幂等写入 prediction 表（默认全部已加载模型）。
-
-    返回 [{model_name, risk_score}]。并发双插被联合主键挡住时回落为 update，
-    保证幂等成功而非 500 —— 回落只重跑写入，不重复推理（分数已算好）。
-    """
-    vector = [float(getattr(feature, name)) for name in config.FEATURE_COLUMNS]
-    predicted_at = datetime.now(UTC).replace(tzinfo=None)
-    entries = (
-        # 批量（sync）只对 expert 线打分：其它线的输入维度不同，需按线单独现算特征
-        [entry for entry in model_registry.all_models() if entry.line == "expert"]
-        if model_names is None
-        else [model_registry.get_model(name) for name in model_names]
-    )
-    scores = [(entry.name, model_registry.predict_proba(entry.model, vector)) for entry in entries]
-
-    try:
-        _write_predictions(session, commit_hash, feature, scores, predicted_at)
-        session.commit()
-    except IntegrityError:
-        session.rollback()
-        _write_predictions(session, commit_hash, feature, scores, predicted_at)
-        session.commit()
-
-    return [{"model_name": name, "risk_score": round(risk, 5)} for name, risk in scores]
-
-
-def predict_commit_all_models(
-    commit_hash: str, repo=None, model_names: list[str] | None = None
-) -> list[dict]:
-    """对单条提交现算特征并对指定模型打分（默认全部已加载模型），结果写入库。
-
-    `commit_hash` 允许大写，内部归一化为小写后查库。
-    `repo` 为 None 时取 `config.SOURCE_REPO`；批量同步可传入临时 worktree 路径。
-    """
-    commit_hash = normalize_commit_hash(commit_hash)
-
-    with SessionLocal() as session:
-        commit = session.execute(
-            select(Commit).where(Commit.commit_hash == commit_hash)
-        ).scalar_one_or_none()
-        feature = session.execute(
-            select(CommitFeature).where(CommitFeature.commit_hash == commit_hash)
-        ).scalar_one_or_none()
-
-        if commit is None or feature is None:
-            missing_message = _missing_message(commit)
-            if config.SOURCE_REPO is None:
-                raise AppError(40400, missing_message)
-            extracted = _extract_feature(commit_hash, repo=repo, missing_message=missing_message)
-            commit, feature = _upsert_commit_feature(session, commit_hash, extracted)
-
-        return _upsert_predictions(session, commit_hash, feature, model_names)
-
-
-def _vector_for_line(line: str, commit_hash: str, feature) -> list[float]:
-    """按模型线的输入口径组装特征向量：expert 14 / semantic 768。
-
-    semantic 用预计算语义 embedding（commit 不在表内 → 明确 40001，不编造）。
-    """
-    if line == "expert":
-        return [float(getattr(feature, name)) for name in config.FEATURE_COLUMNS]
-    embedding = semantic_source.embedding_for(commit_hash)
-    if embedding is None:
-        raise AppError(
-            40001,
-            f"参数非法：该提交语义向量不可用（缺预计算且无法在线补算），{line} 模型无法在线预测",
-        )
-    return embedding.tolist()
-
-
-def predict_single(commit_hash: str, model_name: str | None, repo=None,
-                   decision_threshold: float | None = None, force_recompute: bool = False) -> dict:
-    """对单条提交用指定模型打分。W6 增量：阈值/重算/stored/computed/stale 与新契约字段；
-    explanation/features/summary 暂留供详情页（W8 接 /api/explain 后移除）。"""
-    commit_hash = normalize_commit_hash(commit_hash)
-
-    with SessionLocal() as session:
-        commit = session.execute(
-            select(Commit).where(Commit.commit_hash == commit_hash)
-        ).scalar_one_or_none()
-        feature = session.execute(
-            select(CommitFeature).where(CommitFeature.commit_hash == commit_hash)
-        ).scalar_one_or_none()
-
-        if commit is None or feature is None:
-            missing_message = _missing_message(commit)
-            if config.SOURCE_REPO is None:
-                raise AppError(40400, missing_message)
-            extracted = _extract_feature(commit_hash, repo=repo, missing_message=missing_message)
-            commit, feature = _upsert_commit_feature(session, commit_hash, extracted)
-
-        model_name = resolve_model_name(model_name)
-        line = model_registry.line_of(model_name)
-        threshold = decision_threshold if decision_threshold is not None else config_store.get_value("decision_threshold", session)
-        feature_version = feature.feature_version
-        model_version = _model_version(session, model_name)
-        thresholds = {item["config_key"]: item["value"] for item in config_store.read_config(
-            session, ["risk_high_threshold", "risk_mid_threshold"])}
-
-        row = session.execute(
-            select(Prediction).where(
-                Prediction.commit_hash == commit_hash,
-                Prediction.model_name == model_name,
-            )
-        ).scalar_one_or_none()
-        stored = not force_recompute and row is not None
-        # 版本缺失（历史行）同样视为过期：无法证明与当前模型/特征同版本，不冒充新鲜。
-        stale = stored and (row.model_version != model_version or row.feature_version != feature_version)
-
-        try:
-            entry = model_registry.get_model(model_name)
-        except model_registry.ModelUnavailable as exc:
-            raise AppError(40001, f"参数非法：{exc}") from exc
-        vector = _vector_for_line(line, commit_hash, feature)
-        entry_name = entry.name
-
-        if stored:
-            risk = float(row.risk_score)
-            predicted_at = row.predicted_at
-            result_source = "stored"
-        else:
-            risk = model_registry.predict_proba(entry.model, vector)
-            predicted_at = datetime.now(UTC).replace(tzinfo=None)
-            result_source = "computed"
-            if row is None:
-                row = Prediction(commit_hash=commit_hash, model_name=model_name)
-                session.add(row)
-            row.risk_score = risk
-            row.predicted_at = predicted_at
-            row.model_version = model_version
-            row.feature_version = feature_version
-            session.commit()
-            predicted_at = row.predicted_at
-
-        risk_rounded = round(risk, 5)
-        risk_level = "high" if risk_rounded >= thresholds["risk_high_threshold"] else (
-            "mid" if risk_rounded >= thresholds["risk_mid_threshold"] else "low")
-        features = {
-            name: (int(getattr(feature, name)) if name == "fix" else float(getattr(feature, name)))
-            for name in config.FEATURE_COLUMNS
-        }
-        summary = risk_summary.summary_for(
-            commit_hash=commit_hash,
-            model_name=entry_name,
-            model_line=line,
-            risk_score=risk_rounded,
-            features=features,
-            explanation=[],
-            localization=None,
-            risk_thresholds=thresholds,
-        )
-
+def precheck(user: User, dataset_id: str, db) -> dict:
+    dataset = datasets.owned(db, user, dataset_id)
+    if dataset.source_type == "prediction":
+        raise AppError(40001, "预测结果数据集不能作为待预测数据")
+    if dataset.source_type not in PREDICT_ELIGIBLE_SOURCES:
+        raise AppError(40001, "该数据集来源不可用于预测")
+    page = datasets.member_page(db, dataset, 1, max(dataset.sample_count, 1))
+    rows = page["items"]
+    if not rows:
+        raise AppError(42201, "数据集为空")
+    line = dataset.line or "expert"
+    features = _features(line)
+    if any(any(name not in row for name in features) for row in rows):
+        raise AppError(42201, "数据集缺少特征列")
+    has_label = all("bug" in row for row in rows)
+    pos = sum(1 for row in rows if str(row.get("bug")) == "1") if has_label else None
+    neg = sum(1 for row in rows if str(row.get("bug")) == "0") if has_label else None
     return {
-        "commit_hash": commit_hash,
-        "model_name": entry_name,
-        "risk_score": risk_rounded,
-        "predicted_label": int(risk_rounded >= threshold),
-        "decision_threshold": threshold,
-        "risk_level": risk_level,
-        "model_version": model_version,
-        "feature_version": feature_version,
-        "result_source": result_source,
-        "stale": bool(stale),
-        "predicted_at": iso_z(predicted_at),
-        "features": features,
-        "summary": summary,
+        "line": line,
+        "has_label": has_label,
+        "sample_count": len(rows),
+        "pos": pos,
+        "neg": neg,
+        "repo_available": _repo_available(dataset),
     }
+
+
+def _load_source(user: User, source: dict, db) -> dict:
+    kind = source.get("kind")
+    if kind == "dataset":
+        dataset = datasets.owned(db, user, source.get("id", ""))
+        if dataset.source_type == "prediction":
+            raise AppError(40001, "预测结果数据集不能作为待预测数据")
+        page = datasets.member_page(db, dataset, 1, max(dataset.sample_count, 1))
+        columns = artifacts.read_json(artifacts.resolve(dataset.manifest_path))["columns"] if dataset.manifest_path else expected_columns(dataset.line)
+        has_bug = "bug" in columns
+        return {
+            "columns": columns,
+            "rows": page["items"],
+            "line": dataset.line,
+            "has_label": has_bug,
+            "parent_dataset_id": dataset.dataset_id,
+            "feature_version": dataset.feature_version or FEATURE_VERSION.get(dataset.line),
+            "repo": {
+                "repo_url": dataset.repo_url, "repo_name": dataset.repo_name, "platform": dataset.platform,
+                "branch": dataset.branch, "head_hash": dataset.head_hash,
+            },
+        }
+    if kind == "file":
+        meta, path = uploads.read_import(user.user_id, source.get("id", ""))
+        if meta.get("role") != "data":
+            raise AppError(40401, "导入文件不存在")
+        columns, rows = artifacts.read_table(path)
+        return {
+            "columns": columns, "rows": rows, "line": meta.get("line") or "expert",
+            "has_label": "bug" in columns, "parent_dataset_id": None,
+            "feature_version": FEATURE_VERSION.get(meta.get("line") or "expert"), "repo": {},
+        }
+    raise AppError(40001, "数据源类型非法")
+
+
+def _feature_count(model) -> int | None:
+    if isinstance(model, ml.TorchModel):
+        return model.input_dim
+    return getattr(model, "n_features_in_", None)
+
+
+def load_saved_model(db, user: User, model_name: str):
+    model = db.get(Model, model_name)
+    if model is None or model.owner_user_id != user.user_id:
+        raise AppError(40401, "模型不存在")
+    artifact = db.scalar(select(ModelArtifact).where(ModelArtifact.model_name == model_name))
+    if artifact is None:
+        raise AppError(40901, "模型文件缺失")
+    if artifact.status != "available":
+        raise AppError(40901, "模型文件缺失")
+    path = artifacts.resolve(artifact.weight_path)
+    if not path.is_file():
+        artifact.status = "missing"
+        db.commit()
+        raise AppError(40901, "模型文件缺失")
+    try:
+        loaded = ml.load_model(path)
+    except Exception as exc:  # noqa: BLE001
+        raise AppError(50301, f"模型加载失败：{exc}") from exc
+    return loaded, model, artifact
+
+
+def _load_uploaded_model(user: User, model_ref: str, line: str, db):
+    meta, path = uploads.read_model_import(user.user_id, model_ref)
+    try:
+        loaded = ml.load_model(path)
+    except Exception as exc:  # noqa: BLE001
+        raise AppError(42201, f"无法加载模型：{exc}") from exc
+    if isinstance(loaded, ml.TorchModel):
+        if loaded.line and loaded.line != line:
+            raise AppError(40001, "模型文件声明的模型线与请求不一致")
+        feature_version = loaded.feature_version
+        algo = loaded.algo
+        framework, fmt = "pytorch", "pt"
+    else:
+        feature_version = None
+        algo = None
+        framework, fmt = "sklearn", "pkl"
+    return loaded, feature_version, algo, framework, fmt
+
+
+def _validate_model_line(model, line: str) -> None:
+    if isinstance(model, ml.TorchModel) and model.line and model.line != line:
+        raise AppError(40001, "模型线与数据线不一致")
+
+
+def preflight(db, user: User, params: dict) -> int:
+    """启动前同步校验，返回待预测行数。"""
+    source = _load_source(user, params.get("source") or {}, db)
+    model_spec = params.get("model") or {}
+    if model_spec.get("kind") == "saved":
+        loaded, model_row, _ = load_saved_model(db, user, model_spec.get("name", ""))
+        model_line = model_row.line
+    elif model_spec.get("kind") == "uploaded":
+        line = model_spec.get("line") or source["line"]
+        loaded, _, _, _, _ = _load_uploaded_model(user, model_spec.get("model_ref", ""), line, db)
+        model_line = line
+    else:
+        raise AppError(40001, "模型类型非法")
+    if model_line and model_line != source["line"]:
+        raise AppError(40001, "模型线与数据线不一致")
+    expected_count = _feature_count(loaded)
+    if expected_count is not None and expected_count != len(_features(source["line"])):
+        raise AppError(42201, "模型特征数与数据列数不符")
+    try:
+        threshold = float(params.get("threshold", 0.5))
+    except (TypeError, ValueError):
+        raise AppError(40001, "阈值非法")
+    if not 0 <= threshold <= 1:
+        raise AppError(40001, "阈值必须位于 0–1")
+    if not source["rows"]:
+        raise AppError(40901, "待预测数据为空")
+    return len(source["rows"])
+
+
+def run_predict(ctx: JobContext) -> None:
+    from app.db import SessionLocal
+
+    params = ctx.params
+    with SessionLocal() as session:
+        user = session.get(User, ctx.user_id)
+        source = _load_source(user, params.get("source") or {}, session)
+        model_spec = params.get("model") or {}
+        if model_spec.get("kind") == "saved":
+            loaded, model_row, artifact = load_saved_model(session, user, model_spec.get("name", ""))
+            model_name = model_row.model_name
+            model_label = model_row.model_name
+            feature_version = model_row.feature_version or source["feature_version"]
+            model_line = model_row.line
+        elif model_spec.get("kind") == "uploaded":
+            line = model_spec.get("line") or source["line"]
+            loaded, feature_version, algo, framework, fmt = _load_uploaded_model(user, model_spec.get("model_ref", ""), line, session)
+            model_name = None
+            model_label = model_spec.get("label") or model_spec.get("name") or "imported-model"
+            model_line = line
+        else:
+            raise AppError(40001, "模型类型非法")
+    line = source["line"]
+    if model_line and model_line != line:
+        raise AppError(40001, "模型线与数据线不一致")
+    expected_count = _feature_count(loaded)
+    features = _features(line)
+    if expected_count is not None and expected_count != len(features):
+        raise AppError(42201, "模型特征数与数据列数不符")
+    try:
+        threshold = float(params.get("threshold", 0.5))
+    except (TypeError, ValueError):
+        raise AppError(40001, "阈值非法")
+    if not 0 <= threshold <= 1:
+        raise AppError(40001, "阈值必须位于 0–1")
+    rows = source["rows"]
+    if not rows:
+        raise AppError(40901, "待预测数据为空")
+    ctx.set_total(len(rows))
+    ctx.update(force=True)
+    X = np.array([[float(row.get(name, 0) or 0) for name in features] for row in rows], dtype=float)
+    try:
+        scores = ml.predict_scores(loaded, X)
+    except Exception as exc:  # noqa: BLE001
+        raise AppError(50301, f"模型推理失败：{exc}") from exc
+    output_rows = []
+    columns = list(source["columns"]) + PREDICTION_EXTRA_COLUMNS
+    step = max(1, len(rows) // 10)
+    for index, row in enumerate(rows):
+        score = float(scores[index])
+        item = {name: row.get(name, "") for name in source["columns"]}
+        item["risk_score"] = round(score, 5)
+        item["predicted_label"] = 1 if score >= threshold else 0
+        item["threshold"] = round(threshold, 3)
+        output_rows.append(item)
+        if (index + 1) % step == 0:
+            ctx.set_done(index + 1)
+    ctx.set_done(len(rows))
+    out_dir = artifacts.output_dir(ctx.user_id, ctx.job_id)
+    rows_path = out_dir / "predictions.csv"
+    artifacts.write_csv(rows_path, columns, output_rows)
+    manifest = {
+        "job_id": ctx.job_id, "kind": "predict", "user_id": ctx.user_id,
+        "created_at": iso(datetime.now()), "line": line, "columns": columns,
+        "row_count": len(output_rows),
+        "files": [{"name": "predictions.csv", "size": rows_path.stat().st_size, "sha256": artifacts.file_sha256(rows_path)}],
+        "repo": source["repo"],
+    }
+    artifacts.write_manifest(out_dir / "manifest.json", manifest)
+    pos = sum(1 for row in output_rows if row["predicted_label"] == 1)
+    ctx.set_output({
+        "rows_path": artifacts.rel(rows_path),
+        "manifest_path": artifacts.rel(out_dir / "manifest.json"),
+        "columns": columns,
+        "original_columns": source["columns"],
+        "has_label": source["has_label"],
+        "row_count": len(output_rows),
+        "line": line,
+        "threshold": threshold,
+        "model_name": model_name,
+        "model_label": model_label,
+        "feature_version": feature_version or source["feature_version"],
+        "parent_dataset_id": source["parent_dataset_id"],
+        "repo": source["repo"],
+        "summary": {"total": len(output_rows), "pos": pos, "neg": len(output_rows) - pos},
+        "manifest": manifest,
+    })
+
+
+def _find_saved_dataset(db, user: User, job_id: str) -> Dataset | None:    return db.scalar(
+        select(Dataset).where(
+            Dataset.owner_user_id == user.user_id,
+            Dataset.job_id == job_id,
+            Dataset.source_type == "prediction",
+        )
+    )
+
+
+def resolve_rows(db, user: User, job_id: str) -> tuple[list[str], list[dict], dict]:
+    from app.models import Job
+
+    job = db.get(Job, job_id)
+    if job is None or job.owner_user_id != user.user_id:
+        raise AppError(40401, "任务不存在")
+    ref = loads(job.output_ref_json, {}) or {}
+    if job.kind != "predict":
+        raise AppError(40001, "任务类型不是预测")
+    if ref.get("rows_path"):
+        try:
+            columns, rows = artifacts.read_table(artifacts.resolve(ref["rows_path"]))
+            return columns, rows, ref
+        except (FileNotFoundError, ValueError):
+            pass
+    dataset = _find_saved_dataset(db, user, job_id)
+    if dataset is None:
+        raise AppError(40901, "预测结果已失效")
+    columns, rows = datasets.export_rows(db, dataset)
+    ref = dict(ref)
+    ref.setdefault("line", dataset.line)
+    if "has_label" not in ref:
+        ref["has_label"] = any(str(row.get("bug", "")) in ("0", "1") for row in rows)
+    ref.setdefault("model_label", None)
+    ref.setdefault("model_name", None)
+    ref.setdefault("threshold", 0.5)
+    ref.setdefault("repo", {"repo_url": dataset.repo_url, "repo_name": dataset.repo_name})
+    ref["_dataset"] = dataset
+    return columns, rows, ref
+
+
+def public_row(row: dict) -> dict:
+    return {
+        "commit_hash": row.get("commit_id") or row.get("commit_hash") or "",
+        "commit_message": row.get("commit_message") or "",
+        "author_name": row.get("author_name") or "",
+        "commit_time": row.get("commit_time") or None,
+        "bug": int(row["bug"]) if str(row.get("bug", "")) in ("0", "1") else None,
+        "risk_score": float(row.get("risk_score", 0) or 0),
+        "predicted_label": int(float(row.get("predicted_label", 0) or 0)),
+    }
+
+
+def detail(db, user: User, job_id: str, commit_hash: str) -> dict:
+    columns, rows, ref = resolve_rows(db, user, job_id)
+    target = None
+    for row in rows:
+        if str(row.get("commit_id") or row.get("commit_hash") or "").lower() == commit_hash.lower():
+            target = row
+            break
+    if target is None:
+        raise AppError(40401, "提交不存在")
+    repo = ref.get("repo") or {}
+    repo_available = False
+    if repo.get("repo_url"):
+        try:
+            info = gitops.parse_repo_url(repo["repo_url"])
+            repo_available = gitops.cache_dir(info).exists()
+        except ValueError:
+            repo_available = False
+    model_label = ref.get("model_label") or ref.get("model_name")
+    if not model_label and ref.get("_dataset") is not None:
+        row = db.scalar(
+            select(Prediction).where(
+                Prediction.dataset_id == ref["_dataset"].dataset_id,
+                Prediction.commit_hash == commit_hash.lower(),
+            )
+        )
+        if row is not None:
+            model_label = row.model_label or row.model_name
+    return {
+        "commit_hash": (target.get("commit_id") or target.get("commit_hash") or "").lower(),
+        "commit_message": target.get("commit_message") or "",
+        "author_name": target.get("author_name") or "",
+        "commit_time": target.get("commit_time") or None,
+        "line": ref.get("line") or "expert",
+        "model": model_label,
+        "threshold": float(target.get("threshold", ref.get("threshold", 0.5)) or 0.5),
+        "risk_score": float(target.get("risk_score", 0) or 0),
+        "predicted_label": int(float(target.get("predicted_label", 0) or 0)),
+        "actual_label": int(target["bug"]) if str(target.get("bug", "")) in ("0", "1") else None,
+        "repo_available": repo_available,
+    }
+
+
+def feature_row(db, user: User, job_id: str, commit_hash: str, line: str) -> dict:
+    columns, rows, ref = resolve_rows(db, user, job_id)
+    for row in rows:
+        if str(row.get("commit_id") or row.get("commit_hash") or "").lower() == commit_hash.lower():
+            return row
+    raise AppError(40401, "提交不存在")
+
+
+def save_model(db, user: User, model_ref: str, name: str | None) -> str:
+    meta, path = uploads.read_model_import(user.user_id, model_ref)
+    try:
+        loaded = ml.load_model(path)
+    except Exception as exc:  # noqa: BLE001
+        raise AppError(42201, f"无法加载模型：{exc}") from exc
+    if isinstance(loaded, ml.TorchModel):
+        line = loaded.line or "expert"
+        algo = loaded.algo
+        feature_version = loaded.feature_version
+        framework, fmt = "pytorch", "pt"
+    else:
+        line = meta.get("line") or "expert"
+        algo = None
+        feature_version = FEATURE_VERSION.get(line)
+        framework, fmt = "sklearn", "pkl"
+    label = name or Path(meta.get("original_name") or "model").stem
+    normalized = re.sub(r"[^A-Za-z0-9\u4e00-\u9fa5_-]+", "-", label).strip("-")[:40] or "model"
+    model_name = f"{line}-{normalized}-{model_ref[-8:]}"
+    existing = db.get(Model, model_name)
+    if existing is not None:
+        if existing.owner_user_id != user.user_id:
+            raise AppError(40901, "模型名称冲突")
+        return model_name
+    target_dir = artifacts.model_dir(user.user_id, model_name)
+    target = target_dir / f"{model_name}.{fmt}"
+    artifacts.copy_asset(path, target)
+    model = Model(
+        model_name=model_name, owner_user_id=user.user_id, line=line, algo=algo,
+        version_key=model_ref, trained_at=None, feature_version=feature_version,
+        train_dataset_id=None, test_dataset_id=None, params_json=None, metrics_json=None,
+    )
+    artifact = ModelArtifact(
+        artifact_id=new_id("artifact"), model_name=model_name, line=line, algo=algo,
+        framework=framework, format=fmt, version_key=model_ref,
+        weight_path=artifacts.rel(target), checksum_sha256=artifacts.file_sha256(target),
+        size_bytes=target.stat().st_size, feature_version=feature_version,
+        train_job_id=None, status="available", trained_at=None, created_at=now(),
+    )
+    db.add(model)
+    db.add(artifact)
+    db.commit()
+    return model_name

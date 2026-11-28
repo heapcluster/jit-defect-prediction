@@ -1,17 +1,9 @@
-import request, { SYNC_TIMEOUT, storageOptions } from './request'
+import http from './http'
 
-export function getDatasets(params) {
-  return request.get('/datasets', { ...storageOptions, params })
-}
+export const listDatasets = (params) => http.get('/datasets', { params })
 
-export function getDatasetCommits(id, params) {
-  return request.get(`/datasets/${encodeURIComponent(id)}/commits`, { ...storageOptions, params })
-}
+export const getDataset = (id, params) => http.get(`/datasets/${id}`, { params })
 
-export function exportDataset(id, params = {}) {
-  return request.get(`/datasets/${encodeURIComponent(id)}/export`, { ...storageOptions, params, timeout: SYNC_TIMEOUT })
-}
+export const saveDataset = (jobId, name) => http.post('/datasets', { job_id: jobId, name })
 
-export function deleteDataset(id) {
-  return request.delete(`/datasets/${encodeURIComponent(id)}`)
-}
+export const deleteDataset = (id) => http.delete(`/datasets/${id}`)

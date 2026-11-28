@@ -1,3 +1,0 @@
-commit_hash,repo_name,repo_url,author_name,author_email,committed_at,message,parent_hash,is_bug_inducing,label_method,label_source,labeled_at,fix_commit_hash,source_type
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,fixture,https://example.org/repo.git,AI unreviewed author,,2026-11-20T09:00:00Z,AI-generated unreviewed normal sample,,1,szz_v1,git_szz,2026-11-21T12:00:00Z,,git_repo
-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,fixture,https://example.org/repo.git,AI unreviewed author,,2026-11-21T09:00:00Z,AI-generated unreviewed empty label sample,,,szz_v1,git_szz,,,git_repo
